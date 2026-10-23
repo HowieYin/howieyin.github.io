@@ -2,20 +2,20 @@
 
 Personal website: **[https://howieyin.github.io/](https://howieyin.github.io/)**
 
-A responsive personal homepage with warm paper tones, editorial typography and
-olive accents. About, Projects and Notes are intentionally left open for future
-content.
+A minimal personal homepage with a dark background, sans-serif typography,
+monospace details and muted blue links. About, Projects and Notes are
+intentionally left empty for future content.
 
 ## Editing
 
 - `index.html`: headings and page content. The empty sections have comments showing
   where to add an introduction, projects and notes.
-- `styles.css`: layout, colors, responsive styles and motion.
+- `styles.css`: layout, colors and responsive styles.
 - `assets/`: locally served fonts and favicon. No external services are needed at
   runtime.
 
-The fonts are [Instrument Serif](https://github.com/google/fonts/tree/main/ofl/instrumentserif)
-and [DM Sans](https://github.com/google/fonts/tree/main/ofl/dmsans), licensed under
+The fonts are [DM Sans](https://github.com/google/fonts/tree/main/ofl/dmsans)
+and [IBM Plex Mono](https://github.com/google/fonts/tree/main/ofl/ibmplexmono), licensed under
 the SIL Open Font License; their licenses are included in `assets/`.
 
 ## Preview and deployment
