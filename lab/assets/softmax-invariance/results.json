@@ -1,0 +1,109 @@
+{
+  "environment": {
+    "python": "3.12.2",
+    "numpy": "2.4.6",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "hardware_scope": "CPU only; no LLM or GPU benchmark"
+  },
+  "reference": [
+    0.25427521259046565,
+    0.3264958357998367,
+    0.4192289516096977
+  ],
+  "shifts": [
+    {
+      "offset": 0,
+      "rounded_logits": [
+        0.0,
+        0.25,
+        0.5
+      ],
+      "probabilities": [
+        0.25427521259046565,
+        0.3264958357998367,
+        0.4192289516096977
+      ],
+      "maximum_probability_error": 0.0,
+      "argmax": 2,
+      "center_before_cast_error": 0.0,
+      "float64_shift_error": 0.0
+    },
+    {
+      "offset": 256,
+      "rounded_logits": [
+        256.0,
+        256.25,
+        256.5
+      ],
+      "probabilities": [
+        0.25427521259046565,
+        0.3264958357998367,
+        0.4192289516096977
+      ],
+      "maximum_probability_error": 0.0,
+      "argmax": 2,
+      "center_before_cast_error": 0.0,
+      "float64_shift_error": 0.0
+    },
+    {
+      "offset": 512,
+      "rounded_logits": [
+        512.0,
+        512.0,
+        512.5
+      ],
+      "probabilities": [
+        0.274068619061197,
+        0.274068619061197,
+        0.45186276187760605
+      ],
+      "maximum_probability_error": 0.052427216738639704,
+      "argmax": 2,
+      "center_before_cast_error": 0.0,
+      "float64_shift_error": 0.0
+    },
+    {
+      "offset": 1024,
+      "rounded_logits": [
+        1024.0,
+        1024.0,
+        1024.0
+      ],
+      "probabilities": [
+        0.3333333333333333,
+        0.3333333333333333,
+        0.3333333333333333
+      ],
+      "maximum_probability_error": 0.08589561827636438,
+      "argmax": 0,
+      "center_before_cast_error": 0.0,
+      "float64_shift_error": 0.0
+    }
+  ],
+  "non_associativity": {
+    "(2048+1)+1": 2048.0,
+    "2048+(1+1)": 2050.0
+  },
+  "online_checks": [
+    {
+      "length": 3,
+      "online_error": 0.0,
+      "merge_error": 0.0
+    },
+    {
+      "length": 17,
+      "online_error": 1.1102230246251565e-16,
+      "merge_error": 0.0
+    },
+    {
+      "length": 257,
+      "online_error": 0.0,
+      "merge_error": 0.0
+    },
+    {
+      "length": 1024,
+      "online_error": 2.7755575615628914e-16,
+      "merge_error": 5.551115123125783e-17
+    }
+  ]
+}

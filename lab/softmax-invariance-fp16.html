@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="theme-color" content="#0c1016">
+<meta name="description" content="一个反直觉实验：同加一个常数，为什么FP16的Softmax会变？">
+<title>一个反直觉实验：同加一个常数，为什么FP16的Softmax会变？ — Howie Yin</title>
+<link rel="canonical" href="https://howieyin.github.io/lab/softmax-invariance-fp16.html">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../styles.css?v=3"><style>
+.report { padding: 48px 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.report h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.6px; line-height: 1.4; margin-bottom: 28px; }
+.report h2 { margin: 52px 0 20px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; }
+.report h3 { font-size: 20px; margin: 28px 0 14px; }
+.report p, .report li { color: var(--secondary); }
+.report strong { color: var(--text); }
+.report a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.report li { margin: 9px 0; }
+.report code { font-family: var(--mono); font-size: .85em; }
+.report pre { overflow-x: auto; padding: 20px; background: #111720; border: 1px solid var(--line); border-radius: 8px; }
+.report img { display: block; max-width: 100%; height: auto; background: white; padding: 16px; border-radius: 6px; margin: 24px auto; width: 680px; }
+.report .table-scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 6px; }
+.report table { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 14px; }
+.report th, .report td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.report th { color: var(--text); background: #111720; }
+.report td { color: var(--secondary); }
+.report .toc { padding: 24px; border: 1px solid var(--line); border-radius: 8px; margin: 32px 0; }
+.report .toc ul { padding-left: 22px; }
+@media(max-width:640px) { .report { font-size: 15px; padding: 32px 0; } .report h2 { font-size: 22px; } .report img { padding: 8px; } }
+
+.formula { padding: 20px; margin: 24px 0; background: #111720; border-left: 3px solid var(--accent); font-family: var(--mono); font-size: 14px; overflow-x: auto; }
+.diagram { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:24px 0; padding:20px; border:1px solid var(--line); border-radius:8px; }
+.diagram div { flex:1 1 160px; padding:14px; background:#111720; border:1px solid var(--line); border-radius:6px; }
+.diagram span:not(.diagram-arrow) { display:block; color:var(--secondary); font-size:13px; margin-top:8px; }
+</style></head>
+<body><a class="skip-link" href="#main">Skip to content</a><div class="page">
+<header class="site-header"><a class="wordmark" href="../" aria-label="Howie Yin, home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../weekly/">Weekly</a><a href="../foundations/" >Foundations</a><a href="../lab/" aria-current="page">Lab</a><a href="../#about">About</a></nav></header>
+<main id="main" class="report"><p class="eyebrow">LAB / FLOATING-POINT EXPERIMENT</p><details class="toc"><summary>Contents / 目录</summary><ul><li><a href="#1">1｜直觉预期：数学上这个操作应该什么都不改变</a></li><li><a href="#2">2｜实验设置：故意把误差位置隔离出来</a></li><li><a href="#31024">3｜本地实测：1024让三个数“变成同一个数”</a></li><li><a href="#4">4｜为什么会这样：越大不等于越精细</a></li><li><a href="#5">5｜第二个小实验：只有三个正数，括号也能影响结果</a></li><li><a href="#6">6｜可以自己玩：无模型、无网络依赖的重现实验</a></li><li><a href="#7trick">7｜反例与边界：这个Trick什么时候不成立？</a></li><li><a href="#8llm">8｜对实际LLM工程有什么用？</a></li><li><a href="#9">9｜自己的判断与真正该记住的结论</a></li><li><a href="#_1">来源</a></li></ul></details><article><h1 id="fp16softmax">一个反直觉实验：同加一个常数，为什么FP16的Softmax会变？</h1>
+<p><strong>结论：Softmax在实数中对共同平移不变，但“先平移、再转FP16”可能抹掉Logit之间的差。后面即使用float64算稳定Softmax，也无法恢复已经丢失的区分。</strong></p>
+<p>类型：趣味实验 / 数值工程。发布与实验：2026-10-26。本篇只运行NumPy CPU玩具实验，<strong>没有调用LLM，没有测GPU性能，没有证明某个模型必然答错</strong>。研究支持来自浮点标准与官方数值文档，而不是把本实验包装成模型论文。</p>
+<h2 id="1">1｜直觉预期：数学上这个操作应该什么都不改变</h2>
+<p>三个候选答案Logits为<code>[0,0.25,0.5]</code>。Stable Softmax约为：</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>候选索引</th>
+<th style="text-align: right;">0</th>
+<th style="text-align: right;">1</th>
+<th style="text-align: right;">2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>概率</td>
+<td style="text-align: right;">0.254275</td>
+<td style="text-align: right;">0.326496</td>
+<td style="text-align: right;"><strong>0.419229</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>所有Logits同加c，分子分母同时乘exp(c)，所以概率不变。理论上同加256、512、1024都一样。[1]</p>
+<p><strong>实验问题：</strong> 如果加完常数后转成FP16呢？这里<code>c</code>是对已有数字的统一平移，<strong>不是给Prompt添加一句话</strong>；修改Prompt会改变模型计算，不能类比为所有Logit同加常数。</p>
+<h2 id="2">2｜实验设置：故意把误差位置隔离出来</h2>
+<p>本机环境：macOS27.0.1 arm64、Python3.12.2、NumPy2.4.6；CPU，无随机模型权重、无GPU、无API费用。</p>
+<p>实验链路：</p>
+<ol>
+<li>在float64中建立精确可表示的<code>[0,0.25,0.5]</code>。</li>
+<li>同加c，<strong>转一次float16</strong>，再转回float64。</li>
+<li>后续指数和归一化全部在float64中进行，避免把Half指数误差混进来。</li>
+<li>对照组：全float64；另一个对照：先减行最大值，再转float16。</li>
+</ol>
+<p>这不是原生全FP16 Softmax实现，而是<strong>Half输入表示对结果的影响实验</strong>。故意用高精度后处理，是为了说明丢失发生在转换时。</p>
+<h2 id="31024">3｜本地实测：1024让三个数“变成同一个数”</h2>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th style="text-align: right;">c</th>
+<th>FP16舍入后，再转float64的Logits</th>
+<th>概率p₀ / p₁ / p₂</th>
+<th style="text-align: right;">最大概率误差</th>
+<th style="text-align: right;">NumPy argmax</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>[0,0.25,0.5]</td>
+<td>.254275 / .326496 / .419229</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr>
+<td style="text-align: right;">256</td>
+<td>[256,256.25,256.5]</td>
+<td>同上</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr>
+<td style="text-align: right;">512</td>
+<td>[512,512,512.5]</td>
+<td>.274069 / .274069 / .451863</td>
+<td style="text-align: right;">.052427</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr>
+<td style="text-align: right;">1024</td>
+<td>[1024,1024,1024]</td>
+<td>.333333 / .333333 / .333333</td>
+<td style="text-align: right;">.085896</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table></div>
+<p>最后的“答案变了”是<strong>玩具候选argmax变为Tie，NumPy选第一个最大位置</strong>。不是证实真实模型会固定选错某个词。更准确的现象是：原本明确的Preference消失，Tie-breaking决定输出。</p>
+<p><strong>两个对照均通过：</strong> 对本组输入，float64全程平移误差为0；先居中再转FP16误差也为0。后者结果恰好精确，是因为本例居中值<code>[−0.5,−0.25,0]</code>均能精确表示；不保证任意随机输入为零。</p>
+<h2 id="4">4｜为什么会这样：越大不等于越精细</h2>
+<p>IEEE binary16有10个显式Fraction Bit，加上正常数隐藏首位，有11个有效二进制位。对于正正常数区间<code>[2ᵉ,2ᵉ⁺¹)</code>，相邻可表示值的间隔为：</p>
+<div class="formula" role="math">ULP = 2^(e − 10)</div>
+<p>在256附近e=8，ULP=0.25；在512附近ULP=0.5；在1024附近ULP=1。0.25、0.5的差逐渐不够分辨：</p>
+<ul>
+<li><code>512.25</code>在512和512.5之间，舍入到最近偶数策略选512。</li>
+<li><code>1024.25</code>更靠近1024。</li>
+<li><code>1024.5</code>是1024与1025的中点，本实验舍入到1024。</li>
+</ul>
+<p>这样输入进入Softmax时已经全相同。稳定Softmax再减最大值会得到<code>[0,0,0]</code>；它能避免exp溢出，<strong>不能重建原始Logit差值</strong>。[2]</p>
+<div aria-label="Precision loss location" class="diagram">
+<div><strong>原始差值</strong><span>0 / .25 / .5</span></div><span class="diagram-arrow">→</span>
+<div><strong>＋1024后转Half</strong><span>1024 / 1024 / 1024</span></div><span class="diagram-arrow">→</span>
+<div><strong>高精度也救不回</strong><span>概率全为1/3</span></div>
+</div>
+<p><em>教学示意：信息丢失发生在Half转换，不是最后的指数运算。</em></p>
+<h2 id="5">5｜第二个小实验：只有三个正数，括号也能影响结果</h2>
+<p>每一步加法结果都显式舍入到float16：</p>
+<div class="formula" role="math">(2048 + 1) + 1 = 2048<br/>2048 + (1 + 1) = 2050</div>
+<p>2048附近ULP=2，2048＋1处于中点，Round-to-even回到2048；再加1又回到2048。另一边先把1＋1=2精确算出，再加2048得到可表示的2050。</p>
+<p>这不是负数抵消、NaN或随机性。<strong>纯正数有限精度加法也不结合。</strong> GPU Reduction Tree、Tile形状、Batch、Split-K与All-reduce顺序变化都有可能改变舍入，但是否足以影响模型决策，需要真正的模型实验，而不能由这三个数直接推出。[2][3]</p>
+<h2 id="6">6｜可以自己玩：无模型、无网络依赖的重现实验</h2>
+<p>下载<a href="assets/softmax-invariance/experiment.py">完整Python脚本</a>与<a href="assets/softmax-invariance/results.json">本次测量JSON</a>。脚本还检验Online Softmax和两个Block合并的正确性，不计时GPU。</p>
+<p>依赖为NumPy。使用已有Python环境；想固定本次版本时，可在独立虚拟环境安装<code>numpy==2.4.6</code>。运行：</p>
+<pre><code class="language-bash">python experiment.py
+</code></pre>
+<p>核心操作如下；完整脚本没有省略断言：</p>
+<pre><code class="language-python">import numpy as np
+
+logits = np.array([0.0, 0.25, 0.5], dtype=np.float64)
+rounded = (logits + 1024).astype(np.float16).astype(np.float64)
+exponentials = np.exp(rounded - rounded.max())
+probabilities = exponentials / exponentials.sum()
+print(rounded, probabilities)
+</code></pre>
+<p><strong>三种安全延伸：</strong></p>
+<ol>
+<li>将差值改成1、2、4，观察多大Offset才抹去；先预测ULP再运行。</li>
+<li>尝试随机Logits，统计平移前后Max Probability Error与Top-1 Margin变化；即使argmax不变，分布也可能变。</li>
+<li>用float32重复，比较它更大的有效精度如何推迟而非消除问题。</li>
+</ol>
+<p>这里不建议无理由提高整个真实推理流水线精度；应先定位信息在哪一层丢失，用最小范围修复。</p>
+<h2 id="7trick">7｜反例与边界：这个Trick什么时候不成立？</h2>
+<ul>
+<li>Offset小、差值能表示：如256的本组数据，结果不变。</li>
+<li>在转低精度前居中：本例差值保留；但许多模型里大Logit已经由低精度算出，不能倒流恢复。</li>
+<li>Kernel内部使用FP32累加/Softmax：可减少运算误差，但不能消除低精度输入原本的量化误差。</li>
+<li>真实LM greedy输出常直接对Logits argmax，不需要Softmax。本实验同样说明输入Tie变化，但不能归因于Softmax采样。</li>
+<li>差值够大的Top-1未必变化；Near-tie敏感并不等于所有请求敏感。</li>
+<li>用BF16时ULP不同：BF16有效精度低于FP16但指数范围更大，不能照搬本表阈值。</li>
+<li>Deterministic模式控制执行选择/随机性，不等于提高浮点精度，也不保证不同Batch/后端Bitwise相等。</li>
+</ul>
+<p>PyTorch官方明确说明数学等价计算、Batch与Slice、不同后端不保证逐位一致；其SDPA Math路径可能把FP16/BF16输入升为FP32再算，具体行为要看版本和Backend，而非把所有FP16模型称为“全Half加法”。[3]</p>
+<h2 id="8llm">8｜对实际LLM工程有什么用？</h2>
+<p><strong>不是Prompt魔法，是排查框架。</strong> 当不同Batch/Kernel让输出变化，先区分：</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>层次</th>
+<th>应检查</th>
+<th>本实验覆盖了吗？</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入表示</td>
+<td>转换/量化是否抹掉差值</td>
+<td>是，受控Half Cast</td>
+</tr>
+<tr>
+<td>算术执行</td>
+<td>累加精度、Reduction Order、FMA</td>
+<td>仅三个Half加法例子</td>
+</tr>
+<tr>
+<td>模型传播</td>
+<td>误差经层数放大/抵消</td>
+<td>没有跑模型</td>
+</tr>
+<tr>
+<td>解码</td>
+<td>Top-1 Margin、Tie-break、Sampling</td>
+<td>只展示NumPy argmax Tie</td>
+</tr>
+<tr>
+<td>系统评测</td>
+<td>Seed、Batch、硬件、Runtime、Harness</td>
+<td>提供方法，未得LLM Benchmark</td>
+</tr>
+</tbody>
+</table></div>
+<p>具体可以记录每层误差、最终Top-1/Top-2间隔与有限值；固定模型、Prompt、Tokenizer、dtype、Backend与Batch做A/B。如果要声称某个改动导致模型准确率下降，需要足够任务样本、固定条件和对照，不是一条输出Screenshot。</p>
+<p>与<a href="../foundations/online-softmax.html">Online Softmax机制文章</a>一起看，会得到同一个边界：<strong>数学Exact、数值稳定、Bitwise确定性、任务正确性是四件不同的事。</strong></p>
+<h2 id="9">9｜自己的判断与真正该记住的结论</h2>
+<p>有趣之处在于：一个在代数中完全无害的变换，经过“表示”这一层就不再等价。数值问题经常不在最后看起来最复杂的Softmax，而在此前一次看似普通的Cast或分块归约。</p>
+<p>不要把实验当成“LLM不可靠”的泛化证明；把它当成Kernel/Quantization/Benchmark工作的直觉训练。最值得记住的是：<strong>高精度后处理无法恢复已经丢掉的输入信息；稳定算法也无法自动修复表示误差。</strong></p>
+<h2 id="_1">来源</h2>
+<ol>
+<li><a href="https://ar5iv.labs.arxiv.org/html/1805.02867">Online normalizer calculation for softmax，原文</a>：标准Softmax和平移稳定形式；本文不是该论文的GPU性能重现。</li>
+<li><a href="https://docs.nvidia.com/cuda/floating-point/index.html">NVIDIA Floating Point and IEEE 754</a>：有限表示、舍入与非结合性。</li>
+<li><a href="https://docs.pytorch.org/docs/2.13/notes/numerical_accuracy.html">PyTorch Numerical Accuracy</a>：Batch/后端/SDPA与精度边界。</li>
+<li>本地实验：<a href="assets/softmax-invariance/experiment.py">Python脚本</a>、<a href="assets/softmax-invariance/results.json">原始结果JSON</a>，2026-10-26，CPU NumPy；这是本篇自有证据，不是社区传闻或LLM论文实测。</li>
+</ol></article></main>
+<footer class="site-footer"><span>© 2026 Howie Yin</span><div class="footer-links"><a href="./">Back to archive ←</a><a href="../">Home ←</a></div></footer>
+</div></body></html>
