@@ -4,7 +4,8 @@ Personal website: **[https://howieyin.github.io/](https://howieyin.github.io/)**
 
 A minimal personal homepage with a dark background, sans-serif typography,
 monospace details and muted blue links. All navigation and interface copy is in
-English, except for the user-requested **Paper 精读** column label.
+English. Column labels and navigation must remain in English; article titles
+and bodies may use the language appropriate to their content.
 
 ## Columns
 
@@ -14,7 +15,7 @@ English, except for the user-requested **Paper 精读** column label.
   the evolution of ideas and research surveys.
 - **AI Lab** (`lab/`): practical tricks, reproducible experiments,
   counterintuitive findings and myth testing.
-- **Paper 精读** (`papers/`): a personal archive of papers read, with original
+- **Paper Readings** (`papers/`): a personal archive of papers read, with original
   sources, reading dates, methods, experiments, limitations and personal insights.
   Do not automatically count news coverage or knowledge articles as completed
   paper readings. Each reading should have its own page and archive entry.
