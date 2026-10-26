@@ -1,0 +1,8 @@
+flowchart TD
+    RoFormer["RoFormer: relative phase"] --> MRoPE["M-RoPE: t / h / w"]
+    MRoPE --> VideoRoPE["VideoRoPE: low-frequency time + adjustable stride"]
+    MRoPE --> VRoPE["VRoPE: four corners + centered frame intervals"]
+    MRoPE --> AbsoluteTime["Qwen2.5-VL: absolute-time IDs"]
+    VideoRoPE --> HoPE["HoPE: hybrid zero frequencies + dynamic scaling"]
+    MRoPE --> FullSpectrum["Interleaved M-RoPE / MRoPE-I / MHRoPE"]
+    AbsoluteTime --> Timestamps["Qwen3-VL: textual timestamps"]

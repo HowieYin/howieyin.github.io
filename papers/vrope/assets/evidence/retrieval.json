@@ -1,0 +1,50 @@
+[
+  {
+    "slug": "roformer",
+    "url": "https://arxiv.org/html/2104.09864",
+    "title": "RoFormer: Enhanced Transformer with Rotary Position Embedding",
+    "status": "retrieved"
+  },
+  {
+    "slug": "qwen2-vl",
+    "url": "https://arxiv.org/html/2409.12191",
+    "title": "Qwen2-VL: Enhancing Vision-Language Model’s Perception of the World at Any Resolution",
+    "status": "retrieved"
+  },
+  {
+    "slug": "qwen2.5-vl",
+    "url": "https://arxiv.org/html/2502.13923",
+    "title": "Qwen2.5-VL Technical Report",
+    "status": "retrieved"
+  },
+  {
+    "slug": "videorope",
+    "url": "https://arxiv.org/html/2502.05173",
+    "title": "VideoRoPE: What Makes for Good Video Rotary Position Embedding?",
+    "status": "retrieved"
+  },
+  {
+    "slug": "hope",
+    "url": "https://arxiv.org/html/2505.20444",
+    "title": "HoPE: Hybrid of Position Embedding for Long Context Vision-Language Models",
+    "status": "retrieved"
+  },
+  {
+    "slug": "multimodal-ropes",
+    "url": "https://arxiv.org/html/2510.23095",
+    "title": "Revisiting Multimodal Positional Encoding in Vision–Language Models",
+    "status": "retrieved"
+  },
+  {
+    "slug": "qwen3-vl",
+    "url": "https://arxiv.org/html/2511.21631",
+    "title": "Qwen3-VL Technical Report",
+    "status": "retrieved"
+  },
+  {
+    "slug": "qwen3-vl-blog",
+    "url": "https://qwen.ai/blog?id=99f0335c4ad9ff6153e517418d48535ab6d8afef",
+    "title": "Qwen",
+    "status": "retrieved"
+  }
+]
