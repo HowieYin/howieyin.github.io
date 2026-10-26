@@ -125,6 +125,63 @@ h1 {
 .profile-link:hover { color: #c5d7ff; }
 .profile-link:hover .arrow { color: #c5d7ff; }
 
+.explore-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 48px;
+}
+.explore-card {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background: #111720;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.explore-card:hover { border-color: #526b94; color: var(--text); }
+.card-kicker {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.7px;
+}
+.explore-card h2 { margin-top: 20px; font-size: 20px; }
+.explore-card h2 span { float: right; color: var(--accent); }
+.explore-card p { margin: 12px 0 24px; color: var(--secondary); font-size: 13px; }
+.card-link { margin-top: auto; color: var(--accent); font-size: 11px; }
+.section-description { margin: 0; color: var(--secondary); font-size: 14px; }
+.topic-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 20px 0;
+  list-style: none;
+}
+.topic-list li {
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--secondary);
+  font-size: 11px;
+}
+.publication-status { margin: 18px 0 0; color: var(--muted); font-size: 12px; }
+.column-profile { padding-bottom: 44px; }
+.column-profile h1 { font-size: clamp(36px, 5.2vw, 52px); }
+.column-intro { max-width: 650px; }
+.archive-empty {
+  padding: 30px;
+  margin-bottom: 44px;
+  border: 1px dashed #3a4555;
+  border-radius: 8px;
+}
+.archive-empty h2 { margin: 8px 0 12px; }
+.archive-empty p { max-width: 590px; color: var(--secondary); font-size: 14px; }
+.reading-path { margin: 16px 0 0; padding-left: 20px; color: var(--secondary); font-size: 14px; }
+.reading-path li { padding: 5px 0; }
+.reading-path strong { color: var(--text); font-weight: 500; }
+
 .content-section {
   display: grid;
   grid-template-columns: 220px 1fr;
@@ -168,15 +225,20 @@ h2 { margin: 0; font-size: 19px; font-weight: 500; line-height: 1.5; letter-spac
 
 @media (max-width: 640px) {
   .page { width: calc(100% - 48px); }
-  .site-header { height: 82px; gap: 16px; }
+  .site-header { min-height: 100px; height: auto; gap: 12px; padding: 20px 0; flex-wrap: wrap; }
   .wordmark { font-size: 12px; gap: 8px; }
-  .site-header nav { gap: 19px; }
+  .site-header nav { gap: 19px; flex-wrap: wrap; }
   .site-header nav a { font-size: 12px; }
   .profile { padding: 52px 0 47px; }
   h1 { font-size: 42px; letter-spacing: -1.6px; }
   .eyebrow { font-size: 9px; margin-bottom: 16px; }
   .profile-description { margin-top: 17px; margin-bottom: 21px; font-size: 13px; }
   .profile-link { font-size: 11px; gap: 8px; }
+  .explore-grid { grid-template-columns: 1fr; gap: 12px; margin-bottom: 32px; }
+  .explore-card { padding: 22px; }
+  .explore-card h2 { margin-top: 12px; }
+  .explore-card p { margin-bottom: 16px; }
+  .archive-empty { padding: 22px; }
   .content-section { grid-template-columns: 1fr; gap: 22px; padding: 30px 0 33px; min-height: 168px; }
   .section-heading { gap: 18px; }
   .section-label { margin-top: 3px; }

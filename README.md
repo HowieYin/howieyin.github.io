@@ -3,16 +3,36 @@
 Personal website: **[https://howieyin.github.io/](https://howieyin.github.io/)**
 
 A minimal personal homepage with a dark background, sans-serif typography,
-monospace details and muted blue links. About, Projects and Notes are
-intentionally left empty for future content.
+monospace details and muted blue links. All navigation and interface copy is in
+English.
+
+## Columns
+
+- **AI Weekly** (`weekly/`): AI industry reports covering models, research,
+  hardware, infrastructure, agents, products and open source.
+- **AI Foundations** (`foundations/`): fundamentals, technical deep dives,
+  the evolution of ideas and research surveys.
+- **AI Lab** (`lab/`): practical tricks, reproducible experiments,
+  counterintuitive findings and myth testing.
+
+Each column has a homepage section and a standalone archive page. The archives
+are explicitly empty until real articles are published; topic descriptions are
+editorial directions, not published content.
 
 ## Editing
 
-- `index.html`: headings and page content. The empty sections have comments showing
-  where to add an introduction, projects and notes.
+- `index.html`: English homepage, column cards, About and Projects.
+- `weekly/index.html`, `foundations/index.html`, `lab/index.html`: column landing
+  pages. Replace the empty archive block with links to published articles when
+  content is ready, and update the homepage publication status accordingly.
 - `styles.css`: layout, colors and responsive styles.
 - `assets/`: locally served fonts and favicon. No external services are needed at
-  runtime.
+runtime.
+
+For a new article, add its static HTML file inside the relevant column directory,
+then link to it from that column's archive. Keep site navigation in English;
+article bodies can use the language appropriate to the content. Use relative
+links and match the existing shared stylesheet.
 
 The fonts are [DM Sans](https://github.com/google/fonts/tree/main/ofl/dmsans)
 and [IBM Plex Mono](https://github.com/google/fonts/tree/main/ofl/ibmplexmono), licensed under
