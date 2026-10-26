@@ -4,7 +4,7 @@ Personal website: **[https://howieyin.github.io/](https://howieyin.github.io/)**
 
 A minimal personal homepage with a dark background, sans-serif typography,
 monospace details and muted blue links. All navigation and interface copy is in
-English.
+English, except for the user-requested **Paper 精读** column label.
 
 ## Columns
 
@@ -14,6 +14,10 @@ English.
   the evolution of ideas and research surveys.
 - **AI Lab** (`lab/`): practical tricks, reproducible experiments,
   counterintuitive findings and myth testing.
+- **Paper 精读** (`papers/`): a personal archive of papers read, with original
+  sources, reading dates, methods, experiments, limitations and personal insights.
+  Do not automatically count news coverage or knowledge articles as completed
+  paper readings. Each reading should have its own page and archive entry.
 
 Each column has a homepage section and a standalone archive page. The archives
 are explicitly empty until real articles are published; topic descriptions are
@@ -22,7 +26,7 @@ editorial directions, not published content.
 ## Editing
 
 - `index.html`: English homepage, column cards, About and Projects.
-- `weekly/index.html`, `foundations/index.html`, `lab/index.html`: column landing
+- `weekly/index.html`, `foundations/index.html`, `lab/index.html`, `papers/index.html`: column landing
   pages. Replace the empty archive block with links to published articles when
   content is ready, and update the homepage publication status accordingly.
 - `styles.css`: layout, colors and responsive styles.

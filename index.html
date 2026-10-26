@@ -5,13 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0c1016">
     <meta name="color-scheme" content="dark">
-    <meta name="description" content="Howie Yin's notes on AI: industry weekly reports, foundations and deep dives, experiments and counterintuitive findings.">
+    <meta name="description" content="Howie Yin's notes on AI: industry reports, foundations, experiments, and close readings of research papers.">
     <title>Howie Yin — AI Notes &amp; Explorations</title>
     <link rel="canonical" href="https://howieyin.github.io/">
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
     <link rel="preload" href="assets/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="assets/ibm-plex-mono.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="styles.css?v=3">
+    <style>
+      .explore-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      @media (max-width: 640px) { .explore-grid { grid-template-columns: 1fr; } }
+    </style>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -24,6 +28,7 @@
           <a href="#weekly">Weekly</a>
           <a href="#foundations">Foundations</a>
           <a href="#lab">Lab</a>
+          <a href="#papers">Paper 精读</a>
           <a href="#about">About</a>
         </nav>
       </header>
@@ -60,6 +65,12 @@
             <h2>AI Lab <span aria-hidden="true">↗</span></h2>
             <p>Useful tricks, small experiments, and findings that defy intuition.</p>
             <span class="card-link">Explore the experiment column</span>
+          </a>
+          <a class="explore-card" href="papers/">
+            <span class="card-kicker">04 / THE PAPERS</span>
+            <h2>Paper 精读 <span aria-hidden="true">↗</span></h2>
+            <p>A personal reading archive: research papers, core ideas, evidence, and engineering insights.</p>
+            <span class="card-link">Explore the paper column</span>
           </a>
         </nav>
 
@@ -118,9 +129,27 @@
             </div>
           </section>
 
-          <section class="content-section" id="about" aria-labelledby="about-title">
+          <section class="content-section" id="papers" aria-labelledby="papers-title">
             <div class="section-heading">
               <span class="section-index" aria-hidden="true">04</span>
+              <div>
+                <h2 id="papers-title">Paper 精读</h2>
+                <p class="section-label">A personal research reading archive</p>
+              </div>
+            </div>
+            <div class="section-body">
+              <p class="section-description">A record of the papers I have read: the problems they address, how their methods work, what the experiments show, and what I take away for research and engineering.</p>
+              <ul class="topic-list" aria-label="Paper reading coverage">
+                <li>LLM &amp; VLM</li><li>Inference &amp; training</li><li>Hardware &amp; systems</li><li>Agents &amp; multimodal AI</li>
+              </ul>
+              <p class="publication-status">No paper readings recorded yet.</p>
+              <a class="text-link" href="papers/">Visit Paper 精读 <span aria-hidden="true">↗</span></a>
+            </div>
+          </section>
+
+          <section class="content-section" id="about" aria-labelledby="about-title">
+            <div class="section-heading">
+              <span class="section-index" aria-hidden="true">05</span>
               <div>
                 <h2 id="about-title">About</h2>
                 <p class="section-label">The person behind the notes</p>
@@ -133,7 +162,7 @@
 
           <section class="content-section" id="projects" aria-labelledby="projects-title">
             <div class="section-heading">
-              <span class="section-index" aria-hidden="true">05</span>
+              <span class="section-index" aria-hidden="true">06</span>
               <div>
                 <h2 id="projects-title">Projects</h2>
                 <p class="section-label">Code &amp; things I build</p>
