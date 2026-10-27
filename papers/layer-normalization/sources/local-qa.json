@@ -33,6 +33,7 @@
     }
   ],
   "interactions": [
+    "Zero denominator with epsilon=0 is explicitly undefined; no invalid SVG values.",
     "Real mouse presets/feature shift, keyboard range and select input event: negative scale, epsilon, common shift, RMSNorm.",
     "Axis LN output independent of another sample; toy BN changes after other-sample scale.",
     "Cost select input event: T=1 gives 16KiB, decode uses B independent of T.",
@@ -89,12 +90,12 @@
   "tableScroll": {
     "client": 356,
     "scroll": 805,
-    "left": 52
+    "left": 59
   },
   "formulaScroll": {
     "client": 356,
     "scroll": 744,
-    "left": 61
+    "left": 59
   },
   "reducedMotion": true,
   "noJS": {

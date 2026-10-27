@@ -8,6 +8,7 @@
 - Mobile figure/controls use readable sizes, localized horizontal scrolling for formulas/tables/interactiveSVG. Added focusable regions; real keyboard horizontal scrolling confirmed.
 - Responsive Contents expands desktop/collapses mobile; current-section marker follows scroll. Mouse presets/zoom/checkbox and range keyboard checked. Select state updates checked with input events.
 - No console/runtime errors; three no-JS text fallbacks, native MathML, reduced-motion verified. No auto-playing animation.
+- Zero-scale with epsilon=0 is explicitly displayed as undefined; invalid numeric SVG values are not rendered. Regression reproduced before the fix and checked afterward.
 - OriginalMermaid sources retained and three corresponding SVG flow diagrams rendered. Feishu counterpart includes three nativeMermaid boards,9 images,8 full tables,35 numberedformula labels.
 
 ## Pass 2 — source accuracy
@@ -25,3 +26,4 @@
 
 - StaticHTML architecture retained. Only newarticle/home/archive/Transformerrelatedlink changed.
 - LocalbrowserandstaticQA evidence saved in sources. GitHubPages and productionQA verification recorded after deployment in local publishing report.
+- Initial publication05e368a verified in Pages run40487537737 (build/deploy success), HTTP200, exactHTML/CSS/JS/PNG/PDFbytes, production5widths and controls. Boundaryfix local regression checked; final deployment evidence is recorded in the local publishing report.

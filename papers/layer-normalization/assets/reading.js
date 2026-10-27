@@ -33,6 +33,12 @@ function updateNorm(){
   for(const name of ["scale","shift","gain","bias"])$("norm-"+name+"-out").textContent=$("norm-"+name).value;
   const a=[1,2,3,4], input=a.map((x,i)=>x*scale+shift+(i===0&&$("feature-shift").checked?2:0));
   const ref=normalize(a,mode,eps,g,b),out=normalize(input,mode,eps,g,b);
+  if(out.y.some(x=>!Number.isFinite(x))){
+    $("norm-svg").innerHTML=svgText(20,70,"ε=0 · denominator=0","#e6bd88",18)+svgText(20,110,"归一化未定义：请选择 ε > 0 或改变输入。","#d4deed",16);
+    $("norm-readout").textContent=`input ${vector(input)}\nmean=${fmt(out.mean)} · variance=${fmt(out.variance)}\nε=0 且分母为 0：原数学定义未定义。请选择 ε > 0 或改变输入。`;
+    window.normState={mode,scale,shift,eps,g,b,input,defined:false,...out};
+    return;
+  }
   const max=Math.max(2,...ref.y.map(Math.abs),...out.y.map(Math.abs));
   let svg=svgText(15,20,"Output y = gain × normalized + bias")+"<path d=\"M285 35V235\" stroke=\"#7890b1\"/>";
   for(let i=0;i<4;i++){
@@ -48,7 +54,7 @@ function updateNorm(){
   $("norm-svg").innerHTML=svg;
   const delta=Math.max(...out.y.map((x,i)=>Math.abs(x-ref.y[i])));
   $("norm-readout").textContent=`input ${vector(input)}\nmean=${fmt(out.mean)} · variance=${fmt(out.variance)} · denominator=${fmt(1/out.rstd)}\ny=${vector(out.y)}\nmax |Δy| vs original=${fmt(delta)} · ε=${eps}`;
-  window.normState={mode,scale,shift,eps,g,b,input,delta,...out};
+  window.normState={mode,scale,shift,eps,g,b,input,delta,defined:true,...out};
 }
 function updateAxis(){
   const k=+$("axis-other").value,mode=$("axis-mode").value;

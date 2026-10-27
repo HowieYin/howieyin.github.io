@@ -18,7 +18,9 @@ tags: [Normalization, Training, RNN, Inference, Systems]
 original_figures: 6
 original_tables: 3
 original_equations: 35
-status: reviewed-ready-for-publication
+status: published
+initial_publication_commit: 05e368a6ca538b6451cba8ea59b0f2378fe27396
+initial_verified_pages_run: 40487537737
 review_passes: [formatting-readability, source-grounded-accuracy]
 local_qa_widths: [375, 390, 430, 1440, 1920]
 visualizations: [normalization-axes, ln-rmsnorm, io-calculator, lstm-flow, io-flow, timeline]
