@@ -1,0 +1,22 @@
+title: "Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer"
+reading_title: "Sparsely-Gated MoE：容量可以稀疏激活，成本仍在整条链路"
+authors: ["Noam Shazeer", "Azalia Mirhoseini", "Krzysztof Maziarz", "Andy Davis", "Quoc Le", "Geoffrey Hinton", "Jeff Dean"]
+institutions: ["Google Brain", "Jagiellonian University"]
+arxiv: "1701.06538"
+version: "v1"
+publication_date: "2017-01-23"
+venue_note: "v1 题头为 Under review as a conference paper at ICLR 2017"
+doi: "10.48550/arXiv.1701.06538"
+paper_url: "https://arxiv.org/abs/1701.06538v1"
+pdf_url: "https://arxiv.org/pdf/1701.06538v1"
+code_note: "提供 Tensor2Tensor v1.15.7 历史官方实现作为对照；非已确认的原始训练发行版本"
+code_url: "https://github.com/tensorflow/tensor2tensor/blob/v1.15.7/tensor2tensor/utils/expert_utils.py"
+project_page: null
+reading_date: "2026-10-27"
+last_updated: "2026-10-27"
+tags: ["MoE", "LLM", "Training", "Inference", "Systems"]
+slug: "sparse-moe"
+canonical: "https://howieyin.github.io/papers/sparse-moe/"
+original_figures: 4
+original_tables: 9
+numbered_equations: 22

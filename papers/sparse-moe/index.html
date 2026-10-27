@@ -1,0 +1,1179 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Sparsely-Gated MoE：容量可以稀疏激活，成本仍在整条链路 — Paper Readings · Howie Yin</title><meta name="description" content="1701.06538v1全文精读：4张原图、9张完整表、22公式；带噪Top-K、条件Load、层级与batchwise路由，交互容量账本、实验审计与2026更新。"><link rel="canonical" href="https://howieyin.github.io/papers/sparse-moe/"><meta property="og:title" content="Sparsely-Gated MoE：容量可以稀疏激活，成本仍在整条链路"><meta property="og:type" content="article"><meta property="og:description" content="逐章重构稀疏MoE：容量、路由、负载与整条执行链路。"><meta property="og:image" content="https://howieyin.github.io/papers/sparse-moe/assets/original/fig-01-architecture.png"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../">howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents / 目录</summary><ol><li><a href="#section-1">阅读坐标与论文元数据</a></li><li><a href="#section-2">TL;DR：一句话、一段话与五个关键点</a></li><li><a href="#section-3">§1 Introduction：为什么扩大容量会撞上计算预算</a></li><li><a href="#section-4">§2 Structure：带噪 Top-K 怎样成为可训练的稀疏层</a></li><li><a href="#section-5">§3 Performance：稀疏算术如何变成有效吞吐</a></li><li><a href="#section-6">§4 Expert Utilization：Importance 平衡为何仍可能忙闲不均</a></li><li><a href="#section-7">§5 Experiments：质量收益与预算边界</a></li><li><a href="#section-8">§6 Conclusion：它证明了什么，又留下什么</a></li><li><a href="#section-9">附录 A Load：用条件概率给“是否选中”一条梯度路径</a></li><li><a href="#section-10">附录 B Hierarchical MoE：先选组，再选组内专家</a></li><li><a href="#section-11">附录 C One Billion Word：复原结构、训练与完整结果</a></li><li><a href="#section-12">附录 D 100 Billion Word：参数、优化器和专家 batch 的账本</a></li><li><a href="#section-13">附录 E Machine Translation：配置例外与 Figure 4 / Table 9</a></li><li><a href="#section-14">附录 F Strict Batchwise Gating：固定列配额不等于固定行配额</a></li><li><a href="#section-15">附录 G Attention：为矩阵乘法改写的双线性交互</a></li><li><a href="#section-16">工程重构：参数、MAC、内存与 per-op 调用链</a></li><li><a href="#section-17">批判性审阅：强项、隐藏代价与缺失实验</a></li><li><a href="#section-18">Related Work Matrix：每条路线解决哪一个瓶颈</a></li><li><a href="#section-19">Technology Evolution：从条件计算到容量、路由和系统共同设计</a></li><li><a href="#section-20">Current State：截至 2026-10-27 的可核验进展</a></li><li><a href="#section-21">My Insights：把稀疏性理解为访问预算</a></li><li><a href="#section-22">References、资料清单与更新记录</a></li></ol></details></aside><main id="main"><article class="article"><h1>Sparsely-Gated MoE：容量可以稀疏激活，成本仍在整条链路</h1>
+<p>把“模型拥有多少知识容量”和“每个 token 使用多少计算”分开，是这篇论文真正改变的事情。</p>
+<p class="reading-meta">2017 · arXiv v1 · MoE / LLM / Training / Systems<br/>精读与资料核验：2026-10-27 · 全文 19 页 · 4 张原图 · 9 张完整原表 · 22 个编号公式</p>
+<p><a href="https://arxiv.org/abs/1701.06538v1" rel="noopener">原论文 v1</a> · <a href="assets/original/1701.06538v1.pdf">原始 PDF</a> · <a href="https://github.com/tensorflow/tensor2tensor/blob/v1.15.7/tensor2tensor/utils/expert_utils.py" rel="noopener">历史官方代码对照</a> · <a href="../transformer/">相关精读：Transformer</a></p>
+<h2 id="section-1">阅读坐标与论文元数据</h2>
+<p><strong>Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer</strong>，Noam Shazeer、Azalia Mirhoseini、Krzysztof Maziarz、Andy Davis、Quoc Le、Geoffrey Hinton、Jeff Dean；机构为 Google Brain 与 Jagiellonian University。本次严格读取 2017-01-23 提交的 <strong>1701.06538v1</strong>；题头为“Under review as a conference paper at ICLR 2017”，以该版本为依据，不把后来的文稿措辞回填。DOI：<a href="https://doi.org/10.48550/arXiv.1701.06538" rel="noopener">10.48550/arXiv.1701.06538</a>。未确认独立项目页与该版本对应的完整训练发行包。</p>
+<p>适合已了解矩阵乘法、softmax、反向传播和 LSTM 的读者。读完应能重建 token 到专家再回到主干的链路，区分三种负载量，核算专家参数与数据移动，并判断实验究竟支持了什么。正文按原论文 §1–6、附录 A–G 排列，之后补充工程重构、批判性分析与截至 2026-10-27 的后续研究。</p>
+<p>页面约定：<strong>Paper</strong> 为原论文事实；<strong>Interpretation / 推导</strong> 为这里的解释与算账；<strong>External Source</strong> 为后续原始论文或官方资料。交互只演示机制和静态资源量，不模拟精度或推理速度。</p>
+<h2 id="section-2">TL;DR：一句话、一段话与五个关键点</h2>
+<p><strong>一句话：</strong> 用可训练的稀疏路由让每个 token 只访问少数专家，以近似固定的专家计算扩大模型容量，但必须同时解决路由学习、小 batch、负载不均和跨设备数据移动。</p>
+<p><strong>一段话：</strong> 论文在循环语言模型与翻译模型中插入大量独立前馈专家，用带可学习噪声的 Top-K gate 选择并混合少数输出；用 Importance 与平滑 Load 的辅助损失抑制专家垄断；把数据并行的 token 汇到模型并行的专家上，以扩大有效专家 batch。它在近似相同的每步算术预算下观察到更低 perplexity，也训练了最高约 137.7B 总参数的模型。新增参数依然要保存、分片、更新和读取；最终速度由整条执行链路决定。</p>
+<ul>
+<li><strong>容量与激活量分离。</strong> 专家总参数近似随专家数增长，单个 token 的专家 MAC 主要随 k 增长。</li>
+<li><strong>路由并非“先 softmax 再随便屏蔽”。</strong> 主方法先对带噪 logits 做 KeepTopK，再在选中集合内 softmax。</li>
+<li><strong>均衡有三个量。</strong> gate 权重和 Importance、实际 token 计数、可微的条件概率 Load，不能混用。</li>
+<li><strong>实验最有力的是同预算容量曲线。</strong> 1B 词数据集同预算 LSTM 的 PPL 44.7 到 MoE 的 34.1；最大规模不是最佳质量。</li>
+<li><strong>两处常见误读。</strong> 原始骨干是 LSTM；附录 F 的 batchwise gate 不保证每个 token 恰好 k 个专家。</li>
+</ul>
+<h2 id="section-3">§1 Introduction：为什么扩大容量会撞上计算预算</h2>
+<h3>问题、观察与核心贡献</h3>
+<p><strong>Paper。</strong> 神经网络通常把更多参数与更多计算绑定：加宽、加深意味着每个输入都经过新增计算。Conditional computation 想让参数只在需要时激活，但实际收益受训练可行性和硬件执行方式约束。论文点名的障碍包括动态选择难求梯度、专家 batch 太小、网络通信、负载不均，以及模型规模与数据需求。</p>
+<p><strong>直觉。</strong> 可以把专家看作一批不同参数的函数。token 仍有统一的表示空间，router 根据表示决定调用哪几个函数。容量不是每次都翻遍整座图书馆，而是拥有更多可被选择的书架。这个比喻解释参数复用，不意味着专家天然对应可解释主题。</p>
+<p>此前 Jacobs 等的 mixture、Jordan 与 Jacobs 的层级 mixture，以及 deep mixture 和条件计算工作已存在。本文的创新在于把<strong>稀疏、可训练、可分布式执行的大规模 MoE 层</strong>落到实际语言任务，不能称它“发明了 MoE”。它也早于 2017 年 Transformer 论文，本身没有 self-attention、RoPE 或 Transformer KV cache。</p>
+<h3>Figure 1：MoE 在循环语言模型里的位置</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 1" data-zoom="assets/original/fig-01-architecture.png" type="button"><img alt="Figure 1: A Mixture of Experts (MoE) layer embedded within a recurrent language model. In this case, the sparse gating function selects two experts to perform computations. Their outputs are modulated by the outputs of the gating network." loading="lazy" src="assets/original/fig-01-architecture.png"/></button><figcaption><strong>Figure 1 · Original Paper v1 · PDF p.2</strong> · 点击放大。原 caption 已保留于图中。<br/>Figure 1: A Mixture of Experts (MoE) layer embedded within a recurrent language model. In this case, the sparse gating function selects two experts to perform computations. Their outputs are modulated by the outputs of the gating network.</figcaption></figure>
+<p>从下往上读：输入进入下层 LSTM，gate 从当前输入表示选择图中少数专家，各专家执行前馈计算，输出乘 gate 权重后求和，结果送上层 LSTM。图中的专家连线强调选择性执行，循环连接则属于 LSTM。此图示范 <strong>k=2</strong>，不能据此把全部语言模型实验写成 top-2；后面的主要 LM 实验使用 top-4。</p>
+<p>图的证据功能是说明网络连接，而不是展示速度测量。它没有画 token 打包、跨设备传输和梯度通信；这些是实现中不能忽略的隐含链路。我的理解是：MoE 改变的是这一层所访问的参数子集，序列状态仍由上下两层 LSTM 维护。</p>
+<h2 id="section-4">§2 Structure：带噪 Top-K 怎样成为可训练的稀疏层</h2>
+<h3>输入、专家、输出与张量形状</h3>
+<p>记专家数量为 n，输入 x∈Rᵈ，专家输出 Eᵢ(x)∈Rᵈᵒᵘᵗ，gate G(x)∈Rⁿ。对 N 个 token，输入 X 为 N×d，gate 矩阵为 N×n，合并结果为 N×d_out。每个专家是有独立参数的前馈网络，而非一个 token 的身份标签。</p>
+<div class="formula" data-equation="1"><math alttext="y=\sum_{i=1}^{n}G(x)_{i}E_{i}(x)" class="ltx_Math" display="block" id="S2.E1.m1" intent=":literal"><semantics><mrow><mi>y</mi><mo rspace="0.111em">=</mo><mrow><munderover><mo movablelimits="false">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><mrow><mi>G</mi><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>E</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><annotation encoding="application/x-tex">y=\sum_{i=1}^{n}G(x)_{i}E_{i}(x)</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (1)</span><details><summary>可复制 TeX 公式</summary><code>y=\sum_{i=1}^{n}G(x)_{i}E_{i}(x)</code></details></div>
+<p>Eq. (1) 的关键是零权重专家可以不执行。输出在共同的 d_out 空间相加，因此专家不需要把中间 hidden 向量互相拼接。对专家参数，梯度只通过被执行的路径传播；对 gate，任务梯度依赖被选专家输出的相对价值。</p>
+<div class="formula" data-equation="2"><math alttext="G_{\sigma}(x)=Softmax(x\cdot W_{g})" class="ltx_Math" display="block" id="S2.E2.m1" intent=":literal"><semantics><mrow><mrow><msub><mi>G</mi><mi>σ</mi></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mi>S</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>f</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>x</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>x</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msub><mi>W</mi><mi>g</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><annotation encoding="application/x-tex">G_{\sigma}(x)=Softmax(x\cdot W_{g})</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (2)</span><details><summary>可复制 TeX 公式</summary><code>G_{\sigma}(x)=Softmax(x\cdot W_{g})</code></details></div>
+<p>Eq. (2) 是 dense softmax gate：W_g∈Rᵈˣⁿ，xW_g 为 n 个 logits，所有专家权重通常非零，不能直接带来稀疏计算。它建立对照，后续主方法才加入噪声与截断。</p>
+<div class="formula" data-equation="3"><math alttext="G(x)=Softmax(KeepTopK(H(x),k))" class="ltx_Math" display="block" id="S2.E3.m1" intent=":literal"><semantics><mrow><mrow><mi>G</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mi>S</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>f</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>x</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>K</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>T</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>K</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>H</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow><mo>,</mo><mi>k</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><annotation encoding="application/x-tex">G(x)=Softmax(KeepTopK(H(x),k))</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (3)</span><details><summary>可复制 TeX 公式</summary><code>G(x)=Softmax(KeepTopK(H(x),k))</code></details></div>
+<div class="formula" data-equation="4"><math alttext="H(x)_{i}=(x\cdot W_{g})_{i}+StandardNormal()\cdot Softplus((x\cdot W_{noise})_{i})" class="ltx_Math" display="block" id="S2.E4.m1" intent=":literal"><semantics><mrow><mrow><mi>H</mi><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mo>=</mo><mrow><msub><mrow><mo stretchy="false">(</mo><mrow><mi>x</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msub><mi>W</mi><mi>g</mi></msub></mrow><mo stretchy="false">)</mo></mrow><mi>i</mi></msub><mo>+</mo><mrow><mrow><mrow><mi>S</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⋅</mo><mi>S</mi></mrow><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>f</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>u</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mrow><mo stretchy="false">(</mo><mrow><mi>x</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msub><mi>W</mi><mrow><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi></mrow></msub></mrow><mo stretchy="false">)</mo></mrow><mi>i</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><annotation encoding="application/x-tex">H(x)_{i}=(x\cdot W_{g})_{i}+StandardNormal()\cdot Softplus((x\cdot W_{noise})_{i})</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (4)</span><details><summary>可复制 TeX 公式</summary><code>H(x)_{i}=(x\cdot W_{g})_{i}+StandardNormal()\cdot Softplus((x\cdot W_{noise})_{i})</code></details></div>
+<div class="formula" data-equation="5"><math alttext="KeepTopK(v,k)_{i}=\begin{cases}v_{i}&amp;\text{if $v_{i}$ is in the top $k$ elements of $v$.}\\
+-\infty&amp;\text{otherwise.}\end{cases}" class="ltx_Math" display="block" id="S2.E5.m1" intent=":literal"><semantics><mrow><mrow><mi>K</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>T</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>K</mi><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>v</mi><mo>,</mo><mi>k</mi><mo stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mo>=</mo><mrow><mo>{</mo><mtable columnspacing="5pt" displaystyle="true" rowspacing="0pt"><mtr><mtd class="ltx_align_left" columnalign="left"><msub><mi>v</mi><mi>i</mi></msub></mtd><mtd class="ltx_align_left" columnalign="left"><mrow><mtext>if </mtext><msub><mi>v</mi><mi>i</mi></msub><mtext> is in the top </mtext><mi>k</mi><mtext> elements of </mtext><mi>v</mi><mtext>.</mtext></mrow></mtd></mtr><mtr><mtd class="ltx_align_left" columnalign="left"><mrow><mo>−</mo><mi mathvariant="normal">∞</mi></mrow></mtd><mtd class="ltx_align_left" columnalign="left"><mtext>otherwise.</mtext></mtd></mtr></mtable></mrow></mrow><annotation encoding="application/x-tex">KeepTopK(v,k)_{i}=\begin{cases}v_{i}&amp;\text{if $v_{i}$ is in the top $k$ elements of $v$.}\\
+-\infty&amp;\text{otherwise.}\end{cases}</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (5)</span><details><summary>可复制 TeX 公式</summary><code>KeepTopK(v,k)_{i}=\begin{cases}v_{i}&amp;\text{if $v_{i}$ is in the top $k$ elements of $v$.}\\
+-\infty&amp;\text{otherwise.}\end{cases}</code></details></div>
+<p>Eq. (3)–(5) 的顺序是：计算 clean logits；用 W_noise∈Rᵈˣⁿ 预测每个专家的噪声尺度 σᵢ=softplus((xW_noise)ᵢ)&gt;0；独立标准高斯噪声乘尺度再相加；保留最大的 k 个 logits，把其余设为 −∞；对剩下的 logits 做 softmax。<strong>不能把 −∞ 改成 0</strong>，否则原本应被删除的专家会重新得到概率。</p>
+<p>噪声让早期路由有探索机会，也让附录 A 可以构造平滑的命中概率。可学习尺度允许模型调节这种扰动。Top-K 集合切换仍然不连续，噪声并没有使硬选择处处可微；可训练性来自选中集合内部的 softmax 梯度，以及辅助均衡目标。</p>
+<h3>一个数值例子与 top-1 梯度陷阱</h3>
+<p>logits=[2,1,0,−1]，k=2，不加噪时得到 [0.7311,0.2689,0,0]。选中专家输出分别为 a、b，则 y=0.7311a+0.2689b。提高第一个 logit 会增加 a 的占比；是否有利由任务损失决定。</p>
+<p>但 k=1 时，在这个<strong>截断后重新归一化</strong>的定义下，选中专家的权重恒为 1。在选择集合不变的区域，gate 对选中 logit 的导数为 0，单靠任务损失无法训练 router。论文明确强调 k&gt;1 的作用。后来的 Switch top-1 使用不同的 gate 处理，不能拿 Switch 的成功反证这里的导数结论。</p>
+<pre><code><span class="c1"># 教学伪代码：主论文 §2，X: [N,d]，不是分布式实现。</span>
+<span class="n">clean</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="n">Wg</span> <span class="c1"># [N,E]</span>
+<span class="n">std</span> <span class="o">=</span> <span class="n">softplus</span><span class="p">(</span><span class="n">X</span> <span class="o">@</span> <span class="n">Wnoise</span><span class="p">)</span> <span class="c1"># [N,E]</span>
+<span class="n">noisy</span> <span class="o">=</span> <span class="n">clean</span> <span class="o">+</span> <span class="n">normal_like</span><span class="p">(</span><span class="n">clean</span><span class="p">)</span> <span class="o">*</span> <span class="n">std</span>
+<span class="n">indices</span> <span class="o">=</span> <span class="n">topk</span><span class="p">(</span><span class="n">noisy</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">indices</span> <span class="c1"># [N,k]</span>
+<span class="n">gates</span> <span class="o">=</span> <span class="n">softmax</span><span class="p">(</span><span class="n">gather</span><span class="p">(</span><span class="n">noisy</span><span class="p">,</span> <span class="n">indices</span><span class="p">))</span> <span class="c1"># [N,k]</span>
+<span class="n">packed</span> <span class="o">=</span> <span class="n">group_tokens_by_expert</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+<span class="n">expert_outputs</span> <span class="o">=</span> <span class="n">run_selected_experts</span><span class="p">(</span><span class="n">packed</span><span class="p">)</span>
+<span class="n">Y</span> <span class="o">=</span> <span class="n">weighted_scatter_sum</span><span class="p">(</span><span class="n">expert_outputs</span><span class="p">,</span> <span class="n">gates</span><span class="p">)</span>
+</code></pre>
+<p>group / gather / scatter 需要保留 token 原始索引和 gate 对应关系；先汇总专家输出再错配权重，会破坏数学定义。主 gate 的正常行总和为 1，这不代表平滑 Load 估计在每次噪声实现中也严格总和为 k。</p>
+<h3>交互：观察截断、噪声与权重</h3>
+<section class="mechanism" id="router-widget"><p class="reading-meta">AGENT-CREATED VISUALIZATION · NOISY TOP-K MECHANISM</p><h3>同一 token，哪些专家被调用？</h3><div class="controls"><label>Top-K<input id="router-k" max="6" min="1" type="range" value="2"/><output id="router-k-out">2</output></label><label>示例高斯噪声幅度<input id="router-noise" max="2" min="0" step=".05" type="range" value="0"/><output id="router-noise-out">0.00</output></label></div><div class="expert-head"><span>专家</span><span>clean → noisy logit</span><span>gate</span></div><div id="router-rows"></div><div aria-live="polite" class="readout" id="router-readout"></div><div class="actions"><button id="router-resample">重抽噪声</button><button id="router-reset">重置示例</button></div><p class="hint">固定示例 logits=[2,1,.5,0,−.5,−1]；噪声可重现。此处不是已训练 router，不表达专家质量。</p><noscript><p>静态示例：k=2、无噪声时 E0/E1 权重 .7311/.2689；k=1 时选中权重为 1。</p></noscript></section>
+<p>默认固定六个 clean logits，只修改 k、噪声幅度或随机种子。高斯数值仅用于机制演示，幅度滑块不等于已训练 W_noise。蓝色专家是本轮非零 gate；负的 logit 也可能被选中，权重由相对差决定。切到 k=1 后反复换噪声，可以看到专家身份变化，但选中权重一直为 1。</p>
+<h2 id="section-5">§3 Performance：稀疏算术如何变成有效吞吐</h2>
+<h3>Shrinking batch：专家越多，每个 GEMM 越容易变小</h3>
+<p>如果 N 个 token 各选 k 个专家且完全均衡，每个专家平均处理 Nk/n 个 token。增加 n 并保持 N、k 不变，会减小专家 GEMM 的 M 维，降低计算利用率；它还让每个专家每步看到的训练样本更少。平均数不是最热专家的峰值，实际分布还决定等待和 activation 容量。</p>
+<p><strong>Paper。</strong> 一方面扩大 batch，另一方面结合数据并行与专家模型并行，让不同数据分片的 token 汇到相同专家。MoE 自身没有 recurrence，因此在下层 LSTM 已产生各时间步表示后，可以合并多个时间步送专家。这个前提不能直接迁移到自回归 decode：未来 token 尚未生成，无法预先攒入同一 batch。</p>
+<h3>网络带宽：多参数可以少通信，但路由不是免费</h3>
+<p>专家的 hidden 宽度增加参数和算术，专家输入输出宽度却不必同比增长。这改善了算术与传输数据量的比值，是本文认为 MoE 适合分布式执行的理由。然而每个 token 的跨设备输入分发和输出返回都需要通信；具体有多少取决于专家放置、k、局部命中和层级聚合。</p>
+<figure class="generated-figure"><div class="diagram-scroll"><svg aria-label="路由打分、分发、专家计算、合并与主干输出" role="img" viewbox="0 0 760 620" xmlns="http://www.w3.org/2000/svg"><style>text{font-family:system-ui,sans-serif;fill:#dbe6f5;font-size:14px}.small{font-size:12px;fill:#9fb1c9}.box{fill:#182335;stroke:#4b617e;stroke-width:1.3}.wire{fill:none;stroke:#8dadd9;stroke-width:1.6}.chosen{fill:#243c5b;stroke:#a9c9f3}</style><rect class="box" height="62" rx="6" width="300" x="230" y="12"></rect><text x="242" y="36">输入 X：N×d</text><text class="small" x="242" y="58">LSTM 已产生的 token 表示</text><path class="wire" d="M380 74V87.0H380V100m-4 -6l4 6 4 -6"></path><rect class="box" height="62" rx="6" width="430" x="165" y="100"></rect><text x="177" y="124">Router：clean + noise → Top-K → softmax</text><text class="small" x="177" y="146">N×n 候选 → N×k 索引 / 非零权重</text><path class="wire" d="M380 162V176.0H380V190m-4 -6l4 6 4 -6"></path><rect class="box" height="62" rx="6" width="430" x="165" y="190"></rect><text x="177" y="214">Pack / dispatch：按专家聚合</text><text class="small" x="177" y="236">保留原 token 索引与 gate；跨设备输入</text><path class="wire" d="M380 252V271.0H135V290m-4 -6l4 6 4 -6"></path><rect class="box" height="70" rx="6" width="200" x="35" y="290"></rect><text x="47" y="314">Expert 0：Nᵢ×d</text><text class="small" x="47" y="336">GEMM → ReLU → GEMM</text><path class="wire" d="M380 252V271.0H380V290m-4 -6l4 6 4 -6"></path><rect class="box" height="70" rx="6" width="200" x="280" y="290"></rect><text x="292" y="314">Expert 1：Nᵢ×d</text><text class="small" x="292" y="336">GEMM → ReLU → GEMM</text><path class="wire" d="M380 252V271.0H625V290m-4 -6l4 6 4 -6"></path><rect class="box" height="70" rx="6" width="200" x="525" y="290"></rect><text x="537" y="314">Expert 2：Nᵢ×d</text><text class="small" x="537" y="336">GEMM → ReLU → GEMM</text><text class="small" x="48" y="398">Nᵢ 不均 → 最热专家 / 通信尾部决定等待</text><path class="wire" d="M135 360V386.0H380V412m-4 -6l4 6 4 -6"></path><path class="wire" d="M380 360V386.0H380V412m-4 -6l4 6 4 -6"></path><path class="wire" d="M625 360V386.0H380V412m-4 -6l4 6 4 -6"></path><rect class="box" height="62" rx="6" width="430" x="165" y="412"></rect><text x="177" y="436">Combine：返回 → 加权 scatter-add</text><text class="small" x="177" y="458">恢复 N×d_out；权重对应原 route</text><path class="wire" d="M380 474V489.5H380V505m-4 -6l4 6 4 -6"></path><rect class="box" height="62" rx="6" width="430" x="165" y="505"></rect><text x="177" y="529">sigmoid / residual → 上层 LSTM / loss</text><text class="small" x="177" y="551">Backward 反向通过数据移动与专家参数</text></svg></div><figcaption>Agent-created Simplified Diagram · pipeline。[<a href="assets/generated/pipeline.svg">SVG</a>] [<a href="assets/generated/pipeline.mmd">Mermaid source</a>]</figcaption></figure>
+<p>这是按数学依赖重构的执行图，现代术语 dispatch / combine 帮助定位阶段；原论文没有证明其实现使用今天的 NCCL all-to-all API。把 experts 换成空算子测出的 routing+pack+communication 时间，以及实际专家 GEMM 时间，才可以回答开销发生在哪一环。</p>
+<h2 id="section-6">§4 Expert Utilization：Importance 平衡为何仍可能忙闲不均</h2>
+<h3>正反馈怎样使少数专家垄断</h3>
+<p>若某专家早期稍好，gate 会更多选择它；它因此得到更多训练，又更好，其他专家则缺少样本。这个正反馈同时损害质量和吞吐。均衡辅助损失把“专家充分利用”加入训练目标，但不能用它推导每个专家被严格平均分配。</p>
+<div class="formula" data-equation="6"><math alttext="Importance(X)=\sum_{x\in X}G(x)" class="ltx_Math" display="block" id="S4.E6.m1" intent=":literal"><semantics><mrow><mrow><mi>I</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow></mrow><mo rspace="0.111em">=</mo><mrow><munder><mo movablelimits="false">∑</mo><mrow><mi>x</mi><mo>∈</mo><mi>X</mi></mrow></munder><mrow><mi>G</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><annotation encoding="application/x-tex">Importance(X)=\sum_{x\in X}G(x)</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (6)</span><details><summary>可复制 TeX 公式</summary><code>Importance(X)=\sum_{x\in X}G(x)</code></details></div>
+<div class="formula" data-equation="7"><math alttext="L_{importance}(X)=w_{importance}\cdot CV(Importance(X))^{2}" class="ltx_Math" display="block" id="S4.E7.m1" intent=":literal"><semantics><mrow><mrow><msub><mi>L</mi><mrow><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mrow><msub><mi>w</mi><mrow><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi></mrow></msub><mo lspace="0.222em" rspace="0.222em">⋅</mo><mi>C</mi></mrow><mo lspace="0em" rspace="0em">​</mo><mi>V</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><mrow><mi>I</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow><mn>2</mn></msup></mrow></mrow><annotation encoding="application/x-tex">L_{importance}(X)=w_{importance}\cdot CV(Importance(X))^{2}</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (7)</span><details><summary>可复制 TeX 公式</summary><code>L_{importance}(X)=w_{importance}\cdot CV(Importance(X))^{2}</code></details></div>
+<p>Importance(X)∈Rⁿ 是一个 batch 内每个专家 <strong>gate 权重之和</strong>。CV 为标准差除以均值，CV² 无量纲；w_importance 控制该项与任务损失的权衡。若每个 token 的 gate 和为 1，则所有专家 Importance 的总和为 N。</p>
+<p>实际 token 数为 Cᵢ=Σₓ1[G(x)ᵢ&gt;0]，它决定本专家的行数和执行工作量。反例：四个 token 的 gate 分别为 [2/3,1/3,0]、[2/3,0,1/3]、[0,1/2,1/2]、[0,1/2,1/2]。三个专家的 Importance 都是 4/3，CV=0；token 数却是 [2,3,3]。<strong>gate 权重小，并不会让一个已经分发的 token 免费计算。</strong></p>
+<p>附录 A 的 Load 用平滑选择概率近似计数，针对的是这个缺口。联合目标可写为任务损失+L_importance+L_load，这是机制重构；没有把辅助损失值当成最终任务指标。Table 6 的实验证据放在附录 A 的原始位置。</p>
+<h2 id="section-7">§5 Experiments：质量收益与预算边界</h2>
+<h3>§5.1 One Billion Word：相同每步预算下增加专家</h3>
+<p><strong>问题。</strong> 如果每个 token 仍使用少数专家，更多参数能否改善语言建模？数据集约 829M 训练词，词表 793,471，句子被打乱；这是词级 benchmark，不是现代长文档或指令评测。主要结构为 embedding512→LSTM512→MoE(512→1024→512)→LSTM512→输出词表。细节与完整结果在附录 C。</p>
+<h3>Figure 2：容量曲线和算术预算曲线要分开看</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 2" data-zoom="assets/original/fig-02-capacity-compute.png" type="button"><img alt="Figure 2: Model comparison on 1-Billion-Word Language-Modeling Benchmark. On the left, we plot test perplexity as a function of model capacity for models with similar computational budgets of approximately 8-million-ops-per-timestep. On the right, we plot test perplexity as a function of computational budget. The top line represents the LSTM models from ( Jozefowicz et al., 2016 ) . The bottom line represents 4-billion parameter MoE models with different computational budgets." loading="lazy" src="assets/original/fig-02-capacity-compute.png"/></button><figcaption><strong>Figure 2 · Original Paper v1 · PDF p.6</strong> · 点击放大。原 caption 已保留于图中。<br/>Figure 2: Model comparison on 1-Billion-Word Language-Modeling Benchmark. On the left, we plot test perplexity as a function of model capacity for models with similar computational budgets of approximately 8-million-ops-per-timestep. On the right, we plot test perplexity as a function of computational budget. The top line represents the LSTM models from ( Jozefowicz et al., 2016 ) . The bottom line represents 4-billion parameter MoE models with different computational budgets.</figcaption></figure>
+<p>左图横轴是参数容量、纵轴是 test perplexity，越低越好；比较的是约 8M ops/timestep 的模型。随专家数增大，MoE 曲线下降，而并非让每个 token 计算所有新增参数。右图横轴变成算术预算，比较 LSTM 与约 4B 专家参数的 MoE。左右图的控制变量不同，不能把它们拼成统一的 latency 曲线。</p>
+<p>最直接的同预算比较来自 Table 7：LSTM 44.7、4096 专家 MoE 34.1，相对降低 <strong>23.71%</strong>。与 4 专家模型的 45.0 相比下降 24.22%。这是同一类训练预算下的容量收益；最强历史 LSTM 经 100 epochs 得到 30.6，则不能当成与 MoE 10 epochs 的 34.1 同训练量的对照。</p>
+<h3>Table 1：高容量 MoE 的算术预算与训练时间</h3>
+<div aria-label="Table 1 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r ltx_border_tt"></th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">#Parameters</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">ops/timestep</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Training</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">TFLOPS</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td class="ltx_td ltx_align_center ltx_border_r">Perplexity</td>
+<td class="ltx_td ltx_align_center ltx_border_r">Perplexity</td>
+<td class="ltx_td ltx_align_center ltx_border_r">excluding embedding</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">Time</td>
+<td class="ltx_td ltx_align_center">/GPU</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td class="ltx_td ltx_align_center ltx_border_r">10 epochs</td>
+<td class="ltx_td ltx_align_center ltx_border_r">100 epochs</td>
+<td class="ltx_td ltx_align_center ltx_border_r">and softmax layers</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">10 epochs</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">Best Published Results</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">34.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">30.6</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">151 million</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">151 million</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">59 hours, 32 k40s</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.09</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">Low-Budget MoE Model</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">34.1</td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">4303 million</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">8.9 million</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">15 hours, 16 k40s</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.74</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">Medium-Budget MoE Model</th>
+<td class="ltx_td ltx_align_center ltx_border_r">31.3</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">4313 million</td>
+<td class="ltx_td ltx_align_center ltx_border_r">33.8 million</td>
+<td class="ltx_td ltx_align_center ltx_border_r">17 hours, 32 k40s</td>
+<td class="ltx_td ltx_align_center">1.22</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r">High-Budget MoE Model</th>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r"><span class="ltx_text ltx_font_bold">28.0</span></td>
+<td class="ltx_td ltx_border_bb ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">4371 million</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">142.7 million</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">47 hours, 32 k40s</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">1.56</span></td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper · Table 1。保留完整行列与强调；以下原始截图包含 caption 与排版。</p>
+<details><summary>展开 Table 1 原始截图与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 1" data-zoom="assets/original/table-01-high-capacity-lm.png" type="button"><img alt="Table 1: Summary of high-capacity MoE-augmented models with varying computational budgets, vs. best previously published results ( Jozefowicz et al., 2016 ) . Details in Appendix C ." loading="lazy" src="assets/original/table-01-high-capacity-lm.png"/></button><figcaption><strong>Table 1 · Original Paper v1 · PDF p.7</strong> · 点击放大。原 caption 已保留于图中。<br/>Table 1: Summary of high-capacity MoE-augmented models with varying computational budgets, vs. best previously published results ( Jozefowicz et al., 2016 ) . Details in Appendix C .</figcaption></figure></details>
+<p>高计算 MoE 达到 PPL <strong>28.0</strong>，对表中 10 epochs 历史 baseline 34.7 下降 <strong>19.31%</strong>。附录 C.2 写“18%”；这里保留原作者措辞的来源，同时明确按可见表值重算为 19.31%，没有悄悄把不一致抹平。</p>
+<p>最省算术配置的 8.9M/151M=<strong>5.89%</strong>，接近摘要的 6%。原论文 ops/timestep 统计一次乘加为一次、只计 forward 且排除输出 softmax。训练 TFLOPS/GPU 则含 backward 和 sampled softmax，一次乘加算两次。两者不能直接相除或混写成端到端 FLOPs。</p>
+<p>同表时间给出 15h×16 GPU=240 GPUh，对历史 59h×32 GPU=1888 GPUh 为 <strong>12.71%</strong>；这与 5.89% 算术占比不同。硬件、实现与训练配置仍需对齐，不能据此声称现代 decode 快 17 倍。</p>
+<h3>§5.2 100 Billion Word：数据增大后，容量拐点在哪里</h3>
+<p><strong>Paper。</strong> 用私有 Google News 100B 词语料进一步扩大专家数，最多 131,072 个；采用层级路由，固定全局约 2.5M 词 batch，以约 8M ops/timestep 比较。模型最大约 <strong>137.7B 总参数</strong>，不是 137.7B active parameters。完整表在附录 D。</p>
+<h3>Figure 3：最大容量不等于最佳质量</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 3" data-zoom="assets/original/fig-03-news-scaling.png" type="button"><img alt="Figure 3: Language modeling on a 100 billion word corpus. Models have similar computational budgets (8 million ops/timestep)." loading="lazy" src="assets/original/fig-03-news-scaling.png"/></button><figcaption><strong>Figure 3 · Original Paper v1 · PDF p.7</strong> · 点击放大。原 caption 已保留于图中。<br/>Figure 3: Language modeling on a 100 billion word corpus. Models have similar computational budgets (8 million ops/timestep).</figcaption></figure>
+<p>沿专家数量读曲线，比较 10B / 100B 训练量与不同模型的 test PPL。更大数据支撑了更大容量，但曲线并非永远单调。Table 8 中 65,536 专家模型为 <strong>28.9</strong>，131,072 专家为 <strong>29.2</strong>；相对 100B 训练的 4-LSTM 47.0，最优点下降 <strong>38.51%</strong>。</p>
+<p>固定 batch、k=4 时，两者每叶专家平均 token assignment 从 <strong>152.59</strong> 降至 <strong>76.29</strong>。训练效率从 0.72 到 0.30 TFLOPS/GPU，下降 <strong>58.33%</strong>。这支持“容量扩展有系统拐点”，但论文没有逐算子测量来证明下降唯一由小 batch 引起。语料也无法按公开资料原样复现。</p>
+<h3>§5.3 单语言对翻译：BLEU 更高，但结构与硬件同时变化</h3>
+<p>MoE 分别插在 encoder 与 decoder 的 LSTM 层间，最多每层 2048 个专家，层级 top-2×top-2。主干层数、attention 实现、训练与硬件均不同于 GNMT，因此这是系统组合的结果，不能当成只替换 FFN 的干净消融。附录 E 与 F 还有一个需要揭示的路由配置冲突。</p>
+<div aria-label="Table 2 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt">Model</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">ops/timenstep</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Total</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">Training</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td class="ltx_td ltx_align_center ltx_border_r">Perplexity</td>
+<td class="ltx_td ltx_align_center ltx_border_r">BLEU</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">#Parameters</td>
+<td class="ltx_td ltx_align_center">Time</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">MoE with 2048 Experts</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">2.69</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">40.35</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">85M</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">8.7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3 days/64 k40s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE with 2048 Experts (longer training)</th>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">2.63</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">40.56</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">85M</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.7B</td>
+<td class="ltx_td ltx_align_center">6 days/64 k40s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">GNMT <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib41" rel="noopener" title="">Wu et al., 2016</a>)</cite></th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">2.79</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">39.22</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">214M</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">278M</td>
+<td class="ltx_td ltx_align_center ltx_border_t">6 days/96 k80s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">GNMT+RL <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib41" rel="noopener" title="">Wu et al., 2016</a>)</cite></th>
+<td class="ltx_td ltx_align_center ltx_border_r">2.96</td>
+<td class="ltx_td ltx_align_center ltx_border_r">39.92</td>
+<td class="ltx_td ltx_align_center ltx_border_r">214M</td>
+<td class="ltx_td ltx_align_center ltx_border_r">278M</td>
+<td class="ltx_td ltx_align_center">6 days/96 k80s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">PBMT <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib14" rel="noopener" title="">Durrani et al., 2014</a>)</cite></th>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">37.0</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">LSTM (6-layer) <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib33" rel="noopener" title="">Luong et al., 2015b</a>)</cite></th>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">31.5</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">LSTM (6-layer+PosUnk) <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib33" rel="noopener" title="">Luong et al., 2015b</a>)</cite></th>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">33.1</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">DeepAtt <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib44" rel="noopener" title="">Zhou et al., 2016</a>)</cite></th>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">37.7</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r">DeepAtt+PosUnk <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib44" rel="noopener" title="">Zhou et al., 2016</a>)</cite></th>
+<td class="ltx_td ltx_border_bb ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">39.2</td>
+<td class="ltx_td ltx_border_bb ltx_border_r"></td>
+<td class="ltx_td ltx_border_bb ltx_border_r"></td>
+<td class="ltx_td ltx_border_bb"></td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper · Table 2。保留完整行列与强调；以下原始截图包含 caption 与排版。</p>
+<details><summary>展开 Table 2 原始截图与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 2" data-zoom="assets/original/table-02-wmt-en-fr.png" type="button"><img alt="Table 2: Results on WMT’14 En → \rightarrow Fr newstest2014 (bold values represent best results)." loading="lazy" src="assets/original/table-02-wmt-en-fr.png"/></button><figcaption><strong>Table 2 · Original Paper v1 · PDF p.8</strong> · 点击放大。原 caption 已保留于图中。<br/>Table 2: Results on WMT’14 En → \rightarrow Fr newstest2014 (bold values represent best results).</figcaption></figure></details>
+<p>Table 2：WMT’14 En→Fr，MoE 3 天 40.35、6 天 <strong>40.56</strong>，GNMT 39.22、GNMT+RL 39.92。分别高 <strong>1.34</strong> 与 <strong>0.64 BLEU</strong>。这些是绝对分差，不能与相对 PPL 改善混写成统一百分比。</p>
+<div aria-label="Table 3 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt">Model</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">ops/timestep</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Total</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">Training</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td class="ltx_td ltx_align_center ltx_border_r">Perplexity</td>
+<td class="ltx_td ltx_align_center ltx_border_r">BLEU</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">#Parameters</td>
+<td class="ltx_td ltx_align_center">Time</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">MoE with 2048 Experts</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">4.64</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">26.03</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">85M</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">8.7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1 day/64 k40s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">GNMT <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib41" rel="noopener" title="">Wu et al., 2016</a>)</cite></th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">5.25</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">24.91</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">214M</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">278M</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1 day/96 k80s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">GNMT +RL <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib41" rel="noopener" title="">Wu et al., 2016</a>)</cite></th>
+<td class="ltx_td ltx_align_center ltx_border_r">8.08</td>
+<td class="ltx_td ltx_align_center ltx_border_r">24.66</td>
+<td class="ltx_td ltx_align_center ltx_border_r">214M</td>
+<td class="ltx_td ltx_align_center ltx_border_r">278M</td>
+<td class="ltx_td ltx_align_center">1 day/96 k80s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">PBMT <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib14" rel="noopener" title="">Durrani et al., 2014</a>)</cite></th>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">20.7</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r">DeepAtt <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib44" rel="noopener" title="">Zhou et al., 2016</a>)</cite></th>
+<td class="ltx_td ltx_border_bb ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">20.6</td>
+<td class="ltx_td ltx_border_bb ltx_border_r"></td>
+<td class="ltx_td ltx_border_bb ltx_border_r"></td>
+<td class="ltx_td ltx_border_bb"></td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper · Table 3。保留完整行列与强调；以下原始截图包含 caption 与排版。</p>
+<details><summary>展开 Table 3 原始截图与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 3" data-zoom="assets/original/table-03-wmt-en-de.png" type="button"><img alt="Table 3: Results on WMT’14 En → \rightarrow De newstest2014 (bold values represent best results)." loading="lazy" src="assets/original/table-03-wmt-en-de.png"/></button><figcaption><strong>Table 3 · Original Paper v1 · PDF p.8</strong> · 点击放大。原 caption 已保留于图中。<br/>Table 3: Results on WMT’14 En → \rightarrow De newstest2014 (bold values represent best results).</figcaption></figure></details>
+<p>Table 3：En→De，<strong>26.03 对 24.91</strong>，高 <strong>1.12 BLEU</strong>。最强 baseline 应保留其训练预算与模型名称，不只摘 MoE 行。</p>
+<div aria-label="Table 4 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt">Model</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Eval</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Eval</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">ops/timestep</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Total</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">Training</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td class="ltx_td ltx_align_center ltx_border_r">Perplexity</td>
+<td class="ltx_td ltx_align_center ltx_border_r">BLEU</td>
+<td class="ltx_td ltx_align_center ltx_border_r">Perplexity</td>
+<td class="ltx_td ltx_align_center ltx_border_r">BLEU</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">#Parameters</td>
+<td class="ltx_td ltx_align_center">Time</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">MoE with 2048 Experts</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">2.60</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">37.27</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">2.69</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">36.57</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">85M</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">8.7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1 day/64 k40s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r ltx_border_t">GNMT <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/1701.06538v1#bib.bib41" rel="noopener" title="">Wu et al., 2016</a>)</cite></th>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">2.78</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">35.80</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">2.87</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">35.56</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">214M</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">278M</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">6 days/96 k80s</td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper · Table 4。保留完整行列与强调；以下原始截图包含 caption 与排版。</p>
+<details><summary>展开 Table 4 原始截图与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 4" data-zoom="assets/original/table-04-production-en-fr.png" type="button"><img alt="Table 4: Results on the Google Production En → \rightarrow Fr dataset (bold values represent best results)." loading="lazy" src="assets/original/table-04-production-en-fr.png"/></button><figcaption><strong>Table 4 · Original Paper v1 · PDF p.8</strong> · 点击放大。原 caption 已保留于图中。<br/>Table 4: Results on the Google Production En → \rightarrow Fr dataset (bold values represent best results).</figcaption></figure></details>
+<p>Table 4：生产 En→Fr，<strong>36.57 对 35.56</strong>，高 <strong>1.01 BLEU</strong>，但数据私有。表中 85M/214M=<strong>39.72%</strong> forward ops；MoE 用 64 K40、GNMT 用 96 K80，不能把 wallclock 比直接解释为算法单独贡献。该版本使用 tokenized Moses <code>multi-bleu.pl</code>，没有现代 sacreBLEU signature；跨时代分数不具备直接可比性。</p>
+<h3>§5.4 多语言翻译：共享容量能缓解任务干扰</h3>
+<p>12 个翻译方向共同训练时，小 dense 模型面临容量竞争。<strong>这里的配置改为 flat 512 专家、top-2、专家 hidden8192，每个 MoE 层如此</strong>，不能照搬上一节的 hierarchical2048 / hidden2048 / 四叶路径。总参数 8.7B，102M ops/timestep。</p>
+<div aria-label="Table 5 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r ltx_border_tt"></th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">GNMT-Mono</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">GNMT-Multi</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">MoE-Multi</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">MoE-Multi vs.</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">GNMT-Multi</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">Parameters</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">278M / model</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">278M</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">8.7B</td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">ops/timestep</th>
+<td class="ltx_td ltx_align_center ltx_border_r">212M</td>
+<td class="ltx_td ltx_align_center ltx_border_r">212M</td>
+<td class="ltx_td ltx_align_center ltx_border_r">102M</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">training time, hardware</th>
+<td class="ltx_td ltx_align_center ltx_border_r">various</td>
+<td class="ltx_td ltx_align_center ltx_border_r">21 days, 96 k20s</td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">12 days, 64 k40s</span></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">Perplexity (dev)</th>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">4.14</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">3.35</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">-19%</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">French <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> English Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r">36.47</td>
+<td class="ltx_td ltx_align_center ltx_border_r">34.40</td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">37.46</span></td>
+<td class="ltx_td ltx_align_center">+3.06</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">German <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> English Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r">31.77</td>
+<td class="ltx_td ltx_align_center ltx_border_r">31.17</td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">34.80</span></td>
+<td class="ltx_td ltx_align_center">+3.63</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">Japanese <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> English Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r">23.41</td>
+<td class="ltx_td ltx_align_center ltx_border_r">21.62</td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">25.91</span></td>
+<td class="ltx_td ltx_align_center">+4.29</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">Korean <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> English Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r">25.42</td>
+<td class="ltx_td ltx_align_center ltx_border_r">22.87</td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">28.71</span></td>
+<td class="ltx_td ltx_align_center">+5.84</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">Portuguese <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> English Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r">44.40</td>
+<td class="ltx_td ltx_align_center ltx_border_r">42.53</td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">46.13</span></td>
+<td class="ltx_td ltx_align_center">+3.60</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">Spanish <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> English Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r">38.00</td>
+<td class="ltx_td ltx_align_center ltx_border_r">36.04</td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">39.39</span></td>
+<td class="ltx_td ltx_align_center">+3.35</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">English <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> French Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r">35.37</td>
+<td class="ltx_td ltx_align_center ltx_border_r">34.00</td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">36.59</span></td>
+<td class="ltx_td ltx_align_center">+2.59</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">English <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> German Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">26.43</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">23.15</td>
+<td class="ltx_td ltx_align_center ltx_border_r">24.53</td>
+<td class="ltx_td ltx_align_center">+1.38</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">English <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> Japanese Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">23.66</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">21.10</td>
+<td class="ltx_td ltx_align_center ltx_border_r">22.78</td>
+<td class="ltx_td ltx_align_center">+1.68</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">English <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> Korean Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">19.75</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">18.41</td>
+<td class="ltx_td ltx_align_center ltx_border_r">16.62</td>
+<td class="ltx_td ltx_align_center">-1.79</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">English <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> Portuguese Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">38.40</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">37.35</td>
+<td class="ltx_td ltx_align_center ltx_border_r">37.90</td>
+<td class="ltx_td ltx_align_center">+0.55</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_b ltx_border_r">English <math alttext="\rightarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> Spanish Test BLEU</th>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">34.50</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">34.25</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r"><span class="ltx_text ltx_font_bold">36.21</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b">+1.96</td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper · Table 5。保留完整行列与强调；以下原始截图包含 caption 与排版。</p>
+<details><summary>展开 Table 5 原始截图与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 5" data-zoom="assets/original/table-05-multilingual.png" type="button"><img alt="Table 5: Multilingual Machine Translation (bold values represent best results)." loading="lazy" src="assets/original/table-05-multilingual.png"/></button><figcaption><strong>Table 5 · Original Paper v1 · PDF p.9</strong> · 点击放大。原 caption 已保留于图中。<br/>Table 5: Multilingual Machine Translation (bold values represent best results).</figcaption></figure></details>
+<p>Table 5 的开发集 PPL 4.14→3.35，相对下降 <strong>19.08%</strong>。MoE 超过 multilingual GNMT 的 11/12 方向，超过独立 monolingual 模型的 8/12 方向。反例 En→Ko 是 <strong>16.62 对 18.41</strong>，差 <strong>−1.79 BLEU</strong>。作者提出 oversampling 与过拟合解释，但没有针对性消融验证，不能写成已证实的单一因果结论。</p>
+<p>训练硬件亦不一致：GNMT-Multi 为 96 K20、21 天，MoE 为 64 K40、12 天。保留参数、算术、时间和全部 12 个方向，才能看见总体收益与局部退步同时存在。没有多随机种子、显著性检验或置信区间，微小分差应审慎解释。</p>
+<h2 id="section-8">§6 Conclusion：它证明了什么，又留下什么</h2>
+<p><strong>Paper。</strong> 稀疏 MoE 可以在较低的每步算术预算下扩大参数容量，并在语言建模和翻译上获得质量收益；规模化的关键是可训练 gate、专家利用率和分布式执行。</p>
+<p><strong>Interpretation。</strong> 最可靠的历史结论是：参数容量不必与每个 token 的专家算术严格绑定。本文没有证明固定总内存、固定网络带宽、batch1 decode、任意专家数下都能保持同样效率。它提出了一条能扩展的路线，也用最大模型的效率下降暴露了这条路线的边界。</p>
+<h2 id="section-9">附录 A Load：用条件概率给“是否选中”一条梯度路径</h2>
+<h3>Eq. (8)–(11)：重新采样本专家的噪声，其他专家固定</h3>
+<p>硬计数不可微。对 token x 与专家 i，固定其他专家已抽出的噪声，只重新抽 i 的噪声；定义 τᵢ 为排除 i 后，其余 logits 的第 k 大值。i 能进 Top-K，当且仅当自己的带噪 logit 超过 τᵢ。</p>
+<div class="formula" data-equation="8"><math alttext=" P(x,i)=Pr\Big((x\cdot W_{g})_{i}+StandardNormal()\cdot Softplus((x\cdot W_{noise})_{i})
+&gt;kth\_excluding(H(x),k,i)\Big)" class="ltx_Math" display="block" id="Ax1.E8X.m2" intent=":literal"><semantics><mrow><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>i</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mi>P</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo maxsize="1.600em" minsize="1.600em">(</mo><mrow><msub><mrow><mo stretchy="false">(</mo><mrow><mi>x</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msub><mi>W</mi><mi>g</mi></msub></mrow><mo stretchy="false">)</mo></mrow><mi>i</mi></msub><mo>+</mo><mrow><mrow><mrow><mi>S</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⋅</mo><mi>S</mi></mrow><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>f</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>u</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mrow><mo stretchy="false">(</mo><mrow><mi>x</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msub><mi>W</mi><mrow><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi></mrow></msub></mrow><mo stretchy="false">)</mo></mrow><mi>i</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mrow><mrow><mphantom></mphantom><mo>&gt;</mo><mrow><mi>k</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mi>_</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>x</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>u</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>g</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>H</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow><mo mathsize="1.600em">,</mo><mi>k</mi><mo mathsize="1.600em">,</mo><mi>i</mi><mo stretchy="false">)</mo></mrow></mrow></mrow><mo maxsize="1.600em" minsize="1.600em">)</mo></mrow></mrow></mrow><annotation encoding="application/x-tex"> P(x,i)=Pr\Big((x\cdot W_{g})_{i}+StandardNormal()\cdot Softplus((x\cdot W_{noise})_{i})
+&gt;kth\_excluding(H(x),k,i)\Big)</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (8)</span><details><summary>可复制 TeX 公式</summary><code>\displaystyle P(x,i)=Pr\Big((x\cdot W_{g})_{i}+StandardNormal()\cdot Softplus((x\cdot W_{noise})_{i})
+\displaystyle&gt;kth\_excluding(H(x),k,i)\Big)</code></details></div>
+<div class="formula" data-equation="9"><math alttext="P(x,i)=\Phi\Big(\frac{(x\cdot W_{g})_{i}-kth\_excluding(H(x),k,i)}{Softplus((x\cdot W_{noise})_{i})}\Big)" class="ltx_Math" display="block" id="Ax1.E9.m1" intent=":literal"><semantics><mrow><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>i</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mi mathvariant="normal">Φ</mi><mo>⁡</mo><mrow><mo maxsize="1.600em" minsize="1.600em">(</mo><mfrac><mrow><msub><mrow><mo stretchy="false">(</mo><mrow><mi>x</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msub><mi>W</mi><mi>g</mi></msub></mrow><mo stretchy="false">)</mo></mrow><mi>i</mi></msub><mo>−</mo><mrow><mi>k</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mi>_</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>x</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>u</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>g</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>H</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow><mo>,</mo><mi>k</mi><mo>,</mo><mi>i</mi><mo stretchy="false">)</mo></mrow></mrow></mrow><mrow><mi>S</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>f</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>u</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mrow><mo stretchy="false">(</mo><mrow><mi>x</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msub><mi>W</mi><mrow><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi></mrow></msub></mrow><mo stretchy="false">)</mo></mrow><mi>i</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mfrac><mo maxsize="1.600em" minsize="1.600em">)</mo></mrow></mrow></mrow><annotation encoding="application/x-tex">P(x,i)=\Phi\Big(\frac{(x\cdot W_{g})_{i}-kth\_excluding(H(x),k,i)}{Softplus((x\cdot W_{noise})_{i})}\Big)</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (9)</span><details><summary>可复制 TeX 公式</summary><code>P(x,i)=\Phi\Big(\frac{(x\cdot W_{g})_{i}-kth\_excluding(H(x),k,i)}{Softplus((x\cdot W_{noise})_{i})}\Big)</code></details></div>
+<p>若本专家 clean logit 为 μᵢ、噪声尺度为 σᵢ，P(x,i)=Pr[μᵢ+εσᵢ&gt;τᵢ]=Φ((μᵢ−τᵢ)/σᵢ)，Φ 是标准高斯累积分布。Eq. (9) 的符号来自 1−Φ((τ−μ)/σ)=Φ((μ−τ)/σ)。P 为标量，每个 batch 的矩阵为 N×n，μ 和 σ 提供平滑的梯度路径。</p>
+<p>一个实现易错点：若 i 本来在 Top-K 中，排除 i 后阈值为全局<strong>第 k+1 大</strong>；若 i 未入选，阈值为全局<strong>第 k 大</strong>。例 H=[5,4,3,2]、k=2，各专家阈值依次 [3,3,4,4]，绝不能给所有专家共用阈值 4。这里是条件估计，并非重新采样全部噪声的直接 Monte Carlo 频率；单次实现 ΣᵢP(x,i) 不要求精确等于 k。</p>
+<div class="formula" data-equation="10"><math alttext="Load(X)_{i}=\sum_{x\in X}P(x,i)" class="ltx_Math" display="block" id="Ax1.E10.m1" intent=":literal"><semantics><mrow><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mo rspace="0.111em">=</mo><mrow><munder><mo movablelimits="false">∑</mo><mrow><mi>x</mi><mo>∈</mo><mi>X</mi></mrow></munder><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>i</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><annotation encoding="application/x-tex">Load(X)_{i}=\sum_{x\in X}P(x,i)</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (10)</span><details><summary>可复制 TeX 公式</summary><code>Load(X)_{i}=\sum_{x\in X}P(x,i)</code></details></div>
+<div class="formula" data-equation="11"><math alttext="L_{load}(X)=w_{load}\cdot CV(Load(X))^{2}" class="ltx_Math" display="block" id="Ax1.E11.m1" intent=":literal"><semantics><mrow><mrow><msub><mi>L</mi><mrow><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mrow><msub><mi>w</mi><mrow><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi></mrow></msub><mo lspace="0.222em" rspace="0.222em">⋅</mo><mi>C</mi></mrow><mo lspace="0em" rspace="0em">​</mo><mi>V</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow><mn>2</mn></msup></mrow></mrow><annotation encoding="application/x-tex">L_{load}(X)=w_{load}\cdot CV(Load(X))^{2}</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (11)</span><details><summary>可复制 TeX 公式</summary><code>L_{load}(X)=w_{load}\cdot CV(Load(X))^{2}</code></details></div>
+<p>Load(X)∈Rⁿ 是 batch 内选择概率之和，单位接近 token assignment。L_load 用 CV² 抑制负载偏差。它仍是平滑估计，真正的内存容量与最慢专家时间要看实际计数分布。W_g 与 W_noise 零初始化时 σ=softplus(0)=ln2，不等于零噪声；这使初始路由具有随机分散性。</p>
+<h3>Table 6：两个均衡损失是否有必要</h3>
+<div aria-label="Table 6 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r"><math alttext="w_{importance}" class="ltx_Math" intent=":literal"><semantics><msub><mi>w</mi><mrow><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi></mrow></msub></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r"><math alttext="w_{load}" class="ltx_Math" intent=":literal"><semantics><msub><mi>w</mi><mrow><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi></mrow></msub></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r">Test Perplexity</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><math alttext="CV(Importance(X))" class="ltx_Math" intent=":literal"><semantics><mrow><mi>C</mi><mo lspace="0em" rspace="0em">​</mo><mi>V</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>I</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><math alttext="CV(Load(X))" class="ltx_Math" intent=":literal"><semantics><mrow><mi>C</mi><mo lspace="0em" rspace="0em">​</mo><mi>V</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column"><math alttext="\frac{max(Load(X))}{mean(Load(X))}" class="ltx_Math" intent=":literal"><semantics><mfrac><mrow><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>x</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow><mrow><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mfrac></semantics></math></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">0.0</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">0.0</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">39.8</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">3.04</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">3.01</td>
+<td class="ltx_td ltx_align_center ltx_border_t">17.80</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">0.2</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">0.0</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span class="ltx_text ltx_font_bold">35.6</span></th>
+<td class="ltx_td ltx_align_center ltx_border_r">0.06</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.17</td>
+<td class="ltx_td ltx_align_center">1.47</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">0.0</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">0.2</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">35.7</th>
+<td class="ltx_td ltx_align_center ltx_border_r">0.22</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.04</td>
+<td class="ltx_td ltx_align_center">1.15</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">0.1</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">0.1</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span class="ltx_text ltx_font_bold">35.6</span></th>
+<td class="ltx_td ltx_align_center ltx_border_r">0.06</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.05</td>
+<td class="ltx_td ltx_align_center">1.14</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">0.01</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">0.01</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">35.7</th>
+<td class="ltx_td ltx_align_center ltx_border_r">0.48</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.11</td>
+<td class="ltx_td ltx_align_center">1.37</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">1.0</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">1.0</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">35.7</th>
+<td class="ltx_td ltx_align_center ltx_border_r">0.03</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.02</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">1.07</span></td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper · Table 6。保留完整行列与强调；以下原始截图包含 caption 与排版。</p>
+<details><summary>展开 Table 6 原始截图与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 6" data-zoom="assets/original/table-06-balancing-ablation.png" type="button"><img alt="Table 6: Experiments with different combinations of losses." loading="lazy" src="assets/original/table-06-balancing-ablation.png"/></button><figcaption><strong>Table 6 · Original Paper v1 · PDF p.13</strong> · 点击放大。原 caption 已保留于图中。<br/>Table 6: Experiments with different combinations of losses.</figcaption></figure></details>
+<p>没有均衡项时 PPL=39.8，Importance CV=3.04、Load CV=3.01，最大/平均负载=17.80。Importance 权重 .2、Load0 时 PPL35.6，但 Load CV=.17；只用 Load.2 时 PPL35.7、Importance CV=.22。两者 .1/.1 时 PPL35.6、CV .06/.05、最大/平均1.14，说明权重和与工作量的平衡目标互补。</p>
+<p>加大到1/1后 CV 更低（.03/.02），PPL35.7 并没有继续改善；最小 CV 不是唯一目标。指标是 batch 平均，没有方差区间；这个表证明失衡治理重要，不足以证明 .1 是跨任务最优系数。</p>
+<h2 id="section-10">附录 B Hierarchical MoE：先选组，再选组内专家</h2>
+<h3>架构与 Eq. (12)–(14)</h3>
+<p>平坦路由需为所有 n 个专家打分。层级方案有 a 个组、每组 b 个叶专家，共 ab 个专家；第一层 gate 选组，第二层 gate 只在被选组内选叶。输出 gate 是两层权重的乘积。top-2×top-2 在标准逐 token 路由下有四个叶路径，组间专家参数不共享。</p>
+<figure class="generated-figure"><div class="diagram-scroll"><svg aria-label="层级 MoE 先选专家组再选叶专家" role="img" viewbox="0 0 760 395" xmlns="http://www.w3.org/2000/svg"><style>text{font-family:system-ui,sans-serif;fill:#dbe6f5;font-size:14px}.small{font-size:12px;fill:#9fb1c9}.box{fill:#182335;stroke:#4b617e;stroke-width:1.3}.wire{fill:none;stroke:#8dadd9;stroke-width:1.6}.chosen{fill:#243c5b;stroke:#a9c9f3}</style><rect class="box" height="62" rx="6" width="220" x="270" y="12"></rect><text x="282" y="36">Token x：Rᵈ</text><text class="small" x="282" y="58">Primary gate 选 2 组</text><path class="wire" d="M380 74V97.0H125V120m-4 -6l4 6 4 -6"></path><rect class="chosen" height="62" rx="6" width="220" x="20" y="120"></rect><text x="32" y="144">组 0：b 个叶专家</text><text class="small" x="32" y="166">Local gate 只在所选组内打分</text><path class="wire" d="M125 182V206.0H68V230m-4 -6l4 6 4 -6"></path><rect class="chosen" height="55" rx="6" width="105" x="20" y="230"></rect><text x="32" y="254">E0,0</text><path class="wire" d="M125 182V206.0H183V230m-4 -6l4 6 4 -6"></path><rect class="chosen" height="55" rx="6" width="105" x="135" y="230"></rect><text x="147" y="254">E0,1</text><path class="wire" d="M380 74V97.0H375V120m-4 -6l4 6 4 -6"></path><rect class="chosen" height="62" rx="6" width="220" x="270" y="120"></rect><text x="282" y="144">组 1：b 个叶专家</text><text class="small" x="282" y="166">Local gate 只在所选组内打分</text><path class="wire" d="M375 182V206.0H318V230m-4 -6l4 6 4 -6"></path><rect class="chosen" height="55" rx="6" width="105" x="270" y="230"></rect><text x="282" y="254">E1,0</text><path class="wire" d="M375 182V206.0H433V230m-4 -6l4 6 4 -6"></path><rect class="chosen" height="55" rx="6" width="105" x="385" y="230"></rect><text x="397" y="254">E1,1</text><path class="wire" d="M380 74V97.0H625V120m-4 -6l4 6 4 -6"></path><rect class="box" height="62" rx="6" width="220" x="520" y="120"></rect><text x="532" y="144">组 2：b 个叶专家</text><text class="small" x="532" y="166">Local gate 只在所选组内打分</text><rect class="box" height="55" rx="6" width="105" x="520" y="230"></rect><text x="532" y="254">E2,0</text><rect class="box" height="55" rx="6" width="105" x="635" y="230"></rect><text x="647" y="254">E2,1</text><text x="32" y="330">两层 top-2 → 四条叶路径；gate = primary × local</text><text class="small" x="32" y="358">标准逐 token 定义；附录 F 的 strict batchwise 不保证每行四条</text></svg></div><figcaption>Agent-created Simplified Diagram · hierarchy。[<a href="assets/generated/hierarchy.svg">SVG</a>] [<a href="assets/generated/hierarchy.mmd">Mermaid source</a>]</figcaption></figure>
+<div class="formula" data-equation="12"><math alttext="y_{H}=\sum_{i=1}^{a}\sum_{j=1}^{b}G_{primary}(x)_{i}\cdot G_{i}(x)_{j}\cdot E_{i,j}(x)" class="ltx_Math" display="block" id="Ax1.E12.m1" intent=":literal"><semantics><mrow><msub><mi>y</mi><mi>H</mi></msub><mo rspace="0.111em">=</mo><mrow><munderover><mo movablelimits="false" rspace="0em">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>a</mi></munderover><mrow><munderover><mo movablelimits="false">∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>b</mi></munderover><mrow><mrow><mrow><mrow><mrow><msub><mi>G</mi><mrow><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>y</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo rspace="0.055em" stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mo rspace="0.222em">⋅</mo><msub><mi>G</mi><mi>i</mi></msub></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo rspace="0.055em" stretchy="false">)</mo></mrow><mi>j</mi></msub></mrow><mo rspace="0.222em">⋅</mo><msub><mi>E</mi><mrow><mi>i</mi><mo>,</mo><mi>j</mi></mrow></msub></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></mrow><annotation encoding="application/x-tex">y_{H}=\sum_{i=1}^{a}\sum_{j=1}^{b}G_{primary}(x)_{i}\cdot G_{i}(x)_{j}\cdot E_{i,j}(x)</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (12)</span><details><summary>可复制 TeX 公式</summary><code>y_{H}=\sum_{i=1}^{a}\sum_{j=1}^{b}G_{primary}(x)_{i}\cdot G_{i}(x)_{j}\cdot E_{i,j}(x)</code></details></div>
+<p>Eq. (12)：Eᵢ,ⱼ(x) 输出在相同 d_out 空间。第一层选择会限制第二层的候选，错过组时不能直接访问该组最好的专家，这是减少 router 候选代价的 trade-off。平坦打分代价约 Ndab，层级约 Nda+Nk_primary·db，不含 Top-K、数据移动与专家计算。</p>
+<div class="formula" data-equation="13"><math alttext="Importance_{H}(X)_{i,j}=\sum_{x\in X}G_{primary}(x)_{i}\cdot G_{i}(x)_{j}" class="ltx_Math" display="block" id="Ax1.E13.m1" intent=":literal"><semantics><mrow><mrow><mi>I</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi>e</mi><mi>H</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow><mrow><mi>i</mi><mo>,</mo><mi>j</mi></mrow></msub></mrow><mo rspace="0.111em">=</mo><mrow><mrow><mrow><munder><mo movablelimits="false">∑</mo><mrow><mi>x</mi><mo>∈</mo><mi>X</mi></mrow></munder><mrow><msub><mi>G</mi><mrow><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>y</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo rspace="0.055em" stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow></mrow><mo rspace="0.222em">⋅</mo><msub><mi>G</mi><mi>i</mi></msub></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mi>j</mi></msub></mrow></mrow><annotation encoding="application/x-tex">Importance_{H}(X)_{i,j}=\sum_{x\in X}G_{primary}(x)_{i}\cdot G_{i}(x)_{j}</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (13)</span><details><summary>可复制 TeX 公式</summary><code>Importance_{H}(X)_{i,j}=\sum_{x\in X}G_{primary}(x)_{i}\cdot G_{i}(x)_{j}</code></details></div>
+<p>Eq. (13) 的 Importance_H 为 a×b 的权重和，可以直接由 gate 乘积累加。只在组内平衡并不能解决组间流量偏斜，因此一二级均衡需一起考虑。</p>
+<div class="formula" data-equation="14"><math alttext="Load_{H}(X)_{i,j}=\frac{Load_{primary}(X)_{i}\cdot Load_{i}(X^{(i)})_{j}}{|X^{(i)}|}" class="ltx_Math" display="block" id="Ax1.E14.m1" intent=":literal"><semantics><mrow><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi>d</mi><mi>H</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></mrow><mrow><mi>i</mi><mo>,</mo><mi>j</mi></mrow></msub></mrow><mo>=</mo><mfrac><mrow><mrow><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi>d</mi><mrow><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>y</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>X</mi><mo rspace="0.055em" stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mo rspace="0.222em">⋅</mo><mi>L</mi></mrow><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi>d</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><msup><mi>X</mi><mrow><mo stretchy="false">(</mo><mi>i</mi><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mi>j</mi></msub></mrow><mrow><mo stretchy="false">|</mo><msup><mi>X</mi><mrow><mo stretchy="false">(</mo><mi>i</mi><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">|</mo></mrow></mfrac></mrow><annotation encoding="application/x-tex">Load_{H}(X)_{i,j}=\frac{Load_{primary}(X)_{i}\cdot Load_{i}(X^{(i)})_{j}}{|X^{(i)}|}</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (14)</span><details><summary>可复制 TeX 公式</summary><code>Load_{H}(X)_{i,j}=\frac{Load_{primary}(X)_{i}\cdot Load_{i}(X^{(i)})_{j}}{|X^{(i)}|}</code></details></div>
+<p>X⁽ⁱ⁾ 是实际送到组 i 的 token 集合。Eq. (14) 用 primary 的平滑 Load 乘 local 条件比例，替代不可微的纯叶计数，使第一层也获得均衡梯度。若组为空，分母为零，工程实现必须 guard；不能不加处理直接翻译公式。层级降低 gate 开销，却新增了调度层级和粗粒度选择瓶颈。</p>
+<h2 id="section-11">附录 C One Billion Word：复原结构、训练与完整结果</h2>
+<h3>C.1：张量与训练链路</h3>
+<p>输入 IDs B×T，经 embedding512 成 B×T×512，下层 LSTM512 产生表示；合并可用时间步为 N×512 送 MoE，专家 512→1024 ReLU→512；MoE 输出再加 sigmoid、dropout 与 residual，接上层 LSTM512，投影词表 793,471。输出 softmax 与大词表会影响完整成本，不能因 ops 表排除它们就当不存在。</p>
+<p>全局 batch 约 300K 词，16 张 K40，27K 步对应约 10 epochs。Adam，warmup1000，后续 inverse square root；dropout 以 .1 网格调，Importance/Load 系数 .1。非 softmax 层的输出均做 dropout 与残差；输出 softmax 用 importance sampling 高效训练。PPL 是指数化的平均负对数似然，越低越好，评估包括句末符号。论文没有建立现代 FP16/BF16 的精度设定，保持“未明确报告”。专家数多时需要跨数据分片汇聚 token，不应误用每卡 batch 算全局专家平均负载。</p>
+<p>标准层级 LM 的首层 branching=16，对应16 GPU；普通 MoE 使用 k=4，层级每层 k=2。MoE-4 会执行全部4个专家，训练约18小时，因为专家计算只在4/16 GPU上，其他同预算模型约12–16小时。dense 对照还包括单专家 hidden4096 的 wide、4层 hidden1024 的 deep、4×LSTM512，以及重跑的 projected LSTM2048→512；不仅比较一个弱基线。</p>
+<h3>C.2：同容量改变算术，完整 Table 7</h3>
+<div aria-label="Table 7 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt">Model</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Test</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">ops/timestep</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">#Params excluding</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Total</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><math alttext="Drop" class="ltx_Math" intent=":literal"><semantics><mrow><mi>D</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi></mrow></semantics></math>-</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">TFLOPS</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td class="ltx_td ltx_align_center ltx_border_r">Perplexity</td>
+<td class="ltx_td ltx_align_center ltx_border_r">Perplexity</td>
+<td class="ltx_td ltx_align_center ltx_border_r">(millions)</td>
+<td class="ltx_td ltx_align_center ltx_border_r">embed. &amp; softmax</td>
+<td class="ltx_td ltx_align_center ltx_border_r">#Params</td>
+<td class="ltx_td ltx_align_center ltx_border_r"><math alttext="Prob" class="ltx_Math" intent=":literal"><semantics><mrow><mi>P</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>b</mi></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center">per GPU</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td class="ltx_td ltx_align_center ltx_border_r">10 epochs</td>
+<td class="ltx_td ltx_align_center ltx_border_r">(final)</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">(millions)</td>
+<td class="ltx_td ltx_align_center ltx_border_r">(billions)</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">(observed)</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">Kneser-Ney 5-gram*</th>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">67.6</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.00001</td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1.8</td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">LSTM-512-512*</th>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">54.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r">2.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">2.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">LSTM-1024-512*</th>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">48.2</td>
+<td class="ltx_td ltx_align_center ltx_border_r">4.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r">4.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">LSTM-2048-512*</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">45.0</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">43.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">9.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">9.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.61</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">LSTM-2048-512</th>
+<td class="ltx_td ltx_align_center ltx_border_r">44.7</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">9.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">9.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td ltx_align_center">1.21</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">4xLSTM-512</th>
+<td class="ltx_td ltx_align_center ltx_border_r">46.0</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td ltx_align_center">1.07</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-1-Wide</th>
+<td class="ltx_td ltx_align_center ltx_border_r">46.1</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td ltx_align_center">1.29</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-1-Deep</th>
+<td class="ltx_td ltx_align_center ltx_border_r">45.7</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td ltx_align_center">1.29</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">MoE-4</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">45.0</td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.52</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-32</th>
+<td class="ltx_td ltx_align_center ltx_border_r">39.7</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">37.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td ltx_align_center">0.87</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-256</th>
+<td class="ltx_td ltx_align_center ltx_border_r">35.7</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.6</td>
+<td class="ltx_td ltx_align_center ltx_border_r">272.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">1.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td ltx_align_center">0.81</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-256-h</th>
+<td class="ltx_td ltx_align_center ltx_border_r">36.0</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">272.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">1.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td ltx_align_center">0.89</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-1024-h</th>
+<td class="ltx_td ltx_align_center ltx_border_r">34.6</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.5</td>
+<td class="ltx_td ltx_align_center ltx_border_r">1079.0</td>
+<td class="ltx_td ltx_align_center ltx_border_r">1.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.2</td>
+<td class="ltx_td ltx_align_center">0.90</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-4096-h</th>
+<td class="ltx_td ltx_align_center ltx_border_r">34.1</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">4303.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">5.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.2</td>
+<td class="ltx_td ltx_align_center">0.74</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">2xLSTM-8192-1024*</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">34.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">30.6</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">151.0</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">151.0</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.25</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.09</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-34M</th>
+<td class="ltx_td ltx_align_center ltx_border_r">31.3</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">33.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">4313.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">6.0</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.3</td>
+<td class="ltx_td ltx_align_center">1.22</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r">MoE-143M</th>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r"><span class="ltx_text ltx_font_bold">28.0</span></td>
+<td class="ltx_td ltx_border_bb ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">142.7</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">4371.1</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">6.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.4</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">1.56</span></td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper · Table 7。保留完整行列与强调；以下原始截图包含 caption 与排版。</p>
+<details><summary>展开 Table 7 原始截图与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 7" data-zoom="assets/original/table-07-complete-lm.png" type="button"><img alt="Table 7: Model comparison on 1 Billion Word Language Modeling Benchmark. Models marked with * are from ( Jozefowicz et al., 2016 ) ." loading="lazy" src="assets/original/table-07-complete-lm.png"/></button><figcaption><strong>Table 7 · Original Paper v1 · PDF p.15</strong> · 点击放大。原 caption 已保留于图中。<br/>Table 7: Model comparison on 1 Billion Word Language Modeling Benchmark. Models marked with * are from ( Jozefowicz et al., 2016 ) .</figcaption></figure></details>
+<p>表分组分别对应同预算对照、历史高计算 baseline 与高容量 MoE 的计算扫描。8.9M 配置从 4 专家45.0 到32专家39.7、256专家35.7、1024层级34.6、4096层级34.1；wide LSTM46.1、deep LSTM45.7 并没有复制同样的容量收益。256 flat35.7 与 hierarchical36.0 提示层级不是无代价替代，单点不能给出普适优劣。</p>
+<p>4096 配置总参数5.1B，其中<strong>排除 embedding 与输出 softmax</strong>后为4303.4M；单专家权重约 2×512×1024=1,048,576，4096 专家共4,294,967,296。差额来自 gate 与主干等部分。不能用专家数乘单专家参数后声称已得到“完整模型参数”。</p>
+<p>高计算配置的 embedding 与 MoE 输入输出改为1024。MoE-34M 用 LSTM1024，1024个层级专家、hidden2048；MoE-143M 用 LSTM4096并投影1024，256个层级专家、hidden8192。两者专家本体均约4B，分别 PPL31.3 / 28.0。高计算143M配置比8.9M配置34.1更好，说明少激活并不消灭任务所需计算；它同时改变主干与专家形状，不能把改善全部归因于增大 k。</p>
+<h2 id="section-12">附录 D 100 Billion Word：参数、优化器和专家 batch 的账本</h2>
+<h3>固定 batch 的扩展方式</h3>
+<p>一般32 GPU，65,536专家64 GPU，131,072专家128 GPU；层级首层 branching 随规模为32、32、64、128、256、256。每叶仍为512→1024→512，全局2.5M词 batch 保持固定，训练一遍100B词。规模扩大让存储分片可行，但并未同比增加每专家 batch。</p>
+<p>专家 activation 可重算以换显存。优化器设 β₁=0，第二矩采用矩阵行列的 factored estimates，而不是每个元素完整维护二阶状态；这预示了后来的 <a href="https://arxiv.org/abs/1804.04235" rel="noopener">Adafactor</a>。它减少部分优化器状态，不删除权重本体，也不能把训练显存等同于参数字节数。</p>
+<div aria-label="Table 8 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_tt">Model</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_tt">Test</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_tt">Test</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_tt">ops/timestep</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_tt">#Params excluding</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_tt">Total</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">TFLOPS</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">Perplexity</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">Perplexity</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">(millions)</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">embed. &amp; softmax</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">#Params</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column">per GPU</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">.1 epochs</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">1 epoch</th>
+<th class="ltx_td ltx_th ltx_th_column ltx_border_r"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">(millions)</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">(billions)</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column">(observed)</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">Kneser-Ney 5-gram</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">67.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">45.3</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.00001</td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">76.0</td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">4xLSTM-512</th>
+<td class="ltx_td ltx_align_center ltx_border_r">54.5</td>
+<td class="ltx_td ltx_align_center ltx_border_r">47.0</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">1.23</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-32</th>
+<td class="ltx_td ltx_align_center ltx_border_r">48.5</td>
+<td class="ltx_td ltx_align_center ltx_border_r">40.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">37.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.1</td>
+<td class="ltx_td ltx_align_center">0.83</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-256-h</th>
+<td class="ltx_td ltx_align_center ltx_border_r">42.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">35.3</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">272.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">0.4</td>
+<td class="ltx_td ltx_align_center">1.11</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-1024-h</th>
+<td class="ltx_td ltx_align_center ltx_border_r">40.3</td>
+<td class="ltx_td ltx_align_center ltx_border_r">32.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.5</td>
+<td class="ltx_td ltx_align_center ltx_border_r">1079.0</td>
+<td class="ltx_td ltx_align_center ltx_border_r">1.2</td>
+<td class="ltx_td ltx_align_center">1.14</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-4096-h</th>
+<td class="ltx_td ltx_align_center ltx_border_r">38.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">30.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.6</td>
+<td class="ltx_td ltx_align_center ltx_border_r">4303.4</td>
+<td class="ltx_td ltx_align_center ltx_border_r">4.4</td>
+<td class="ltx_td ltx_align_center">1.07</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-16384-h</th>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">38.2</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">29.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r">8.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">17201.0</td>
+<td class="ltx_td ltx_align_center ltx_border_r">17.3</td>
+<td class="ltx_td ltx_align_center">0.96</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">MoE-65536-h</th>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">38.2</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">28.9</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">9.2</td>
+<td class="ltx_td ltx_align_center ltx_border_r">68791.0</td>
+<td class="ltx_td ltx_align_center ltx_border_r">68.9</td>
+<td class="ltx_td ltx_align_center">0.72</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r">MoE-131072-h</th>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">39.8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">29.2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">9.7</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">137577.6</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">137.7</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.30</td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper · Table 8。保留完整行列与强调；以下原始截图包含 caption 与排版。</p>
+<details><summary>展开 Table 8 原始截图与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 8" data-zoom="assets/original/table-08-complete-news.png" type="button"><img alt="Table 8: Model comparison on 100 Billion Word Google News Dataset" loading="lazy" src="assets/original/table-08-complete-news.png"/></button><figcaption><strong>Table 8 · Original Paper v1 · PDF p.16</strong> · 点击放大。原 caption 已保留于图中。<br/>Table 8: Model comparison on 100 Billion Word Google News Dataset</figcaption></figure></details>
+<p>最大模型<strong>排除 embedding 与输出 softmax</strong>后为137,577.6M，专家本体2×512×1024×131,072=<strong>137,438,953,472</strong> 参数，完整模型约137.7B。最佳65,536专家则约68.9B总参数、PPL28.9。表中 Kneser–Ney 分别用13B/130B词，而 neural对应10B/100B，训练量并不相同，原文 footnote 4 的预算区别应一起读。</p>
+<h3>交互：容量、平均专家 batch 与通信上界</h3>
+<section class="mechanism" id="cost-widget"><p class="reading-meta">AGENT-CREATED CALCULATOR · EXPERT WEIGHTS / MAC / TRAFFIC</p><h3>容量翻倍后，每专家 batch 发生什么？</h3><div class="controls"><label>可汇聚 token 数 N<select id="cost-tokens"><option value="1">1 · decode示例</option><option value="300000">300K</option><option selected="" value="2500000">2.5M</option></select></label><label>专家数 n<select id="cost-experts"><option value="256">256</option><option value="4096">4,096</option><option selected="" value="65536">65,536 · 最佳PPL规模</option><option value="131072">131,072 · 最大规模</option></select></label><label>每 token 专家数 k<select id="cost-k"><option value="1">1</option><option value="2">2</option><option selected="" value="4">4</option><option value="8">8</option></select></label><label>输入 / 输出宽度 d<select id="cost-d"><option selected="" value="512">512</option><option value="1024">1,024</option><option value="2048">2,048</option></select></label><label>专家 hidden h<select id="cost-h"><option selected="" value="1024">1,024</option><option value="2048">2,048</option><option value="8192">8,192</option></select></label><label>参数 / 激活存储字节（假设）<select id="cost-bytes"><option value="4">FP32 · 4</option><option selected="" value="2">FP16/BF16 · 2</option><option value="1">INT8 · 1</option></select></label></div><div aria-live="polite" class="readout" id="cost-readout"></div><div class="actions"><button id="cost-best">65,536 专家</button><button id="cost-largest">131,072 专家</button></div><p class="hint">d→h→d 两矩阵专家；仅静态容量/逻辑计数。交通上界假设全部远端；不把这些数字换算成 latency。k=1选项只算资源，不证明主gate可训练。</p><noscript><p>2.5M token、k=4：65,536 专家平均152.59 assignments；131,072 专家76.29。d=512、h=1024、2 bytes时前向路由上界20.48GB。</p></noscript></section>
+<p>这里 d 是专家输入/输出宽度，h 是 hidden；只计两层矩阵权重，不含 bias、gate、LSTM、embedding、optimizer 与 activation。存储精度选项只是字节假设，不能说明原论文用了该精度，更不能表示硬件支持。前向流量按全部路由远端、每条输入与输出各传一次计算，未含 backward、metadata、层级中间传输与 transport 复制。</p>
+<h2 id="section-13">附录 E Machine Translation：配置例外与 Figure 4 / Table 9</h2>
+<h3>单语言对与多语言不能合写成一套模型</h3>
+<p>单语言对采用3层 encoder LSTM与2层 decoder LSTM；内部2048维、投影到512。encoder的MoE位于第2/3层间，decoder位于第1/2层间；专家 hidden2048，每个约2M参数，sigmoid与residual。32K共享 wordpiece，沿用 GNMT beam，并采用附录 G 修改过的 attention。与文中 GNMT9/8层对照时，需要保留主干变化。</p>
+<p>warmup2000→constant8000→inverse square root；single-pair dropout .4，16K词/GPU，均衡系数 .01。多语言则 flat512 / top2 / hidden8192，总参数8.7B、102M ops；single-pair为85M。数值看似都称 MoE，实际容量分配与计算配置不同。</p>
+<p><strong>原文措辞冲突。</strong> E 的描述说每个输入使用恰好四个专家，但同段指定了附录 F 的 strict batchwise gate。F 保证的是每个专家接收固定配额，单 token 的专家数可变。这里明确保留此不一致；只有标准逐 token 的两级 top-2 才能直接保证四叶，不能替原作者虚构一个未写出的 coverage 修复。</p>
+<h3>Figure 4：训练词数曲线避免了哪种误判</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 4" data-zoom="assets/original/fig-04-translation-learning.png" type="button"><img alt="Figure 4: Perplexity on WMT’14 En → \rightarrow Fr (left) and Google Production En → \rightarrow Fr (right) datasets as a function of number of words processed. The large differences between models at the beginning of training are due to different batch sizes. All models incur the same computational budget (85M ops/timestep) except the one with no experts." loading="lazy" src="assets/original/fig-04-translation-learning.png"/></button><figcaption><strong>Figure 4 · Original Paper v1 · PDF p.18</strong> · 点击放大。原 caption 已保留于图中。<br/>Figure 4: Perplexity on WMT’14 En → \rightarrow Fr (left) and Google Production En → \rightarrow Fr (right) datasets as a function of number of words processed. The large differences between models at the beginning of training are due to different batch sizes. All models incur the same computational budget (85M ops/timestep) except the one with no experts.</figcaption></figure>
+<p>横轴是已经处理的词数，纵轴是 perplexity；左为 WMT En→Fr，右为生产 En→Fr。曲线比较专家规模，除 no-experts 外保持85M ops/timestep。作者特别指出开头的差异来自 batch size，因此前期更低 PPL 不能直接读成“每个优化步学得更好”，更不能把 processed words 改成 seconds。</p>
+<p>图说明容量优势在训练轨迹上出现，但不独立隔离 gate、attention、batch 与模型深度。它与主文 BLEU 表测量的对象也不同：训练/开发困惑度曲线不是测试集翻译分数。</p>
+<h3>Table 9：专家是否形成了语义分工</h3>
+<div aria-label="Table 9 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Expert 381</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Expert 752</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">Expert 2004</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">… with <span class="ltx_text ltx_font_bold">researchers</span> , …</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">… plays <span class="ltx_text ltx_font_bold">a</span> core …</td>
+<td class="ltx_td ltx_align_center ltx_border_t">… with <span class="ltx_text ltx_font_bold">rapidly</span> growing …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">… to <span class="ltx_text ltx_font_bold">innovation</span> .</td>
+<td class="ltx_td ltx_align_center ltx_border_r">… plays <span class="ltx_text ltx_font_bold">a</span> critical …</td>
+<td class="ltx_td ltx_align_center">… under <span class="ltx_text ltx_font_bold">static</span> conditions …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">… tics <span class="ltx_text ltx_font_bold">researchers</span> .</td>
+<td class="ltx_td ltx_align_center ltx_border_r">… provides <span class="ltx_text ltx_font_bold">a</span> legislative …</td>
+<td class="ltx_td ltx_align_center">… to <span class="ltx_text ltx_font_bold">swift</span> ly …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">… the <span class="ltx_text ltx_font_bold">generation</span> of …</td>
+<td class="ltx_td ltx_align_center ltx_border_r">… play <span class="ltx_text ltx_font_bold">a</span> leading …</td>
+<td class="ltx_td ltx_align_center">… to <span class="ltx_text ltx_font_bold">dras</span> tically …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">… technology <span class="ltx_text ltx_font_bold">innovations</span> is …</td>
+<td class="ltx_td ltx_align_center ltx_border_r">… assume <span class="ltx_text ltx_font_bold">a</span> leadership …</td>
+<td class="ltx_td ltx_align_center">… the <span class="ltx_text ltx_font_bold">rapid</span> and …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">… technological <span class="ltx_text ltx_font_bold">innovations</span> , …</td>
+<td class="ltx_td ltx_align_center ltx_border_r">… plays <span class="ltx_text ltx_font_bold">a</span> central …</td>
+<td class="ltx_td ltx_align_center">… the <span class="ltx_text ltx_font_bold">fast</span> est …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">… support <span class="ltx_text ltx_font_bold">innovation</span> throughout …</td>
+<td class="ltx_td ltx_align_center ltx_border_r">… taken <span class="ltx_text ltx_font_bold">a</span> leading …</td>
+<td class="ltx_td ltx_align_center">… the <span class="ltx_text ltx_font_bold">Quick</span> Method …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">… role <span class="ltx_text ltx_font_bold">innovation</span> will …</td>
+<td class="ltx_td ltx_align_center ltx_border_r">… established <span class="ltx_text ltx_font_bold">a</span> reconciliation …</td>
+<td class="ltx_td ltx_align_center">… rec <span class="ltx_text ltx_font_bold">urrent</span> ) …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">… research <span class="ltx_text ltx_font_bold">scienti</span> st …</td>
+<td class="ltx_td ltx_align_center ltx_border_r">… played <span class="ltx_text ltx_font_bold">a</span> vital …</td>
+<td class="ltx_td ltx_align_center">… provides <span class="ltx_text ltx_font_bold">quick</span> access …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">… promoting <span class="ltx_text ltx_font_bold">innovation</span> where …</td>
+<td class="ltx_td ltx_align_center ltx_border_r">… have <span class="ltx_text ltx_font_bold">a</span> central …</td>
+<td class="ltx_td ltx_align_center">… of <span class="ltx_text ltx_font_bold">volatile</span> organic …</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">…</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">…</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">…</td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper · Table 9。保留完整行列与强调；以下原始截图包含 caption 与排版。</p>
+<details><summary>展开 Table 9 原始截图与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 9" data-zoom="assets/original/table-09-specialization.png" type="button"><img alt="Table 9: Contexts corresponding to a few of the 2048 experts in the MoE layer in the encoder portion of the WMT’14 En → \rightarrow Fr translation model. For each expert i i , we sort the inputs in a training batch in decreasing order of G ​ ( x ) i G(x)_{i} , and show the words surrounding the corresponding positions in the input sentences." loading="lazy" src="assets/original/table-09-specialization.png"/></button><figcaption><strong>Table 9 · Original Paper v1 · PDF p.18</strong> · 点击放大。原 caption 已保留于图中。<br/>Table 9: Contexts corresponding to a few of the 2048 experts in the MoE layer in the encoder portion of the WMT’14 En → \rightarrow Fr translation model. For each expert i i , we sort the inputs in a training batch in decreasing order of G ​ ( x ) i G(x)_{i} , and show the words surrounding the corresponding positions in the input sentences.</figcaption></figure></details>
+<p>原表从2048个 encoder专家中挑出3个，按训练 batch 内 gate 权重降序展示高分上下文，粗体词保留。可看出 researcher/innovation、leadership短语与rapidity相关的局部模式。这支持“存在可观察分工”的定性解释，不能证明所有专家解耦、每个专家都有稳定主题，或移除专家会造成特定语义能力缺失。</p>
+<p>更扎实的验证应在独立数据上统计主题/语言与路由的关系，控制 token频率，并做专家屏蔽或重路由的因果干预。只展示高 gate 样本容易产生选择偏差。</p>
+<h2 id="section-14">附录 F Strict Batchwise Gating：固定列配额不等于固定行配额</h2>
+<h3>Eq. (15)–(18)：选择方向发生了变化</h3>
+<div class="formula" data-equation="15"><math alttext="G_{\sigma}(x)=Softmax(x\cdot W_{g})" class="ltx_Math" display="block" id="Ax1.E15.m1" intent=":literal"><semantics><mrow><mrow><msub><mi>G</mi><mi>σ</mi></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mi>S</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>f</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>x</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>x</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msub><mi>W</mi><mi>g</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><annotation encoding="application/x-tex">G_{\sigma}(x)=Softmax(x\cdot W_{g})</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (15)</span><details><summary>可复制 TeX 公式</summary><code>G_{\sigma}(x)=Softmax(x\cdot W_{g})</code></details></div>
+<div class="formula" data-equation="16"><math alttext="G(x)_{i}=\frac{G_{\sigma}(x)_{i}M(G_{\sigma}(x))_{i}}{\sum_{j=1}^{n}G_{\sigma}(x)_{j}M(G_{\sigma}(x))_{j}}" class="ltx_Math" display="block" id="Ax1.E16.m1" intent=":literal"><semantics><mrow><mrow><mi>G</mi><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mo>=</mo><mfrac><mrow><msub><mi>G</mi><mi>σ</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi>M</mi><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mrow><msub><mi>G</mi><mi>σ</mi></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mrow><msubsup><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><mrow><msub><mi>G</mi><mi>σ</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mi>j</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi>M</mi><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mrow><msub><mi>G</mi><mi>σ</mi></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow><mi>j</mi></msub></mrow></mrow></mfrac></mrow><annotation encoding="application/x-tex">G(x)_{i}=\frac{G_{\sigma}(x)_{i}M(G_{\sigma}(x))_{i}}{\sum_{j=1}^{n}G_{\sigma}(x)_{j}M(G_{\sigma}(x))_{j}}</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (16)</span><details><summary>可复制 TeX 公式</summary><code>G(x)_{i}=\frac{G_{\sigma}(x)_{i}M(G_{\sigma}(x))_{i}}{\sum_{j=1}^{n}G_{\sigma}(x)_{j}M(G_{\sigma}(x))_{j}}</code></details></div>
+<p>这里先对全体专家做 softmax得 scores S∈Rᴺˣⁿ，再乘 mask并逐 token重新归一化。Eq. (16) 分母必须大于0。它与主方法的 noisy logits Top-K不是同一算法描述，应分别实现。</p>
+<div class="formula" data-equation="17"><math alttext="TopK(v,k)_{i}=\begin{cases}1&amp;\text{if $v_{i}$ is in the top $k$ elements of $v$.}\\
+0&amp;\text{otherwise.}\end{cases}" class="ltx_Math" display="block" id="Ax1.E17.m1" intent=":literal"><semantics><mrow><mrow><mi>T</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi><mo lspace="0em" rspace="0em">​</mo><mi>K</mi><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>v</mi><mo>,</mo><mi>k</mi><mo stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mo>=</mo><mrow><mo>{</mo><mtable columnspacing="5pt" displaystyle="true" rowspacing="0pt"><mtr><mtd class="ltx_align_left" columnalign="left"><mn>1</mn></mtd><mtd class="ltx_align_left" columnalign="left"><mrow><mtext>if </mtext><msub><mi>v</mi><mi>i</mi></msub><mtext> is in the top </mtext><mi>k</mi><mtext> elements of </mtext><mi>v</mi><mtext>.</mtext></mrow></mtd></mtr><mtr><mtd class="ltx_align_left" columnalign="left"><mn>0</mn></mtd><mtd class="ltx_align_left" columnalign="left"><mtext>otherwise.</mtext></mtd></mtr></mtable></mrow></mrow><annotation encoding="application/x-tex">TopK(v,k)_{i}=\begin{cases}1&amp;\text{if $v_{i}$ is in the top $k$ elements of $v$.}\\
+0&amp;\text{otherwise.}\end{cases}</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (17)</span><details><summary>可复制 TeX 公式</summary><code>TopK(v,k)_{i}=\begin{cases}1&amp;\text{if $v_{i}$ is in the top $k$ elements of $v$.}\\
+0&amp;\text{otherwise.}\end{cases}</code></details></div>
+<p>Eq. (17) 给出0/1选择 mask，与 Eq. (5) 的保留 logit / −∞不同。标准 token-choice为每一行选k个专家；接下来的 batchwise改成每一列选m个token。</p>
+<div class="formula" data-equation="18"><math alttext="M_{batchwise}(X,m)_{j,i}=\begin{cases}1&amp;\text{if $X_{j,i}$ is in the top $m$ values for to expert $i$}\\
+0&amp;\text{otherwise}\end{cases}" class="ltx_Math" display="block" id="Ax1.E18.m1" intent=":literal"><semantics><mrow><mrow><msub><mi>M</mi><mrow><mi>b</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mi>w</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>X</mi><mo>,</mo><mi>m</mi><mo stretchy="false">)</mo></mrow><mrow><mi>j</mi><mo>,</mo><mi>i</mi></mrow></msub></mrow><mo>=</mo><mrow><mo>{</mo><mtable columnspacing="5pt" displaystyle="true" rowspacing="0pt"><mtr><mtd class="ltx_align_left" columnalign="left"><mn>1</mn></mtd><mtd class="ltx_align_left" columnalign="left"><mrow><mtext>if </mtext><msub><mi>X</mi><mrow><mi>j</mi><mo>,</mo><mi>i</mi></mrow></msub><mtext> is in the top </mtext><mi>m</mi><mtext> values for to expert </mtext><mi>i</mi></mrow></mtd></mtr><mtr><mtd class="ltx_align_left" columnalign="left"><mn>0</mn></mtd><mtd class="ltx_align_left" columnalign="left"><mtext>otherwise</mtext></mtd></mtr></mtable></mrow></mrow><annotation encoding="application/x-tex">M_{batchwise}(X,m)_{j,i}=\begin{cases}1&amp;\text{if $X_{j,i}$ is in the top $m$ values for to expert $i$}\\
+0&amp;\text{otherwise}\end{cases}</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (18)</span><details><summary>可复制 TeX 公式</summary><code>M_{batchwise}(X,m)_{j,i}=\begin{cases}1&amp;\text{if $X_{j,i}$ is in the top $m$ values for to expert $i$}\\
+0&amp;\text{otherwise}\end{cases}</code></details></div>
+<p>设 m=kN/n，训练对每个专家列保留最大的m个 scores。每列处理量固定，整个矩阵的 assignment数为nm=kN，但<strong>行数可变</strong>。N=4、n=2、k=1、m=2时，如果两个专家都喜欢 token0/1，就可能出现行 coverage=[2,2,0,0]。token2/3没有专家，Eq. (16) 分母为0。v1没有完整说明零覆盖fallback与m不是整数时的处理；教学交互把零覆盖标出，不能暗中归一化成有效路径。</p>
+<p>从系统角度，这是把 expert batch的确定性放在前面，把 token的可变计算与覆盖风险放在后面。它与2022年的 Expert Choice有机制上的亲缘关系，但二者不是完全相同的方法，不能用同名简写省掉各自训练与容量约束。</p>
+<h3>Eq. (19)–(20)：推理为何需要学阈值</h3>
+<div class="formula" data-equation="19"><math alttext="M_{threshold}(x,T)_{i}=\begin{cases}1&amp;\text{if $x_{i}&gt;T_{i}$}\\
+0&amp;\text{otherwise}\end{cases}" class="ltx_Math" display="block" id="Ax1.E19.m1" intent=":literal"><semantics><mrow><mrow><msub><mi>M</mi><mrow><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>T</mi><mo stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mo>=</mo><mrow><mo>{</mo><mtable columnspacing="5pt" displaystyle="true" rowspacing="0pt"><mtr><mtd class="ltx_align_left" columnalign="left"><mn>1</mn></mtd><mtd class="ltx_align_left" columnalign="left"><mrow><mtext>if </mtext><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>&gt;</mo><msub><mi>T</mi><mi>i</mi></msub></mrow></mrow></mtd></mtr><mtr><mtd class="ltx_align_left" columnalign="left"><mn>0</mn></mtd><mtd class="ltx_align_left" columnalign="left"><mtext>otherwise</mtext></mtd></mtr></mtable></mrow></mrow><annotation encoding="application/x-tex">M_{threshold}(x,T)_{i}=\begin{cases}1&amp;\text{if $x_{i}&gt;T_{i}$}\\
+0&amp;\text{otherwise}\end{cases}</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (19)</span><details><summary>可复制 TeX 公式</summary><code>M_{threshold}(x,T)_{i}=\begin{cases}1&amp;\text{if $x_{i}&gt;T_{i}$}\\
+0&amp;\text{otherwise}\end{cases}</code></details></div>
+<p>训练有大 batch可排名，推理尤其单 token时没有同样的列竞争。作者学习每专家阈值Tᵢ，通过 score&gt;Tᵢ决定mask，近似训练的 batchwise选择。阈值不是逐token Top-K，因此不保证严格均衡或严格k，也可能出现不同于训练的负载和覆盖。</p>
+<div class="formula" data-equation="20"><math alttext="L_{batchwise}(X,T,m)=\sum_{j=1}^{|X|}\sum_{i=1}^{n}(M_{threshold}(x,T)_{i}-M_{batchwise}(X,m)_{j,i})(X_{j,i}-T_{i})" class="ltx_Math" display="block" id="Ax1.E20.m1" intent=":literal"><semantics><mrow><mrow><msub><mi>L</mi><mrow><mi>b</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mi>w</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>X</mi><mo>,</mo><mi>T</mi><mo>,</mo><mi>m</mi><mo stretchy="false">)</mo></mrow></mrow><mo rspace="0.111em">=</mo><mrow><munderover><mo movablelimits="false" rspace="0em">∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mrow><mo stretchy="false">|</mo><mi>X</mi><mo stretchy="false">|</mo></mrow></munderover><mrow><munderover><mo movablelimits="false" rspace="0em">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><mrow><mrow><mo stretchy="false">(</mo><mrow><mrow><msub><mi>M</mi><mrow><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>d</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>T</mi><mo stretchy="false">)</mo></mrow><mi>i</mi></msub></mrow><mo>−</mo><mrow><msub><mi>M</mi><mrow><mi>b</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>c</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mi>w</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">(</mo><mi>X</mi><mo>,</mo><mi>m</mi><mo stretchy="false">)</mo></mrow><mrow><mi>j</mi><mo>,</mo><mi>i</mi></mrow></msub></mrow></mrow><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>X</mi><mrow><mi>j</mi><mo>,</mo><mi>i</mi></mrow></msub><mo>−</mo><msub><mi>T</mi><mi>i</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></mrow><annotation encoding="application/x-tex">L_{batchwise}(X,T,m)=\sum_{j=1}^{|X|}\sum_{i=1}^{n}(M_{threshold}(x,T)_{i}-M_{batchwise}(X,m)_{j,i})(X_{j,i}-T_{i})</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (20)</span><details><summary>可复制 TeX 公式</summary><code>L_{batchwise}(X,T,m)=\sum_{j=1}^{|X|}\sum_{i=1}^{n}(M_{threshold}(x,T)_{i}-M_{batchwise}(X,m)_{j,i})(X_{j,i}-T_{i})</code></details></div>
+<p>Eq. (20) 以训练mask为目标，惩罚阈值mask与它的差异：false positive时score−T&gt;0，梯度下降提高阈值；false negative时score−T&lt;0，梯度下降降低阈值。忽略mask切换点的导数，此方向可由分段线性项直接核算。原式x记号不够明确，重构时将它理解为对应的score行，而非原输入hidden向量。</p>
+<p>可验证的部署指标应包括 mask agreement、每token覆盖分布、零路径比例、专家峰值负载，以及batch变化前后的质量。论文没有报告这些，所以不能宣称阈值推理与训练gate完全等价。</p>
+<h2 id="section-15">附录 G Attention：为矩阵乘法改写的双线性交互</h2>
+<div class="formula" data-equation="21"><math alttext="A_{GNMT}(x_{i},y_{j})=\sum_{d=1}^{n}V_{d}tanh((x_{i}U)_{d}+(y_{j}W)_{d})" class="ltx_Math" display="block" id="Ax1.E21.m1" intent=":literal"><semantics><mrow><mrow><msub><mi>A</mi><mrow><mi>G</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mi>M</mi><mo lspace="0em" rspace="0em">​</mo><mi>T</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>x</mi><mi>i</mi></msub><mo>,</mo><msub><mi>y</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow></mrow><mo rspace="0.111em">=</mo><mrow><munderover><mo movablelimits="false">∑</mo><mrow><mi>d</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><mrow><msub><mi>V</mi><mi>d</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mrow><mo stretchy="false">(</mo><mrow><msub><mi>x</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi>U</mi></mrow><mo stretchy="false">)</mo></mrow><mi>d</mi></msub><mo>+</mo><msub><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mi>j</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi>W</mi></mrow><mo stretchy="false">)</mo></mrow><mi>d</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><annotation encoding="application/x-tex">A_{GNMT}(x_{i},y_{j})=\sum_{d=1}^{n}V_{d}tanh((x_{i}U)_{d}+(y_{j}W)_{d})</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (21)</span><details><summary>可复制 TeX 公式</summary><code>A_{GNMT}(x_{i},y_{j})=\sum_{d=1}^{n}V_{d}tanh((x_{i}U)_{d}+(y_{j}W)_{d})</code></details></div>
+<p>原 GNMT score对encoder状态xᵢ与decoder状态yⱼ先投影、相加、tanh，再以V求和。如果源长S、目标长T、attention hidden为r，直接形成pairwise hidden可能需要S×T×r的中间激活。</p>
+<div class="formula" data-equation="22"><math alttext="A(x_{i},y_{j})=\sum_{d=1}^{n}V_{d}tanh((x_{i}U)_{d})tanh((y_{j}W)_{d})" class="ltx_Math" display="block" id="Ax1.E22.m1" intent=":literal"><semantics><mrow><mrow><mi>A</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>x</mi><mi>i</mi></msub><mo>,</mo><msub><mi>y</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow></mrow><mo rspace="0.111em">=</mo><mrow><munderover><mo movablelimits="false">∑</mo><mrow><mi>d</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><mrow><msub><mi>V</mi><mi>d</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mrow><mo stretchy="false">(</mo><mrow><msub><mi>x</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi>U</mi></mrow><mo stretchy="false">)</mo></mrow><mi>d</mi></msub><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mi>t</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>n</mi><mo lspace="0em" rspace="0em">​</mo><mi>h</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mi>j</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi>W</mi></mrow><mo stretchy="false">)</mo></mrow><mi>d</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><annotation encoding="application/x-tex">A(x_{i},y_{j})=\sum_{d=1}^{n}V_{d}tanh((x_{i}U)_{d})tanh((y_{j}W)_{d})</annotation></semantics></math><span class="equation-number">Original Paper · Eq. (22)</span><details><summary>可复制 TeX 公式</summary><code>A(x_{i},y_{j})=\sum_{d=1}^{n}V_{d}tanh((x_{i}U)_{d})tanh((y_{j}W)_{d})</code></details></div>
+<p>新score把tanh分别放在两侧：P=tanh(XU)∈Rˢˣʳ、Q=tanh(YW)∈Rᵀˣʳ，A=(P⊙V)Qᵀ∈Rˢˣᵀ。于是可以预计算投影，再用GEMM；避免显式S×T×r激活，但S×T score与后续softmax仍在。两式非等价代数变换，而是改变了score函数。</p>
+<p>这是2017版本为实现效率所做的设计，不是Transformer的scaled dot-product attention，也没有1/√d。翻译实验的baseline审计必须把该改动算进去，否则会把整套系统质量和效率全归因到MoE。</p>
+<h2 id="section-16">工程重构：参数、MAC、内存与 per-op 调用链</h2>
+<h3>统一账本与估算边界</h3>
+<p>两层专家 d→h→d，权重P_expert≈2dh；n个专家P_total≈2ndh；每token的激活专家权重与专家MAC≈2kdh。这里的“active参数”只针对这一层专家，不包括每token都会访问的dense主干。若现代专家使用SwiGLU三矩阵，参数项近似3dh，不能照搬2dh。</p>
+<p>训练还要存梯度、优化器状态、activation与workspace。FP32专家本体137.44B参数约549.76GB十进制，仅是静态权重；不同分片与精度会改变每卡常驻量。没有报告足够的内存峰值与精度，不能从论文反推出准确显存曲线。</p>
+<p>前向路由数据移动上界为 N·k·(d_in+d_out)·s bytes，s为每标量字节数；全部远端、输入输出各一次、layer-wide。d_in=d_out=512、k=4、s=2时每token8192 bytes；N=2.5M时20.48GB十进制。注意该2字节只是估算假设；这个公式不计路由metadata、反向、层级内转发、padding与协议开销。</p>
+<h3>从调用链定位真实损耗</h3>
+<div aria-label="完整比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>主要操作 / 形状</th>
+<th>可能瓶颈</th>
+<th>应记录的证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Router</td>
+<td>XW_g、XW_noise：N×d×n</td>
+<td>平坦专家多时dense打分；低batch启动</td>
+<td>两个GEMM、Top-K、softmax分开计时</td>
+</tr>
+<tr>
+<td>Pack</td>
+<td>token→expert分组，索引与gate</td>
+<td>scatter/gather、小kernel、host同步</td>
+<td>排序/排列/元数据时间、同步点</td>
+</tr>
+<tr>
+<td>Dispatch</td>
+<td>向专家设备发N×k份输入</td>
+<td>RDMA/NVLink带宽、拥塞、负载偏斜</td>
+<td>远端比例、传输字节、等待尾部</td>
+</tr>
+<tr>
+<td>Expert</td>
+<td>Nᵢ×d→h→d</td>
+<td>小Nᵢ、权重带宽、GEMM利用率</td>
+<td>每专家batch直方图、GEMM时间</td>
+</tr>
+<tr>
+<td>Combine</td>
+<td>结果返回、weighted scatter-add</td>
+<td>原索引恢复与归约、重复数据移动</td>
+<td>combine时间、有效带宽</td>
+</tr>
+<tr>
+<td>Main path</td>
+<td>sigmoid、dropout/residual、LSTM/输出</td>
+<td>sparse层之外的固定开销</td>
+<td>完整step、softmax、backward拆分</td>
+</tr>
+</tbody>
+</table></div>
+<p>端到端critical path取决于阶段重叠与最慢专家，不能把每环孤立峰值吞吐直接相加成速度保证。公平测量应固定硬件、训练token量、质量目标与batch，既报算术，也报每op和整个step时间。</p>
+<h3>Prefill、Decode、KV 与端侧 offload</h3>
+<p>原MoE前馈层没有自己的Transformer KV cache；原模型保持LSTM recurrent state。现代MoE Transformer中，专家数改变FFN参数容量，attention KV还由层数、KV头、head维与序列长决定，除非同时改attention架构。低active参数不意味着小KV。</p>
+<p>大batch或prefill能汇聚更多token，提高专家GEMM效率；batch1 decode要对少量选中专家读取大量权重，可能受内存带宽或cold expert miss支配。把专家offload到CPU/flash时，除了active MAC，应测<strong>TTFT、TPOT、常驻总权重、专家cache命中、冷启动权重读取、PCIe/存储传输与峰值物理内存</strong>。本次没有GPU/NPU训练或推理基准，不给未经测量的端侧加速数字。</p>
+<h3>官方历史实现对照与复现范围</h3>
+<p><a href="https://github.com/tensorflow/tensor2tensor/blob/v1.15.7/tensor2tensor/utils/expert_utils.py" rel="noopener">Tensor2Tensor v1.15.7 <code>expert_utils.py</code></a> 中的 <code>noisy_top_k_gating</code>、<code>_prob_in_top_k</code>、<code>cv_squared</code> 与 <code>SparseDispatcher</code> 能对照主公式、阈值选择和打包/合并。该实现噪声std有额外1e−2、训练开噪声而推理关闭；这些应作为<strong>版本化实现细节</strong>标注，不能说全部逐字来自v1公式，也不能宣称它就是本文实验的原始完整checkpoint。</p>
+<p>复现分三层：数学机制可用本页确定性例子核验；公开1B Word任务仍需重建全部训练配置；私有100B News与生产翻译不能按公开资料原样重跑。本文的数学计算已独立检查，性能和质量结果均来自论文报告。</p>
+<h2 id="section-17">批判性审阅：强项、隐藏代价与缺失实验</h2>
+<p><strong>强项。</strong> Novelty在于把条件计算从概念变成高容量语言模型；公式能重建，均衡消融清楚暴露垄断风险；同每步算术预算的容量对照有说服力；同时讨论小batch与网络带宽，说明作者知道稀疏选择不自动等于高吞吐。</p>
+<p><strong>弱项。</strong> 硬件、attention、主干深度与训练预算在跨系统对照中变化；私有语料限制可复现性；没有随机种子方差、详细显存峰值和per-op profiling；附录F的零覆盖、非整数配额与训练推理一致性没有完整交代；专家分工的证据是选择性的定性上下文。</p>
+<p><strong>隐藏trade-off。</strong> 更多专家同时增加总存储、router打分、碎片化与每专家样本稀释；层级降低候选搜索，却可能提前排除正确组；均衡有利吞吐，也会约束自由分工；严格专家配额把不确定性转移到token覆盖。对硬件的依赖体现在batch、网络拓扑与内存带宽，不能脱离这些条件评估scalability。</p>
+<p>如果重新评审，我会要求以下补充实验：</p>
+<ol>
+<li>固定专家规模、算术、硬件和训练量，分别消融噪声、k、层级与两种损失；报告多seed均值/方差。</li>
+<li>对F逐token coverage、零覆盖、train/inference mask agreement与batch变化做测量，明示fallback。</li>
+<li>做router、pack、dispatch、expert、combine、backward的时间/字节分解，联同专家计数尾部分布。</li>
+<li>固定质量目标测训练成本；固定服务负载测TTFT/TPOT、吞吐和峰值内存，区分prefill/decode。</li>
+<li>对跨语言路由与专家主题做holdout统计和因果干预，测试共享容量是否真在减少负迁移。</li>
+</ol>
+<p>这些是这里提出的验证方向，不能当成原作者已完成的实验证据。</p>
+<h2 id="section-18">Related Work Matrix：每条路线解决哪一个瓶颈</h2>
+<div aria-label="完整比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作 / 原始来源</th>
+<th style="text-align: right;">年份</th>
+<th>核心方法</th>
+<th>优势</th>
+<th>代价 / 边界</th>
+<th>与本文关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Jacobs / Jordan mixture（见原文参考文献）</td>
+<td style="text-align: right;">1991 / 1994</td>
+<td>混合与层级专家</td>
+<td>选择多个参数函数</td>
+<td>早期规模与执行条件不同</td>
+<td>思想前史，不是本文之后才有</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2006.16668" rel="noopener">GShard</a></td>
+<td style="text-align: right;">2020</td>
+<td>Transformer MoE、自动分片</td>
+<td>把稀疏容量扩展到大规模TPU</td>
+<td>通信、容量与硬件依赖</td>
+<td>专家容量与系统分片</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2101.03961" rel="noopener">Switch Transformer</a></td>
+<td style="text-align: right;">2021</td>
+<td>简化top-1与稳定训练</td>
+<td>降低路由/专家计算复杂度</td>
+<td>capacity与token丢弃等约束</td>
+<td>gate formulation有差别</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2112.06905" rel="noopener">GLaM</a></td>
+<td style="text-align: right;">2021 / 2022</td>
+<td>大规模稀疏语言模型</td>
+<td>质量与计算/能耗比较</td>
+<td>不同数据协议不能横比</td>
+<td>通用语言能力扩展</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2202.08906" rel="noopener">ST-MoE</a></td>
+<td style="text-align: right;">2022</td>
+<td>稳定训练与迁移</td>
+<td>处理稀疏训练/微调可靠性</td>
+<td>稳定性需配套设计</td>
+<td>超越“能训大”的问题</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2202.09368" rel="noopener">Expert Choice</a></td>
+<td style="text-align: right;">2022</td>
+<td>专家选择token</td>
+<td>固定expert bucket、可变token计算</td>
+<td>覆盖与任务约束要处理</td>
+<td>与附录F机制相近，非同一算法</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2211.15841" rel="noopener">MegaBlocks</a></td>
+<td style="text-align: right;">2022 / 2023</td>
+<td>dropless block-sparse执行</td>
+<td>减少丢token与padding取舍</td>
+<td>需要高效sparse/grouped kernel</td>
+<td>对付碎片batch和动态形状</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/1804.04235" rel="noopener">Adafactor</a></td>
+<td style="text-align: right;">2018</td>
+<td>factored二阶状态</td>
+<td>降低optimizer存储</td>
+<td>近似估计及优化超参</td>
+<td>本文D已有行列状态前兆</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2401.06066" rel="noopener">DeepSeekMoE</a></td>
+<td style="text-align: right;">2024</td>
+<td>细粒度专家、共享专家</td>
+<td>减少冗余、改善组合分工</td>
+<td>更复杂路由/执行</td>
+<td>改造“专家怎样切”</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2412.19437" rel="noopener">DeepSeek-V3</a></td>
+<td style="text-align: right;">2024 / 2025</td>
+<td>aux-loss-free balancing、FP8与EP</td>
+<td>大规模容量/通信协同</td>
+<td>训练设施与数值稳定性要求</td>
+<td>均衡方法与系统栈发展</td>
+</tr>
+<tr>
+<td><a href="https://github.com/deepseek-ai/DeepEP" rel="noopener">DeepEP</a></td>
+<td style="text-align: right;">2025–2026</td>
+<td>dispatch/combine通信库</td>
+<td>优化MoE数据移动</td>
+<td>GPU/网络/软件要求严格</td>
+<td>直接回应§3的通信问题</td>
+</tr>
+</tbody>
+</table></div>
+<p>GShard报告600B级模型、2048 TPUv3、约4天训练；GLaM报告1.2T家族；ST-MoE讨论269B稀疏模型与约32B dense compute可比。这些数值只标明各自研究尺度，不能当成同平台速度/质量排行榜。</p>
+<h2 id="section-19">Technology Evolution：从条件计算到容量、路由和系统共同设计</h2>
+<figure class="generated-figure"><div class="diagram-scroll"><svg aria-label="容量组织、路由学习与系统执行的并行演进" role="img" viewbox="0 0 760 620" xmlns="http://www.w3.org/2000/svg"><style>text{font-family:system-ui,sans-serif;fill:#dbe6f5;font-size:14px}.small{font-size:12px;fill:#9fb1c9}.box{fill:#182335;stroke:#4b617e;stroke-width:1.3}.wire{fill:none;stroke:#8dadd9;stroke-width:1.6}.chosen{fill:#243c5b;stroke:#a9c9f3}</style><rect class="box" height="62" rx="6" width="420" x="170" y="15"></rect><text x="182" y="39">1991–2015 · 条件计算的前史</text><text class="small" x="182" y="61">Mixture / hierarchy / deep mixture</text><path class="wire" d="M380 77V90.0H380V103m-4 -6l4 6 4 -6"></path><rect class="chosen" height="62" rx="6" width="420" x="170" y="103"></rect><text x="182" y="127">2017 · Sparsely-Gated MoE</text><text class="small" x="182" y="149">可训练选择 + 均衡 + 大规模执行</text><path class="wire" d="M380 165V182.5H130V200m-4 -6l4 6 4 -6"></path><rect class="box" height="55" rx="6" width="220" x="20" y="200"></rect><text x="32" y="224">容量 / 模型</text><path class="wire" d="M130 255V270.0H130V285m-4 -6l4 6 4 -6"></path><rect class="box" height="60" rx="6" width="220" x="20" y="285"></rect><text x="32" y="309">2020 GShard</text><path class="wire" d="M130 345V360.0H130V375m-4 -6l4 6 4 -6"></path><rect class="box" height="60" rx="6" width="220" x="20" y="375"></rect><text x="32" y="399">2024 DeepSeekMoE</text><path class="wire" d="M130 435V450.0H130V465m-4 -6l4 6 4 -6"></path><rect class="box" height="60" rx="6" width="220" x="20" y="465"></rect><text x="32" y="489">2026 异构容量</text><path class="wire" d="M380 165V182.5H380V200m-4 -6l4 6 4 -6"></path><rect class="box" height="55" rx="6" width="220" x="270" y="200"></rect><text x="282" y="224">路由 / 稳定</text><path class="wire" d="M380 255V270.0H380V285m-4 -6l4 6 4 -6"></path><rect class="box" height="60" rx="6" width="220" x="270" y="285"></rect><text x="282" y="309">2021 Switch</text><path class="wire" d="M380 345V360.0H380V375m-4 -6l4 6 4 -6"></path><rect class="box" height="60" rx="6" width="220" x="270" y="375"></rect><text x="282" y="399">2022 ST-MoE / EC</text><path class="wire" d="M380 435V450.0H380V465m-4 -6l4 6 4 -6"></path><rect class="box" height="60" rx="6" width="220" x="270" y="465"></rect><text x="282" y="489">2025–26 新均衡</text><path class="wire" d="M380 165V182.5H630V200m-4 -6l4 6 4 -6"></path><rect class="box" height="55" rx="6" width="220" x="520" y="200"></rect><text x="532" y="224">系统 / 数据移动</text><path class="wire" d="M630 255V270.0H630V285m-4 -6l4 6 4 -6"></path><rect class="box" height="60" rx="6" width="220" x="520" y="285"></rect><text x="532" y="309">2022 MegaBlocks</text><path class="wire" d="M630 345V360.0H630V375m-4 -6l4 6 4 -6"></path><rect class="box" height="60" rx="6" width="220" x="520" y="375"></rect><text x="532" y="399">2025 DeepEP</text><path class="wire" d="M630 435V450.0H630V465m-4 -6l4 6 4 -6"></path><rect class="box" height="60" rx="6" width="220" x="520" y="465"></rect><text x="532" y="489">2026 动态复制</text><text class="small" x="32" y="595">箭头为问题延续与相关路线，不代表逐篇直接继承；更新核验于 2026-10-27</text></svg></div><figcaption>Agent-created Simplified Diagram · timeline。[<a href="assets/generated/timeline.svg">SVG</a>] [<a href="assets/generated/timeline.mmd">Mermaid source</a>]</figcaption></figure>
+<p>1991/1994的mixture与层级思想、2013的deep mixture、2015的conditional computation构成前史；2017本文把稀疏路由、均衡与分布式训练汇在一起。2020 GShard推进Transformer与分片，2021 Switch简化选择，2022出现稳定迁移、expert-choice和dropless执行的并行分支。2024细粒度/共享专家改变容量组织，2025–2026把均衡、通信、动态复制与异构容量继续合在系统层面优化。</p>
+<p>箭头表示问题的延续与技术关系，并不宣称每篇工作严格从前一篇继承代码。MoE、attention sparsity、KV压缩、optimizer状态压缩是不同轴；<a href="../transformer/">Transformer</a>、<a href="../gqa/">GQA</a>、<a href="../flashattention/">FlashAttention</a> 的相关精读可分别补齐注意力、KV和IO视角。</p>
+<h2 id="section-20">Current State：截至 2026-10-27 的可核验进展</h2>
+<h3>模型规模、开放性与 benchmark 条件</h3>
+<div aria-label="完整比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>一手来源</th>
+<th>报告规模</th>
+<th>当前资料中的指标</th>
+<th>开放性 / 严格可比性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://arxiv.org/html/2412.19437v2" rel="noopener">DeepSeek-V3 v2</a></td>
+<td>671B总参数、37B active</td>
+<td>原报告语言/推理/代码任务套件</td>
+<td>开放权重；原协议与2026报告不同</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/html/2606.19348" rel="noopener">DeepSeek-V4报告</a>、<a href="https://api-docs.deepseek.com/news/news260424" rel="noopener">官方发布</a></td>
+<td>Pro1.6T/49B active；Flash284B/13B active</td>
+<td>Table6 ProMax：GPQA90.1、LiveCodeBench93.5、SWE-bench Verified80.6</td>
+<td>官方链接开放权重；自报结果，不能当独立全球排名</td>
+</tr>
+<tr>
+<td><a href="https://qwen.ai/blog?id=qwen3.8-flash-next" rel="noopener">Qwen3.8-Flash-Next 官方文章</a>（2026-08-26）</td>
+<td>125B主模型+51B n-gram，合176B存储；6B activated为作者口径</td>
+<td>GPQA91.7；SWE-bench Pro62.5</td>
+<td><a href="https://huggingface.co/Qwen/Qwen3.8-Flash-Next" rel="noopener">权重</a>与<a href="https://github.com/QwenLM/Qwen3.8-Flash-Next/blob/main/tech_report.pdf" rel="noopener">技术报告</a>公开；脚手架与benchmark修订需一起读</td>
+</tr>
+</tbody>
+</table></div>
+<p>Qwen文章的SWE-bench Pro比较含Qwen3.7Plus55.8、DeepSeekV4Flash0731 56.0、Opus4.6Max53.4；其说明使用修订benchmark与Claude Code（temperature1、top_p.95、256K上下文），其中Opus官方分数并非同一次重跑。不能直接拿这些数去比较DeepSeek-V4另一张表的SWE Pro55.4，更不能把SWE Verified和Pro混为同一benchmark。上述GPQA也来自不同报告协议，不作分差排名。</p>
+<p>Qwen模型native context为262,144，扩展到1M依赖YaRN等设置，不能写成原生1M。51B n-gram容量使用host offload/prefetch，属于确定性索引访问的存储容量，不等同于router动态选择的expert FFN。它再次提醒：今天的“total / active”口径要逐部件读，而不是只看一个B数字。</p>
+<p><strong>结论边界。</strong> 这次检索确定了2026年仍在扩展稀疏与异构容量，也取得若干官方报告的benchmark进展；没有获得统一脚手架、统一budget、独立复测覆盖全体候选的10月全球评测，因此不宣称某模型是绝对SOTA。</p>
+<h3>当前执行栈：DeepEP 已不是旧的 V1 文档</h3>
+<p>2026-10-27读取的<a href="https://github.com/deepseek-ai/DeepEP" rel="noopener">DeepEP官方README</a>标为 <strong>V2.5</strong>：统一EPBuffer接口，DeepJIT、NCCL Gin，要求Linux、Hopper或更新GPU、CUDA13.1+、PyTorch2.10+、NCCL2.32.3+；说明移除NVSHMEM与V1。它还讨论动态专家复制、权重prefetch、gradient reduce。不能继续套用旧V1的依赖与API说明。</p>
+<p>通信仍会消耗SM资源，优化all-to-all不意味着计算完全无干扰。<a href="https://github.com/databricks/megablocks" rel="noopener">MegaBlocks当前README</a>在Hopper推荐grouped GEMM。它们共同表明今日收益依靠kernel、调度、网络和数值栈，而非只把dense层改成if分支。本次核验资料与接口，不复现厂商性能数字。</p>
+<h2 id="section-21">My Insights：把稀疏性理解为访问预算</h2>
+<p><strong>观点一：应把MoE至少拆成四本账。</strong> 总参数账决定存储与更新，active参数账决定本token理论访问，expert batch账决定GEMM效率，数据移动账决定分布式与offload可行性。任一本账优秀，都不能单独推出端到端效率。这比“总参数大、active小”更接近实际优化决策。</p>
+<p><strong>观点二：均衡指标必须与目标资源对应。</strong> Importance服务于权重贡献，平滑Load服务于路由训练，actual count/峰值服务于设备容量与尾部耗时。若目标是TPOT，至少还要看batch1专家权重读入与cache miss；若目标是训练吞吐，还要看最热expert和通信排队。用一个CV覆盖全部目标容易误判。</p>
+<p><strong>观点三：容量扩展与样本密度共同决定有效容量。</strong> 同全局batch下，expert数翻倍会减半每步样本量。更大语料帮助参数被训练，却不自动修复每步的小矩阵问题。可以设计实验把batch随expert数增长，再比较同质量下的总训练成本，以区分统计效率与系统效率。</p>
+<p><strong>观点四：gate的可训练性和服务可执行性应一起审计。</strong> 主文top-1梯度退化与附录F零覆盖是两个不同问题，一个属于训练导数，一个属于服务路径定义。将它们与阈值推理、负载尾部、fallback行为放在同一版本化契约里，才能避免公式正确却部署链路不完整。</p>
+<p><strong>建议方向。</strong> 建一个可重复的MoE账本与per-op trace：输入模型配置、precision、expert放置和batch；输出理论参数/字节，再与router/pack/dispatch/GEMM/combine实测对照；进一步加入专家cache和TTFT/TPOT。这里的计算器只是第一层数学账本，后续的真实profiling能检验理论节省是否兑现。</p>
+<h2 id="section-22">References、资料清单与更新记录</h2>
+<p><strong>Original Paper。</strong> <a href="https://arxiv.org/abs/1701.06538v1" rel="noopener">arXiv1701.06538v1</a>，<a href="https://arxiv.org/pdf/1701.06538v1" rel="noopener">版本固定PDF</a>，<a href="assets/original/1701.06538v1.pdf">本地原始PDF</a>。全部原图表含原caption；<a href="sources/visual-manifest.json">视觉清单与SHA-256</a>，<a href="sources/equations.json">完整公式MathML/TeX</a>。</p>
+<p><strong>Related Papers。</strong> <a href="https://arxiv.org/abs/2006.16668" rel="noopener">GShard</a>、<a href="https://arxiv.org/abs/2101.03961" rel="noopener">Switch</a>、<a href="https://arxiv.org/abs/2112.06905" rel="noopener">GLaM</a>、<a href="https://arxiv.org/abs/2202.08906" rel="noopener">ST-MoE</a>、<a href="https://arxiv.org/abs/2202.09368" rel="noopener">Expert Choice</a>、<a href="https://arxiv.org/abs/2211.15841" rel="noopener">MegaBlocks</a>、<a href="https://arxiv.org/abs/1804.04235" rel="noopener">Adafactor</a>、<a href="https://arxiv.org/abs/2401.06066" rel="noopener">DeepSeekMoE</a>、<a href="https://arxiv.org/html/2412.19437v2" rel="noopener">DeepSeek-V3 v2</a>、<a href="https://arxiv.org/html/2606.19348" rel="noopener">DeepSeek-V4报告</a>。</p>
+<p><strong>Official Code / Updates。</strong> <a href="https://github.com/tensorflow/tensor2tensor/blob/v1.15.7/tensor2tensor/utils/expert_utils.py" rel="noopener">Tensor2Tensor版本固定实现</a>、<a href="https://github.com/databricks/megablocks" rel="noopener">MegaBlocks</a>、<a href="https://github.com/deepseek-ai/DeepEP" rel="noopener">DeepEP</a>、<a href="https://api-docs.deepseek.com/news/news260424" rel="noopener">DeepSeek-V4官方发布</a>、<a href="https://qwen.ai/blog?id=qwen3.8-flash-next" rel="noopener">Qwen3.8-Flash-Next官方文章</a>、<a href="https://github.com/QwenLM/Qwen3.8-Flash-Next/blob/main/tech_report.pdf" rel="noopener">官方技术报告</a>、<a href="https://huggingface.co/Qwen/Qwen3.8-Flash-Next" rel="noopener">官方权重</a>。</p>
+<p>以上外部资料检索日期均为 <strong>2026-10-27</strong>，用途分别为历史关系、机制比较或当前状态，不将链接数量当作独立实验证据。正文解释、简化图与交互由本次精读创建。原作者数值均保留协议和预算边界；未运行模型训练、GPU benchmark或质量复测。</p>
+<p>2026-10-27：初版精读；完整覆盖§1–6与A–G，保留4图9表22公式，增加路由交互、容量/通信账本、实验公平性审计与当前资料核验。</p></article></main></div><footer class="site-footer"><span>Howie Yin · Paper Readings · Updated 2026-10-27</span><a href="../">All paper readings →</a></footer></div><dialog id="figure-dialog" aria-label="原始图表放大"><button id="close-dialog">Close / 关闭</button><a id="zoom-source" target="_blank" rel="noopener">原尺寸图 ↗</a><img id="zoom-image" alt="原始图表放大"></dialog><script src="assets/moe-math.js"></script><script src="assets/reading.js"></script></body></html>
