@@ -560,6 +560,6 @@ vLLM项目2026-08-23的AMD官方技术blog记录AMD GPU上的speculative实现�
 
 [资产来源与校验和](sources/asset-manifest.json) · [研究与相关工作笔记](notes/related-work.md) · [实验审计](notes/experiments.md) · [方法重构](notes/paper.md) · [评审与限制](notes/critique.md) · [两轮内容复核](notes/reviews.md)。数学推导、机制计算和页面QA均不等于在GPU上复现模型speedup。
 
-<div class="related-readings"><p class="component-label">RELATED READINGS</p><a href="../eagle2/">EAGLE-2 — 将验证预算分给更可能走通的草稿路径</a><a href="../medusa/">Medusa — 多候选验证与每轮有效推进</a><a href="../gqa/">GQA — draft KV 的共享粒度与容量</a><a href="../flashattention/">FlashAttention — 把 attention 的数学计算变成更少 IO</a><a href="../rmsnorm/">RMSNorm — 上下文融合后的尺度控制</a><a href="../transformer/">Transformer — 因果 attention 与并行位置计算</a><a href="../">All Paper Readings →</a></div>
+<div class="related-readings"><p class="component-label">RELATED READINGS</p><a href="../eagle-3/">EAGLE-3 — 多层目标特征与训练时模拟推理</a><a href="../eagle2/">EAGLE-2 — 将验证预算分给更可能走通的草稿路径</a><a href="../medusa/">Medusa — 多候选验证与每轮有效推进</a><a href="../gqa/">GQA — draft KV 的共享粒度与容量</a><a href="../flashattention/">FlashAttention — 把 attention 的数学计算变成更少 IO</a><a href="../rmsnorm/">RMSNorm — 上下文融合后的尺度控制</a><a href="../transformer/">Transformer — 因果 attention 与并行位置计算</a><a href="../">All Paper Readings →</a></div>
 
 **Changelog。** 2026-10-27：初次发布，完整v2图表、方法与附录，扩展资料截至当日。

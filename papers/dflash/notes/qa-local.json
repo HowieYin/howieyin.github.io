@@ -532,6 +532,10 @@
       "status": 200
     },
     {
+      "url": "http://127.0.0.1:8776/papers/eagle-3/",
+      "status": 200
+    },
+    {
       "url": "http://127.0.0.1:8776/papers/eagle2/",
       "status": 200
     },
@@ -594,6 +598,7 @@
       "dflash": 2,
       "archive": [
         "/papers/dflash/",
+        "/papers/eagle-3/",
         "/papers/eagle2/",
         "/papers/medusa/",
         "/papers/glu-variants/",
@@ -629,6 +634,7 @@
       "dflash": 2,
       "archive": [
         "/papers/dflash/",
+        "/papers/eagle-3/",
         "/papers/eagle2/",
         "/papers/medusa/",
         "/papers/glu-variants/",
@@ -672,6 +678,11 @@
     },
     {
       "url": "http://127.0.0.1:8776/papers/medusa/",
+      "status": 200,
+      "link": true
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/eagle-3/",
       "status": 200,
       "link": true
     }
