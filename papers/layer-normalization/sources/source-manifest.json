@@ -1,0 +1,89 @@
+{
+  "checked": "2026-10-27",
+  "sources": [
+    {
+      "name": "primary",
+      "url": "https://arxiv.org/abs/1607.06450v1",
+      "evidence": "paper.pdf+tex+all14pages"
+    },
+    {
+      "name": "author-code",
+      "url": "https://github.com/ryankiros/layer-norm/tree/7a9a1bf7c6553b5a89949c5c860bdfc0937af483",
+      "evidence": "fixedcommit"
+    },
+    {
+      "name": "batch-normalization",
+      "url": "https://arxiv.org/abs/1502.03167",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "weight-normalization",
+      "url": "https://arxiv.org/abs/1602.07868",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "recurrent-bn",
+      "url": "https://arxiv.org/abs/1603.09025",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "transformer",
+      "url": "https://arxiv.org/abs/1706.03762",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "group-norm",
+      "url": "https://arxiv.org/abs/1803.08494",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "optimization",
+      "url": "https://arxiv.org/abs/1805.11604",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "rmsnorm",
+      "url": "https://arxiv.org/abs/1910.07467",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "pre-post-ln",
+      "url": "https://arxiv.org/abs/2002.04745",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "deepnet",
+      "url": "https://arxiv.org/abs/2203.00555",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "ngpt",
+      "url": "https://arxiv.org/abs/2410.01131v2",
+      "evidence": "primary-paper"
+    },
+    {
+      "name": "pytorch",
+      "url": "https://docs.pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html",
+      "evidence": "official-doc+v2.11.0source"
+    },
+    {
+      "name": "triton",
+      "url": "https://triton-lang.org/main/getting-started/tutorials/05-layer-norm.html",
+      "evidence": "official-tutorial+fixedcommit"
+    },
+    {
+      "name": "qwen3",
+      "url": "https://github.com/huggingface/transformers/blob/a672eb5f474b8b30173e9f96eab66adf292da635/src/transformers/models/qwen3/modeling_qwen3.py",
+      "evidence": "official-source"
+    },
+    {
+      "name": "current-qwen38",
+      "url": "https://qwen.ai/blog?id=qwen3.8-flash-next",
+      "evidence": "official-blog+WebFetch+ChromeDOM"
+    }
+  ],
+  "local_primary_sha256": "c464f839fb8d59f7fde92f9b4caa67c2d1f2f196b88f93fb60502249df0aaef7",
+  "figure_provenance": "sources/visual-manifest.json",
+  "source_notes": "notes/related-work.md",
+  "measurement": "No GPU/NPU training or inference benchmark executed."
+}

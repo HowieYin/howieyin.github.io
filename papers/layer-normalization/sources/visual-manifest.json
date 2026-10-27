@@ -1,0 +1,101 @@
+[
+  {
+    "name": "fig-01-order-embeddings",
+    "page": 6,
+    "bbox": [
+      105,
+      45,
+      507,
+      188
+    ],
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+  },
+  {
+    "name": "fig-02-attentive-reader",
+    "page": 7,
+    "bbox": [
+      105,
+      48,
+      507,
+      223
+    ],
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+  },
+  {
+    "name": "fig-03-skip-thoughts",
+    "page": 8,
+    "bbox": [
+      105,
+      46,
+      507,
+      313
+    ],
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+  },
+  {
+    "name": "fig-04-draw",
+    "page": 9,
+    "bbox": [
+      360,
+      266,
+      506,
+      450
+    ],
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+  },
+  {
+    "name": "fig-05-handwriting",
+    "page": 9,
+    "bbox": [
+      105,
+      50,
+      507,
+      208
+    ],
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+  },
+  {
+    "name": "fig-06-mnist",
+    "page": 10,
+    "bbox": [
+      105,
+      46,
+      507,
+      246
+    ],
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+  },
+  {
+    "name": "table-01-invariance",
+    "page": 4,
+    "bbox": [
+      105,
+      48,
+      507,
+      118
+    ],
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+  },
+  {
+    "name": "table-02-retrieval",
+    "page": 6,
+    "bbox": [
+      105,
+      196,
+      507,
+      317
+    ],
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+  },
+  {
+    "name": "table-03-skip-thoughts",
+    "page": 8,
+    "bbox": [
+      105,
+      321,
+      507,
+      438
+    ],
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+  }
+]

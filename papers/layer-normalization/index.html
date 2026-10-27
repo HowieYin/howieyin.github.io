@@ -1,0 +1,962 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#0c1016"><title>Layer Normalization：一条样本内部，谁决定尺度？ — Paper Readings · Howie Yin</title><meta name="description" content="Layer Normalization 全文精读：6 原图、3 完整表、35 公式，LN/RMSNorm 与统计轴交互、RNN 分支、Fisher 几何、推理 IO 和 2026 研究更新。"><link rel="canonical" href="https://howieyin.github.io/papers/layer-normalization/"><meta property="og:title" content="Layer Normalization：一条样本内部，谁决定尺度？"><meta property="og:type" content="article"><meta property="og:image" content="https://howieyin.github.io/papers/layer-normalization/assets/original/fig-03-skip-thoughts.png"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../" aria-label="Howie Yin home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents / 目录</summary><ol><li><a href="#section-1">Abstract — 建立全局图景</a></li><li><a href="#section-2">1 Introduction — Batch 的统计，为什么会成为约束？</a></li><li><a href="#section-3">2 Background — 先把三个对象拆开</a></li><li><a href="#section-4">3 Layer normalization — 改的是归约轴</a></li><li><a href="#section-5">4 Related work — 同时代有哪些替代路径？</a></li><li><a href="#section-6">5 Analysis — 不变性与参数几何</a></li><li><a href="#section-7">6 Experiments — 证据更接近“更快到达”，不是“算子更快”</a></li><li><a href="#section-8">7 Conclusion — 贡献成立，措辞需要收紧</a></li><li><a href="#section-9">Supplementary Material — RNN 分支的具体位置</a></li><li><a href="#section-10">现代实现 — 从 O(D) 到 TTFT、TPOT 和数值精度</a></li><li><a href="#section-11">技术演进 — 改统计、改位置、改执行，三条并行线</a></li><li><a href="#section-12">当前状态 — 截至 2026-10-27 的证据边界</a></li><li><a href="#section-13">Critique — 简单算子，隐含选择并不少</a></li><li><a href="#section-14">References — 原论文、外部证据与复核记录</a></li><li><a href="#section-15">My insights / future directions — 把三个边界分别测清楚</a></li></ol></details></aside><main id="main"><article class="article"><h1>Layer Normalization：一条样本内部，谁决定尺度？</h1>
+<p class="reading-meta">CLOSE READING / 2016 → 2026 · NORMALIZATION · RNN · TRAINING · SYSTEMS</p>
+<p><strong>一句话：</strong>Layer Normalization（LN）用同一条样本、同一层的隐藏维度计算均值与方差，使归一化不依赖同 batch 的其他样本，并把激活的公共偏移与整体幅度从后续计算中分离。</p>
+<p>这篇 2016 年论文的主要实验对象是 RNN，而今天读者最熟悉的使用场景是 Transformer。把这两个时代接起来，需要同时看清三个问题：<strong>统计量沿哪个轴计算，归一化放在网络的什么位置，以及它在硬件上花了多少代价。</strong>它们分别属于算子定义、架构设计和系统实现，不能互相替代。</p>
+<p>本文按原论文 Abstract、§1–7、Supplementary Material 的顺序精读，再补现代实现、技术演进与个人判断。6 张原 Figure、3 张完整 Table 和 35 个编号公式均保留；原图附 caption，表格另附原始截图。标为 <strong>Paper</strong> 的内容来自原论文；<strong>External Source</strong> 来自相关论文或官方实现；<strong>Interpretation / 推导</strong> 是本文解释。所有工程容量计算都是分析模型，未运行 GPU/NPU 性能基准。</p>
+<div aria-label="完整对比表格" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>元数据</th>
+<th>已核验信息</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Title</td>
+<td>Layer Normalization</td>
+</tr>
+<tr>
+<td>Authors</td>
+<td>Jimmy Lei Ba · Jamie Ryan Kiros · Geoffrey E. Hinton</td>
+</tr>
+<tr>
+<td>Institution</td>
+<td>University of Toronto；Hinton 同时署名 Google Inc.</td>
+</tr>
+<tr>
+<td>Version / date</td>
+<td>arXiv:1607.06450v1 · 2016-07-21 · 14 页，含附录</td>
+</tr>
+<tr>
+<td>Publication</td>
+<td>本文读取 arXiv 预印本；不补写未经核验的会议归属</td>
+</tr>
+<tr>
+<td>Primary source</td>
+<td><a href="https://arxiv.org/abs/1607.06450v1" rel="noopener">arXiv v1</a> · <a href="https://arxiv.org/pdf/1607.06450v1" rel="noopener">原 PDF</a> · <a href="sources/1607.06450v1.pdf">本地保存 PDF</a></td>
+</tr>
+<tr>
+<td>DOI</td>
+<td><a href="https://doi.org/10.48550/arXiv.1607.06450" rel="noopener">10.48550/arXiv.1607.06450</a>，为 arXiv DOI</td>
+</tr>
+<tr>
+<td>Official code</td>
+<td><a href="https://github.com/ryankiros/layer-norm" rel="noopener">ryankiros/layer-norm</a>；核对 commit <code>7a9a1bf7c6553b5a89949c5c860bdfc0937af483</code></td>
+</tr>
+<tr>
+<td>Reading / research cutoff</td>
+<td>2026-10-27</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="section-1">Abstract — 建立全局图景</h2>
+<p><strong>一段话。</strong>Batch Normalization（BN）对每个特征跨样本估计统计量，在小 batch、变长序列和循环网络中会遇到统计噪声与时间步处理问题。LN 改为在一条样本内部跨隐藏单元计算统计量，再用可学习的逐特征 gain/bias 恢复表达能力。训练与推理使用同样的输入统计计算，不需要 running mean/variance。论文用检索、阅读理解、句子表征、生成模型、手写轨迹和 MNIST MLP 展示更快收敛的例子，并从不变性和 Fisher 几何解释参数化的作用。它对 CNN 的初步结果却不如 BN，因此证据支持的是有条件的适用性。</p>
+<p>五个关键点：</p>
+<ol>
+<li><strong>统计边界从 batch 移到 sample。</strong>同 batch 的另一条样本变化，不改变本样本 LN 的输出。</li>
+<li><strong>共享统计量，独立仿射参数。</strong>均值/方差是每条向量两个标量，gain/bias 是每个隐藏单元各自的参数。</li>
+<li><strong>RNN 的价值是当前步就能计算。</strong>无需为所有可能时间步预先建立推理统计。</li>
+<li><strong>最强证据偏向训练收敛。</strong>更少更新次数到达较好验证结果，不等于归一化 kernel 更快。</li>
+<li><strong>今日采用需要分层讨论。</strong>LN/RMSNorm 改统计，Pre-LN/Post-LN 改残差位置，fused kernel 改执行方式。</li>
+</ol>
+<h2 id="section-2">1 Introduction — Batch 的统计，为什么会成为约束？</h2>
+<p><strong>Paper。</strong>深层网络中，前层参数更新会改变后层输入分布。作者沿用当时的 internal covariate shift（ICS）解释，认为归一化有助于稳定训练。BN 很有效，但 mini-batch 的大小与组成会进入一个样本的计算；数据并行可能需要额外协调；RNN 不同时间步的输入分布也不同。</p>
+<p><strong>Why。</strong>如果一个样本需要借助其他样本才能归一化，那么 batch=1、长度不同的序列和在线推理都会更难处理。RNN 还有共享权重跨时间复用的特征：同一算子面对不同历史状态，不适合简单套用固定的某一个时间步统计。</p>
+<p><strong>Interpretation。</strong>LN 的观察是：一条隐藏向量本身也有“中心”和“尺度”。无需估计整个人群的分布，先规定这条向量内部的坐标系，就能消除一部分参数与激活幅度变化。</p>
+<p>但应区分<strong>论文的历史动机</strong>与<strong>已证明的机制</strong>。后来的 Santurkar 等人（2018）对 BN 的研究强调优化平滑性，挑战“减少 ICS 就是主要原因”的解释。[S7] 不能因此把任何深网络的稳定训练都直接归因于 LN 降低 ICS，也不能把那篇 BN 实验当作对 LN 的完整证明。</p>
+<h2 id="section-3">2 Background — 先把三个对象拆开</h2>
+<div aria-label="原论文公式 1" class="formula" id="eq-1" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mrow><msubsup><mi>a</mi><mi>i</mi><mi>l</mi></msubsup><mo>=</mo><mrow><mmultiscripts><mi>w</mi><mi>i</mi><mi>l</mi><mrow></mrow><mo>⊤</mo></mmultiscripts><mo lspace="0em" rspace="0em">​</mo><msup><mi>h</mi><mi>l</mi></msup></mrow></mrow><mspace style="width:2em;" width="2em"></mspace><mrow><msubsup><mi>h</mi><mi>i</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msubsup><mo>=</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><msubsup><mi>a</mi><mi>i</mi><mi>l</mi></msubsup><mo>+</mo><msubsup><mi>b</mi><mi>i</mi><mi>l</mi></msubsup></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (1)</span><details><summary>可复制原公式 TeX</summary><pre><code>{a}^{l}_{i}={{w}^{l}_{i}}^{\top}{h}^{l}\qquad{h}^{l+1}_{i}={f}({a}^{l}_{i}+{b}^{l}_{i})</code></pre></details></div>
+<p>式 (1) 中，输入隐藏向量 <code>hˡ ∈ Rᵈ</code>，该层权重 <code>Wˡ ∈ Rᴴˣᵈ</code>；第 i 行 <code>wᵢˡ ∈ Rᵈ</code> 与输入内积得到标量 <code>aᵢˡ</code>，所有单元组成 <code>aˡ ∈ Rᴴ</code>。加偏置 <code>bᵢˡ</code> 后经非线性 <code>f</code> 产生下一层输出。<strong>a 是归一化前的 preactivation；h 是非线性后的状态；W 是产生它们的参数。</strong>后面的不变性不能把三者混用。</p>
+<div aria-label="原论文公式 2" class="formula" id="eq-2" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mrow><msubsup><mover accent="true"><mi>a</mi><mo>¯</mo></mover><mi>i</mi><mi>l</mi></msubsup><mo>=</mo><mrow><mfrac><msubsup><mi>g</mi><mi>i</mi><mi>l</mi></msubsup><msubsup><mi>σ</mi><mi>i</mi><mi>l</mi></msubsup></mfrac><mo lspace="0em" rspace="0em">​</mo><mrow><mo>(</mo><mrow><msubsup><mi>a</mi><mi>i</mi><mi>l</mi></msubsup><mo>−</mo><msubsup><mi>μ</mi><mi>i</mi><mi>l</mi></msubsup></mrow><mo>)</mo></mrow></mrow></mrow><mspace style="width:2em;" width="2em"></mspace><mrow><msubsup><mi>μ</mi><mi>i</mi><mi>l</mi></msubsup><mo rspace="0.1389em">=</mo><mrow><munder><mo lspace="0.1389em" movablelimits="false" rspace="0em">𝔼</mo><mrow><mi>𝕩</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></munder><mrow><mo>[</mo><msubsup><mi>a</mi><mi>i</mi><mi>l</mi></msubsup><mo>]</mo></mrow></mrow></mrow><mspace style="width:2em;" width="2em"></mspace><mrow><msubsup><mi>σ</mi><mi>i</mi><mi>l</mi></msubsup><mo>=</mo><msqrt><mrow><munder><mo movablelimits="false">𝔼</mo><mrow><mi>𝕩</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></munder><mrow><mo lspace="0em">[</mo><msup><mrow><mo>(</mo><mrow><msubsup><mi>a</mi><mi>i</mi><mi>l</mi></msubsup><mo>−</mo><msubsup><mi>μ</mi><mi>i</mi><mi>l</mi></msubsup></mrow><mo>)</mo></mrow><mn>2</mn></msup><mo>]</mo></mrow></mrow></msqrt></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (2)</span><details><summary>可复制原公式 TeX</summary><pre><code>\bar{{a}}^{l}_{i}={{g}^{l}_{i}\over\sigma^{l}_{i}}\left({a}^{l}_{i}-\mu^{l}_{i}\right)\qquad\mu^{l}_{i}=\mathop{\mathbb{E}}_{{\mathbb{x}}\sim P({\mathbb{x}})}\left[{a}^{l}_{i}\right]\qquad\sigma^{l}_{i}=\sqrt{\mathop{\mathbb{E}}_{{\mathbb{x}}\sim P({\mathbb{x}})}\left[\left({a}^{l}_{i}-\mu^{l}_{i}\right)^{2}\right]}</code></pre></details></div>
+<p>式 (2) 的 BN 对第 i 个特征计算 <code>μᵢˡ、σᵢˡ</code>，期望沿数据分布 <code>x∼P(x)</code>，实际训练使用 mini-batch 估计。gain <code>gᵢˡ</code> 调整标准化激活的幅度，式 (1) 中的 bias 再决定非线性工作点。若 batch 含 M 条样本，前馈情形统计张量为 <code>H</code>，不是每条样本一个数。CNN 常跨 batch 与空间位置统计每个 channel；这是另一种轴选择。</p>
+<p>原式用理想总体统计，没有显示数值稳定项 ε。工程实现通常加在<strong>方差内、开方之前</strong>：<code>sqrt(var + ε)</code>。训练 BN 与推理 BN 的统计来源可不同；LN 下一节会去掉这一步切换。</p>
+<p>为什么不是直接把每个 <code>wᵢ</code> 归一化？那是 WeightNorm（WN）路线：<code>gᵢ wᵢᵀx / ‖wᵢ‖</code>。它控制参数长度，却不直接控制当前输入引起的激活分布；输入 x 的尺度仍会传到输出。[S3]</p>
+<h2 id="section-4">3 Layer normalization — 改的是归约轴</h2>
+<div aria-label="原论文公式 3" class="formula" id="eq-3" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mrow><msup><mi>μ</mi><mi>l</mi></msup><mo>=</mo><mrow><mfrac><mn>1</mn><mi>H</mi></mfrac><mo lspace="0em" rspace="0em">​</mo><mrow><munderover><mo movablelimits="false">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>H</mi></munderover><msubsup><mi>a</mi><mi>i</mi><mi>l</mi></msubsup></mrow></mrow></mrow><mspace style="width:2em;" width="2em"></mspace><mrow><msup><mi>σ</mi><mi>l</mi></msup><mo>=</mo><msqrt><mrow><mfrac><mn>1</mn><mi>H</mi></mfrac><mo lspace="0em" rspace="0em">​</mo><mrow><munderover><mo movablelimits="false" rspace="0em">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>H</mi></munderover><msup><mrow><mo>(</mo><mrow><msubsup><mi>a</mi><mi>i</mi><mi>l</mi></msubsup><mo>−</mo><msup><mi>μ</mi><mi>l</mi></msup></mrow><mo>)</mo></mrow><mn>2</mn></msup></mrow></mrow></msqrt></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (3)</span><details><summary>可复制原公式 TeX</summary><pre><code>\mu^{l}=\frac{1}{H}\sum_{i=1}^{H}{a}^{l}_{i}\qquad\sigma^{l}=\sqrt{\frac{1}{H}\sum_{i=1}^{H}\left({a}^{l}_{i}-\mu^{l}\right)^{2}}</code></pre></details></div>
+<p>式 (3) 对<strong>同一层、同一条样本的 H 个单元</strong>求均值与总体方差。<code>a∈Rᴴ → μ,σ∈R</code>，随后把两个标量广播给 H 个位置。这里分母是 H，现代 PyTorch 对应 <code>correction=0</code>，不是样本方差的 H−1。</p>
+<p>把正文与式 (5) 拼起来，完整计算是：<code>a → μ → a−μ → v=mean((a−μ)²) → rstd=1/sqrt(v+ε) → z=(a−μ)·rstd → y=g⊙z+b → f(y)</code>。<code>g,b∈Rᴴ</code>，每个特征一对可学习参数。均值和方差共享，参数不共享。</p>
+<h3>重建 Tensor Shape、训练与推理</h3>
+<p>在现代 token 张量 <code>X∈Rᴮˣᵀˣᴰ</code> 上，常见 LayerNorm 的归约轴是<strong>最后一个 D</strong>：对每个 <code>(b,t)</code> 独立计算。<code>μ、rstd</code> 都是 <code>B×T×1</code>，<code>γ、β</code> 是 <code>D</code>，广播结果还是 <code>B×T×D</code>。B、T 不参与这个统计。若把 T 也纳入一个 causal decoder 的归一化，当前 token 会依赖未来 token 的激活。</p>
+<section class="mechanism" id="axis-widget"><p class="reading-meta">AGENT-CREATED VISUALIZATION · B=2 / T=3 / D=4 TOY</p><h3>统计边界：改另一条样本会发生什么？</h3><div class="controls"><label>归约轴<select id="axis-mode"><option selected="" value="ln">LN：每 token 沿 D</option><option value="bn">Toy BN：固定 t/d 沿 B</option><option value="time">沿 T：causal leak 示例</option></select></label><label>只改变 batch 1 的输入尺度<input id="axis-other" max="3" min="0.2" step="0.2" type="range" value="1"/><output id="axis-other-out"></output></label></div><div aria-label="交互图，可横向滚动" class="svg-scroll" role="region" tabindex="0"><svg aria-label="统计组浅蓝高亮，展示六条 token 向量" id="axis-svg" role="img" viewbox="0 0 500 345"></svg></div><div aria-live="polite" class="readout" id="axis-readout"></div><p class="hint">固定查看 b0/t0 输出。LN 的统计组为该行所有 D；toy BN 为同 t/d 跨样本；沿 T 会读取未来位置。此处未模拟 BN running statistics。</p><noscript><p>LN：b0/t0 的四个数 [1,2,3,4] 独立标准化，另一条样本变化不影响它。沿 T 统计将依赖未来 token。</p></noscript></section>
+<p><strong>训练。</strong>前向按当前输入算统计量；任务头继续使用原来的损失，例如检索 ranking loss、分类交叉熵或生成负对数似然。LN 不引入一个新的专属任务 objective。反向传播经过均值和方差，也更新 γ、β。训练常保存每行 mean/rstd，并保留反向所需激活。</p>
+<p><strong>推理。</strong>依旧读取当前输入、求同样的统计量、做仿射。没有 running mean/variance，没有新 KV cache。RNN 的 <code>(hₜ,cₜ)</code> 是循环状态；Transformer 的 KV 是 attention 状态；它们都不能算成“LN 自己的缓存”。一个向量的 LN 代价 O(D)，所有 token O(BTD)，单层仿射参数 2D。D×D 投影约 O(BTD²)，但低 FLOPs 不保证低延迟。</p>
+<h3>Toy example：标准化输出也有边界</h3>
+<p>取 <code>a=[1,2,3,4]</code>，<code>μ=2.5</code>，<code>v=1.25</code>。忽略 ε 时，<code>z≈[−1.341641,−0.447214,0.447214,1.341641]</code>，其均值为 0、总体方差为 1。若 <code>g=2,b=3</code>，输出均值变成 3、方差变成 4。若 g/b 随特征变化，均值甚至不能简单写为某个统一 b。</p>
+<p>因此，<strong>“LN 输出总是零均值、单位方差”只适用于仿射之前，且 ε=0、方差非零的标准化向量。</strong>ε&gt;0 时标准化方差为 <code>v/(v+ε)</code>；输入全相等时 z=0，最终输出就是 β。</p>
+<section class="mechanism" id="norm-widget"><p class="reading-meta">AGENT-CREATED VISUALIZATION · TOY VALUES / NOT TRAINING RESULTS</p><h3>中心、尺度与 ε：逐项改变输入</h3><div class="controls"><label>统计定义<select id="norm-mode"><option selected="" value="ln">LayerNorm：减均值</option><option value="rms">RMSNorm：不减均值</option></select></label><label>ε 加在方差 / 均方内<select id="norm-eps"><option value="0">0（理想不变性）</option><option selected="" value="1e-05">1e−5</option><option value="0.01">0.01</option><option value="1">1（放大稳定项影响）</option></select></label><label>共同尺度 δ<input id="norm-scale" max="3" min="-3" step="0.05" type="range" value="1"/><output id="norm-scale-out"></output></label><label>共同偏移 c<input id="norm-shift" max="10" min="-10" step="0.5" type="range" value="0"/><output id="norm-shift-out"></output></label><label>统一 gain（演示用）<input id="norm-gain" max="3" min="0" step="0.1" type="range" value="1"/><output id="norm-gain-out"></output></label><label>统一 bias（演示用）<input id="norm-bias" max="3" min="-3" step="0.1" type="range" value="0"/><output id="norm-bias-out"></output></label></div><label class="checkbox-label"><input id="feature-shift" type="checkbox"/>只给第一个特征额外 +2</label><div aria-label="交互图，可横向滚动" class="svg-scroll" role="region" tabindex="0"><svg aria-label="原向量与变换后归一化输出的成对条形图" id="norm-svg" role="img" viewbox="0 0 560 280"></svg></div><div aria-live="polite" class="readout" id="norm-readout"></div><div class="actions"><button id="norm-reset">重置</button><button id="norm-negative">负缩放 δ=−1 / ε=0</button><button id="norm-small">低方差 / ε=1</button></div><p class="hint">基础 a=[1,2,3,4]，变换后 δa+c1。灰蓝为原向量输出，浅蓝为变换后输出。默认 ε=1e−5；统一 gain/bias 为简化演示，真实参数逐特征独立。</p><noscript><p>ε=0、δ&gt;0 时 LN(δa+c1)=LN(a)；δ&lt;0 翻转方向；RMSNorm 不抵消共同偏移；ε&gt;0 不具有精确尺度不变性。</p></noscript></section>
+<p>交互固定使用 4 维 toy 向量。调整共同偏移 c 时 LN 会抵消它；换 RMSNorm 就不会。将尺度 δ 调到负数，LN 的方向翻转；让 δ 接近零且保留 ε，尺度不变性开始明显失效。最后的“单个特征偏移”按钮只改一维，说明公共偏移与任意 feature shift 是不同条件。条形长度显示数值，不表示训练质量。</p>
+<h3>3.1 Layer normalized recurrent neural networks</h3>
+<div aria-label="原论文公式 4" class="formula" id="eq-4" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mrow><msup><mi>𝕙</mi><mi>t</mi></msup><mo>=</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo>[</mo><mrow><mrow><mfrac><mi>𝕘</mi><msup><mi>σ</mi><mi>t</mi></msup></mfrac><mo lspace="0.222em" rspace="0.222em">⊙</mo><mrow><mo>(</mo><mrow><msup><mi>𝕒</mi><mi>t</mi></msup><mo>−</mo><msup><mi>μ</mi><mi>t</mi></msup></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mi>𝕓</mi></mrow><mo>]</mo></mrow></mrow></mrow><mspace style="width:2em;" width="2em"></mspace><mrow><msup><mi>μ</mi><mi>t</mi></msup><mo>=</mo><mrow><mfrac><mn>1</mn><mi>H</mi></mfrac><mo lspace="0em" rspace="0em">​</mo><mrow><munderover><mo movablelimits="false">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>H</mi></munderover><msubsup><mi>a</mi><mi>i</mi><mi>t</mi></msubsup></mrow></mrow></mrow><mspace style="width:2em;" width="2em"></mspace><mrow><msup><mi>σ</mi><mi>t</mi></msup><mo>=</mo><msqrt><mrow><mfrac><mn>1</mn><mi>H</mi></mfrac><mo lspace="0em" rspace="0em">​</mo><mrow><munderover><mo movablelimits="false" rspace="0em">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>H</mi></munderover><msup><mrow><mo>(</mo><mrow><msubsup><mi>a</mi><mi>i</mi><mi>t</mi></msubsup><mo>−</mo><msup><mi>μ</mi><mi>t</mi></msup></mrow><mo>)</mo></mrow><mn>2</mn></msup></mrow></mrow></msqrt></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (4)</span><details><summary>可复制原公式 TeX</summary><pre><code>{\mathbb{h}}^{t}={f}\left[{{\mathbb{g}}\over\sigma^{t}}\odot\left({\mathbb{a}}^{t}-\mu^{t}\right)+{\mathbb{b}}\right]\qquad\mu^{t}=\frac{1}{H}\sum_{i=1}^{H}{a_{i}^{t}}\qquad\sigma^{t}=\sqrt{\frac{1}{H}\sum_{i=1}^{H}\left({a_{i}^{t}}-\mu^{t}\right)^{2}}</code></pre></details></div>
+<p>式 (4) 中 <code>aᵗ=Wₕhᵗ⁻¹+Wₓxᵗ</code>，<code>aᵗ,hᵗ,g,b∈Rᴴ</code>，<code>μᵗ,σᵗ</code> 是当前样本在 t 步的标量，g/b 跨时间共享。每步都可即时计算，所以训练到一个长度后，推理到更长长度也不需要一张更长的 BN running-stat 表。</p>
+<p>这解决的是统计量的定义与复用问题。它<strong>没有证明任意长序列泛化、没有消除 BPTT 的长链路依赖，也没有保证所有梯度不爆炸</strong>。从式 (4) 的普通 RNN 到真正 LSTM/GRU，还必须确定归一化哪条分支、在哪个门前后插入；附录给出了不同方案。</p>
+<h2 id="section-5">4 Related work — 同时代有哪些替代路径？</h2>
+<p><strong>Paper。</strong>本节联系 BN、Recurrent BN、WN、自然梯度以及保持信号尺度的初始化/约束方法。BN 使用样本群体统计；WN 重参数化单个权重向量；LN 使用当前样本的跨单元统计。它们控制的对象不同，不能仅凭名字中都有 “norm” 当作同一个操作。</p>
+<p>Recurrent BN（Cooijmans 等，2016）把 BN 用到 hidden-to-hidden 转换，并研究时间步统计与 gain 初始化。[S4] 所以“BN 完全不能用于 RNN”是过度表述。LN 的优势是减少 batch 和时间统计管理，在本文多个循环任务上更容易沿用已有配置。</p>
+<p>自然梯度用 Fisher 几何纠正参数空间中不同方向的度量；LN 则改变模型的参数化与输入尺度。作者下一节用 Fisher 分析说明二者的联系，并未声称 LN 等价于计算自然梯度矩阵逆。</p>
+<h2 id="section-6">5 Analysis — 不变性与参数几何</h2>
+<div aria-label="原论文公式 5" class="formula" id="eq-5" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><msub><mi>h</mi><mi>i</mi></msub><mo>=</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><mstyle displaystyle="true"><mfrac><msub><mi>g</mi><mi>i</mi></msub><msub><mi>σ</mi><mi>i</mi></msub></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mrow><mo>(</mo><mrow><msub><mi>a</mi><mi>i</mi></msub><mo>−</mo><msub><mi>μ</mi><mi>i</mi></msub></mrow><mo>)</mo></mrow></mrow><mo>+</mo><msub><mi>b</mi><mi>i</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (5)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle h_{i}=f({{g}_{i}\over\sigma_{i}}\left(a_{i}-\mu_{i}\right)+b_{i})</code></pre></details></div>
+<p>式 (5) 把 BN、LN、WN 都写为 <code>hᵢ=f(gᵢ(aᵢ−μᵢ)/σᵢ+bᵢ)</code>。LN 的 <code>μᵢ=μ,σᵢ=σ</code> 对一条向量共享；BN 的统计依数据分布、按特征独立；WN 可视作 <code>μᵢ=0,σᵢ=‖wᵢ‖₂</code>。形式相似，统计依赖关系不同。</p>
+<h3>5.1 Invariance — Table 1 中每个 Yes 到底需要什么？</h3>
+<div aria-label="Table 1 原始完整表格、列名与注释" class="table-scroll original-table" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Weight matrix</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Weight matrix</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Weight vector</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Dataset</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Dataset</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Single training case</span>
+</span></th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">re-scaling</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">re-centering</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">re-scaling</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">re-scaling</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">re-centering</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">re-scaling</span>
+</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Batch norm</span>
+</span></th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">No</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">No</span>
+</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Weight norm</span>
+</span></th>
+<td class="ltx_td ltx_align_center ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">No</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">No</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">No</span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">No</span>
+</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Layer norm</span>
+</span></th>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">No</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">No</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Invariant</span>
+</span></td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Invariance properties under the normalization methods. </figcaption>
+</figure></div>
+<details><summary>Table 1 原始截图与排版核对</summary><figure class="original-figure"><button aria-label="放大 Table 1" data-zoom="assets/original/table-01-invariance.png" type="button"><img alt="Table 1 原始图表、图例、坐标与完整 caption" loading="lazy" src="assets/original/table-01-invariance.png"/></button><figcaption>Table 1 · Original Paper 1607.06450v1，288 dpi，保留原 caption。点击放大。</figcaption></figure></details>
+<p><strong>读法。</strong>行依次是整体权重缩放、权重公共平移、单个权重向量缩放、整个数据集缩放、整个数据集平移、单条样本缩放。列为 BN、WN、LN。原表中 LN 是 <code>Yes / Yes / No / Yes / No / Yes</code>；WN 的 dataset re-scaling 是 <strong>No</strong>。这是数学性质表，不是实测 accuracy 表，也不存在数值“提升多少”。</p>
+<div aria-label="原论文公式 6" class="formula" id="eq-6" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><msup><mi>𝕙</mi><mo>′</mo></msup><mo>=</mo><mphantom></mphantom></mrow><mrow><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><mstyle displaystyle="true"><mfrac><mi>𝕘</mi><msup><mi>σ</mi><mo>′</mo></msup></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mrow><mo>(</mo><mrow><mrow><msup><mi>W</mi><mo>′</mo></msup><mo lspace="0em" rspace="0em">​</mo><mi>𝕩</mi></mrow><mo>−</mo><msup><mi>μ</mi><mo>′</mo></msup></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mi>𝕓</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><mstyle displaystyle="true"><mfrac><mi>𝕘</mi><msup><mi>σ</mi><mo>′</mo></msup></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mrow><mo>(</mo><mrow><mrow><mrow><mo stretchy="false">(</mo><mrow><mrow><mi>δ</mi><mo lspace="0em" rspace="0em">​</mo><mi>W</mi></mrow><mo>+</mo><mrow><mn>𝟏</mn><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝜸</mi><mo>⊤</mo></msup></mrow></mrow><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mi>𝕩</mi></mrow><mo>−</mo><msup><mi>μ</mi><mo>′</mo></msup></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mi>𝕓</mi></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></math><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>=</mo><mrow><mrow><mrow><mi>f</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><mstyle displaystyle="true"><mfrac><mi>𝕘</mi><mi>σ</mi></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mrow><mo>(</mo><mrow><mrow><mi>W</mi><mo lspace="0em" rspace="0em">​</mo><mi>𝕩</mi></mrow><mo>−</mo><mi>μ</mi></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mi>𝕓</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mi>𝕙</mi></mrow><mo lspace="0em">.</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (6)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\mathbb{h}}^{\prime}=
+\displaystyle f({{\mathbb{g}}\over\sigma^{\prime}}\left(W^{\prime}{\mathbb{x}}-\mu^{\prime}\right)+{\mathbb{b}})=f({{\mathbb{g}}\over\sigma^{\prime}}\left((\delta W+{\bf 1}{\bm{\gamma}}^{\top}){\mathbb{x}}-\mu^{\prime}\right)+{\mathbb{b}})
+\displaystyle=
+\displaystyle f({{\mathbb{g}}\over\sigma}\left(W{\mathbb{x}}-\mu\right)+{\mathbb{b}})={\mathbb{h}}.</code></pre></details></div>
+<p>式 (6) 令 <code>W′=δW+1γᵀ</code>，<code>W,W′∈Rᴴˣᵈ</code>，<code>1∈Rᴴ</code>，此处 γ 是 <code>d</code> 维<strong>权重变换向量</strong>，不是现代 LN 的 gain γ。对固定输入 x，<code>a′=δa+1(γᵀx)</code>；第二项对 H 个单元完全相同，减均值时消失。若 δ&gt;0，且忽略 ε，<code>μ′=δμ+γᵀx, σ′=δσ</code>，标准化结果不变。整层的 f 与 g/b 也相同，故输出相同。</p>
+<p>如果 δ&lt;0，真实标准差是 <code>|δ|σ</code>，z 翻转符号；δ=0 时无 ε 的定义退化。若只放大一个 <code>wᵢ</code>，它会改变该单元相对其余单元的位置及共享方差，LN 不保持不变；WN 控制每条权重的长度，因此可抵消单行正缩放。若 bias 被放在归一化前，变换时还必须一起处理它，不能默认式 (6) 原封不动成立。</p>
+<div aria-label="原论文公式 7" class="formula" id="eq-7" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><msubsup><mi>h</mi><mi>i</mi><mo>′</mo></msubsup><mo>=</mo><mphantom></mphantom></mrow><mrow><mrow><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><mstyle displaystyle="true"><mfrac><msub><mi>g</mi><mi>i</mi></msub><msup><mi>σ</mi><mo>′</mo></msup></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mrow><mo>(</mo><mrow><mrow><msubsup><mi>w</mi><mi>i</mi><mo>⊤</mo></msubsup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝕩</mi><mo>′</mo></msup></mrow><mo>−</mo><msup><mi>μ</mi><mo>′</mo></msup></mrow><mo>)</mo></mrow></mrow><mo>+</mo><msub><mi>b</mi><mi>i</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><mstyle displaystyle="true"><mfrac><msub><mi>g</mi><mi>i</mi></msub><mrow><mi>δ</mi><mo lspace="0em" rspace="0em">​</mo><mi>σ</mi></mrow></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mrow><mo>(</mo><mrow><mrow><mi>δ</mi><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>w</mi><mi>i</mi><mo>⊤</mo></msubsup><mo lspace="0em" rspace="0em">​</mo><mi>𝕩</mi></mrow><mo>−</mo><mrow><mi>δ</mi><mo lspace="0em" rspace="0em">​</mo><mi>μ</mi></mrow></mrow><mo>)</mo></mrow></mrow><mo>+</mo><msub><mi>b</mi><mi>i</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><msub><mi>h</mi><mi>i</mi></msub></mrow><mo lspace="0em">.</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (7)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{h}_{i}^{\prime}=
+\displaystyle f({{g}_{i}\over\sigma^{\prime}}\left(w_{i}^{\top}{\mathbb{x}}^{\prime}-\mu^{\prime}\right)+{b}_{i})=f({{g}_{i}\over{\delta\sigma}}\left(\delta w_{i}^{\top}{\mathbb{x}}-\delta\mu\right)+{b}_{i})={h}_{i}.</code></pre></details></div>
+<p>式 (7) 是单条输入 <code>x′=δx</code>，δ&gt;0 且 ε=0 时 <code>a′=δa</code>，LN 的同一条样本统计跟着变化，因此输出相同。BN 若只改变一个样本，会改变整组统计而影响其他样本，不具备这种逐样本不变性；对全数据集一致正缩放，则理想 BN 统计也同步变化。</p>
+<p><strong>需要纠正的三处边界。</strong></p>
+<ul>
+<li>正文说所有方法对 dataset re-scaling 不变，但 WN 的 <code>g·wᵀ(δx)/‖w‖</code> 仍乘 δ。原 Table 1 的 WN=No 与直接计算一致；正文 “all methods” 过宽。</li>
+<li>结论提到 per-training-case feature shifting。严格抵消的是激活向量的公共偏移 <code>a+c1</code>。任意原输入 <code>x+q</code> 会产生 <code>a+Wq</code>，通常 <code>Wq</code> 并非常量向量；Table 1 的 dataset re-centering=No 并不矛盾。</li>
+<li>现代 ε&gt;0 时 <code>LN(δa)</code> 的分母为 <code>sqrt(δ²v+ε)</code>，无法完全消去 δ。共同平移在实数计算中仍可抵消，浮点数上大公共偏移可能先把小差异舍入掉。</li>
+</ul>
+<h3>5.2 Geometry — 同样大的参数更新，函数不一定同样变化</h3>
+<div aria-label="原论文公式 8" class="formula" id="eq-8" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>s</mi><mn>2</mn></msup></mrow><mrow><mo>=</mo><msub><mi>D</mi><mi>KL</mi></msub><mrow><mo maxsize="1.200em" minsize="1.200em">[</mo><mi>P</mi><mrow><mo stretchy="false">(</mo><mi>y</mi><mo fence="false" lspace="0.170em" rspace="0.337em" stretchy="false">|</mo><mi>𝕩</mi><mo rspace="0.667em">;</mo><mi>θ</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0.167em">∥</mo><mi>P</mi><mrow><mo stretchy="false">(</mo><mi>y</mi><mo fence="false" lspace="0.170em" rspace="0.337em" stretchy="false">|</mo><mi>𝕩</mi><mo rspace="0.667em">;</mo><mi>θ</mi><mo>+</mo><mi>δ</mi><mo stretchy="false">)</mo></mrow><mo maxsize="1.200em" minsize="1.200em">]</mo></mrow><mo>≈</mo><mstyle displaystyle="true"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><msup><mi>δ</mi><mo>⊤</mo></msup><mi>F</mi><mrow><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo></mrow><mi>δ</mi><mo>,</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (8)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle ds^{2}
+\displaystyle=\mathrm{D}_{\rm KL}\big[P(y\,|\,{\mathbb{x}};\ \theta)\|P(y\,|\,{\mathbb{x}};\ \theta+\delta)\big]\approx\frac{1}{2}\delta^{\top}{F}(\theta)\delta,</code></pre></details></div>
+<div aria-label="原论文公式 9" class="formula" id="eq-9" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mi>F</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo></mrow></mrow><mrow><mrow><mphantom></mphantom><mo rspace="0.1389em">=</mo><mrow><munder><mo lspace="0.1389em" movablelimits="false" rspace="0em">𝔼</mo><mrow><mrow><mi>𝕩</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>,</mo><mrow><mi>y</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>y</mi><mo lspace="0.170em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></munder><mrow><mo>[</mo><mrow><mstyle displaystyle="true"><mfrac><mrow><mo rspace="0.167em">∂</mo><mrow><mi>log</mi><mo lspace="0.167em">⁡</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>y</mi><mo lspace="0.170em" rspace="0.170em">|</mo><mrow><mi>𝕩</mi><mo rspace="0.667em">;</mo><mi>θ</mi></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><mrow><mo>∂</mo><mi>θ</mi></mrow></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><msup><mstyle displaystyle="true"><mfrac><mrow><mo rspace="0.167em">∂</mo><mrow><mi>log</mi><mo lspace="0.167em">⁡</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>y</mi><mo lspace="0.170em" rspace="0.170em">|</mo><mrow><mi>𝕩</mi><mo rspace="0.667em">;</mo><mi>θ</mi></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><mrow><mo>∂</mo><mi>θ</mi></mrow></mfrac></mstyle><mo>⊤</mo></msup></mrow><mo>]</mo></mrow></mrow></mrow><mo>,</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (9)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{F}(\theta)
+\displaystyle=\mathop{\mathbb{E}}_{{\mathbb{x}}\sim P({\mathbb{x}}),y\sim P(y\,|\,{\mathbb{x}})}\left[{\partial\log P(y\,|\,{\mathbb{x}};\ \theta)\over\partial\theta}{\partial\log P(y\,|\,{\mathbb{x}};\ \theta)\over\partial\theta}^{\top}\right],</code></pre></details></div>
+<p>式 (8) 用相近预测分布的 KL 距离作局部二次近似；θ 是参数向量，δ 在此处是参数增量，不再是前面的缩放常数。式 (9) 给出 Fisher：对输入分布和模型条件输出分布取 score 外积期望，<code>F∈Rᴾˣᴾ</code>。这是 model Fisher，不是把某次真实标签的梯度外积就当作精确总体矩阵。</p>
+<p><strong>直觉。</strong>参数动 0.01，在不同尺度、不同方向上会造成不同预测变化。训练对参数使用统一学习率，不代表在函数空间迈出相同的一步。归一化的一个作用是改变这种“参数移动 → 分布变化”的局部关系。</p>
+<h3>5.2.1 Riemannian metric 与 GLM 的范围</h3>
+<div aria-label="原论文公式 10" class="formula" id="eq-10" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mi>log</mi><mo lspace="0.167em">⁡</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>y</mi><mo lspace="0.170em" rspace="0.170em">|</mo><mrow><mi>𝕩</mi><mo rspace="0.667em">;</mo><mi>w</mi><mo>,</mo><mi>b</mi></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><mrow><mrow><mphantom></mphantom><mo>=</mo><mrow><mstyle displaystyle="true"><mfrac><mrow><mrow><mrow><mo stretchy="false">(</mo><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mi>y</mi></mrow><mo>−</mo><mrow><mi>η</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><mi>ϕ</mi></mfrac></mstyle><mo>+</mo><mrow><mi>c</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>y</mi><mo>,</mo><mi>ϕ</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><mo>,</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (10)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\log P(y\,|\,{\mathbb{x}};\ w,b)
+\displaystyle=\frac{({a}+b)y-\eta({a}+b)}{\phi}+c(y,\phi),</code></pre></details></div>
+<div aria-label="原论文公式 11" class="formula" id="eq-11" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mrow><mo movablelimits="false" rspace="0em">𝔼</mo><mrow><mo stretchy="false">[</mo><mrow><mi>y</mi><mo fence="false" lspace="0.170em" rspace="0.337em" stretchy="false">|</mo><mi>𝕩</mi></mrow><mo stretchy="false">]</mo></mrow></mrow><mo>=</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><mrow><mrow><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><msup><mi>w</mi><mo>⊤</mo></msup><mo lspace="0em" rspace="0em">​</mo><mi>𝕩</mi></mrow><mo>+</mo><mi>b</mi></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><mo rspace="1.167em">,</mo><mrow><mrow><mtext>Var</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">[</mo><mrow><mi>y</mi><mo fence="false" lspace="0.170em" rspace="0.337em" stretchy="false">|</mo><mi>𝕩</mi></mrow><mo stretchy="false">]</mo></mrow></mrow><mo>=</mo><mrow><mi>ϕ</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>f</mi><mo>′</mo></msup><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow><mo>,</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (11)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\mathop{\mathbb{E}}[y\,|\,{\mathbb{x}}]=f({a}+b)
+\displaystyle=f({w}^{\top}{\mathbb{x}}+b),\ \ \text{Var}[y\,|\,{\mathbb{x}}]=\phi f^{\prime}({a}+b),</code></pre></details></div>
+<p>式 (10) 用指数族 generalized linear model 做可分析对象：<code>a=wᵀx</code>；φ 是 dispersion；η 是 log-partition；c 不依赖 w/b。式 (11) 中 <code>f=η′</code>，条件均值是 <code>f(a+b)</code>，条件方差是 <code>φf′(a+b)</code>。x 为 d 维，w 同维，y 可先理解为一个标量输出。</p>
+<div aria-label="原论文公式 12" class="formula" id="eq-12" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mi>F</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo></mrow></mrow><mrow><mrow><mphantom></mphantom><mo rspace="0.1389em">=</mo><mrow><munder><mo lspace="0.1389em" movablelimits="false" rspace="0em">𝔼</mo><mrow><mi>𝕩</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></munder><mrow><mo>[</mo><mrow><mstyle displaystyle="true"><mfrac><mrow><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">[</mo><mrow><mi>𝕪</mi><mo fence="false" lspace="0.170em" rspace="0.337em" stretchy="false">|</mo><mi>𝕩</mi></mrow><mo stretchy="false">]</mo></mrow></mrow><msup><mi>ϕ</mi><mn>2</mn></msup></mfrac></mstyle><mo lspace="0.222em" rspace="0.222em">⊗</mo><mrow><mo>[</mo><mtable columnspacing="5pt" rowspacing="0pt"><mtr><mtd><mrow><mi>𝕩</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝕩</mi><mo>⊤</mo></msup></mrow></mtd><mtd><mi>𝕩</mi></mtd></mtr><mtr><mtd><msup><mi>𝕩</mi><mo>⊤</mo></msup></mtd><mtd><mn>1</mn></mtd></mtr></mtable><mo>]</mo></mrow></mrow><mo>]</mo></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (12)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{F}(\theta)
+\displaystyle=\mathop{\mathbb{E}}_{{\mathbb{x}}\sim P({\mathbb{x}})}\left[\frac{\text{Cov}[{\mathbb{y}}\,|\,{\mathbb{x}}]}{\phi^{2}}\otimes\begin{bmatrix}{\mathbb{x}}{\mathbb{x}}^{\top}&amp;{\mathbb{x}}\\
+{\mathbb{x}}^{\top}&amp;1\end{bmatrix}\right].</code></pre></details></div>
+<p>扩展到 H 个输出，式 (12) 将 <code>Cov(y|x)∈Rᴴˣᴴ</code> 与增广输入二阶矩 <code>[[xxᵀ,x],[xᵀ,1]]∈R⁽ᵈ⁺¹⁾ˣ⁽ᵈ⁺¹⁾</code> 做 Kronecker product，得到 <code>H(d+1)×H(d+1)</code> 的 Fisher；φ² 在分母。它揭示输入尺度如何进入曲率。</p>
+<h3>5.2.2 Normalized GLM — 标准差怎样进入权重方向？</h3>
+<div aria-label="原论文公式 13" class="formula" id="eq-13" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mrow><mrow><mover accent="true"><mi>F</mi><mo>¯</mo></mover><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mo>[</mo><mtable columnspacing="5pt" rowspacing="0pt"><mtr><mtd><mrow><mo lspace="0em" rspace="0em">​</mo><msub><mover accent="true"><mi>F</mi><mo>¯</mo></mover><mn>11</mn></msub></mrow></mtd><mtd><mo>⋯</mo></mtd><mtd><msub><mover accent="true"><mi>F</mi><mo>¯</mo></mover><mrow><mn>1</mn><mo lspace="0em" rspace="0em">​</mo><mi>H</mi></mrow></msub></mtd></mtr><mtr><mtd><mo>⋮</mo></mtd><mtd><mi mathvariant="normal">⋱</mi></mtd><mtd><mo>⋮</mo></mtd></mtr><mtr><mtd><msub><mover accent="true"><mi>F</mi><mo>¯</mo></mover><mrow><mi>H</mi><mo lspace="0em" rspace="0em">​</mo><mn>1</mn></mrow></msub></mtd><mtd><mo>⋯</mo></mtd><mtd><msub><mover accent="true"><mi>F</mi><mo>¯</mo></mover><mrow><mi>H</mi><mo lspace="0em" rspace="0em">​</mo><mi>H</mi></mrow></msub></mtd></mtr></mtable><mo>]</mo></mrow></mrow><mo rspace="1.167em">,</mo><msub><mover accent="true"><mi>F</mi><mo>¯</mo></mover><mrow><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>j</mi></mrow></msub></mrow><mrow><mphantom></mphantom><mo rspace="0.1389em">=</mo><mrow><munder><mo lspace="0.1389em" movablelimits="false" rspace="0em">𝔼</mo><mrow><mi>𝕩</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></munder><mrow><mo>[</mo><mrow><mstyle displaystyle="true"><mfrac><mrow><mtext>Cov</mtext><mo stretchy="false">[</mo><mi>y</mi><msub><mrow></mrow><mi>i</mi></msub><mo rspace="0.667em">,</mo><mi>y</mi><msub><mrow></mrow><mi>j</mi></msub><mo fence="false" rspace="0.337em" stretchy="false">|</mo><mi>𝕩</mi><mo stretchy="false">]</mo></mrow><msup><mi>ϕ</mi><mn>2</mn></msup></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mrow><mo>[</mo><mtable columnspacing="5pt" rowspacing="0pt"><mtr><mtd><mrow><mo lspace="0em" rspace="0em">​</mo><mfrac><mrow><msub><mi>g</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>g</mi><mi>j</mi></msub></mrow><mrow><msub><mi>σ</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>σ</mi><mi>j</mi></msub></mrow></mfrac><mo lspace="0em" rspace="0em">​</mo><msub><mi>χ</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>χ</mi><mi>j</mi><mo>⊤</mo></msubsup></mrow></mtd><mtd><mrow><msub><mi>χ</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><mfrac><msub><mi>g</mi><mi>i</mi></msub><msub><mi>σ</mi><mi>i</mi></msub></mfrac></mrow></mtd><mtd><mrow><msub><mi>χ</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><mfrac><mrow><msub><mi>g</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mi>j</mi></msub><mo>−</mo><msub><mi>μ</mi><mi>j</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow><mrow><msub><mi>σ</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>σ</mi><mi>j</mi></msub></mrow></mfrac></mrow></mtd></mtr><mtr><mtd><mrow><msubsup><mi>χ</mi><mi>j</mi><mo>⊤</mo></msubsup><mo lspace="0em" rspace="0em">​</mo><mfrac><msub><mi>g</mi><mi>j</mi></msub><msub><mi>σ</mi><mi>j</mi></msub></mfrac></mrow></mtd><mtd><mn>1</mn></mtd><mtd><mfrac><mrow><msub><mi>a</mi><mi>j</mi></msub><mo>−</mo><msub><mi>μ</mi><mi>j</mi></msub></mrow><msub><mi>σ</mi><mi>j</mi></msub></mfrac></mtd></mtr><mtr><mtd><mrow><msubsup><mi>χ</mi><mi>j</mi><mo>⊤</mo></msubsup><mo lspace="0em" rspace="0em">​</mo><mfrac><mrow><msub><mi>g</mi><mi>j</mi></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mi>i</mi></msub><mo>−</mo><msub><mi>μ</mi><mi>i</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow><mrow><msub><mi>σ</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>σ</mi><mi>j</mi></msub></mrow></mfrac></mrow></mtd><mtd><mfrac><mrow><msub><mi>a</mi><mi>i</mi></msub><mo>−</mo><msub><mi>μ</mi><mi>i</mi></msub></mrow><msub><mi>σ</mi><mi>i</mi></msub></mfrac></mtd><mtd><mfrac><mrow><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mi>i</mi></msub><mo>−</mo><msub><mi>μ</mi><mi>i</mi></msub></mrow><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mi>j</mi></msub><mo>−</mo><msub><mi>μ</mi><mi>j</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow><mrow><msub><mi>σ</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>σ</mi><mi>j</mi></msub></mrow></mfrac></mtd></mtr></mtable><mo>]</mo></mrow></mrow><mo>]</mo></mrow></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (13)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\bar{{F}}(\theta)=\begin{bmatrix}[1.5]\bar{{F}}_{11}&amp;\cdots&amp;\bar{{F}}_{1H}\\
+\vdots&amp;\ddots&amp;\vdots\\
+\bar{{F}}_{H1}&amp;\cdots&amp;\bar{{F}}_{HH}\end{bmatrix},\quad\bar{{F}}_{ij}
+\displaystyle=\mathop{\mathbb{E}}_{{\mathbb{x}}\sim P({\mathbb{x}})}\left[\frac{\text{Cov}[y_{i},\ y_{j}\ \,|\,{\mathbb{x}}]}{\phi^{2}}\begin{bmatrix}[1.5]\frac{{g}_{i}{g}_{j}}{\sigma_{i}\sigma_{j}}{\chi}_{i}{\chi}_{j}^{\top}&amp;{\chi}_{i}\frac{{g}_{i}}{\sigma_{i}}&amp;{\chi}_{i}\frac{{g}_{i}({a}_{j}-\mu_{j})}{\sigma_{i}\sigma_{j}}\\
+{\chi}_{j}^{\top}\frac{{g}_{j}}{\sigma_{j}}&amp;1&amp;\frac{{a}_{j}-\mu_{j}}{\sigma_{j}}\\
+{\chi}_{j}^{\top}\frac{{g}_{j}({a}_{i}-\mu_{i})}{\sigma_{i}\sigma_{j}}&amp;\frac{{a}_{i}-\mu_{i}}{\sigma_{i}}&amp;\frac{({a}_{i}-\mu_{i})({a}_{j}-\mu_{j})}{\sigma_{i}\sigma_{j}}\end{bmatrix}\right]</code></pre></details></div>
+<div aria-label="原论文公式 14" class="formula" id="eq-14" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>χ</mi><mi>i</mi></msub><mrow><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>𝕩</mi><mo>−</mo><mstyle displaystyle="true"><mfrac><mrow><mo>∂</mo><msub><mi>μ</mi><mi>i</mi></msub></mrow><mrow><mo>∂</mo><msub><mi>w</mi><mi>i</mi></msub></mrow></mfrac></mstyle><mo>−</mo><mrow><mstyle displaystyle="true"><mfrac><mrow><msub><mi>a</mi><mi>i</mi></msub><mo>−</mo><msub><mi>μ</mi><mi>i</mi></msub></mrow><msub><mi>σ</mi><mi>i</mi></msub></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mstyle displaystyle="true"><mfrac><mrow><mo>∂</mo><msub><mi>σ</mi><mi>i</mi></msub></mrow><mrow><mo>∂</mo><msub><mi>w</mi><mi>i</mi></msub></mrow></mfrac></mstyle></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (14)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\chi}_{i}
+\displaystyle={\mathbb{x}}-\frac{\partial{\mu_{i}}}{\partial{{w}_{i}}}-\frac{{a}_{i}-\mu_{i}}{\sigma_{i}}\frac{\partial{\sigma_{i}}}{\partial{{w}_{i}}}.</code></pre></details></div>
+<p>归一化后，每个单元参数按 <code>[wᵢ,bᵢ,gᵢ]</code> 排列，块大小 <code>(d+2)×(d+2)</code>，整矩阵 <code>H(d+2)</code> 方阵。式 (13) 的 weight–weight 块出现 <code>gᵢgⱼ/(σᵢσⱼ)·χᵢχⱼᵀ</code>；weight–bias、weight–gain、gain–gain 块分别描述两种参数方向间的耦合。式 (14) 的 <code>χᵢ∈Rᵈ</code> 来自链式法则：直接的 x 项，减去 mean 导数，再减去 std 导数。</p>
+<p><strong>工程含义。</strong>若整层权重共同正缩放，使 σ 同比例增长而标准化激活不变，那么权重方向对函数的敏感度可随尺度下降，weight–weight 度量含约 <code>1/δ²</code> 的因子。这里不是 <code>1/δ</code> 的 Fisher 变化，也不是 LN 下独立放大单行权重就一定令其统计同比增长。作者把这种有效学习率降低类比为 early stopping；这是一种解释，不能推成对 Adam、任意 loss、任意深网络的收敛或泛化定理。</p>
+<p>LN 的共享统计意味着不同单元的参数还会交叉影响统计量。式 (13) 是作者给出的分析表达，完整网络反向传播必须对真实计算图求导，不能只看一个对角 Fisher 块就忽略所有跨单元依赖。</p>
+<h3>推导：Jacobian 给出更直接的局部图景</h3>
+<div aria-label="本文推导的 Jacobian 与反向公式" class="formula derived" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>P</mi><mo>=</mo><mi>I</mi><mo>−</mo><mfrac><mrow><mrow><mn mathvariant="bold">1</mn></mrow><msup><mrow><mn mathvariant="bold">1</mn></mrow><mrow><mo>⊤</mo></mrow></msup></mrow><mrow><mi>D</mi></mrow></mfrac><mo>,</mo><mspace width="1em"></mspace><mi>r</mi><mo>=</mo><msqrt><mrow><mi>v</mi><mo>+</mo><mi>ϵ</mi></mrow></msqrt><mo>,</mo><mspace width="1em"></mspace><mi>z</mi><mo>=</mo><mfrac><mrow><mi>P</mi><mi>a</mi></mrow><mrow><mi>r</mi></mrow></mfrac></mrow></math><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>J</mi><mo>=</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>r</mi></mrow></mfrac><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mi>P</mi><mo>−</mo><mfrac><mrow><mi>z</mi><msup><mi>z</mi><mrow><mo>⊤</mo></mrow></msup></mrow><mrow><mi>D</mi></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>,</mo><mspace width="1em"></mspace><mi>J</mi><mrow><mn mathvariant="bold">1</mn></mrow><mo>=</mo><mn>0</mn><mo>,</mo><mspace width="1em"></mspace><mi>J</mi><mi>z</mi><mo>=</mo><mfrac><mrow><mi>ϵ</mi></mrow><mrow><msup><mi>r</mi><mrow><mn>3</mn></mrow></msup></mrow></mfrac><mi>z</mi></mrow></math><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mfrac><mrow><mo>∂</mo><mi>L</mi></mrow><mrow><mo>∂</mo><mi>a</mi></mrow></mfrac><mo>=</mo><mfrac><mrow><mi>q</mi><mo>−</mo><mo>mean</mo><mo stretchy="false">(</mo><mi>q</mi><mo stretchy="false">)</mo><mo>−</mo><mi>z</mi><mo>mean</mo><mo stretchy="false">(</mo><mi>q</mi><mi>z</mi><mo stretchy="false">)</mo></mrow><mrow><mi>r</mi></mrow></mfrac><mo>,</mo><mspace width="1em"></mspace><mi>q</mi><mo>=</mo><mi>u</mi><mo>⊙</mo><mi>g</mi></mrow></math><span class="equation-number">Interpretation / 本文推导 · 非原论文编号公式</span></div>
+<p>设 <code>a∈Rᴰ</code>，<code>P=I−11ᵀ/D</code>，<code>r=sqrt(v+ε)</code>，<code>z=Pa/r</code>。本文推导的标准化 Jacobian 是 <code>J=(P−zzᵀ/D)/r</code>；仿射输出的 Jacobian 再左乘 <code>diag(g)</code>。</p>
+<p><code>J1=0</code>：公共偏移方向被投掉。ε=0、非零方差时 <code>Jz=0</code>：纯径向放大也被投掉，D&gt;1 时秩为 D−2。ε&gt;0 时 <code>Jz=(ε/r³)z</code>，径向影响没有完全消失。D=1 时所有输入信息都被去掉；D=2 且 ε=0 时只剩两种标准化符号方向，所以 LN 对很窄的向量可能过于强烈。</p>
+<p>令上游梯度为 u，<code>q=u⊙g</code>，反向是 <code>da=(q−mean(q)−z·mean(qz))/r</code>；<code>dg</code> 累加 <code>u⊙z</code>，<code>db</code> 累加 u，后两者沿 batch/token 累计。它说明为什么 backward 同样需要 reduction。我们对这个表达与 ε&gt;0 的 toy 前向做了有限差分核对；这是数值正确性检查，不是训练性能复现。</p>
+<h2 id="section-7">6 Experiments — 证据更接近“更快到达”，不是“算子更快”</h2>
+<p><strong>Paper 的默认配置。</strong>除特别说明，gain 初始化为 1，bias 初始化为 0。多个实验沿用 baseline 的初始 hyperparameters，以观察加 LN 是否直接有益。完整硬件、精度、训练 token 数、seed 方差和 wall-clock 对照并未全部报告；缺失字段不能用现代训练经验补齐。</p>
+<h3>6.1 Order-embeddings：图文检索</h3>
+<p>MSCOCO；句子用 GRU 编码，图像用预训练 VGG 与 10-crop embedding；作者的 Theano baseline 与 LN 版本使用相同架构和 Adam 初始超参。每 300 次更新验证；按 recall 选择 checkpoint；测试为 5 个 split 平均，每个 split 1,000 图像、5,000 captions。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 1" data-zoom="assets/original/fig-01-order-embeddings.png" type="button"><img alt="Figure 1 原始图表、图例、坐标与完整 caption" loading="lazy" src="assets/original/fig-01-order-embeddings.png"/></button><figcaption>Figure 1 · Original Paper 1607.06450v1，288 dpi，保留原 caption。点击放大。</figcaption></figure>
+<p><strong>Figure 1 如何读。</strong>三块面板依次是 image retrieval 的 R@1、R@5、R@10，纵轴越大越好，横轴单位为 300 次 iteration。蓝色 LN 与绿色 baseline 比较，在相同更新数上 LN 更早进入较高召回区域。它回答训练过程是否更快进入有效表征；图中没有 FLOPs 或 kernel latency 轴，也没有置信区间可用于精确检验差距显著性。</p>
+<p>作者说 LN 约用 baseline 60% 的时间到达最好结果。该陈述属于这个实验的训练过程，不是一个现代 GPU 上“LN 让所有模型训练耗时减少 40%”的结论。</p>
+<div aria-label="Table 2 原始完整表格、列名与注释" class="table-scroll original-table" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_t" colspan="9"><span class="ltx_text ltx_font_bold">MSCOCO</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_r ltx_border_t"></th>
+<td class="ltx_td ltx_align_center ltx_border_t" colspan="4">Caption Retrieval</td>
+<td class="ltx_td ltx_align_center ltx_border_t" colspan="4">Image Retrieval</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">Model</span></span>
+</span></th>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">R@1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">R@5</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">R@10</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">Mean</span> <span class="ltx_text ltx_font_italic">r</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">R@1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">R@5</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">R@10</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">Mean</span> <span class="ltx_text ltx_font_italic">r</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Sym <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1607.06450v1#bib.bib12" rel="noopener" title="">Vendrov et al., 2016</a>]</cite></span>
+</span></th>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">45.4</span>
+</span></td>
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">88.7</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">5.8</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">36.3</span>
+</span></td>
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">85.8</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">9.0</span>
+</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">OE <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1607.06450v1#bib.bib12" rel="noopener" title="">Vendrov et al., 2016</a>]</cite></span>
+</span></th>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">46.7</span>
+</span></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">88.9</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">5.7</span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">37.9</span>
+</span></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">85.9</span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">8.1</span>
+</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">OE (ours)</span>
+</span></th>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">46.6</span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">79.3</span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">89.1</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">5.2</span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">37.8</span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">73.6</span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">85.7</span>
+</span></td>
+<td class="ltx_td ltx_align_center">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">7.9</span>
+</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">OE + LN</span>
+</span></th>
+<td class="ltx_td ltx_align_center ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">48.5</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">80.6</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">89.8</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">5.1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">38.9</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">74.3</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">86.3</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">7.6</span></span>
+</span></td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Average results across 5 test splits for caption and image retrieval. <span class="ltx_text ltx_font_bold">R@K</span> is Recall@K
+(high is good). <span class="ltx_text ltx_font_bold">Mean</span> <span class="ltx_text ltx_font_italic">r</span> is the mean rank (low is good). Sym corresponds to the symmetric baseline while OE indicates order-embeddings.
+
+</figcaption>
+</figure></div>
+<details><summary>Table 2 原始截图与排版核对</summary><figure class="original-figure"><button aria-label="放大 Table 2" data-zoom="assets/original/table-02-retrieval.png" type="button"><img alt="Table 2 原始图表、图例、坐标与完整 caption" loading="lazy" src="assets/original/table-02-retrieval.png"/></button><figcaption>Table 2 · Original Paper 1607.06450v1，288 dpi，保留原 caption。点击放大。</figcaption></figure></details>
+<p><strong>Table 2 如何读。</strong>caption retrieval 是给图找句子；image retrieval 是给句子找图。每边 R@1、R@5、R@10 越高越好，mean rank Mr 越低越好。表中 Sym 和引用 OE 的 R@5 留空，表示未报告，不能补成 0 或估计值。</p>
+<p>对 LN 干预最公平的比较是 <strong>OE (ours) → OE + LN</strong>：</p>
+<div aria-label="完整对比表格" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Baseline → LN</th>
+<th style="text-align: right;">绝对变化</th>
+<th style="text-align: right;">相对变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Caption R@1 ↑</td>
+<td>46.6 → 48.5</td>
+<td style="text-align: right;">+1.9 pp</td>
+<td style="text-align: right;">+4.08%</td>
+</tr>
+<tr>
+<td>Image R@1 ↑</td>
+<td>37.8 → 38.9</td>
+<td style="text-align: right;">+1.1 pp</td>
+<td style="text-align: right;">+2.91%</td>
+</tr>
+<tr>
+<td>Caption mean rank ↓</td>
+<td>5.2 → 5.1</td>
+<td style="text-align: right;">−0.1</td>
+<td style="text-align: right;">−1.92%</td>
+</tr>
+<tr>
+<td>Image mean rank ↓</td>
+<td>7.9 → 7.6</td>
+<td style="text-align: right;">−0.3</td>
+<td style="text-align: right;">−3.80%</td>
+</tr>
+</tbody>
+</table></div>
+<p>最强 baseline 随指标变化，例如引用 OE 的 caption R@1 46.7 略高于 ours 46.6；不能只挑最弱行计算提升。作者关于 RNN embeddings 的历史最优结果有范围限制；另一种方法使用单一 split，协议不同。gain/bias 增加参数且新增归一化计算，但表格没有对应 latency/显存量化。</p>
+<h3>6.2 Attentive reader：阅读理解中的 LSTM</h3>
+<p>CNN corpus，实体匿名化并截断为 4 句话；模型为单向 LSTM attentive reader。比较普通 LSTM、BN-LSTM、BN-everywhere 与只在 LSTM 使用 LN 的版本。BN 曲线来自 Recurrent BN 作者提供结果，归一化位置和调参不能视为完全相同的单变量控制实验。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 2" data-zoom="assets/original/fig-02-attentive-reader.png" type="button"><img alt="Figure 2 原始图表、图例、坐标与完整 caption" loading="lazy" src="assets/original/fig-02-attentive-reader.png"/></button><figcaption>Figure 2 · Original Paper 1607.06450v1，288 dpi，保留原 caption。点击放大。</figcaption></figure>
+<p><strong>Figure 2 如何读。</strong>横轴是 thousands of training steps，纵轴为 validation error，越低越好。蓝 LSTM、绿 BN-LSTM、红 BN-everywhere 与青色 LN 展示不同收敛轨迹；LN 更早达到较低验证错误。这个图是验证集，不是 test accuracy；末端读数约在 0.49 附近，但本文不把视觉读取当作精确表格值。</p>
+<p>作者观察 gain=1 比 0.1 更好，并认为不必像某些 recurrent BN 设置那样使用小 gain。这支持本文配置的选择，不证明所有模型都对 gain 初始化不敏感。官方 README 曾提供 <code>dim=240,batch=64,lr=8e−5,Adam</code> 的运行命令，同时提醒仓库设置已经变化；这些属于<strong>代码证据</strong>，不能无条件标为原论文完全固定协议。</p>
+<h3>6.3 Skip-thought vectors：收敛与最终句子表征</h3>
+<p>BookCorpus，encoder/decoder GRU，encoder dimension 2400，Theano；同超参比较。每 50k updates 保存模型，主要预算 1M。作者用 CNMeM 后未观察到显著 per-step 变慢，这是当时实现的报告，本文未复测，也不是所有硬件都免费。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 3" data-zoom="assets/original/fig-03-skip-thoughts.png" type="button"><img alt="Figure 3 原始图表、图例、坐标与完整 caption" loading="lazy" src="assets/original/fig-03-skip-thoughts.png"/></button><figcaption>Figure 3 · Original Paper 1607.06450v1，288 dpi，保留原 caption。点击放大。</figcaption></figure>
+<p><strong>Figure 3 如何读。</strong>六面板为 SICK Pearson×100、SICK MSE×100、MR、CR、SUBJ、MPQA。除了 MSE 越低越好，其余越高越好。绿色为作者 baseline，蓝色为 LN；灰色参考原 skip-thought 结果。蓝曲线通常更早达到较好区域。</p>
+<p>阴影是下游分类器 10-fold cross-validation 的波动，不是 10 个独立预训练 seed 的置信区间。图中 SICK MSE 乘 100，Table 3 没乘 100；跨图表核对必须还原尺度。</p>
+<div aria-label="Table 3 原始完整表格、列名与注释" class="table-scroll original-table" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt"><span class="ltx_text ltx_font_bold">Method</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_bold">SICK(<span class="inline-symbol">r</span>)</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_bold">SICK(<span class="inline-symbol">ρ</span>)</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_bold">SICK(</span>MSE<span class="ltx_text ltx_font_bold">)</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_bold">MR</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_bold">CR</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_bold">SUBJ</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_bold">MPQA</span></th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t">Original <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1607.06450v1#bib.bib21" rel="noopener" title="">Kiros et al., 2015</a>]</cite></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">0.848</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">0.778</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">0.287</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">75.5</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">79.3</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">92.1</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">86.9</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">Ours</th>
+<td class="ltx_td ltx_align_center ltx_border_t">0.842</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.767</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.298</td>
+<td class="ltx_td ltx_align_center ltx_border_t">77.3</td>
+<td class="ltx_td ltx_align_center ltx_border_t">81.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">92.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">87.9</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">Ours + LN</th>
+<td class="ltx_td ltx_align_center">0.854</td>
+<td class="ltx_td ltx_align_center">0.785</td>
+<td class="ltx_td ltx_align_center">0.277</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">79.5</span></td>
+<td class="ltx_td ltx_align_center">82.6</td>
+<td class="ltx_td ltx_align_center">93.4</td>
+<td class="ltx_td ltx_align_center">89.0</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Ours + LN <span class="inline-symbol">†</span></th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">0.858</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">0.788</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">0.270</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb">79.4</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">83.1</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">93.7</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">89.3</span></td></tr>
+</tbody>
+</table>
+<br class="ltx_break ltx_centering" style="--ltx-break-space:-3.6pt;"/>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>Skip-thoughts results. The first two evaluation columns indicate Pearson and Spearman correlation, the third is mean squared error and the remaining indicate classification accuracy. Higher is better for all evaluations except MSE. Our models were trained for 1M iterations with the exception of (<span class="inline-symbol">†</span>) which was trained for 1 month (approximately 1.7M iterations)</figcaption>
+</figure></div>
+<details><summary>Table 3 原始截图与排版核对</summary><figure class="original-figure"><button aria-label="放大 Table 3" data-zoom="assets/original/table-03-skip-thoughts.png" type="button"><img alt="Table 3 原始图表、图例、坐标与完整 caption" loading="lazy" src="assets/original/table-03-skip-thoughts.png"/></button><figcaption>Table 3 · Original Paper 1607.06450v1，288 dpi，保留原 caption。点击放大。</figcaption></figure></details>
+<p><strong>Table 3 的公平比较。</strong>SICK 的 r 为 Pearson，ρ 为 Spearman，MSE 为均方误差；后四列为分类 accuracy（%）。<code>Ours + LN</code> 与 <code>Ours</code> 都是 1M iterations；带 † 的 LN 训练一个月约 1.7M iterations，预算不同。</p>
+<p>同预算的 SICK MSE <code>0.298→0.277</code>，绝对 −0.021，相对下降 7.05%；MR <code>77.3→79.5</code>，+2.2 pp，相对 +2.85%；CR、SUBJ 分别 +0.8 pp，MPQA +1.1 pp。† 进一步提升多数指标，但 MR 79.4 低于 1M LN 的 79.5，原表粗体也保留这一点。不能把 † 的改进全归为同预算 LN 优势。</p>
+<p>原 skip-thought 论文 decoder 在每个时间步接收 encoder 条件，公开实现却没有；作者指出这是 Original 与 Ours 差异的可能原因。因此 Original→LN 混有实现变化，<strong>Ours→同预算 LN</strong> 才更接近所要测试的干预。</p>
+<h3>6.4 DRAW：生成 bound 的改善幅度不大</h3>
+<p>固定二值 MNIST（Larochelle/Murray split），50k train、10k validation、10k test；64 glimpses、256 维 LSTM，Adam 默认配置、batch 128。DRAW 的 LN 仅放在 cell 输出进入 tanh 的位置，附录有明确公式，并不是把所有门都归一化。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 4" data-zoom="assets/original/fig-04-draw.png" type="button"><img alt="Figure 4 原始图表、图例、坐标与完整 caption" loading="lazy" src="assets/original/fig-04-draw.png"/></button><figcaption>Figure 4 · Original Paper 1607.06450v1，288 dpi，保留原 caption。点击放大。</figcaption></figure>
+<p><strong>Figure 4 如何读。</strong>横轴 epochs 0–100，纵轴 test variational bound，越低越好；蓝 baseline、绿 WN、红 LN。红线较快下降，作者说达到相近 bound 的收敛速度几乎翻倍。它没有比较两个归一化 kernel 的吞吐，也没有证明最终生成分布质量提升同样大。</p>
+<p>正文另报告训练 200 epochs 后 baseline 82.36 nats、LN 82.09 nats，改善 0.27 nats，相对 0.328%。这是 variational upper bound，不能称为精确 NLL；末端数值来自正文，不是图的 100-epoch 端点。原图在 PDF 中因浮动排版晚于 Figure 5 出现，本文按 §6.4 的概念顺序讨论。</p>
+<h3>6.5 Handwriting sequence generation：长轨迹、小 batch</h3>
+<p>IAM-OnDB：221 writers、12,179 lines，平均轨迹约 700 steps，输入文字超过 25 characters。模型有 3 层各 400 单元 LSTM，约 3.7M parameters；输入轨迹 3 维；输出 20 个二维 Gaussian mixture components。字符/window 输入为 57 维，attention window 为 10 Gaussians×3 parameters=30 维；Adam，batch=8，训练切片长度 500。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 5" data-zoom="assets/original/fig-05-handwriting.png" type="button"><img alt="Figure 5 原始图表、图例、坐标与完整 caption" loading="lazy" src="assets/original/fig-05-handwriting.png"/></button><figcaption>Figure 5 · Original Paper 1607.06450v1，288 dpi，保留原 caption。点击放大。</figcaption></figure>
+<p><strong>Figure 5 如何读。</strong>横轴是每 200 次更新计一个单位，且为对数尺度；纵轴是 negative log-likelihood，越低越好。baseline/LN 的 train/test 四条曲线分别展示优化与泛化趋势。LN 更早达到 baseline 接近最终的区域，最明确的证据仍是更新效率。</p>
+<p>连续密度可以大于 1，所以 NLL 可以为负，这不违反离散概率小于等于 1。图中未给新生成样例，也没有表列最终精确数值；本文不制造一个额外 final score。该任务说明在小 batch、较长循环链路中 LN 有用，不等于 700 步长度外推已经被严格测过。</p>
+<h3>6.6 Permutation-invariant MNIST：这里是 MLP，不是 pixel RNN</h3>
+<p>784–1000–1000–10 的前馈网络，55k train，Adam；分别 batch=128 和 4。LN 只用于 hidden layers，不作用于最后 softmax；BN baseline 用于所有层，且小 batch 时作者使用 unbiased variance。这两个设置差异要计入公平性。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 6" data-zoom="assets/original/fig-06-mnist.png" type="button"><img alt="Figure 6 原始图表、图例、坐标与完整 caption" loading="lazy" src="assets/original/fig-06-mnist.png"/></button><figcaption>Figure 6 · Original Paper 1607.06450v1，288 dpi，保留原 caption。点击放大。</figcaption></figure>
+<p><strong>Figure 6 如何读。</strong>左列 batch 128，右列 batch 4；上排 train NLL、对数纵轴，下排 test error（%）。右上最能展示小 batch 下归一化与优化的差异；下排说明训练曲线更快下降不必带来同等幅度 test error 改善，各方案大致在 1% 量级附近。</p>
+<p>这里 permutation-invariant 指固定像素输入交给全连接网络，不是把 784 pixels 当作时间步喂给 sequential RNN。LN 的统计不依赖 batch size，但 SGD 的噪声、学习率和最终泛化仍依赖 batch；“batch-robust normalization”不能推成所有 batch 下训练结果一致。</p>
+<h3>6.7 Convolutional networks：作者主动报告了失败边界</h3>
+<p>这是定性 preliminary experiments，没有附 CNN 数值表或新 Figure。作者说 BN 比 LN 和 baseline 更好，假设空间边界以及大量非活跃单元使同层单元的分布不一致，从而影响 LN。它给出值得探索的原因，缺少控制空间位置、活跃比例与归约轴的消融，不能当作已验证因果。</p>
+<p><strong>Interpretation。</strong>LN 默认把一个统计域内的单元作为同一参照群体。CNN 中 channel 和 spatial 的分布异质性可能很强；“不依赖 batch”解决了一种约束，却未自动选择最适合视觉结构的统计域。后来的 GroupNorm 在每个样本的 channel groups 内归一化，是另一种取舍。[S6]</p>
+<h3>实验审计总账</h3>
+<div aria-label="完整对比表格" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>已报告的关键配置</th>
+<th>主要 evidence</th>
+<th>尚缺的验证</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Order-embeddings</td>
+<td>MSCOCO；GRU/VGG；Adam；5 test splits</td>
+<td>retrieval recall / rank 与更新曲线</td>
+<td>完整硬件/precision，成本、seed variance</td>
+</tr>
+<tr>
+<td>Attentive reader</td>
+<td>CNN corpus 4 sentences；uni-LSTM</td>
+<td>validation error 曲线</td>
+<td>同位置/同预算归一化对照、精确 test 值</td>
+</tr>
+<tr>
+<td>Skip-thought</td>
+<td>BookCorpus；2400 encoder；1M updates</td>
+<td>7 metrics；† 1.7M</td>
+<td>多预训练 seed；同预算长训 baseline</td>
+</tr>
+<tr>
+<td>DRAW</td>
+<td>64 glimpses；256 LSTM；B128；200 epochs</td>
+<td>variational bound</td>
+<td>exact NLL、生成质量、放置位置消融</td>
+</tr>
+<tr>
+<td>Handwriting</td>
+<td>3×400 LSTM；~3.7M；B8；length500</td>
+<td>train/test NLL 曲线</td>
+<td>长度外推、per-step latency、样例</td>
+</tr>
+<tr>
+<td>MNIST MLP</td>
+<td>784–1000–1000–10；B128/B4</td>
+<td>train NLL / test error</td>
+<td>对齐输出层 norm 与方差 estimator</td>
+</tr>
+<tr>
+<td>CNN</td>
+<td>preliminary qualitative statement</td>
+<td>BN 更好</td>
+<td>完整数值、结构和统计域消融</td>
+</tr>
+</tbody>
+</table></div>
+<p>论文没有系统拆分 mean-only、variance-only、gain-only、bias-only、LN placement 与 optimizer 的 factorial ablation；也没有给现代 LLM 的 TTFT、TPOT、p95 或端侧峰值内存。多个任务的积极结果是广度证据，但不是六个独立受控实验共同证明所有架构最优。</p>
+<h2 id="section-8">7 Conclusion — 贡献成立，措辞需要收紧</h2>
+<p><strong>Paper。</strong>LN 是简单的逐样本归一化，易用于循环网络，在不同任务上加快训练，训练/推理计算一致。作者强调它对权重和输入尺度的若干不变性，以及在神经网络参数几何上的作用。</p>
+<p>本文认为最稳固的贡献是<strong>提出并验证了一种不依赖 mini-batch 的激活归一化边界</strong>。它的成功不要求接受每一句 ICS 或几何解释。原文有关 arbitrary feature shifting、所有方法 dataset scaling、附录初始化的宽泛/矛盾表述，应依据公式和官方代码具体澄清；前面已经就地标明，下一节继续核对附录。</p>
+<h2 id="section-9">Supplementary Material — RNN 分支的具体位置</h2>
+<h3>LN 的正式定义与初始化笔误</h3>
+<div aria-label="原论文公式 15" class="formula" id="eq-15" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mrow><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>𝐳</mi><mo>,</mo><mi>𝜶</mi><mo>,</mo><mi>𝜷</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mrow><mstyle displaystyle="true"><mfrac><mrow><mo stretchy="false">(</mo><mrow><mi>𝐳</mi><mo>−</mo><mi>μ</mi></mrow><mo stretchy="false">)</mo></mrow><mi>σ</mi></mfrac></mstyle><mo lspace="0.222em" rspace="0.222em">⊙</mo><mi>𝜶</mi></mrow><mo>+</mo><mi>𝜷</mi></mrow></mrow><mo>,</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (15)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle LN({\bf z};\bm{\alpha},\bm{\beta})=\frac{({\bf z}-\mu)}{\sigma}\odot\bm{\alpha}+\bm{\beta},</code></pre></details></div>
+<div aria-label="原论文公式 16" class="formula" id="eq-16" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mrow><mrow><mi>μ</mi><mo>=</mo><mrow><mstyle displaystyle="true"><mfrac><mn>1</mn><mi>D</mi></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mrow><mstyle displaystyle="true"><munderover><mo movablelimits="false">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>D</mi></munderover></mstyle><msub><mi>z</mi><mi>i</mi></msub></mrow></mrow></mrow><mo rspace="1.167em">,</mo><mrow><mi>σ</mi><mo>=</mo><msqrt><mrow><mstyle displaystyle="true"><mfrac><mn>1</mn><mi>D</mi></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><mrow><mstyle displaystyle="true"><munderover><mo movablelimits="false">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>D</mi></munderover></mstyle><msup><mrow><mo stretchy="false">(</mo><mrow><msub><mi>z</mi><mi>i</mi></msub><mo>−</mo><mi>μ</mi></mrow><mo stretchy="false">)</mo></mrow><mn>2</mn></msup></mrow></mrow></msqrt></mrow></mrow><mo>,</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (16)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\mu=\frac{1}{D}\sum_{i=1}^{D}z_{i},\quad\sigma=\sqrt{\frac{1}{D}\sum_{i=1}^{D}(z_{i}-\mu)^{2}},</code></pre></details></div>
+<p>式 (15) 的输入 z 是 D 维向量，α、β 同为 D 维；式 (16) 的 μ、σ 是标量。<strong>公式中 α 乘标准化输入，所以是 gain；β 在最后加，所以是 bias。</strong>附录紧邻文字却把二者称呼写反，并说 α 置零、β 置一。</p>
+<p>正文默认 gain=1/bias=0，官方 Theano 的 <code>s=ones,b=zeros</code> 与之相符，函数还加入 <code>1e−5</code>。复现应采用公式语义和代码初始化。若真的照那句文字把 gain=0，初始输出将只剩 β，输入路径的局部梯度会被 gain 阻断，明显是另一种初始化行为。[S1]</p>
+<h3>LSTM：输入与循环投影先各自 LN，再相加</h3>
+<div aria-label="原论文公式 17" class="formula" id="eq-17" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mo>(</mo><mtable rowspacing="0pt"><mtr><mtd><msub><mi>𝐟</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐢</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐨</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐠</mi><mi>t</mi></msub></mtd></mtr></mtable><mo>)</mo></mrow><mo>=</mo><mrow><mrow><msub><mi>𝐖</mi><mi>h</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐡</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>+</mo><mrow><msub><mi>𝐖</mi><mi>x</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐱</mi><mi>t</mi></msub></mrow><mo>+</mo><mi>b</mi></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (17)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\begin{pmatrix}{\bf f}_{t}\\
+{\bf i}_{t}\\
+{\bf o}_{t}\\
+{\bf g}_{t}\end{pmatrix}
+\displaystyle=
+\displaystyle{\bf W}_{h}{\bf h}_{t-1}+{\bf W}_{x}{\bf x}_{t}+b</code></pre></details></div>
+<div aria-label="原论文公式 18" class="formula" id="eq-18" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>𝐜</mi><mi>t</mi></msub><mo>=</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐟</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><msub><mi>𝐜</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>+</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐢</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><mtext>tanh</mtext></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐠</mi><mi>t</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (18)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\bf c}_{t}
+\displaystyle=
+\displaystyle\sigma({\bf f}_{t})\odot{\bf c}_{t-1}+\sigma({\bf i}_{t})\odot\text{tanh}({\bf g}_{t})</code></pre></details></div>
+<div aria-label="原论文公式 19" class="formula" id="eq-19" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>𝐡</mi><mi>t</mi></msub><mo>=</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐨</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><mtext>tanh</mtext></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐜</mi><mi>t</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (19)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\bf h}_{t}
+\displaystyle=
+\displaystyle\sigma({\bf o}_{t})\odot\text{tanh}({\bf c}_{t})</code></pre></details></div>
+<p>标准 LSTM 的式 (17) 先形成 f/i/o/g 四个门的 preactivations。输入 <code>xₜ∈Rᵈ</code>，状态 <code>hₜ₋₁,cₜ₋₁∈Rᴴ</code>；<code>Wₕ∈R⁴ᴴˣᴴ,Wₓ∈R⁴ᴴˣᵈ,b∈R⁴ᴴ</code>。式 (18) 的 sigmoid forget/input gate 混合旧 cell 和候选；式 (19) 的 output gate 读取 tanh(cell)。此处 σ(·) 是 sigmoid，不能与标准差 σ 混读。</p>
+<div aria-label="原论文公式 20" class="formula" id="eq-20" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mo>(</mo><mtable rowspacing="0pt"><mtr><mtd><msub><mi>𝐟</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐢</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐨</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐠</mi><mi>t</mi></msub></mtd></mtr></mtable><mo>)</mo></mrow><mo>=</mo><mrow><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>𝐖</mi><mi>h</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐡</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>,</mo><msub><mi>𝜶</mi><mn>1</mn></msub><mo>,</mo><msub><mi>𝜷</mi><mn>1</mn></msub><mo stretchy="false">)</mo></mrow></mrow><mo>+</mo><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>𝐖</mi><mi>x</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐱</mi><mi>t</mi></msub></mrow><mo>,</mo><msub><mi>𝜶</mi><mn>2</mn></msub><mo>,</mo><msub><mi>𝜷</mi><mn>2</mn></msub><mo stretchy="false">)</mo></mrow></mrow><mo>+</mo><mi>b</mi></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (20)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\begin{pmatrix}{\bf f}_{t}\\
+{\bf i}_{t}\\
+{\bf o}_{t}\\
+{\bf g}_{t}\end{pmatrix}
+\displaystyle=
+\displaystyle LN({\bf W}_{h}{\bf h}_{t-1};\bm{\alpha}_{1},\bm{\beta}_{1})+LN({\bf W}_{x}{\bf x}_{t};\bm{\alpha}_{2},\bm{\beta}_{2})+b</code></pre></details></div>
+<div aria-label="原论文公式 21" class="formula" id="eq-21" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>𝐜</mi><mi>t</mi></msub><mo>=</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐟</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><msub><mi>𝐜</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>+</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐢</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><mtext>tanh</mtext></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐠</mi><mi>t</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (21)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\bf c}_{t}
+\displaystyle=
+\displaystyle\sigma({\bf f}_{t})\odot{\bf c}_{t-1}+\sigma({\bf i}_{t})\odot\text{tanh}({\bf g}_{t})</code></pre></details></div>
+<div aria-label="原论文公式 22" class="formula" id="eq-22" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>𝐡</mi><mi>t</mi></msub><mo>=</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐨</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><mtext>tanh</mtext></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐜</mi><mi>t</mi></msub><mo>,</mo><msub><mi>𝜶</mi><mn>3</mn></msub><mo>,</mo><msub><mi>𝜷</mi><mn>3</mn></msub><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (22)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\bf h}_{t}
+\displaystyle=
+\displaystyle\sigma({\bf o}_{t})\odot\text{tanh}(LN({\bf c}_{t};\bm{\alpha}_{3},\bm{\beta}_{3}))</code></pre></details></div>
+<p>式 (20) 把 hidden projection 与 input projection <strong>分别归一化后相加</strong>；式 (21) cell update 形式保持不变；式 (22) 在 cell 进入 tanh 前再用第三个 LN。前两个 LN 的统计域为 concatenated <strong>4H</strong>，不是四个门各自 H。这在原作者实现中可核验，切分发生在 LN 之后。</p>
+<figure class="generated-figure"><svg aria-label="LN-LSTM：统计域与状态保存" role="img" viewbox="0 0 680 384" xmlns="http://www.w3.org/2000/svg"><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="14"></rect><text fill="#d5e4f7" font-size="14" x="40" y="38">当前输入 xₜ 与循环状态 hₜ₋₁</text><text fill="#a4b6cd" font-size="12" x="40" y="60">Wₓ xₜ → 4H；Wₕ hₜ₋₁ → 4H</text><path d="M340 76v22m-5 -6l5 6 5 -6" fill="none" stroke="#9bbdec"></path><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="103"></rect><text fill="#d5e4f7" font-size="14" x="40" y="127">两条投影分别做 4H LN，然后相加+b</text><text fill="#a4b6cd" font-size="12" x="40" y="149">LN → concat gates → split f/i/o/g → sigmoid / tanh</text><path d="M340 165v22m-5 -6l5 6 5 -6" fill="none" stroke="#9bbdec"></path><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="192"></rect><text fill="#d5e4f7" font-size="14" x="40" y="216">更新 H 维 cell cₜ</text><text fill="#a4b6cd" font-size="12" x="40" y="238">forget gate × old cell + input gate × candidate</text><path d="M340 254v22m-5 -6l5 6 5 -6" fill="none" stroke="#9bbdec"></path><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="281"></rect><text fill="#d5e4f7" font-size="14" x="40" y="305">第三处 H 维 LN 只用于读取 cell</text><text fill="#a4b6cd" font-size="12" x="40" y="327">hₜ = sigmoid(oₜ) × tanh(LN(cₜ))；不是重写保存的 cₜ</text></svg><figcaption>LN-LSTM：统计域与状态保存 · Agent-created Simplified Diagram · <a href="assets/generated/lstm.mmd">Mermaid source</a> / <a href="assets/generated/lstm.svg">SVG</a></figcaption></figure>
+<p>因此，三个 gain/bias 参数组分别长 <code>4H、4H、H</code>，新增仿射参数 <code>2(4H+4H+H)=18H</code>，不含已有 b。独立 gate LN 改变了门之间的公共统计，<code>LN(A)+LN(B)</code> 与 <code>LN(A+B)</code> 也通常不同；做移植时应优先核对这两个区别。</p>
+<h3>GRU：重置门作用于已归一化循环候选分支</h3>
+<div aria-label="原论文公式 23" class="formula" id="eq-23" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mo>(</mo><mtable rowspacing="0pt"><mtr><mtd><msub><mi>𝐳</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐫</mi><mi>t</mi></msub></mtd></mtr></mtable><mo>)</mo></mrow><mo>=</mo><mrow><mrow><msub><mi>𝐖</mi><mi>h</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐡</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>+</mo><mrow><msub><mi>𝐖</mi><mi>x</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐱</mi><mi>t</mi></msub></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (23)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\begin{pmatrix}{\bf z}_{t}\\
+{\bf r}_{t}\end{pmatrix}
+\displaystyle=
+\displaystyle{\bf W}_{h}{\bf h}_{t-1}+{\bf W}_{x}{\bf x}_{t}</code></pre></details></div>
+<div aria-label="原论文公式 24" class="formula" id="eq-24" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mover accent="true"><mi>𝐡</mi><mo>^</mo></mover><mi>t</mi></msub><mo>=</mo><mrow><mtext>tanh</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>𝐖𝐱</mi><mi>t</mi></msub><mo>+</mo><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐫</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐔𝐡</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo stretchy="false">)</mo></mrow></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (24)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\hat{{\bf h}}_{t}
+\displaystyle=
+\displaystyle\text{tanh}({\bf W}{\bf x}_{t}+\sigma({\bf r}_{t})\odot({\bf U}{\bf h}_{t-1}))</code></pre></details></div>
+<div aria-label="原论文公式 25" class="formula" id="eq-25" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>𝐡</mi><mi>t</mi></msub><mo>=</mo><mrow><mrow><mrow><mo stretchy="false">(</mo><mrow><mn>1</mn><mo>−</mo><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐳</mi><mi>t</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mrow><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐡</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>+</mo><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐳</mi><mi>t</mi></msub><mo stretchy="false">)</mo></mrow></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mover accent="true"><mi>𝐡</mi><mo>^</mo></mover><mi>t</mi></msub></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (25)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\bf h}_{t}
+\displaystyle=
+\displaystyle(1-\sigma({\bf z}_{t})){\bf h}_{t-1}+\sigma({\bf z}_{t})\hat{{\bf h}}_{t}</code></pre></details></div>
+<p>式 (23) 产生 update zₜ 与 reset rₜ 两个门，拼接为 2H；式 (24) 的 candidate 先算输入 W xₜ 与循环 U hₜ₋₁，并用 reset gate 逐元素控制循环分支；式 (25) 用 update gate 混合旧状态与 candidate。注意不同框架的 GRU reset 放置及 z 定义可能不同，需按这里的公式对应。</p>
+<div aria-label="原论文公式 26" class="formula" id="eq-26" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mo>(</mo><mtable rowspacing="0pt"><mtr><mtd><msub><mi>𝐳</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐫</mi><mi>t</mi></msub></mtd></mtr></mtable><mo>)</mo></mrow><mo>=</mo><mrow><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>𝐖</mi><mi>h</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐡</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>,</mo><msub><mi>𝜶</mi><mn>1</mn></msub><mo>,</mo><msub><mi>𝜷</mi><mn>1</mn></msub><mo stretchy="false">)</mo></mrow></mrow><mo>+</mo><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>𝐖</mi><mi>x</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐱</mi><mi>t</mi></msub></mrow><mo>,</mo><msub><mi>𝜶</mi><mn>2</mn></msub><mo>,</mo><msub><mi>𝜷</mi><mn>2</mn></msub><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (26)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\begin{pmatrix}{\bf z}_{t}\\
+{\bf r}_{t}\end{pmatrix}
+\displaystyle=
+\displaystyle LN({\bf W}_{h}{\bf h}_{t-1};\bm{\alpha}_{1},\bm{\beta}_{1})+LN({\bf W}_{x}{\bf x}_{t};\bm{\alpha}_{2},\bm{\beta}_{2})</code></pre></details></div>
+<div aria-label="原论文公式 27" class="formula" id="eq-27" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mover accent="true"><mi>𝐡</mi><mo>^</mo></mover><mi>t</mi></msub><mo>=</mo><mrow><mtext>tanh</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐖𝐱</mi><mi>t</mi></msub><mo>,</mo><msub><mi>𝜶</mi><mn>3</mn></msub><mo>,</mo><msub><mi>𝜷</mi><mn>3</mn></msub><mo stretchy="false">)</mo></mrow></mrow><mo>+</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐫</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><mi>L</mi></mrow><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐔𝐡</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>,</mo><msub><mi>𝜶</mi><mn>4</mn></msub><mo>,</mo><msub><mi>𝜷</mi><mn>4</mn></msub><mo stretchy="false">)</mo></mrow></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (27)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\hat{{\bf h}}_{t}
+\displaystyle=
+\displaystyle\text{tanh}(LN({\bf W}{\bf x}_{t};\bm{\alpha}_{3},\bm{\beta}_{3})+\sigma({\bf r}_{t})\odot LN({\bf U}{\bf h}_{t-1};\bm{\alpha}_{4},\bm{\beta}_{4}))</code></pre></details></div>
+<div aria-label="原论文公式 28" class="formula" id="eq-28" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>𝐡</mi><mi>t</mi></msub><mo>=</mo><mrow><mrow><mrow><mo stretchy="false">(</mo><mrow><mn>1</mn><mo>−</mo><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐳</mi><mi>t</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mrow><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐡</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>+</mo><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐳</mi><mi>t</mi></msub><mo stretchy="false">)</mo></mrow></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mover accent="true"><mi>𝐡</mi><mo>^</mo></mover><mi>t</mi></msub></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (28)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\bf h}_{t}
+\displaystyle=
+\displaystyle(1-\sigma({\bf z}_{t})){\bf h}_{t-1}+\sigma({\bf z}_{t})\hat{{\bf h}}_{t}</code></pre></details></div>
+<p>式 (26) 两条 gate projection 各有一个 2H LN；式 (27) 输入 candidate 与循环 candidate 各有一个 H LN，reset gate 在循环 LN 之后相乘；式 (28) 状态混合保持原式。统计域大小 <code>2H、2H、H、H</code>，新增参数 <code>2(2H+2H+H+H)=12H</code>。candidate 中 reset 位置不变，但它读到的是归一化后的循环向量。</p>
+<h3>DRAW：不是前面的完整 LN-LSTM</h3>
+<div aria-label="原论文公式 29" class="formula" id="eq-29" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mo>(</mo><mtable rowspacing="0pt"><mtr><mtd><msub><mi>𝐟</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐢</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐨</mi><mi>t</mi></msub></mtd></mtr><mtr><mtd><msub><mi>𝐠</mi><mi>t</mi></msub></mtd></mtr></mtable><mo>)</mo></mrow><mo>=</mo><mrow><mrow><msub><mi>𝐖</mi><mi>h</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐡</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>+</mo><mrow><msub><mi>𝐖</mi><mi>x</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐱</mi><mi>t</mi></msub></mrow><mo>+</mo><mi>b</mi></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (29)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle\begin{pmatrix}{\bf f}_{t}\\
+{\bf i}_{t}\\
+{\bf o}_{t}\\
+{\bf g}_{t}\end{pmatrix}
+\displaystyle=
+\displaystyle{\bf W}_{h}{\bf h}_{t-1}+{\bf W}_{x}{\bf x}_{t}+b</code></pre></details></div>
+<div aria-label="原论文公式 30" class="formula" id="eq-30" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>𝐜</mi><mi>t</mi></msub><mo>=</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐟</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><msub><mi>𝐜</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><mo>+</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐢</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><mtext>tanh</mtext></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐠</mi><mi>t</mi></msub><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (30)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\bf c}_{t}
+\displaystyle=
+\displaystyle\sigma({\bf f}_{t})\odot{\bf c}_{t-1}+\sigma({\bf i}_{t})\odot\text{tanh}({\bf g}_{t})</code></pre></details></div>
+<div aria-label="原论文公式 31" class="formula" id="eq-31" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>𝐡</mi><mi>t</mi></msub><mo>=</mo><mrow><mrow><mrow><mi>σ</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐨</mi><mi>t</mi></msub><mo rspace="0.055em" stretchy="false">)</mo></mrow></mrow><mo rspace="0.222em">⊙</mo><mtext>tanh</mtext></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mi>L</mi><mo lspace="0em" rspace="0em">​</mo><mi>N</mi><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>𝐜</mi><mi>t</mi></msub><mo>,</mo><mi>𝜶</mi><mo>,</mo><mi>𝜷</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (31)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle{\bf h}_{t}
+\displaystyle=
+\displaystyle\sigma({\bf o}_{t})\odot\text{tanh}(LN({\bf c}_{t};\bm{\alpha},\bm{\beta}))</code></pre></details></div>
+<p>式 (29) 的 4H gate projection 保持标准 LSTM；式 (30) cell update 保持原式；式 (31) 只归一化 H 维 cell readout 再 tanh。新增参数 2H。把 Figure 4 的结果归为“对全部 LSTM 门加 LN 的收益”会错误解释论文的实际干预。</p>
+<h3>Gain 方向的 Fisher 几何</h3>
+<div aria-label="原论文公式 32" class="formula" id="eq-32" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mrow><mrow><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>s</mi><mn>2</mn></msup></mrow><mo>=</mo><mrow><mstyle displaystyle="true"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo lspace="0.167em" rspace="0em">​</mo><mrow><mi>vec</mi><mo>⁡</mo><msup><mrow><mo stretchy="false">(</mo><msup><mrow><mo stretchy="false">[</mo><mrow><mn>0</mn><mo>,</mo><mn>0</mn><mo>,</mo><msub><mi>δ</mi><mi>g</mi></msub></mrow><mo stretchy="false">]</mo></mrow><mo>⊤</mo></msup><mo stretchy="false">)</mo></mrow><mo>⊤</mo></msup></mrow><mo lspace="0em" rspace="0em">​</mo><mover accent="true"><mi>F</mi><mo>¯</mo></mover><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><mrow><mi>vec</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mrow><mo stretchy="false">[</mo><mrow><mi>W</mi><mo>,</mo><mi>𝕓</mi><mo>,</mo><mi>𝕘</mi></mrow><mo stretchy="false">]</mo></mrow><mo>⊤</mo></msup><mo stretchy="false">)</mo></mrow></mrow><mo lspace="0.167em" rspace="0em">​</mo><mrow><mi>vec</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mrow><mo stretchy="false">[</mo><mrow><mn>0</mn><mo>,</mo><mn>0</mn><mo>,</mo><msub><mi>δ</mi><mi>g</mi></msub></mrow><mo stretchy="false">]</mo></mrow><mo>⊤</mo></msup><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>=</mo><mrow><mstyle displaystyle="true"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>δ</mi><mi>g</mi><mo>⊤</mo></msubsup><mo lspace="0.167em" rspace="0em">​</mo><mrow><munder><mo movablelimits="false" rspace="0em">𝔼</mo><mrow><mi>𝕩</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></munder><mrow><mrow><mo>[</mo><mstyle displaystyle="true"><mfrac><mrow><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">[</mo><mrow><mi>𝕪</mi><mo fence="false" lspace="0.170em" rspace="0.337em" stretchy="false">|</mo><mi>𝕩</mi></mrow><mo stretchy="false">]</mo></mrow></mrow><msup><mi>ϕ</mi><mn>2</mn></msup></mfrac></mstyle><mo>]</mo></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mi>δ</mi><mi>g</mi></msub></mrow></mrow></mrow></mrow><mo fence="true" lspace="0em" rspace="0em">CLOSE</mo></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (32)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle ds^{2}=\frac{1}{2}\vecop([0,0,\delta_{g}]^{\top})^{\top}\bar{F}(\vecop([W,{\mathbb{b}},{\mathbb{g}}]^{\top})\vecop([0,0,\delta_{g}]^{\top})=\frac{1}{2}\delta_{g}^{\top}\mathop{\mathbb{E}}_{{\mathbb{x}}\sim P({\mathbb{x}})}\left[\frac{\text{Cov}[{\mathbb{y}}\,|\,{\mathbb{x}}]}{\phi^{2}}\right]\delta_{g}.</code></pre></details></div>
+<p>式 (32) 讨论 BN 只沿 gain 更新的局部 KL；δg 是 H 维，<code>vecop</code> 将参数块展开。作者把度量写成只含条件输出 covariance 的形式。更一般地，gain–gain 块应包含 <code>E[Cov(yᵢ,yⱼ|x) zᵢzⱼ]/φ²</code>。标准化变量有单位边际方差，不自动意味着 covariance 与 z² 独立，也不自动消除所有交叉项；此简化需要额外条件，不能无条件使用。</p>
+<div aria-label="原论文公式 33" class="formula" id="eq-33" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>=</mo><mrow><mstyle displaystyle="true"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>δ</mi><mi>g</mi><mo>⊤</mo></msubsup><mo lspace="0em" rspace="0em">​</mo><mstyle displaystyle="true"><mfrac><mn>1</mn><msup><mi>ϕ</mi><mn>2</mn></msup></mfrac></mstyle><mo lspace="0.167em" rspace="0em">​</mo><mrow><munder><mo movablelimits="false" rspace="0em">𝔼</mo><mrow><mi>𝕩</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></munder><mrow><mrow><mo>[</mo><mtable columnspacing="5pt" rowspacing="0pt"><mtr><mtd><mrow><mo lspace="0em" rspace="0em">​</mo><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mn>1</mn></msub><mo>,</mo><msub><mi>y</mi><mn>1</mn></msub></mrow><mo lspace="0em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mfrac><msup><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mn>1</mn></msub><mo>−</mo><mi>μ</mi></mrow><mo stretchy="false">)</mo></mrow><mn>2</mn></msup><msup><mi>σ</mi><mn>2</mn></msup></mfrac></mrow></mtd><mtd><mo>⋯</mo></mtd><mtd><mrow><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mn>1</mn></msub><mo>,</mo><msub><mi>y</mi><mi>H</mi></msub></mrow><mo lspace="0em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mfrac><mrow><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mn>1</mn></msub><mo>−</mo><mi>μ</mi></mrow><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mi>H</mi></msub><mo>−</mo><mi>μ</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><msup><mi>σ</mi><mn>2</mn></msup></mfrac></mrow></mtd></mtr><mtr><mtd><mo>⋮</mo></mtd><mtd><mi mathvariant="normal">⋱</mi></mtd><mtd><mo>⋮</mo></mtd></mtr><mtr><mtd><mrow><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mi>H</mi></msub><mo>,</mo><msub><mi>y</mi><mn>1</mn></msub></mrow><mo lspace="0em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mfrac><mrow><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mi>H</mi></msub><mo>−</mo><mi>μ</mi></mrow><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mn>1</mn></msub><mo>−</mo><mi>μ</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><msup><mi>σ</mi><mn>2</mn></msup></mfrac></mrow></mtd><mtd><mo>⋯</mo></mtd><mtd><mrow><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mi>H</mi></msub><mo>,</mo><msub><mi>y</mi><mi>H</mi></msub></mrow><mo lspace="0em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mfrac><msup><mrow><mo stretchy="false">(</mo><mrow><msub><mi>a</mi><mi>H</mi></msub><mo>−</mo><mi>μ</mi></mrow><mo stretchy="false">)</mo></mrow><mn>2</mn></msup><msup><mi>σ</mi><mn>2</mn></msup></mfrac></mrow></mtd></mtr></mtable><mo>]</mo></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mi>δ</mi><mi>g</mi></msub></mrow></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (33)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle=
+\displaystyle\frac{1}{2}\delta_{g}^{\top}\frac{1}{{\phi^{2}}}\mathop{\mathbb{E}}_{{\mathbb{x}}\sim P({\mathbb{x}})}\begin{bmatrix}[1.5]{\text{Cov}(y_{1},y_{1}\,|\,{\mathbb{x}})}\frac{(a_{1}-\mu)^{2}}{\sigma^{2}}&amp;\cdots&amp;{\text{Cov}(y_{1},y_{H}\,|\,{\mathbb{x}})}\frac{(a_{1}-\mu)(a_{H}-\mu)}{\sigma^{2}}\\
+\vdots&amp;\ddots&amp;\vdots\\
+\text{Cov}(y_{H},y_{1}\,|\,{\mathbb{x}})\frac{(a_{H}-\mu)(a_{1}-\mu)}{\sigma^{2}}&amp;\cdots&amp;\text{Cov}(y_{H},y_{H}\,|\,{\mathbb{x}})\frac{(a_{H}-\mu)^{2}}{\sigma^{2}}\end{bmatrix}\delta_{g}</code></pre></details></div>
+<p>式 (33) 为 LN 保留共享 σ 下 <code>(aᵢ−μ)(aⱼ−μ)/σ²</code> 的 H×H 矩阵，展示 gain 方向仍依赖样本内相对激活及条件 covariance。它解释与 BN 统计边界的差异，不意味着 LN 总能给出更好的曲率条件数。</p>
+<div aria-label="原论文公式 34" class="formula" id="eq-34" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>=</mo><mrow><mrow><mstyle displaystyle="true"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>δ</mi><mi>g</mi><mo>⊤</mo></msubsup><mo lspace="0em" rspace="0em">​</mo><mstyle displaystyle="true"><mfrac><mn>1</mn><msup><mi>ϕ</mi><mn>2</mn></msup></mfrac></mstyle><mo lspace="0.167em" rspace="0em">​</mo><mrow><munder><mo movablelimits="false" rspace="0em">𝔼</mo><mrow><mi>𝕩</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></munder><mrow><mrow><mo>[</mo><mtable columnspacing="5pt" rowspacing="0pt"><mtr><mtd><mrow><mo lspace="0em" rspace="0em">​</mo><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mn>1</mn></msub><mo>,</mo><msub><mi>y</mi><mn>1</mn></msub></mrow><mo lspace="0em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mfrac><msubsup><mi>a</mi><mn>1</mn><mn>2</mn></msubsup><msubsup><mrow><mo stretchy="false">‖</mo><msub><mi>w</mi><mn>1</mn></msub><mo stretchy="false">‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup></mfrac></mrow></mtd><mtd><mo>⋯</mo></mtd><mtd><mrow><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mn>1</mn></msub><mo>,</mo><msub><mi>y</mi><mi>H</mi></msub></mrow><mo lspace="0em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mfrac><mrow><msub><mi>a</mi><mn>1</mn></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>a</mi><mi>H</mi></msub></mrow><mrow><msub><mrow><mo stretchy="false">‖</mo><msub><mi>w</mi><mn>1</mn></msub><mo stretchy="false">‖</mo></mrow><mn>2</mn></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">‖</mo><msub><mi>w</mi><mi>H</mi></msub><mo stretchy="false">‖</mo></mrow><mn>2</mn></msub></mrow></mfrac></mrow></mtd></mtr><mtr><mtd><mo>⋮</mo></mtd><mtd><mi mathvariant="normal">⋱</mi></mtd><mtd><mo>⋮</mo></mtd></mtr><mtr><mtd><mrow><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mi>H</mi></msub><mo>,</mo><msub><mi>y</mi><mn>1</mn></msub></mrow><mo lspace="0em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mfrac><mrow><msub><mi>a</mi><mi>H</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>a</mi><mn>1</mn></msub></mrow><mrow><msub><mrow><mo stretchy="false">‖</mo><msub><mi>w</mi><mi>H</mi></msub><mo stretchy="false">‖</mo></mrow><mn>2</mn></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">‖</mo><msub><mi>w</mi><mn>1</mn></msub><mo stretchy="false">‖</mo></mrow><mn>2</mn></msub></mrow></mfrac></mrow></mtd><mtd><mo>⋯</mo></mtd><mtd><mrow><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mi>H</mi></msub><mo>,</mo><msub><mi>y</mi><mi>H</mi></msub></mrow><mo lspace="0em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mfrac><msubsup><mi>a</mi><mi>H</mi><mn>2</mn></msubsup><msubsup><mrow><mo stretchy="false">‖</mo><msub><mi>w</mi><mi>H</mi></msub><mo stretchy="false">‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup></mfrac></mrow></mtd></mtr></mtable><mo>]</mo></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mi>δ</mi><mi>g</mi></msub></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (34)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle=
+\displaystyle\frac{1}{2}\delta_{g}^{\top}\frac{1}{{\phi^{2}}}\mathop{\mathbb{E}}_{{\mathbb{x}}\sim P({\mathbb{x}})}\begin{bmatrix}[1.5]{\text{Cov}(y_{1},y_{1}\,|\,{\mathbb{x}})}\frac{a_{1}^{2}}{\|w_{1}\|_{2}^{2}}&amp;\cdots&amp;{\text{Cov}(y_{1},y_{H}\,|\,{\mathbb{x}})}\frac{a_{1}a_{H}}{\|w_{1}\|_{2}\|w_{H}\|_{2}}\\
+\vdots&amp;\ddots&amp;\vdots\\
+\text{Cov}(y_{H},y_{1}\,|\,{\mathbb{x}})\frac{a_{H}a_{1}}{\|w_{H}\|_{2}\|w_{1}\|_{2}}&amp;\cdots&amp;\text{Cov}(y_{H},y_{H}\,|\,{\mathbb{x}})\frac{a_{H}^{2}}{\|w_{H}\|^{2}_{2}}\end{bmatrix}\delta_{g}.</code></pre></details></div>
+<p>式 (34) 对 WN 使用 <code>aᵢaⱼ/(‖wᵢ‖‖wⱼ‖)</code>。该尺度来自权重，不消去输入的幅度。每条 weight 的长度与方向重参数化，可以使 gain 更新对应普通模型中特定的径向更新。</p>
+<div aria-label="原论文公式 35" class="formula" id="eq-35" role="region" tabindex="0"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>=</mo><mrow><mstyle displaystyle="true"><mfrac><mrow><msub><mi>δ</mi><mrow><mi>g</mi><mo lspace="0em" rspace="0em">​</mo><mi>i</mi></mrow></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>δ</mi><mrow><mi>g</mi><mo lspace="0em" rspace="0em">​</mo><mi>j</mi></mrow></msub></mrow><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><msup><mi>ϕ</mi><mn>2</mn></msup></mrow></mfrac></mstyle><mo lspace="0.167em" rspace="0em">​</mo><mrow><munder><mo movablelimits="false" rspace="0em">𝔼</mo><mrow><mi>𝕩</mi><mo>∼</mo><mrow><mi>P</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></munder><mrow><mo>[</mo><mrow><mtext>Cov</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>y</mi><mi>i</mi></msub><mo>,</mo><msub><mi>y</mi><mi>j</mi></msub></mrow><mo lspace="0em" rspace="0.170em">|</mo><mi>𝕩</mi><mo stretchy="false">)</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mstyle displaystyle="true"><mfrac><mrow><msub><mi>a</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi>a</mi><mi>j</mi></msub></mrow><mrow><msub><mrow><mo stretchy="false">‖</mo><msub><mi>w</mi><mi>i</mi></msub><mo stretchy="false">‖</mo></mrow><mn>2</mn></msub><mo lspace="0em" rspace="0em">​</mo><msub><mrow><mo stretchy="false">‖</mo><msub><mi>w</mi><mi>j</mi></msub><mo stretchy="false">‖</mo></mrow><mn>2</mn></msub></mrow></mfrac></mstyle></mrow><mo>]</mo></mrow></mrow></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (35)</span><details><summary>可复制原公式 TeX</summary><pre><code>\displaystyle=
+\displaystyle\frac{\delta_{gi}\delta_{gj}}{2\phi^{2}}\mathop{\mathbb{E}}_{{\mathbb{x}}\sim P({\mathbb{x}})}\left[{\text{Cov}(y_{i},y_{j}\,|\,{\mathbb{x}})}\frac{a_{i}a_{j}}{\|w_{i}\|_{2}\|w_{j}\|_{2}}\right]</code></pre></details></div>
+<p>式 (35) 就是在普通 Fisher 中代入 <code>δwᵢ=δgᵢ wᵢ/‖wᵢ‖</code> 与 j 的对应方向；右侧为 covariance 加权的交叉项。原式左侧第一向量中 j 项出现 <code>‖wᵢ‖</code>，与右侧、另一个向量中的 <code>‖wⱼ‖</code> 不一致；对称的归一化方向应使用 j 的范数。这里保留原式，并明确指出这一处疑似下标笔误，而非静默修改源公式。</p>
+<h2 id="section-10">现代实现 — 从 O(D) 到 TTFT、TPOT 和数值精度</h2>
+<h3>可复核的实现，而不是只调用库</h3>
+<p>下面是现代语义的 reference code；<code>normalized_shape=D</code>，统计 fp32、方差 correction=0、ε 加在 variance 中，再返回原 dtype。它用于解释语义，真实高性能 kernel 会融合并行执行，不能据此推断速度。</p>
+<div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">layer_norm_reference</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">gamma</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
+    <span class="c1"># x: [B, T, D]; affine: [D]</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">var</span> <span class="o">=</span> <span class="p">((</span><span class="n">a</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">var</span> <span class="o">+</span> <span class="n">eps</span><span class="p">)</span><span class="o">.</span><span class="n">rsqrt</span><span class="p">()</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">z</span> <span class="o">*</span> <span class="n">gamma</span><span class="o">.</span><span class="n">float</span><span class="p">()</span> <span class="o">+</span> <span class="n">beta</span><span class="o">.</span><span class="n">float</span><span class="p">())</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+</pre></div>
+
+<p>PyTorch LayerNorm 支持最后 <code>normalized_shape</code> 的多个维度，默认 γ=1、β=0，训练/推理都使用当前输入统计。[S12] Triton 官方 tutorial 每行读取、fp32 accumulation、计算 mean/variance、做仿射并写回；训练保存 mean/rstd，backward 对输入与 affine 梯度做归约。[S13] tutorial 有 feature row 64KB 的特定限制，它不是 LN 数学定义的容量上限。</p>
+<p><strong>数值。</strong>避免低精度累加以及直接用 <code>E[x²]−E[x]²</code> 处理大公共偏移造成相消。稳定实现可用 centered two-pass 或 Welford；输入在 fp16/bf16 中已经丢掉的相对差异，后转 fp32 也无法恢复。低方差、很小 ε、大 gain 会放大精度误差；不同 ε、归约顺序、affine dtype 都可能造成导出后 logits 漂移。</p>
+<p><strong>量化与端侧。</strong>LN 的 μ/σ 依赖每次输入，不能一般性折叠成固定 W/b；冻结统计的 BN 才有常见 folding 条件。RMSNorm 同样输入依赖。部署时检查轴、ε、gain/bias、cast、低方差与饱和；使用真实多样标定数据，并按 per-op 与整链路定位精度损耗。本文没有实测 HTP/NPU 映射，不能宣称某个整数 kernel 与浮点 LN 完全等价。</p>
+<h3>IO 账本：为什么算术少，仍能占 Decode 时间？</h3>
+<figure class="generated-figure"><svg aria-label="归一化的融合与物化 IO 分析模型" role="img" viewbox="0 0 680 295" xmlns="http://www.w3.org/2000/svg"><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="14"></rect><text fill="#d5e4f7" font-size="14" x="40" y="38">输入主激活：N = B × T × D 个元素</text><text fill="#a4b6cd" font-size="12" x="40" y="60">Row-fused：读入一行 → fp32 mean / variance</text><path d="M340 76v22m-5 -6l5 6 5 -6" fill="none" stroke="#9bbdec"></path><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="103"></rect><text fill="#d5e4f7" font-size="14" x="40" y="127">标准化与 affine 就地计算</text><text fill="#a4b6cd" font-size="12" x="40" y="149">保持局部临时值，写回输出 → 主激活 read + write ≈ 2Ns</text><path d="M340 165v22m-5 -6l5 6 5 -6" fill="none" stroke="#9bbdec"></path><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="192"></rect><text fill="#d5e4f7" font-size="14" x="40" y="216">五 kernel 物化链：mean / center / square / variance / affine</text><text fill="#a4b6cd" font-size="12" x="40" y="238">主激活约 (1+2+2+1+2)Ns = 8Ns；参数与小统计另计</text></svg><figcaption>归一化的融合与物化 IO 分析模型 · Agent-created Simplified Diagram · <a href="assets/generated/io.mmd">Mermaid source</a> / <a href="assets/generated/io.svg">SVG</a></figcaption></figure>
+<p>令 <code>N=BTD</code>，元素占 s bytes，忽略低阶统计与 affine cache。理想 row-fused kernel 主激活 read+write 约 <strong>2Ns</strong>。一个 mean→center→square→variance→affine 的五 kernel 物化链，分别是 <code>N+2N+2N+N+2N=8N</code> 元素流量。这里 affine 重用中心化向量，参数读另计；它是明确指定实现的分析模型，不代表所有 unfused 框架都会正好读 8N。</p>
+<section class="mechanism" id="cost-widget"><p class="reading-meta">AGENT-CREATED CALCULATOR · ANALYTICAL IO / NOT A BENCHMARK</p><h3>归一化的主激活与训练统计账本</h3><div class="controls"><label>Batch B<select id="cost-b"><option selected="" value="1">1</option><option value="4">4</option><option value="8">8</option></select></label><label>Prefill tokens T<select id="cost-t"><option value="1">1</option><option value="128">128</option><option selected="" value="2048">2048</option><option value="8192">8192</option></select></label><label>Hidden dimension D<select id="cost-d"><option value="768">768</option><option value="2048">2048</option><option selected="" value="4096">4096</option><option value="8192">8192</option></select></label><label>主激活元素 bytes<select id="cost-s"><option selected="" value="2">FP16/BF16 · 2</option><option value="4">FP32 · 4</option></select></label><label>Decode LN 总处数<select id="cost-layers"><option value="1">1</option><option value="33">33 = 16×2+1</option><option selected="" value="65">65 = 32×2+1</option><option value="129">129 = 64×2+1</option></select></label></div><div aria-live="polite" class="readout" id="cost-readout"></div><p class="hint">理想 fused=2BTDs；五 kernel 物化模型=8BTDs。mean/rstd 和 γ/β 固定 FP32；Decode 行数只取 B、不取 T。不计 cold affine、workspace、实际 DRAM 或 KV，不可当 latency。</p><noscript><p>默认一处 LN：fused activation IO=32 MiB；物化模型=128 MiB；训练统计16 KiB；65 处 LN decode 主激活=1.015625 MiB/token。</p></noscript></section>
+<p>默认 <code>B=1,T=2048,D=4096,FP16</code>：一处 LN 理想主激活 32 MiB；五 kernel 模型 128 MiB；保存 fp32 mean+rstd 16 KiB；该处 γ/β 若 fp32 存储占 32 KiB。单 token 一处 LN read+write 为 16 KiB；32 个 block 每个 2 LN 加 final，共 65 处，则 1.015625 MiB/token。这是理想主激活流量，未计 cold affine 参数、workspace、缓存行为与真实 DRAM 事务。</p>
+<p><strong>Prefill / TTFT。</strong>行数 BT 大，LN 可有大量并行；投影/attention 常占主导，但物化中间量与数据转换增加 IO。<strong>Decode / TPOT。</strong>每步只有 B 行，单个 LN 的工作很小，launch、reduction 同步、残差/量化边界可能更突出；几十次小算子重复会影响总链路。归一化本身不读取历史 KV，不能把随上下文增长的 attention 成本也归给 LN。</p>
+<p>若 D 维被 tensor parallel 分片，标准 LN 的统计要覆盖完整 D，可能需要跨 shard 聚合局部和/平方量；若每个 rank 已持有完整 hidden 或按 token 做 sequence parallel，则通信条件不同。不能笼统说 LN 总是零通信，亦不能把 BN 的跨样本同步等同于所有并行方式的 LN。</p>
+<p>准确的优化实验应逐项报告 per-op latency、launch 数、IO、dtype 与误差，再看完整 TTFT/TPOT；理想 <code>bytes/bandwidth</code> 不是测得 latency。本文所有容量数可以交互复核，未给出虚构的速度曲线。</p>
+<h2 id="section-11">技术演进 — 改统计、改位置、改执行，三条并行线</h2>
+<figure class="generated-figure"><svg aria-label="归一化技术时间线：并行路线而非统一排名" role="img" viewbox="0 0 680 384" xmlns="http://www.w3.org/2000/svg"><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="14"></rect><text fill="#d5e4f7" font-size="14" x="40" y="38">2015–2016 · 统计与参数化</text><text fill="#a4b6cd" font-size="12" x="40" y="60">BN → WN / Recurrent BN / LayerNorm</text><path d="M340 76v22m-5 -6l5 6 5 -6" fill="none" stroke="#9bbdec"></path><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="103"></rect><text fill="#d5e4f7" font-size="14" x="40" y="127">2017–2020 · 架构采用与归约域</text><text fill="#a4b6cd" font-size="12" x="40" y="149">Transformer Post-LN；GroupNorm；RMSNorm；Pre-LN 分析</text><path d="M340 165v22m-5 -6l5 6 5 -6" fill="none" stroke="#9bbdec"></path><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="192"></rect><text fill="#d5e4f7" font-size="14" x="40" y="216">2022–2025 · 深度、几何与执行</text><text fill="#a4b6cd" font-size="12" x="40" y="238">DeepNorm；nGPT；fused row reduction</text><path d="M340 254v22m-5 -6l5 6 5 -6" fill="none" stroke="#9bbdec"></path><rect fill="#182638" height="62" rx="6" stroke="#506885" width="640" x="20" y="281"></rect><text fill="#d5e4f7" font-size="14" x="40" y="305">2026 · 联合训练配方仍在演进</text><text fill="#a4b6cd" font-size="12" x="40" y="327">Qwen3.8：Zero-Centered RMSNorm + decay / gate / router init</text></svg><figcaption>归一化技术时间线：并行路线而非统一排名 · Agent-created Simplified Diagram · <a href="assets/generated/timeline.mmd">Mermaid source</a> / <a href="assets/generated/timeline.svg">SVG</a></figcaption></figure>
+<div aria-label="完整对比表格" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Paper / route</th>
+<th style="text-align: right;">Year</th>
+<th>Core idea</th>
+<th>Advantage</th>
+<th>Limitation</th>
+<th>与 LN 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://arxiv.org/abs/1502.03167" rel="noopener">Batch Normalization</a></td>
+<td style="text-align: right;">2015</td>
+<td>按特征跨样本估计统计</td>
+<td>CNN 常用；冻结后可 folding</td>
+<td>batch 噪声、train/eval 差异</td>
+<td>LN 的直接背景 [S2]</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/1602.07868" rel="noopener">Weight Normalization</a></td>
+<td style="text-align: right;">2016</td>
+<td>权重方向/长度重参数化</td>
+<td>无跨样本统计</td>
+<td>不直接规范当前激活尺度</td>
+<td>不变性对照 [S3]</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/1603.09025" rel="noopener">Recurrent BN</a></td>
+<td style="text-align: right;">2016</td>
+<td>循环转换加 BN</td>
+<td>在 RNN 中验证 BN 可行</td>
+<td>时间统计、gain 与 batch 设置</td>
+<td>同时代替代 [S4]</td>
+</tr>
+<tr>
+<td>Layer Normalization</td>
+<td style="text-align: right;">2016</td>
+<td>单样本跨隐藏单元统计</td>
+<td>B1、变长 RNN 方便</td>
+<td>reduction、轴选择与信息丢失</td>
+<td>本文</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/1706.03762" rel="noopener">Transformer</a></td>
+<td style="text-align: right;">2017</td>
+<td>attention/FFN 子层后的残差 LN</td>
+<td>移入序列并行架构</td>
+<td>原 Post-LN 深层优化需关注</td>
+<td>拓展采用场景 [S5]</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/1803.08494" rel="noopener">Group Normalization</a></td>
+<td style="text-align: right;">2018</td>
+<td>单样本 channel groups+空间统计</td>
+<td>小 batch 视觉任务</td>
+<td>group 数与统计域仍需选择</td>
+<td>另一种样本内边界 [S6]</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/1910.07467" rel="noopener">RMSNorm</a></td>
+<td style="text-align: right;">2019</td>
+<td>仅均方根，无减均值</td>
+<td>简化统计与参数</td>
+<td>不具公共偏移不变性</td>
+<td>修改算子定义 [S8]</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2002.04745" rel="noopener">On LN in Transformer</a></td>
+<td style="text-align: right;">2020</td>
+<td>比较 Pre/Post-LN 初始化梯度</td>
+<td>解释 warmup/位置影响</td>
+<td>mean-field 与实验范围限制</td>
+<td>修改残差位置 [S9]</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2203.00555" rel="noopener">DeepNet / DeepNorm</a></td>
+<td style="text-align: right;">2022</td>
+<td>残差缩放+初始化</td>
+<td>支持很深 Transformer</td>
+<td>配方与结构关联</td>
+<td>联合调整架构/优化 [S10]</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2410.01131" rel="noopener">nGPT</a></td>
+<td style="text-align: right;">2024–25</td>
+<td>多种向量在单位球面约束</td>
+<td>作者报告更少训练 steps</td>
+<td>模型/序列条件不同</td>
+<td>更广的几何路线 [S11]</td>
+</tr>
+<tr>
+<td><a href="https://triton-lang.org/main/getting-started/tutorials/05-layer-norm.html" rel="noopener">Triton LayerNorm</a></td>
+<td style="text-align: right;">ongoing</td>
+<td>row fusion、fp32 reduction</td>
+<td>减少物化与 launch</td>
+<td>资源/shape 限制</td>
+<td>执行方式 [S13]</td>
+</tr>
+</tbody>
+</table></div>
+<p>GroupNorm 仅 1 group 时，在特定 axes 下统计可与 LayerNorm 相同，但其 affine 常按 channel，而 LayerNorm 可逐 normalized element；不能无条件写成两者模块完全等价。</p>
+<p><strong>RMSNorm。</strong><code>y=g⊙x/sqrt(mean(x²)+ε)</code>；保留正缩放的近似不变性，不减均值。原论文报告 7–64% runtime savings，是其当时实验范围，不能写成现代 LLM 普遍提速。pRMSNorm 用子集估计均方根，可能产生额外估计误差。[S8] 训练好的 LN checkpoint 换 RMSNorm 会改变函数，不能因为形状相同就假设无需训练。</p>
+<p><strong>位置。</strong>Post-LN 为 <code>LN(x+F(x))</code>；Pre-LN 为 <code>x+F(LN(x))</code>。前者把残差流也归一化，后者保留一条显式恒等路径；final norm 等细节还需单独检查。Xiong 等分析初始化时 Post-LN 输出附近梯度较大，并在实验中展示 Pre-LN 可减少 warmup 依赖。[S9] 这不是“所有大模型不需要 warmup”。DeepNorm 和 nGPT 的模型效果/训练步骤改进也不是 LN kernel 的速度数据。</p>
+<h2 id="section-12">当前状态 — 截至 2026-10-27 的证据边界</h2>
+<p>这里不宣布一个脱离任务和训练配置的“归一化 SOTA”。目前核验的公开来源包含模型采用与任务结果，但没有同一模型、数据、token 预算、优化器、硬件下，覆盖所有主流归一化方案的最新统一排名。</p>
+<p><strong>官方实现样本。</strong>Qwen3 的 Transformers 代码在固定 commit 中使用 fp32 均方根计算，包括 input/post-attention/final RMSNorm 以及按 head dimension 的 Q/K normalization。[S14] token hidden norm 归约 D，Q/K norm 归约 head dimension；名称相似不意味着统计轴相同。</p>
+<p><strong>最新检索样本。</strong>Qwen Team 2026-08-26 的 Qwen3.8-Flash-Next 官方介绍明确列出 <strong>Zero-Centered RMSNorm</strong>、norm weight decay、attention output gate 和 normalized MoE router initialization 作为稳定性方案。[S15] “Zero-Centered” 说的是 gain 参数化概念，不能据词面理解成减去 activation mean；未据此补写未经核对的具体 <code>(1+γ)</code> 代码。</p>
+<div aria-label="完整对比表格" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>官方当前样本</th>
+<th>模型规模 / 开放状态</th>
+<th>Benchmark / metric</th>
+<th style="text-align: right;">作者报告</th>
+<th>可比性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Qwen3.8-Flash-Next</td>
+<td>主模型 125B，active 6B，另有 51B Ngram；open weights</td>
+<td>GPQA Diamond，accuracy %</td>
+<td style="text-align: right;">91.7</td>
+<td>模型整体结果；不是 LN/RMSNorm swap 对照</td>
+</tr>
+<tr>
+<td>同一模型</td>
+<td>同上</td>
+<td>LiveCodeBench v6，官方表 score %</td>
+<td style="text-align: right;">91.9</td>
+<td>按官方各任务协议；不能从分数归因 norm</td>
+</tr>
+</tbody>
+</table></div>
+<p>官方介绍还涉及长上下文、稀疏注意力及不同 128K/256K 协议，进一步限制跨模型直接比较。上述分数仅展示当前方案的采用背景，<strong>不证明 RMSNorm 比 LN 多了多少 accuracy，也不能把稀疏 attention 的加速归为 norm 贡献</strong>。要比较归一化，需要独立控制 mean removal、gain 参数化、weight decay、位置和融合实现。</p>
+<h2 id="section-13">Critique — 简单算子，隐含选择并不少</h2>
+<p><strong>Novelty / strengths。</strong>统计域从跨样本转到样本内部，是一个清晰可复用的设计；不需要推理 running-stat 表；循环任务上的广泛收敛证据具有实际价值。新增参数规模线性，操作定义简单，官方代码让 RNN 放置位置可以核查。</p>
+<p><strong>Correctness / weaknesses。</strong>正缩放和 ε 边界被原文省略；Table 1 与正文、附录符号/初始化存在矛盾；部分 Fisher 简化缺少明确依赖条件。实验对训练效率的支持强于统一泛化收益，缺少多 seed、成本和系统消融；CNN 结果提示统计域异质性。</p>
+<p><strong>Hidden trade-offs。</strong>LN 去掉公共幅度/偏移，可能也丢掉任务有用的信息；g/b 可重建特征标定，但不能恢复被投掉的输入自由度。推理没有 running-state，不意味着没有输入依赖计算；低 FLOPs 不意味着没有显存流量或小 batch launch 代价。减少 batch 耦合不意味着消除所有并行通信。</p>
+<p><strong>Scalability / reproducibility。</strong>数学可扩展到大 D，实际 kernel 受寄存器、shared memory、dtype、layout、并行 shard 约束。作者代码主要是 Python 2.7/Theano/Torch，核验函数与固定 commit 并不等于已复现所有训练；旧模型下载是否可用也未完整验证。</p>
+<p>我希望补的实验是：同一 RNN 的 gate-concat 与 per-gate、两分支 LN 与相加后 LN、cell-only 与 full LN-LSTM；相同预算的 mean-only/RMS/LN 配合 gain/bias；小 batch MLP 中对齐输出层与 variance estimator；CNN 按空间/通道统计域控制；现代 LLM 中同时检查 loss、gradient、logits drift 与 TTFT/TPOT。</p>
+<h2 id="section-14">References — 原论文、外部证据与复核记录</h2>
+<ol>
+<li><strong>[S1 / Primary]</strong> Ba, Kiros, Hinton. <em>Layer Normalization</em>, arXiv:1607.06450v1 (2016)。<a href="https://arxiv.org/abs/1607.06450v1" rel="noopener">全文</a>；<a href="https://github.com/ryankiros/layer-norm/tree/7a9a1bf7c6553b5a89949c5c860bdfc0937af483" rel="noopener">官方代码固定版本</a>。</li>
+<li><strong>[S2]</strong> Ioffe, Szegedy. <em>Batch Normalization</em>, 2015。<a href="https://arxiv.org/abs/1502.03167" rel="noopener">arXiv</a>。</li>
+<li><strong>[S3]</strong> Salimans, Kingma. <em>Weight Normalization</em>, 2016。<a href="https://arxiv.org/abs/1602.07868" rel="noopener">arXiv</a>。</li>
+<li><strong>[S4]</strong> Cooijmans et al. <em>Recurrent Batch Normalization</em>, 2016。<a href="https://arxiv.org/abs/1603.09025" rel="noopener">arXiv</a>；后续 v5 修订为 2017，本文年代指初始路线。</li>
+<li><strong>[S5]</strong> Vaswani et al. <em>Attention Is All You Need</em>, 2017。<a href="https://arxiv.org/abs/1706.03762" rel="noopener">原文</a>；<a href="../transformer/">本站 Transformer 精读</a>。</li>
+<li><strong>[S6]</strong> Wu, He. <em>Group Normalization</em>, ECCV 2018。<a href="https://arxiv.org/abs/1803.08494" rel="noopener">arXiv</a>。</li>
+<li><strong>[S7]</strong> Santurkar, Tsipras, Ilyas, Madry. <em>How Does Batch Normalization Help Optimization?</em>, NeurIPS 2018。<a href="https://arxiv.org/abs/1805.11604" rel="noopener">arXiv</a>。</li>
+<li><strong>[S8]</strong> Biao Zhang, Rico Sennrich. <em>Root Mean Square Layer Normalization</em>, NeurIPS 2019。<a href="https://arxiv.org/abs/1910.07467" rel="noopener">arXiv</a>；<a href="https://github.com/bzhangGo/rmsnorm" rel="noopener">官方代码</a>。</li>
+<li><strong>[S9]</strong> Xiong et al. <em>On Layer Normalization in the Transformer Architecture</em>, ICML 2020。<a href="https://arxiv.org/abs/2002.04745" rel="noopener">arXiv</a>。</li>
+<li><strong>[S10]</strong> Hongyu Wang et al. <em>DeepNet: Scaling Transformers to 1,000 Layers</em>, 2022。<a href="https://arxiv.org/abs/2203.00555" rel="noopener">arXiv</a>。</li>
+<li><strong>[S11]</strong> Loshchilov et al. <em>nGPT: Normalized Transformer with Representation Learning on the Hypersphere</em>, 2024，v2 2025。<a href="https://arxiv.org/abs/2410.01131v2" rel="noopener">arXiv</a>。</li>
+<li><strong>[S12]</strong> PyTorch LayerNorm 官方文档与 v2.11.0 normalization 实现。<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html" rel="noopener">API</a>。</li>
+<li><strong>[S13]</strong> Triton 官方 Layer Normalization tutorial。<a href="https://triton-lang.org/main/getting-started/tutorials/05-layer-norm.html" rel="noopener">说明</a>；<a href="https://github.com/triton-lang/triton/blob/3785150e4d097f32c11af3aa955b78f80e2c16a8/python/tutorials/05-layer-norm.py" rel="noopener">固定 commit 源码</a>。</li>
+<li><strong>[S14]</strong> Hugging Face Transformers，Qwen3 modeling 官方实现。<a href="https://github.com/huggingface/transformers/blob/a672eb5f474b8b30173e9f96eab66adf292da635/src/transformers/models/qwen3/modeling_qwen3.py" rel="noopener">固定 commit</a>。</li>
+<li><strong>[S15]</strong> Qwen Team. <em>Qwen3.8-Flash-Next</em>, 2026-08-26。<a href="https://qwen.ai/blog?id=qwen3.8-flash-next" rel="noopener">官方介绍</a>；于 2026-10-27 用正文抓取与 Chrome DOM 双核对，<a href="sources/qwen38-normalization-evidence.json">归一化证据存档</a>。</li>
+</ol>
+<p>原图与表截图来源为 supplied <code>1607.06450v1.pdf</code>，288 dpi，保留原 caption；<a href="sources/visual-manifest.json">visual manifest</a> 记录页码和 bbox。<a href="sources/equations.json">全部公式 MathML/TeX</a> 按编号保存；<a href="sources/paper.tex">原始 TeX</a> 与 <a href="sources/paper.bbl">bibliography</a> 用于二次核对。现代工程图均为 Agent-created Simplified Diagram，Mermaid source 可下载，不替代原 Figure。</p>
+<h2 id="section-15">My insights / future directions — 把三个边界分别测清楚</h2>
+<p><strong>我的判断。</strong>LN 最值得记住的是统计边界，而不是一个“让训练稳定”的口号。先问一条输出向量的参照群体是谁，再问这些单元是否应共享均值与尺度；这个问题能解释它为何适合 token/RNN，也能解释 CNN 的失败与 GroupNorm 的出现。</p>
+<p>对推理工程，我会把研究拆成三个互相独立的对照：<strong>统计是否减均值，残差分支在哪归一化，执行图是否融合。</strong>第一类影响函数与训练；第二类影响信息/梯度通路；第三类影响 IO 和 launch。把它们一起改完再报告一个 TPOT，会很难判断收益或精度损失来自哪里。</p>
+<p>一个可执行的下一步是给同一 checkpoint 做逐层对照：固定 prompt 与生成路径，记录 LN 输入均值、方差、低方差比例、gain 分布、reference/kernel 最大误差和 logits 漂移；再测 Prefill/Decode 的 per-op 耗时。替换 RMSNorm 的实验则必须另列训练适配预算，不能混进“等价 kernel 优化”。</p>
+<p>对训练研究，最有价值的控制是把 ε、gain 参数化、norm weight decay、residual scaling、Q/K norm 各自隔离，并同时报告优化轨迹和泛化指标。当前模型把这些工具联合使用说明它们仍重要，但联合成功不等于每一项的独立因果都已经被证明。</p></article></main></div><footer class="site-footer"><span>Howie Yin · Paper Readings</span><a href="../">All paper readings →</a></footer></div><dialog id="figure-dialog" aria-label="原始图表放大"><button id="close-dialog">Close / 关闭</button><img id="zoom-image" alt="原始图表放大"></dialog><script src="assets/reading.js"></script></body></html>

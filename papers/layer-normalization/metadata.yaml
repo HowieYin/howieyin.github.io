@@ -1,0 +1,24 @@
+title: Layer Normalization
+slug: layer-normalization
+authors: [Jimmy Lei Ba, Jamie Ryan Kiros, Geoffrey E. Hinton]
+institutions: [University of Toronto, Google Inc.]
+arxiv: "1607.06450"
+version: v1
+version_date: "2016-07-21"
+venue: arXiv preprint
+doi: "10.48550/arXiv.1607.06450"
+doi_note: arXiv identifier DOI, not a separate conference publication
+paper_url: https://arxiv.org/abs/1607.06450v1
+code_url: https://github.com/ryankiros/layer-norm
+code_commit: 7a9a1bf7c6553b5a89949c5c860bdfc0937af483
+reading_date: "2026-10-27"
+last_updated: "2026-10-27"
+site_url: https://howieyin.github.io/papers/layer-normalization/
+tags: [Normalization, Training, RNN, Inference, Systems]
+original_figures: 6
+original_tables: 3
+original_equations: 35
+status: reviewed-ready-for-publication
+review_passes: [formatting-readability, source-grounded-accuracy]
+local_qa_widths: [375, 390, 430, 1440, 1920]
+visualizations: [normalization-axes, ln-rmsnorm, io-calculator, lstm-flow, io-flow, timeline]
