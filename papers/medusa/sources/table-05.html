@@ -1,0 +1,118 @@
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle" id="A7.T5.6">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_tt"><span class="ltx_text ltx_font_bold">Operator</span></th>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Input Shape</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Output Shape</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Comp. Complexity</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Space Complexity</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text ltx_font_bold">Prefill</span></th>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>Q</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>K</mi></msub></mrow></semantics></math>, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>V</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mn>2</mn><mo>​</mo><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>h</mi></mrow><mo>+</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>Q</mi><mo>​</mo><msup><mi>K</mi><mi>T</mi></msup></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>s</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><msup><mi>s</mi><mn>2</mn></msup><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mn>2</mn><mo>​</mo><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>+</mo><mrow><mi>b</mi><mo>​</mo><msup><mi>s</mi><mn>2</mn></msup><mo>​</mo><mi>n</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>P</mi><mo>​</mo><mi>V</mi></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>s</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>u</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>g</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>h</mi><mo>​</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mrow><mo>(</mo><mrow><mi>h</mi><mo>+</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mi>h</mi><mo>​</mo><mi>i</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>d</mi></msub></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text ltx_font_bold">Decoding</span></th>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>Q</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>K</mi></msub></mrow></semantics></math>, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>V</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mn>2</mn><mo>​</mo><mi>b</mi><mo>​</mo><mi>h</mi></mrow><mo>+</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>Q</mi><mo>​</mo><msup><mi>K</mi><mi>T</mi></msup></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>d</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mn>1</mn><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>n</mi></mrow><mo>+</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>+</mo><mrow><mi>b</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>P</mi><mo>​</mo><mi>V</mi></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mn>1</mn><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>d</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>u</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>g</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>h</mi><mo>​</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>h</mi><mo>+</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mi>h</mi><mo>​</mo><mi>i</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>d</mi></msub></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text ltx_font_bold">Parallel decoding</span></th>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>Q</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>K</mi></msub></mrow></semantics></math>, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>V</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>q</mi><mo>​</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mn>2</mn><mo>​</mo><mi>b</mi><mo>​</mo><mi>q</mi><mo>​</mo><mi>h</mi></mrow><mo>+</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>Q</mi><mo>​</mo><msup><mi>K</mi><mi>T</mi></msup></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>q</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>q</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>q</mi><mo>​</mo><mi>n</mi></mrow><mo>+</mo><mrow><mrow><mi>b</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>s</mi><mo>+</mo><mi>q</mi></mrow><mo>)</mo></mrow></mrow><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>P</mi><mo>​</mo><mi>V</mi></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>q</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>u</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>g</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>q</mi><mo>​</mo><mi>h</mi><mo>​</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>​</mo><mi>q</mi><mo>​</mo><mrow><mo>(</mo><mrow><mi>h</mi><mo>+</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mi>h</mi><mo>​</mo><mi>i</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>d</mi></msub></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_border_bb"></td>
+<td class="ltx_td ltx_border_bb"></td></tr>
+</tbody>
+</table>

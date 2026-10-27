@@ -1,0 +1,19 @@
+title: "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads"
+reading_title: "Medusa：一次权重读取，能提交多少个 Token？"
+authors: [Tianle Cai, Yuhong Li, Zhengyang Geng, Hongwu Peng, Jason D. Lee, Deming Chen, Tri Dao]
+institutions: [Princeton University, Together AI, UIUC, Carnegie Mellon University, University of Connecticut]
+venue: ICML 2024
+publisher: PMLR 235
+pages: 5209–5235
+arxiv: 2401.10774v3
+submitted: 2024-01-19
+version_date: 2024-06-14
+reading_date: 2026-10-27
+last_updated: 2026-10-27
+canonical: https://howieyin.github.io/papers/medusa/
+doi: 10.48550/arXiv.2401.10774
+code: https://github.com/FasterDecoding/Medusa
+project_page: https://sites.google.com/view/medusa-llm
+tags: [LLM, Inference, Systems]
+original_figures: 23
+original_tables: 8

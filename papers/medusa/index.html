@@ -1,0 +1,1140 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c1016"><meta name="color-scheme" content="dark"><title>Medusa：一次权重读取，能提交多少个 Token？ — Paper Readings</title>
+<meta name="description" content="精读 Medusa v3：多头预测、tree attention、接受策略与 KV 提交；23 原图、8 原表、训练和 per-op 性能审计，三个交互及 2026 年技术演进。"><meta property="og:title" content="Medusa：一次权重读取，能提交多少个 Token？"><meta property="og:description" content="精读 Medusa v3：多头预测、tree attention、接受策略与 KV 提交；23 原图、8 原表、训练和 per-op 性能审计，三个交互及 2026 年技术演进。">
+<meta property="og:image" content="https://howieyin.github.io/papers/medusa/assets/figures/fig-01.png"><meta property="og:type" content="article"><meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://howieyin.github.io/papers/medusa/"><link rel="icon" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/site.css"><link rel="stylesheet" href="assets/reading.css"><link rel="stylesheet" href="assets/article-navigation.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Medusa：一次权重读取，能提交多少个 Token？", "datePublished": "2026-10-27", "dateModified": "2026-10-27", "inLanguage": "zh-CN", "author": {"@type": "Person", "name": "Howie Yin"}, "mainEntityOfPage": "https://howieyin.github.io/papers/medusa/"}</script></head><body>
+<a class="skip-link" href="#main">Skip to content</a><div class="page"><header class="site-header"><a class="wordmark" href="../../" aria-label="Howie Yin home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header>
+<main id="main" class="report article"><details class="toc"><summary>Contents</summary><ul><li><a href="#tldr">TL;DR：用更多候选，换更少串行轮次</a></li><li><a href="#introduction">1. Introduction：权重很大，每轮产出很少</a></li><li><a href="#method">2. Methodology：候选、验证与接受形成状态闭环</a></li><li><a href="#experiments">3. Experiments：先统一指标，再看收益</a></li><li><a href="#discussion">4. Discussion：适用范围由瓶颈决定</a></li><li><a href="#appendix-a">Appendix A. Related Work：同一目标有多条优化轴</a></li><li><a href="#appendix-b">Appendix B. Experimental Settings：复现需要哪些具体数值</a></li><li><a href="#appendix-c">Appendix C. Sparse Tree：预计算拓扑，让运行时只用索引</a></li><li><a href="#appendix-d">Appendix D. Standard Speculative Decoding：draft 大小与 γ 都要调</a></li><li><a href="#appendix-e">Appendix E. More Model Results：看模型间差异，也检查 caption</a></li><li><a href="#appendix-f">Appendix F. AlpacaEval：速度换算到 TPOT</a></li><li><a href="#appendix-g">Appendix G. Roofline：多算一些，是否能少花时间？</a></li><li><a href="#audit">Experiment Audit：支持了什么，还缺什么</a></li><li><a href="#evolution">Related Work &amp; Technology Evolution：2018—2026</a></li><li><a href="#current-state">Current State / SOTA：截至 2026-10-27 的条件化判断</a></li><li><a href="#implementation">Implementation Notes：先把调用链和缓冲状态迁对</a></li><li><a href="#critique">Critique：长处、代价与尚未回答的问题</a></li><li><a href="#related-readings">Related Readings</a></li><li><a href="#references">References &amp; Source Record</a></li><li><a href="#takeaways">My Takeaways：最值得迁移的是每轮有效工作量</a></li></ul></details><p class="eyebrow">PAPER READINGS / LLM · INFERENCE · SYSTEMS</p><p class="reading-meta">ICML 2024 · arXiv v3 · Read / Updated 2026-10-27 · 23 figures / 8 tables · ~65 min</p><article><h1>Medusa：一次权重读取，能提交多少个 Token？</h1>
+<p><strong>Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads</strong></p>
+<p>Tianle Cai、Yuhong Li（共同一作）、Zhengyang Geng、Hongwu Peng、Jason D. Lee、Deming Chen、Tri Dao。机构：Princeton University、Together AI、UIUC、Carnegie Mellon University、University of Connecticut。ICML 2024，PMLR 235，5209–5235。初稿 2024-01-19；本次精读严格采用 <strong>arXiv 2401.10774v3，2024-06-14，27 页</strong>。阅读与更新：2026-10-27。</p>
+<p><a href="sources/2401.10774v3.pdf">Paper PDF</a> · <a href="https://arxiv.org/abs/2401.10774v3">arXiv</a> · <a href="https://proceedings.mlr.press/v235/cai24b.html">Publisher</a> · <a href="https://doi.org/10.48550/arXiv.2401.10774">DOI</a> · <a href="https://github.com/FasterDecoding/Medusa">Official code</a> · <a href="https://sites.google.com/view/medusa-llm">Project / author blog</a></p>
+<h2 id="tldr">TL;DR：用更多候选，换更少串行轮次</h2>
+<p><strong>一句话：</strong> Medusa 在同一个 LLM 的最后隐藏状态上增加多个未来位置预测头，把候选组织成树，一次主模型 forward 验证多条路径，再只提交合法的最长前缀。</p>
+<p><strong>一段话：</strong> 小 batch 的 autoregressive decode 经常花大量时间读权重，却只生成一个 token。Medusa 利用这部分算力余量，多算一些可能被接受的未来 token，以减少主模型串行调用。Medusa-1 冻结 backbone，Medusa-2 联合训练 backbone 和预测头；tree attention 避免候选之间污染上下文，稀疏树减少无效验证，typical acceptance 则用分布放宽换接受长度。论文的 Vicuna-7B/13B Medusa-2 在 MT-Bench 达到约 2.83× 相对默认基线的 wall-time speedup。该结果有明确模型、实现和质量条件，不能直接外推为今天所有服务或端侧 NPU 的收益。</p>
+<p>五个关键点：</p>
+<ol>
+<li><strong>省的是主模型轮次，不是每轮 FLOPs。</strong> 多 token 验证让矩阵更大，但有望摊薄权重读取。</li>
+<li><strong>多个 head 共享输入，不是彼此自回归。</strong> 它们预测未来位置的边缘分布，缺少草稿 token 之间的条件依赖。</li>
+<li><strong>tree mask 和 position ID 都属于正确性。</strong> 同层兄弟不可互看，RoPE 位置取路径深度，不能取展平索引。</li>
+<li><strong>加速率与 speedup 是两种量。</strong> 前者是 token/轮，后者还要除以每轮额外成本。</li>
+<li><strong>质量保证要拆开判断。</strong> 冻结、联合训练、greedy verification、严格 rejection sampling、typical acceptance 的保证各不相同。</li>
+</ol>
+<div class="callout interpretation"><strong>阅读目标 / Interpretation</strong><p>面向熟悉 Transformer、KV cache 与 TTFT/TPOT 的工程师。先按原论文章节重构方法，再读全部附录、23 张原图和 8 张完整原表，最后讨论 2026 年技术演进和可迁移实现。青绿色提示为本精读的分析，黄色提示为限制或原文需澄清之处；原论文、外部资料和分析分别标注。所有 GPU 速度数字均来自来源报告，本次没有复跑 GPU benchmark。</p></div>
+<h2 id="introduction">1. Introduction：权重很大，每轮产出很少</h2>
+<p><strong>作者的问题。</strong> LLM 的生成是串行依赖链：生成新 token 后，才能更新上下文并运行下一步。KV cache 缓存已计算的 K/V，免去重算历史，却不免去每一层投影和 MLP 的权重读取。小 batch 时，单 token GEMV/GEMM 的算术强度偏低，GPU 算力往往等待内存。</p>
+<p><strong>已有方案。</strong> 增大 batch 可以让多个请求共用权重读取，但会增加 KV 占用、调度约束和用户延迟。标准 speculative decoding 则先由小 draft model 生成多步，再由 target model 并行验证。它要求便宜而准确的草稿模型，也引入两套模型的加载、缓存与分布匹配问题。Medusa 将 drafter 融入 target 的末端表示，沿用 2018 年 blockwise parallel decoding 的思想 [2]，增加 tree verification 和训练策略。</p>
+<p><strong>核心观察。</strong> 某个未来 token 的 top-1 预测可能不够准，top-k 的覆盖率却更高。通过一次 forward 验证多种组合，有机会接受更长路径。代价是验证所有候选，因此关键任务变成：把有限验证预算放到最可能贡献接受长度的位置。</p>
+<p><strong>贡献如何分工。</strong> heads 负责生成，tree attention 负责共享候选前缀，Medusa-2 负责提高可预测性，typical acceptance 负责放宽接受条件，自蒸馏负责补训练数据，稀疏树负责控制工作量。它们分别改变计算、训练和输出契约，不能当成一个天然无损的整体。</p>
+<figure class="original-figure" id="original-fig-1"><a aria-label="Zoom Figure 1" class="zoom-link" data-zoom="Original Figure 1" href="assets/figures/fig-01.png"><img alt="Figure 1 : Medusa introduces multiple heads on top of the last hidden states of the LLM, enabling the prediction of several subsequent tokens in parallel (Section 2.1.1 ).
+During inference, each head generates multiple top predictions for its designated position.
+These predictions are assembled into candidates, which are processed in parallel using a tree-based attention mechanism (Section 2.1.2 ). The final step is to verify the candidates and accept a continuation. Besides the standard rejection sampling scheme, a typical acceptance scheme (Section 2.3.1 ) can also be used here to select reasonable continuations, and the longest accepted candidate prefix will be used for the next decoding phase." decoding="async" loading="lazy" src="assets/figures/fig-01.png"/></a><figcaption><strong>Original Figure 1 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 1 : Medusa introduces multiple heads on top of the last hidden states of the LLM, enabling the prediction of several subsequent tokens in parallel (Section 2.1.1 ).
+During inference, each head generates multiple top predictions for its designated position.
+These predictions are assembled into candidates, which are processed in parallel using a tree-based attention mechanism (Section 2.1.2 ). The final step is to verify the candidates and accept a continuation. Besides the standard rejection sampling scheme, a typical acceptance scheme (Section 2.3.1 ) can also be used here to select reasonable continuations, and the longest accepted candidate prefix will be used for the next decoding phase.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 1 深读。</strong> 从左到右读：LLM 的同一个最后隐藏状态进入原 LM head 与多个 Medusa heads；不同颜色对应不同预测距离；各 head 的高分 token 组成树；主模型以 tree mask 验证；接受器选出最长合法前缀。最后一个已接受节点对应的 hidden/logits 能为下一轮提供草稿，循环复用主模型输出。图里的并行箭头表示候选可同时处理，不能理解为最终输出 token 取消了自回归条件验证。真正减少的是串行验证轮数。</p>
+<h2 id="method">2. Methodology：候选、验证与接受形成状态闭环</h2>
+<p>方法输入是已提交前缀、对应 KV cache、最后位置的 LM/Medusa logits 和树配置；输出是新提交 token、压实后的 KV、下一轮 logits。主模型仍是最终条件概率的计算者。将“已提交状态”和“候选临时状态”分开，是读懂整个方法的起点。</p>
+<figure class="generated-figure" id="diagram-flow"><div aria-label="flow explanatory diagram" class="diagram-scroll" role="region" tabindex="0"><svg aria-roledescription="flowchart-v2" class="flowchart" id="flow-medusa-flow" role="graphics-document document" style="max-width: 856.625px;" viewbox="0 0 856.625 1011" width="100%" xmlns="http://www.w3.org/2000/svg"><style>#flow-medusa-flow{font-family:DM Sans,PingFang SC,sans-serif;font-size:18px;fill:#d9e7f5;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#flow-medusa-flow .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#flow-medusa-flow .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#flow-medusa-flow .error-icon{fill:#172335;}#flow-medusa-flow .error-text{fill:#e8dcca;stroke:#e8dcca;}#flow-medusa-flow .edge-thickness-normal{stroke-width:1px;}#flow-medusa-flow .edge-thickness-thick{stroke-width:3.5px;}#flow-medusa-flow .edge-pattern-solid{stroke-dasharray:0;}#flow-medusa-flow .edge-thickness-invisible{stroke-width:0;fill:none;}#flow-medusa-flow .edge-pattern-dashed{stroke-dasharray:3;}#flow-medusa-flow .edge-pattern-dotted{stroke-dasharray:2;}#flow-medusa-flow .marker{fill:#8faac7;stroke:#8faac7;}#flow-medusa-flow .marker.cross{stroke:#8faac7;}#flow-medusa-flow svg{font-family:DM Sans,PingFang SC,sans-serif;font-size:18px;}#flow-medusa-flow p{margin:0;}#flow-medusa-flow .label{font-family:DM Sans,PingFang SC,sans-serif;color:#d9e7f5;}#flow-medusa-flow .cluster-label text{fill:#e8dcca;}#flow-medusa-flow .cluster-label span{color:#e8dcca;}#flow-medusa-flow .cluster-label span p{background-color:transparent;}#flow-medusa-flow .label text,#flow-medusa-flow span{fill:#d9e7f5;color:#d9e7f5;}#flow-medusa-flow .node rect,#flow-medusa-flow .node circle,#flow-medusa-flow .node ellipse,#flow-medusa-flow .node polygon,#flow-medusa-flow .node path{fill:#17283c;stroke:#6483a8;stroke-width:1px;}#flow-medusa-flow .rough-node .label text,#flow-medusa-flow .node .label text,#flow-medusa-flow .image-shape .label,#flow-medusa-flow .icon-shape .label{text-anchor:middle;}#flow-medusa-flow .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#flow-medusa-flow .rough-node .label,#flow-medusa-flow .node .label,#flow-medusa-flow .image-shape .label,#flow-medusa-flow .icon-shape .label{text-align:center;}#flow-medusa-flow .node.clickable{cursor:pointer;}#flow-medusa-flow .root .anchor path{fill:#8faac7!important;stroke-width:0;stroke:#8faac7;}#flow-medusa-flow .arrowheadPath{fill:#efe7db;}#flow-medusa-flow .edgePath .path{stroke:#8faac7;stroke-width:2.0px;}#flow-medusa-flow .flowchart-link{stroke:#8faac7;fill:none;}#flow-medusa-flow .edgeLabel{background-color:#1e3040;text-align:center;}#flow-medusa-flow .edgeLabel p{background-color:#1e3040;}#flow-medusa-flow .edgeLabel rect{opacity:0.5;background-color:#1e3040;fill:#1e3040;}#flow-medusa-flow .labelBkg{background-color:rgba(30, 48, 64, 0.5);}#flow-medusa-flow .cluster rect{fill:#172335;stroke:hsl(216, 0%, 4.9019607843%);stroke-width:1px;}#flow-medusa-flow .cluster text{fill:#e8dcca;}#flow-medusa-flow .cluster span{color:#e8dcca;}#flow-medusa-flow div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:DM Sans,PingFang SC,sans-serif;font-size:12px;background:#172335;border:1px solid hsl(216, 0%, 4.9019607843%);border-radius:2px;pointer-events:none;z-index:100;}#flow-medusa-flow .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#d9e7f5;}#flow-medusa-flow rect.text{fill:none;stroke-width:0;}#flow-medusa-flow .icon-shape,#flow-medusa-flow .image-shape{background-color:#1e3040;text-align:center;}#flow-medusa-flow .icon-shape p,#flow-medusa-flow .image-shape p{background-color:#1e3040;padding:2px;}#flow-medusa-flow .icon-shape rect,#flow-medusa-flow .image-shape rect{opacity:0.5;background-color:#1e3040;fill:#1e3040;}#flow-medusa-flow .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#flow-medusa-flow .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#flow-medusa-flow :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker class="marker flowchart-v2" id="flow-medusa-flow_flowchart-v2-pointEnd" markerheight="8" markerunits="userSpaceOnUse" markerwidth="8" orient="auto" refx="5" refy="5" viewbox="0 0 10 10"><path class="arrowMarkerPath" d="M 0 0 L 10 5 L 0 10 z" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker class="marker flowchart-v2" id="flow-medusa-flow_flowchart-v2-pointStart" markerheight="8" markerunits="userSpaceOnUse" markerwidth="8" orient="auto" refx="4.5" refy="5" viewbox="0 0 10 10"><path class="arrowMarkerPath" d="M 0 5 L 10 10 L 10 0 z" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker class="marker flowchart-v2" id="flow-medusa-flow_flowchart-v2-circleEnd" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="11" refy="5" viewbox="0 0 10 10"><circle class="arrowMarkerPath" cx="5" cy="5" r="5" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker class="marker flowchart-v2" id="flow-medusa-flow_flowchart-v2-circleStart" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="-1" refy="5" viewbox="0 0 10 10"><circle class="arrowMarkerPath" cx="5" cy="5" r="5" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker class="marker cross flowchart-v2" id="flow-medusa-flow_flowchart-v2-crossEnd" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="12" refy="5.2" viewbox="0 0 11 11"><path class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker class="marker cross flowchart-v2" id="flow-medusa-flow_flowchart-v2-crossStart" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="-1" refy="5.2" viewbox="0 0 11 11"><path class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><g class="root"><g class="clusters"></g><g class="edgePaths"><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M281.784,92L276.653,96.167C271.522,100.333,261.261,108.667,256.131,116.333C251,124,251,131,251,134.5L251,138" data-edge="true" data-et="edge" data-id="flow-L_A_B_0" data-points="W3sieCI6MjgxLjc4MzU4MjA4OTU1MjIsInkiOjkyfSx7IngiOjI1MSwieSI6MTE3fSx7IngiOjI1MSwieSI6MTQyfV0=" id="flow-L_A_B_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M251,226L251,230.167C251,234.333,251,242.667,251,250.333C251,258,251,265,251,268.5L251,272" data-edge="true" data-et="edge" data-id="flow-L_B_C_0" data-points="W3sieCI6MjUxLCJ5IjoyMjZ9LHsieCI6MjUxLCJ5IjoyNTF9LHsieCI6MjUxLCJ5IjoyNzZ9XQ==" id="flow-L_B_C_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M251,360L251,364.167C251,368.333,251,376.667,251,384.333C251,392,251,399,251,402.5L251,406" data-edge="true" data-et="edge" data-id="flow-L_C_D_0" data-points="W3sieCI6MjUxLCJ5IjozNjB9LHsieCI6MjUxLCJ5IjozODV9LHsieCI6MjUxLCJ5Ijo0MTB9XQ==" id="flow-L_C_D_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M251,494L251,498.167C251,502.333,251,510.667,251,518.333C251,526,251,533,251,536.5L251,540" data-edge="true" data-et="edge" data-id="flow-L_D_E_0" data-points="W3sieCI6MjUxLCJ5Ijo0OTR9LHsieCI6MjUxLCJ5Ijo1MTl9LHsieCI6MjUxLCJ5Ijo1NDR9XQ==" id="flow-L_D_E_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M251,628L251,632.167C251,636.333,251,644.667,251,652.333C251,660,251,667,251,670.5L251,674" data-edge="true" data-et="edge" data-id="flow-L_E_F_0" data-points="W3sieCI6MjUxLCJ5Ijo2Mjh9LHsieCI6MjUxLCJ5Ijo2NTN9LHsieCI6MjUxLCJ5Ijo2Nzh9XQ==" id="flow-L_E_F_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M175.888,735L164.907,739.167C153.925,743.333,131.963,751.667,120.981,761.583C110,771.5,110,783,110,788.75L110,794.5" data-edge="true" data-et="edge" data-id="flow-L_F_G_0" data-points="W3sieCI6MTc1Ljg4Nzg1MDQ2NzI4OTcyLCJ5Ijo3MzV9LHsieCI6MTEwLCJ5Ijo3NjB9LHsieCI6MTEwLCJ5Ijo3OTguNX1d" id="flow-L_F_G_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M110,855.5L110,861.917C110,868.333,110,881.167,124.945,892.063C139.889,902.96,169.779,911.92,184.724,916.4L199.668,920.88" data-edge="true" data-et="edge" data-id="flow-L_G_H_0" data-points="W3sieCI6MTEwLCJ5Ijo4NTUuNX0seyJ4IjoxMTAsInkiOjg5NH0seyJ4IjoyMDMuNSwieSI6OTIyLjAyOTA4Mjc3NDA0OTJ9XQ==" id="flow-L_G_H_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M463.5,922.029L479.083,917.358C494.667,912.686,525.833,903.343,541.417,887.505C557,871.667,557,849.333,557,827C557,804.667,557,782.333,557,762.25C557,742.167,557,724.333,557,706.5C557,688.667,557,670.833,557,650.75C557,630.667,557,608.333,557,586C557,563.667,557,541.333,557,519C557,496.667,557,474.333,557,452C557,429.667,557,407.333,557,385C557,362.667,557,340.333,557,318C557,295.667,557,273.333,557,251C557,228.667,557,206.333,557,184C557,161.667,557,139.333,542.055,123.687C527.111,108.04,497.221,99.08,482.276,94.6L467.332,90.12" data-edge="true" data-et="edge" data-id="flow-L_H_A_0" data-points="W3sieCI6NDYzLjUsInkiOjkyMi4wMjkwODI3NzQwNDkyfSx7IngiOjU1NywieSI6ODk0fSx7IngiOjU1NywieSI6ODI3fSx7IngiOjU1NywieSI6NzYwfSx7IngiOjU1NywieSI6NzA2LjV9LHsieCI6NTU3LCJ5Ijo2NTN9LHsieCI6NTU3LCJ5Ijo1ODZ9LHsieCI6NTU3LCJ5Ijo1MTl9LHsieCI6NTU3LCJ5Ijo0NTJ9LHsieCI6NTU3LCJ5IjozODV9LHsieCI6NTU3LCJ5IjozMTh9LHsieCI6NTU3LCJ5IjoyNTF9LHsieCI6NTU3LCJ5IjoxODR9LHsieCI6NTU3LCJ5IjoxMTd9LHsieCI6NDYzLjUsInkiOjg4Ljk3MDkxNzIyNTk1MDc5fV0=" id="flow-L_H_A_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M212,841.634L272.833,850.362C333.667,859.089,455.333,876.545,529.341,891.408C603.349,906.27,629.699,918.541,642.874,924.676L656.048,930.811" data-edge="true" data-et="edge" data-id="flow-L_G_I_0" data-points="W3sieCI6MjEyLCJ5Ijo4NDEuNjMzODMyOTc2NDQ1NH0seyJ4Ijo1NzcsInkiOjg5NH0seyJ4Ijo2NTkuNjc0NDQwMjk4NTA3NCwieSI6OTMyLjV9XQ==" id="flow-L_G_I_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M725.129,932.5L726.086,926.083C727.044,919.667,728.96,906.833,729.917,889.25C730.875,871.667,730.875,849.333,730.875,827C730.875,804.667,730.875,782.333,730.875,762.25C730.875,742.167,730.875,724.333,730.875,706.5C730.875,688.667,730.875,670.833,730.875,650.75C730.875,630.667,730.875,608.333,730.875,586C730.875,563.667,730.875,541.333,730.875,519C730.875,496.667,730.875,474.333,730.875,452C730.875,429.667,730.875,407.333,730.875,385C730.875,362.667,730.875,340.333,730.875,318C730.875,295.667,730.875,273.333,673.223,254.117C615.571,234.901,500.266,218.802,442.614,210.753L384.962,202.704" data-edge="true" data-et="edge" data-id="flow-L_I_B_0" data-points="W3sieCI6NzI1LjEyODczMTM0MzI4MzYsInkiOjkzMi41fSx7IngiOjczMC44NzUsInkiOjg5NH0seyJ4Ijo3MzAuODc1LCJ5Ijo4Mjd9LHsieCI6NzMwLjg3NSwieSI6NzYwfSx7IngiOjczMC44NzUsInkiOjcwNi41fSx7IngiOjczMC44NzUsInkiOjY1M30seyJ4Ijo3MzAuODc1LCJ5Ijo1ODZ9LHsieCI6NzMwLjg3NSwieSI6NTE5fSx7IngiOjczMC44NzUsInkiOjQ1Mn0seyJ4Ijo3MzAuODc1LCJ5IjozODV9LHsieCI6NzMwLjg3NSwieSI6MzE4fSx7IngiOjczMC44NzUsInkiOjI1MX0seyJ4IjozODEsInkiOjIwMi4xNTA1NjAwNDE2Nzc1Mn1d" id="flow-L_I_B_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M326.112,735L337.093,739.167C348.075,743.333,370.037,751.667,381.019,759.333C392,767,392,774,392,777.5L392,781" data-edge="true" data-et="edge" data-id="flow-L_F_J_0" data-points="W3sieCI6MzI2LjExMjE0OTUzMjcxMDMsInkiOjczNX0seyJ4IjozOTIsInkiOjc2MH0seyJ4IjozOTIsInkiOjc4NX1d" id="flow-L_F_J_0" marker-end="url(#flow-medusa-flow_flowchart-v2-pointEnd)" style=";"></path></g><g class="edgeLabels"><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g class="edgeLabel"><g class="label" data-id="flow-L_A_B_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_B_C_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_C_D_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_D_E_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_E_F_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_F_G_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_G_H_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_H_A_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_G_I_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_I_B_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="flow-L_F_J_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g></g><g class="nodes"><g class="node default" id="flow-flowchart-A-0" transform="translate(333.5, 50)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>已提交前缀 + KV / 长度 S</p></span></div></foreignobject></g></g><g class="node default" id="flow-flowchart-B-1" transform="translate(251, 184)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>末位置 LM logits + 多头 logits</p></span></div></foreignobject></g></g><g class="node default" id="flow-flowchart-C-3" transform="translate(251, 318)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>LM 根 token + top-k rank 候选</p></span></div></foreignobject></g></g><g class="node default" id="flow-flowchart-D-5" transform="translate(251, 452)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>前缀闭合树 / 祖先 mask / 按深度 RoPE</p></span></div></foreignobject></g></g><g class="node default" id="flow-flowchart-E-7" transform="translate(251, 586)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Target 一次 q 行验证 / 临时 KV</p></span></div></foreignobject></g></g><g class="node default" id="flow-flowchart-F-9" transform="translate(251, 706.5)"><rect class="basic label-container" height="57" style="" width="240" x="-120" y="-28.5"></rect><g class="label" style="" transform="translate(-90, -13.5)"><rect></rect><foreignobject height="27" width="180"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>沿路径验证到首次失败</p></span></div></foreignobject></g></g><g class="node default" id="flow-flowchart-G-11" transform="translate(110, 827)"><rect class="basic label-container" height="57" style="" width="204" x="-102" y="-28.5"></rect><g class="label" style="" transform="translate(-72, -13.5)"><rect></rect><foreignobject height="27" width="144"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>选择最长合法前缀</p></span></div></foreignobject></g></g><g class="node default" id="flow-flowchart-H-13" transform="translate(333.5, 961)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>gather 选中 KV / 压实 / 更新长度</p></span></div></foreignobject></g></g><g class="node default" id="flow-flowchart-I-17" transform="translate(720.875, 961)"><rect class="basic label-container" height="57" style="" width="255.5" x="-127.75" y="-28.5"></rect><g class="label" style="" transform="translate(-97.75, -13.5)"><rect></rect><foreignobject height="27" width="195.5"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>保留已接受终点的 logits</p></span></div></foreignobject></g></g><g class="node default" id="flow-flowchart-J-21" transform="translate(392, 827)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>丢弃其余分支的逻辑可见性</p></span></div></foreignobject></g></g></g></g></g></svg></div><figcaption>Agent-created / Simplified Mermaid diagram · <a href="assets/generated/flow.mmd">Mermaid source</a> · <a href="assets/generated/flow.svg">SVG</a></figcaption></figure>
+<p>此图为 <strong>Agent-created / Simplified Mermaid diagram</strong>。主模型树验证产生临时节点状态，接受后才把一条路径变成真实历史。被拒节点不是下一轮历史；只重写 token 序列而忘记修正 KV 长度，会造成逻辑污染。</p>
+<h3 id="detail-1">2.1.1 Medusa Heads：同时预测多个未来位置</h3>
+<p>原 LM head 用 h_t 预测 y_(t+1)；第 k 个新增 head 预测 y_(t+k+1)，k 从 1 到 K。因此第一个 Medusa head 预测的是“下下个”token。论文定义：</p>
+<div class="formula" data-latex="p_t^{(k)}=\mathrm{softmax}\left(W_2^{(k)}\left(\mathrm{SiLU}(W_1^{(k)}h_t)+h_t\right)\right)"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msubsup><mi>p</mi><mi>t</mi><mrow><mo stretchy="false">(</mo><mi>k</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">x</mi></mrow><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><msubsup><mi>W</mi><mn>2</mn><mrow><mo stretchy="false">(</mo><mi>k</mi><mo stretchy="false">)</mo></mrow></msubsup><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mrow><mi mathvariant="normal">S</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">L</mi><mi mathvariant="normal">U</mi></mrow><mo stretchy="false">(</mo><msubsup><mi>W</mi><mn>1</mn><mrow><mo stretchy="false">(</mo><mi>k</mi><mo stretchy="false">)</mo></mrow></msubsup><msub><mi>h</mi><mi>t</mi></msub><mo stretchy="false">)</mo><mo>+</mo><msub><mi>h</mi><mi>t</mi></msub><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo fence="true" form="postfix" stretchy="true">)</mo></mrow></mrow></math><span class="formula-label">Paper · §2.1.1 · unnumbered · 原公式保留；W₂ 方向见正文</span><details><summary>Copy LaTeX</summary><code>p_t^{(k)}=\mathrm{softmax}\left(W_2^{(k)}\left(\mathrm{SiLU}(W_1^{(k)}h_t)+h_t\right)\right)</code></details></div>
+<p>其中 h_t 是最后隐藏状态，d 是隐藏宽度，V 是词表大小；p_t^(k) 是 V 维概率向量。W₁ 先把表示变换为 d 维，SiLU 加非线性，再与原 hidden 相加；W₂ 把残差表示投影到词表；softmax 归一化。SiLU(z)=z·sigmoid(z)，残差允许预测头从主模型表示出发逐步偏移。</p>
+<p><strong>Tensor orientation 的澄清。</strong> 原文同时写 W₂∈R^(d×V) 和左乘 W₂·h；若 h 是列向量，应使用 V×d。工程上采用行向量时，hidden 为 [B,T,d]，W₁ 为 [d,d]，W₂ 为 [d,V]，计算是 <code>(SiLU(h @ W1) + h) @ W2</code>；PyTorch <code>Linear(d,V).weight</code> 存 [V,d]。这是记号方向问题，原式保留，部署 shape 另行明示。</p>
+<p>初始化 W₁=0、W₂ 从 LM head 复制，在无偏置的公式下所有新头起初等同于 next-token head，再训练成不同预测距离。官方代码快照的 <code>ResBlock</code> 使用带 bias 的 Linear，只将 weight 清零；bias 未同步归零时，不能从公式推出初始化输出严格相同。这里是源码检查发现的实现差异，未做运行验证。</p>
+<p><strong>为什么预测不一定一致？</strong> head 1 和 head 2 都只看到 h_t。head 2 没看到 head 1 最终提出的 token，因此不能直接表示 <code>p(y_(t+3)|prefix,y_(t+1),y_(t+2))</code>。例如 “New” 后同时猜 “York” 和 “City” 很自然，但若某条候选在中间选成了 “Jersey”，同一个远期 “City” 可能不再合适。tree verification 会用每条实际路径重新计算 target 条件分布。</p>
+<p><strong>参数与内存不应忽略。</strong> 忽略 bias，一个 head 新增 d²+dV 参数；K 个是 K(d²+dV)。以 d=4096、V=32000、K=5 为代数示例，共 739,246,080 参数，FP16 权重约 1.377 GiB。浅层结构确实比完整第二模型简单，但“大词表×多头”仍昂贵；训练梯度、优化器状态、激活与 logits 另算。</p>
+<p>官方实现会先在树验证的多个 hidden 上计算 head 输出，再取被接受终点给下一轮使用；全量临时 logits 可以达到 [K,B,q,V]。工程上是否能只对最终需要的 hidden 做投影、跳过冗余头，必须在依赖链允许时单独评估，不能把它当作原论文已经证明的优化。</p>
+<h3 id="detail-2">2.1.2 Tree Attention：共享祖先，隔离兄弟</h3>
+<p>第 k 个 head 取 top-s_k；完整笛卡尔积得到多条路径。论文给出新增 Medusa 节点数量：</p>
+<div class="formula" data-latex="q_M=\sum_{k=1}^{K}\prod_{i=1}^{k}s_i,\qquad q_{\mathrm{physical}}=1+q_M"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>q</mi><mi>M</mi></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>K</mi></mrow></munderover><munderover><mo>∏</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>k</mi></mrow></munderover><msub><mi>s</mi><mi>i</mi></msub><mo>,</mo><mspace width="2em"></mspace><msub><mi>q</mi><mrow><mrow><mi mathvariant="normal">p</mi><mi mathvariant="normal">h</mi><mi mathvariant="normal">y</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">l</mi></mrow></mrow></msub><mo>=</mo><mn>1</mn><mo>+</mo><msub><mi>q</mi><mi>M</mi></msub></mrow></math><span class="formula-label">Paper · §2.1.2 · 原节点式 + 工程根计数</span><details><summary>Copy LaTeX</summary><code>q_M=\sum_{k=1}^{K}\prod_{i=1}^{k}s_i,\qquad q_{\mathrm{physical}}=1+q_M</code></details></div>
+<p>这里 q_M 只统计 Medusa 节点；原 LM head 的根 token 在实际验证中占一个额外位置。s₁=2、s₂=3 时，有 6 个叶子、2+6=8 个 Medusa 节点，物理 forward 为 9 个新位置。逐条复制 6 条“根+两步”路径会处理 18 个位置；树共享根与第一层前缀，避免重复这些位置。</p>
+<figure class="original-figure" id="original-fig-2"><a aria-label="Zoom Figure 2" class="zoom-link" data-zoom="Original Figure 2" href="assets/figures/fig-02.png"><img alt="Figure 2 : We demonstrates the use of tree attention to process multiple candidates concurrently. As exemplified, the top-2 predictions from the first Medusa head and the top-3 from the second result in a total of 2 × 3 = 6 candidates. Each of these candidates corresponds to a distinct branch within the tree structure. To guarantee that each token only accesses its predecessors, we devise an attention mask that exclusively permits attention flow from the current token back to its antecedent tokens. The positional indices for positional encoding are adjusted in line with this structure." decoding="async" loading="lazy" src="assets/figures/fig-02.png"/></a><figcaption><strong>Original Figure 2 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 2 : We demonstrates the use of tree attention to process multiple candidates concurrently. As exemplified, the top-2 predictions from the first Medusa head and the top-3 from the second result in a total of 2 × 3 = 6 candidates. Each of these candidates corresponds to a distinct branch within the tree structure. To guarantee that each token only accesses its predecessors, we devise an attention mask that exclusively permits attention flow from the current token back to its antecedent tokens. The positional indices for positional encoding are adjusted in line with this structure.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 2 深读。</strong> 先看左侧拓扑，再对照右侧 mask。每个查询节点只能看完整 committed prefix、根、自己的祖先和自身；兄弟与其他分支不可见。注意“同一个 token ID”在不同父节点下仍是不同状态，因为历史不同。mask 控制信息流，position IDs 则沿深度递增：<code>prefix_length + depth</code>，根 depth=0；同层节点可以有相同 RoPE 位置，不能用节点展平序号代替。</p>
+<p>标准展平因果三角 mask 会让后面的分支读到前面不相关分支，验证概率便不再对应候选路径。反之，一个只允许祖先的 mask，也不一定对应真正稀疏 kernel：通用 attention 可能先计算完整矩阵再屏蔽，语义稀疏与计算稀疏是两回事。</p>
+<p>统一工程 shape：Q=[B,H_q,q,D_h]；K/V=[B,H_kv,S+q,D_h]；展开或分组后的 score=[B,H_q,q,S+q]。S 是旧前缀长度，q 包括物理根。与普通 decode 的 q=1 相比，投影/MLP 工作量近似随 q 增加，attention 还要访问 S 个历史状态和树内节点。GQA/MQA 改变 KV head 数，却不消除每个 query 的注意力工作。</p>
+<section aria-labelledby="tree-heading" class="mechanism" id="tree-explorer">
+<p class="reading-meta">AGENT-CREATED VISUALIZATION · DETERMINISTIC TOY TREE</p>
+<h3 id="tree-heading">选择节点，检查祖先；逐步验证与提交</h3>
+<p>s₁=2、s₂=3，根 R 与 8 个 Medusa 节点共 9 个位置。点击节点可查看它的 attention 行；下方选择路径与接受深度，再逐步执行。路径的合格长度由你指定，这里演示状态机制，不模拟模型预测性能。</p>
+<div class="controls"><label>Selected path<select id="tree-path"><option value="0">R → A1 → B1</option><option value="1">R → A1 → B2</option><option value="2">R → A1 → B3</option><option value="3">R → A2 → B1</option><option value="4">R → A2 → B2</option><option value="5">R → A2 → B3</option></select></label><label>Extra accepted depth<select id="tree-depth"><option value="0">0 · root only</option><option value="1">1 · root + A</option><option selected="" value="2">2 · root + A + B</option></select></label></div>
+<div aria-label="Nine candidate nodes" class="tree-layout" id="tree-nodes"><p>Root R → {A1,A2} → each has {B1,B2,B3}.</p></div>
+<div class="actions"><button class="control-button" id="tree-step" type="button">Next: verify</button><button class="control-button" id="tree-reset" type="button">Reset</button></div>
+<div aria-live="polite" class="readout" id="tree-readout" role="status">Proposed · q=9 · 6 leaves · selected node R sees committed prefix + R.</div>
+<div aria-label="Tree ancestor attention matrix" class="mask-scroll" role="region" tabindex="0"><div aria-label="Scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table class="mask-table" id="tree-mask"><caption>Self + ancestors visible; other branches masked.</caption></table></div></div>
+<p class="hint">绿色表示选中节点可见的祖先，蓝色表示当前查询节点。提交后 KV 只保留指定路径的接受前缀。</p>
+<div aria-label="KV logical cache" class="cache-strip" id="tree-cache"><span>Committed prefix S → temporary candidate buffer q=9</span></div>
+<noscript><p>Static fallback：B2(A2) 可以看 R、A2、B2(A2) 和全部旧前缀；不能看 A1 分支。若接受 R→A2→B2，旧 S 后只提交 3 个位置，逻辑长度变为 S+3。</p></noscript>
+</section>
+<p><strong>KV cache 的提交机制。</strong> 临时 KV 在旧长度后保存 q 个位置；选出路径后 gather 这些位置，将其压实到旧前缀末尾，再把所有 layer 的逻辑长度统一改成 <code>old_length + accepted_count</code>。官方代码的 <code>accept_length</code> 是额外 Medusa 前缀长度，提交包含根的 <code>accept_length+1</code> 个位置。未接受的候选可保留在物理缓冲里，但长度指针必须保证它们不可见。</p>
+<p>FP16 下，额外候选 KV 字节为 <code>2 × L × B × q × H_kv × D_h × 2</code>。代数示例 L=32、B=1、q=65、H_kv=32、D_h=128 为 32.5 MiB；若 H_kv=8，为 8.125 MiB。这里没有加 head 权重、激活、attention workspace 和完整词表 logits。跨步拒绝后通常不需要回算完整旧前缀，但需要正确维护 cache、RoPE 位置和最后 logits。</p>
+<h3 id="detail-4">2.2.1 Medusa-1：冻结 backbone，只学习未来头</h3>
+<p>给定训练 token y_(t+k+1)，每个 head 用 cross-entropy 学习该位置；论文 Eq.1：</p>
+<div class="formula" data-latex="\mathcal L_{\mathrm{Medusa-1}}=\sum_{k=1}^{K}-\lambda_k\log p_t^{(k)}(y_{t+k+1})"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">M</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">a</mi><mo>−</mo><mn>1</mn></mrow></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>K</mi></mrow></munderover><mo>−</mo><msub><mi>λ</mi><mi>k</mi></msub><mi>log</mi><msubsup><mi>p</mi><mi>t</mi><mrow><mo stretchy="false">(</mo><mi>k</mi><mo stretchy="false">)</mo></mrow></msubsup><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mi>t</mi><mo>+</mo><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Paper · Eq.1</span><details><summary>Copy LaTeX</summary><code>\mathcal L_{\mathrm{Medusa-1}}=\sum_{k=1}^{K}-\lambda_k\log p_t^{(k)}(y_{t+k+1})</code></details></div>
+<p>λ_k=0.8^k。它降低远期、较难预测 head 在总损失中的权重。训练时对所有有效 t 与 k 聚合，边界位置和 padding 必须 mask；不能在样本末尾读越界标签，也不能把未来 head 训练成同一个 y_(t+1)。输入 hidden 应对 backbone stop-gradient，仅 head 参数更新。</p>
+<p><strong>为什么便宜？</strong> 不保存 backbone 反向所需的整套激活，也不为其建立完整优化器状态；可用量化 backbone 产生表示。<strong>仍有什么成本？</strong> 主模型 forward、K 个 d→V 投影、head 反向、head optimizer 和 [B,T,V] logits。论文举例：60k ShareGPT 样本、Vicuna-7B、单 A100 PCIe，Medusa-1 训练约 5 小时；这是报告条件，不是每个新模型的固定预算。</p>
+<p>冻结只说明训练没有更新 backbone 参数。若推理使用不同量化精度、不同 attention 数值路径，或接受规则放宽输出分布，都不能仅凭“冻结”推出完全相同结果。严谨的无损契约要同时指定目标模型、数值计算和验证器。</p>
+<h3 id="detail-5">2.2.2 Medusa-2：调整表示，让未来更容易被预测</h3>
+<p>论文 Eq.2：</p>
+<div class="formula" data-latex="\mathcal L_{\mathrm{Medusa-2}}=\mathcal L_{\mathrm{LM}}+\lambda_0\mathcal L_{\mathrm{Medusa-1}}"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">M</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">a</mi><mo>−</mo><mn>2</mn></mrow></mrow></msub><mo>=</mo><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">L</mi><mi mathvariant="normal">M</mi></mrow></mrow></msub><mo>+</mo><msub><mi>λ</mi><mn>0</mn></msub><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">M</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">a</mi><mo>−</mo><mn>1</mn></mrow></mrow></msub></mrow></math><span class="formula-label">Paper · Eq.2</span><details><summary>Copy LaTeX</summary><code>\mathcal L_{\mathrm{Medusa-2}}=\mathcal L_{\mathrm{LM}}+\lambda_0\mathcal L_{\mathrm{Medusa-1}}</code></details></div>
+<p>L_LM 是 backbone next-token cross-entropy。<strong>按公式，λ₀ 乘的是 Medusa loss</strong>，而不是 LM loss。正文部分文字称“backbone loss 的 weight”，容易误读。将 head loss 加到共享表示上，使 hidden 既支持下一步，又支持多步预测；它会改变 backbone，因此即使严格验证，保证的也是更新后模型。</p>
+<p>三项训练策略共同控制扰动：先训练 heads 的 warmup；backbone 与 head 差分学习率；next-token loss 与未来 loss 联合约束。实测主配置先 Medusa-1 再 Medusa-2，以 QLoRA 更新 backbone；head 学习率是 backbone 的 4 倍。原文 warmup 描述在步骤和参数名上不完全一致，复现时应以 Appendix B.3 的两阶段配置为锚点，而不是随意补出一个未给出的 schedule。</p>
+<p><strong>直觉。</strong> 冻结 backbone 是在固定表示上拟合未来；联合训练则改变这套表示，让未来头能更好“读出来”。它提高接受长度的同时，也引入质量保持任务。质量接近的 GPT-4 judge 均分是经验支持，不等价于全输入、全分布的数学不变性。</p>
+<h3 id="detail-6">2.2.3 Head 数量：训练上限与实际执行分开</h3>
+<p>作者经验上建议训练 5 个 head，再按树优化选用 3 或 4 个。远期越不确定，节点预算越容易浪费。若不需要的 head 被真正跳过，其推理开销可以去掉；如果 forward 仍构建所有 head logits 再丢弃，就存在实际开销。“忽略 head”必须落实到执行路径和内存分配。</p>
+<h3 id="detail-7">2.3.1 Typical Acceptance：质量接近与分布相同是两种要求</h3>
+<p>原规则为：</p>
+<div class="formula" data-latex="p_{\mathrm{original}}(x_{n+k}\mid x_{1:n+k-1})&gt;\min\left(\epsilon,\delta\exp\left[-H(p_{\mathrm{original}}(\cdot\mid x_{1:n+k-1}))\right]\right)"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>p</mi><mrow><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">l</mi></mrow></mrow></msub><mo stretchy="false">(</mo><msub><mi>x</mi><mrow><mi>n</mi><mo>+</mo><mi>k</mi></mrow></msub><mo>∣</mo><msub><mi>x</mi><mrow><mn>1</mn><mi>:</mi><mi>n</mi><mo>+</mo><mi>k</mi><mo>−</mo><mn>1</mn></mrow></msub><mo stretchy="false">)</mo><mo>&gt;</mo><mo>min</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mi>ϵ</mi><mo>,</mo><mi>δ</mi><mi>exp</mi><mrow><mo fence="true" form="prefix" stretchy="true">[</mo><mo>−</mo><mi>H</mi><mo stretchy="false">(</mo><msub><mi>p</mi><mrow><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">l</mi></mrow></mrow></msub><mo stretchy="false">(</mo><mo>·</mo><mo>∣</mo><msub><mi>x</mi><mrow><mn>1</mn><mi>:</mi><mi>n</mi><mo>+</mo><mi>k</mi><mo>−</mo><mn>1</mn></mrow></msub><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mo fence="true" form="postfix" stretchy="true">]</mo></mrow><mo fence="true" form="postfix" stretchy="true">)</mo></mrow></mrow></math><span class="formula-label">Paper · §2.3.1 · unnumbered</span><details><summary>Copy LaTeX</summary><code>p_{\mathrm{original}}(x_{n+k}\mid x_{1:n+k-1})&gt;\min\left(\epsilon,\delta\exp\left[-H(p_{\mathrm{original}}(\cdot\mid x_{1:n+k-1}))\right]\right)</code></details></div>
+<p>p_original 是沿真实候选前缀的目标分布；H 是自然对数熵；ε 是硬阈值；δ·exp(−H) 是熵自适应阈值。满足条件的 token 连续组成前缀，首次失败处截断，所有路径中选最长前缀。论文用 greedy 生成第一个根 token并无条件接受，保证每轮有进展；后续 token 用 typical acceptance。</p>
+<p>exp(−H) 是“有效支持集大小”的倒数直觉：若 V 个 token 均匀，H=ln V，exp(−H)=1/V。高熵时阈值降低，更多候选可能合格。但某个具体 candidate 的概率也随温度变化，因此温度增大并不数学保证接受长度单调增加。T=0 应明确分支到 greedy，而不是直接计算 logits/T。</p>
+<p><strong>关键校正 / 原文 §2.3.1 的例子。</strong> 论文称 draft 与 target 相同，独立采样仍会拒绝。这描述的是独立抽样后比对 token，不是标准的严格 speculative rejection sampling [3]。严格接受概率为：</p>
+<div class="formula" data-latex="A(x)=\min\left(1,\frac{p(x)}{q_D(x)}\right),\qquad p=q_D\Rightarrow A(x)=1"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>A</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mo>min</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mn>1</mn><mo>,</mo><mfrac><mrow><mi>p</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mrow><msub><mi>q</mi><mi>D</mi></msub><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>,</mo><mspace width="2em"></mspace><mi>p</mi><mo>=</mo><msub><mi>q</mi><mi>D</mi></msub><mo>⇒</mo><mi>A</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mn>1</mn></mrow></math><span class="formula-label">External source [3] · 标准 speculative rejection</span><details><summary>Copy LaTeX</summary><code>A(x)=\min\left(1,\frac{p(x)}{q_D(x)}\right),\qquad p=q_D\Rightarrow A(x)=1</code></details></div>
+<p>q_D 是该条件下 draft 分布，p 是 target 分布。如果 p=q_D，接受率就是 1；拒绝后从归一化 <code>(p−q_D)_+</code> 残差分布采样，才能保持目标分布。独立抽样的相同概率是 Σp_i²，均匀 4 类时只有 1/4。温度可能影响实际 draft-target 差异和系统开销，但不能用独立匹配反例证明标准 rejection 本身低效。</p>
+<p>典型接受避免了严格残差校正，并偏好树中最长合法路径。这种输出选择会改变概率质量分配，因而不保证与 target 的原采样分布一致。其价值是经验质量/速度折中。不能把它与 Meister 等人的 locally typical sampling 简单视为同一算法；这里使用概率下限及路径接受，原文直接借鉴的是 truncation / η-sampling 方向。</p>
+<section aria-labelledby="acceptance-heading" class="mechanism" id="acceptance-explorer">
+<p class="reading-meta">AGENT-CREATED VISUALIZATION · ALGEBRA, NOT QUALITY BENCHMARK</p>
+<h3 id="acceptance-heading">同一分布：三种“接受”意味着什么？</h3>
+<p>设 p=q_D=softmax([2,1,0,−1]/T)，四个抽象 token。调节温度和 typical 阈值；候选条形展示概率，不生成真实文本。</p>
+<div class="controls"><label>Temperature T <output id="temperature-value">0.7</output><input id="temperature" max="2" min="0.1" step="0.1" type="range" value="0.7"/></label><label>Hard threshold ε <output id="epsilon-value">0.10</output><input id="epsilon" max="0.25" min="0" step="0.01" type="range" value="0.10"/></label><label>Entropy coefficient δ <output id="delta-value">0.30</output><input id="delta" max="1" min="0.05" step="0.05" type="range" value="0.30"/></label></div>
+<div class="prob-bars" id="acceptance-bars"><p>p=q_D; strict acceptance is always 100%.</p></div>
+<div aria-live="polite" class="readout" id="acceptance-readout" role="status">Strict rejection acceptance 100% · independent matching Σp² depends on entropy · typical allows tokens above threshold.</div>
+<p class="hint">Typical 的“允许概率质量”仅表示允许集合覆盖了多少 p，不代表最终输出按这些概率采样。T=0 在真实系统应进入 greedy 分支，本实验只取正温度。</p>
+<noscript><p>Static fallback：若 p=q_D 为四类均匀分布，严格 rejection 接受概率=1，独立抽样匹配概率=1/4；H=ln4，typical 阈值为 min(ε,δ/4)。最长前缀选择仍不保证分布相同。</p></noscript>
+</section>
+<p>这个代数实验把两种接受含义摆在同一分布上：严格 rejection 在 p=q_D 时始终接受；独立匹配会因分布平坦而下降；typical acceptance 只决定允许哪些 token，不给出输出分布无损证明。</p>
+<div aria-label="Scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>配置</th>
+<th>与什么保持一致</th>
+<th>保证条件 / 限制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Medusa-1 + greedy verifier</td>
+<td>固定 target 的 greedy token 路径</td>
+<td>target 数值语义一致；每步验证到首个 mismatch</td>
+</tr>
+<tr>
+<td>Medusa-1 + 严格 rejection</td>
+<td>固定 target 的采样分布</td>
+<td>正确的 proposal、accept/reject 与残差；不是同 seed 路径必然相同</td>
+</tr>
+<tr>
+<td>Medusa-1 + typical</td>
+<td>经验质量可能接近</td>
+<td>冻结不恢复分布等价</td>
+</tr>
+<tr>
+<td>Medusa-2 + 严格验证</td>
+<td>更新后的 target</td>
+<td>不是微调前的原模型</td>
+</tr>
+<tr>
+<td>Medusa-2 + typical</td>
+<td>更新模型的放宽输出策略</td>
+<td>同时有模型变化和采样契约变化</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="detail-9">2.3.2 Self-Distillation：没有原始 SFT 数据时怎么办</h3>
+<p>先从领域相近的公开 prompts 出发，让原模型生成回答；多轮可以逐轮喂入 seed 用户问题，也可以由具备两角色生成能力的模型 self-talk。Medusa-1 用生成的 hard token 标签训练 heads，避免只依赖不匹配的外部回答。</p>
+<p>Medusa-2 若连 backbone 也只用生成 token 做 SFT，可能丢失原分布细节；论文改用 teacher 对整个词表的概率约束：</p>
+<div class="formula" data-latex="\mathcal L_{\mathrm{LM-distill}}=D_{\mathrm{KL}}\left(p_{\mathrm{original},t}^{(0)}\Vert p_t^{(0)}\right)"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">L</mi><mi mathvariant="normal">M</mi><mo>−</mo><mi mathvariant="normal">d</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">l</mi></mrow></mrow></msub><mo>=</mo><msub><mi>D</mi><mrow><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">L</mi></mrow></mrow></msub><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><msubsup><mi>p</mi><mrow><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">l</mi></mrow><mo>,</mo><mi>t</mi></mrow><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow></msubsup><mi>‖</mi><msubsup><mi>p</mi><mi>t</mi><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow></msubsup><mo fence="true" form="postfix" stretchy="true">)</mo></mrow></mrow></math><span class="formula-label">Paper · §2.3.2 · unnumbered</span><details><summary>Copy LaTeX</summary><code>\mathcal L_{\mathrm{LM-distill}}=D_{\mathrm{KL}}\left(p_{\mathrm{original},t}^{(0)}\Vert p_t^{(0)}\right)</code></details></div>
+<p>这是 KL(teacher || student)。逐词 KL 对 [B,T,V] 概率求和，再沿有效 token 聚合；teacher stop-gradient。它同时保存正确 token 的相对概率和其他合理候选，而不只是让 student 增大某个抽到的 hard label。不要颠倒 KL 方向。</p>
+<p><strong>共享权重技巧。</strong> student 使用 LoRA，关闭 adapter 即得到 teacher。这样省掉第二份完整 backbone 权重；不表示省掉 teacher forward、soft logits、额外激活生命周期和 adapter/optimizer 内存。若 teacher 也是量化版，保持的是量化 teacher 的分布，不能据此认为恢复了未量化原模型。作者建议蒸馏时优先非量化 LoRA。</p>
+<h3 id="detail-10">2.3.3 Optimized Tree：按 rank 的边际命中率分配预算</h3>
+<p>令 a_k^(i) 为 head k 的第 i 名 token 单独命中率，即 <code>top-i accuracy − top-(i−1) accuracy</code>。它不是累积 top-i accuracy。独立假设下，一个 rank 路径的权重为：</p>
+<div class="formula" data-latex="w(i_1,\ldots,i_k)=\prod_{j=1}^{k}a_j^{(i_j)},\qquad \widehat{\mathbb E[\ell]}=\sum_{(i_1,\ldots,i_k)\in I}\prod_{j=1}^{k}a_j^{(i_j)}"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>w</mi><mo stretchy="false">(</mo><msub><mi>i</mi><mn>1</mn></msub><mo>,</mo><mi>…</mi><mo>,</mo><msub><mi>i</mi><mi>k</mi></msub><mo stretchy="false">)</mo><mo>=</mo><munderover><mo>∏</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>k</mi></mrow></munderover><msubsup><mi>a</mi><mi>j</mi><mrow><mo stretchy="false">(</mo><msub><mi>i</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow></msubsup><mo>,</mo><mspace width="2em"></mspace><mover><mrow><mi mathvariant="double-struck">E</mi><mo stretchy="false">[</mo><mi>ℓ</mi><mo stretchy="false">]</mo></mrow><mo>^</mo></mover><mo>=</mo><munder><mo>∑</mo><mrow><mo stretchy="false">(</mo><msub><mi>i</mi><mn>1</mn></msub><mo>,</mo><mi>…</mi><mo>,</mo><msub><mi>i</mi><mi>k</mi></msub><mo stretchy="false">)</mo><mo>∈</mo><mi>I</mi></mrow></munder><munderover><mo>∏</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>k</mi></mrow></munderover><msubsup><mi>a</mi><mi>j</mi><mrow><mo stretchy="false">(</mo><msub><mi>i</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow></msubsup></mrow></math><span class="formula-label">Paper · §2.3.3 · 独立假设下的目标代理</span><details><summary>Copy LaTeX</summary><code>w(i_1,\ldots,i_k)=\prod_{j=1}^{k}a_j^{(i_j)},\qquad \widehat{\mathbb E[\ell]}=\sum_{(i_1,\ldots,i_k)\in I}\prod_{j=1}^{k}a_j^{(i_j)}</code></details></div>
+<p>所有深度的节点都算入 I；一个节点被加入时，贡献是其路径概率乘积。用 frontier greedy，每次从连接现有树的可扩展节点中取最大权重，直到预算耗尽。必须 prefix-closed：选远期节点前，它的祖先应已存在。</p>
+<p><strong>为何比均匀树好？</strong> head 深度和 rank 的命中率不平衡。把第 1 head 的第 1 名后面多扩几条，常常比平等扩展低概率早期分支更划算。校准误差、条件相关性与分布漂移则可能改变优先级；树是离线固定的预算分配，不是线上每个上下文都自适应。</p>
+<p><strong>目标函数的边界。</strong> 对 greedy 的单一正确路径、准确概率和独立近似，它可以作为接受长度的代理。typical 允许多条路径重叠且最终取最长时，求和并不严格等于最长接受长度期望；不能把此近似目标当成真实系统最优性的证明。</p>
+<h2 id="experiments">3. Experiments：先统一指标，再看收益</h2>
+<p>作者以 MT-Bench 多类别对话做主要速度与质量评估，比较默认 autoregressive baseline、标准 speculative decoding、Medusa-1 和 Medusa-2。下面保留全部原始表格与原图。原表图片保留原版排版和 caption；可展开的全文转录保留所有行列及数值，移动端横向滚动。</p>
+<p><strong>指标字典。</strong> Acc. rate 是每轮平均提交 token 数，单位 token/轮，通常包括根；不是概率或分类准确率。Overhead 是 Medusa 一轮与普通一轮的时间比。Speedup 是 baseline 与 Medusa 生成速度之比。Quality 是 MT-Bench 的 GPT-4 judge 均分（越高越好），不是 Accuracy。该任务没有 TP/FP/TN/FN 定义，不能人为拼一张 confusion matrix。</p>
+<div class="formula" data-latex="\mathrm{speedup}\approx\frac{\mathbb E[\mathrm{accepted\ tokens/cycle}]}{\mathrm{iteration\ overhead}}"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">p</mi></mrow><mo>≈</mo><mfrac><mrow><mi mathvariant="double-struck">E</mi><mo stretchy="false">[</mo><mrow><mi mathvariant="normal">a</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">d</mi><mtext> </mtext><mi mathvariant="normal">t</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">k</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">s</mi><mo>/</mo><mi mathvariant="normal">c</mi><mi mathvariant="normal">y</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">e</mi></mrow><mo stretchy="false">]</mo></mrow><mrow><mrow><mi mathvariant="normal">i</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">n</mi><mtext> </mtext><mi mathvariant="normal">o</mi><mi mathvariant="normal">v</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">h</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">d</mi></mrow></mrow></mfrac></mrow></math><span class="formula-label">Interpretation · 用于量纲解释与近似复算</span><details><summary>Copy LaTeX</summary><code>\mathrm{speedup}\approx\frac{\mathbb E[\mathrm{accepted\ tokens/cycle}]}{\mathrm{iteration\ overhead}}</code></details></div>
+<p>此式用于解释和粗略核验；聚合方式、输出长度和四舍五入可导致与表值略不同。单轮算得更慢并不矛盾：如果每轮时间是 1.22 倍、接受 3.47 token，则速度大约为 2.84 倍。speedup 不是接受率本身。</p>
+<h3 id="detail-11">3.1 Vicuna-7B/13B：冻结与联合训练的差别</h3>
+<figure class="original-figure" id="original-fig-3"><a aria-label="Zoom Figure 3" class="zoom-link" data-zoom="Original Figure 3" href="assets/figures/fig-03.png"><img alt="Figure 3 : Left: Speed comparison of baseline, Medusa -1 and Medusa -2 on Vicuna-7B/13B. Medusa -1 achieves more than 2 × wall-time speedup compared to the baseline implementation while Medusa -2 further improves the speedup by a significant margin. Right: Detailed speedup performance of Vicuna-7B with Medusa -2 on 8 categories from MT-Bench." decoding="async" loading="lazy" src="assets/figures/fig-03.png"/></a><figcaption><strong>Original Figure 3 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 3 : Left: Speed comparison of baseline, Medusa -1 and Medusa -2 on Vicuna-7B/13B. Medusa -1 achieves more than 2 × wall-time speedup compared to the baseline implementation while Medusa -2 further improves the speedup by a significant margin. Right: Detailed speedup performance of Vicuna-7B with Medusa -2 on 8 categories from MT-Bench.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 3 深读。</strong> 左图同时看 7B 和 13B 的 baseline、Medusa-1、Medusa-2。论文报告 Medusa-1 约 2.18×（7B）、2.33×（13B），Medusa-2 两者约 2.83×；联合训练相对冻结方案增加约 29.8% 和 21.5% 的速度收益。右图是 8 个 MT-Bench 类别，coding/math 等规律性更强的 continuation 更容易被未来 heads 命中。类别差异说明草稿可预测性影响效果，不能只看整体柱。</p>
+<p>这里的 baseline 是论文默认实现，不能直接替换成今日优化服务引擎。更强 baseline 可能减少可摊薄时间，量化也可能转移瓶颈；加速比与 kernel、shape、采样策略和 hardware 共同决定。</p>
+<figure class="original-figure table-figure" id="original-table-1"><a aria-label="Zoom Table 1" class="zoom-link" data-zoom="Original Table 1" href="assets/tables/table-01.png"><img alt="Table 1 : Comparison of various Medusa -2 models. The first section reports the details of Medusa -2, including accelerate rate, overhead, and quality that denoted the average scores on the MT-Bench compared to the original models. The second section lists the speedup ( S ) of SpecDecoding and Medusa , respectively." decoding="async" loading="lazy" src="assets/tables/table-01.png"/></a><figcaption><strong>Original Table 1 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Table 1 : Comparison of various Medusa -2 models. The first section reports the details of Medusa -2, including accelerate rate, overhead, and quality that denoted the average scores on the MT-Bench compared to the original models. The second section lists the speedup ( S ) of SpecDecoding and Medusa , respectively.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<details class="transcription" open=""><summary>Table 1 · Full original values / 全表转录</summary><div aria-label="Original Table 1 full transcription" class="table-scroll" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle original-table" id="S3.T1.3">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_tt"><span class="ltx_text">Model Name</span></th>
+<td class="ltx_td ltx_align_left ltx_border_tt"><span class="ltx_text">Vicuna-7B</span></td>
+<td class="ltx_td ltx_align_left ltx_border_tt"><span class="ltx_text">Zephyr-7B</span></td>
+<td class="ltx_td ltx_align_left ltx_border_tt"><span class="ltx_text">Vicuna-13B</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_tt"><span class="ltx_text">Vicuna-33B</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text">Acc. rate</span></th>
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text">3.47</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text">3.14</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text">3.51</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t"><span class="ltx_text">3.01</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">Overhead</span></th>
+<td class="ltx_td ltx_align_left"><span class="ltx_text">1.22</span></td>
+<td class="ltx_td ltx_align_left"><span class="ltx_text">1.18</span></td>
+<td class="ltx_td ltx_align_left"><span class="ltx_text">1.23</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left"><span class="ltx_text">1.27</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">Quality</span></th>
+<td class="ltx_td ltx_align_left"><span class="ltx_text">6.18 (+0.01)</span></td>
+<td class="ltx_td ltx_align_left"><span class="ltx_text">7.25 (-0.07)</span></td>
+<td class="ltx_td ltx_align_left"><span class="ltx_text">6.43 (-0.14)</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left"><span class="ltx_text">7.18 (+0.05)</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><msub><mi>S</mi><mtext>SpecDecoding</mtext></msub></semantics></math></th>
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text">1.47</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text">-</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text">1.56</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t"><span class="ltx_text">1.60</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"><math class="ltx_Math" display="inline"><semantics><msub><mi>S</mi><mtext class="ltx_font_smallcaps">Medusa</mtext></msub></semantics></math></th>
+<td class="ltx_td ltx_align_left ltx_border_bb"><span class="ltx_text">2.83</span></td>
+<td class="ltx_td ltx_align_left ltx_border_bb"><span class="ltx_text">2.66</span></td>
+<td class="ltx_td ltx_align_left ltx_border_bb"><span class="ltx_text">2.83</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb"><span class="ltx_text">2.35</span></td></tr>
+</tbody>
+</table></div></details>
+<p><strong>Table 1 深读。</strong> 四列分别对应 Vicuna-7B、Zephyr-7B、Vicuna-13B、Vicuna-33B。Medusa-2 的 speedup 为 2.83、2.66、2.83、2.35；相对标准 speculative baseline 的比值为约 1.925、未报告、1.814、1.469。以普通 baseline 为 1，7B 的 +183% throughput 与 64.7% 的等产出时间下降是不同写法，不要把两者混用。</p>
+<p>3.47/1.22≈2.844，3.14/1.18≈2.661，3.51/1.23≈2.854，3.01/1.27≈2.370，与 speedup 小幅出入主要只能说明表值经过汇总/舍入，不能倒推出未公开的单样本计时。Quality 的差值是 +0.01、−0.07、−0.14、+0.05 分；13B 的 −0.14 不应被省略。没有多 seed、置信区间或 judge 稳定性分析，不能宣布“零质量损失”。</p>
+<h3 id="detail-12">3.2 Self-Distillation：跨模型成立，收益也有差异</h3>
+<p>Zephyr-7B 和 Vicuna-33B 用自蒸馏训练，Table 1 显示有明显加速，并维持接近原模型的 MT-Bench 均分。33B 的接受量 3.01、overhead 1.27，高于 7B 的相对每轮成本，最终 speedup 仅 2.35。规模越大不意味着比例收益必然越大；接受质量、head 规模、attention 历史、kernel 利用率和训练约束都在作用。</p>
+<p>自蒸馏解决“不提供原 SFT 回答”的问题，没有证明对所有领域、对齐策略和任务迁移都保持质量。公开 prompt 的覆盖、生成风格、multi-turn 分布与 teacher 精度仍是训练数据问题。</p>
+<h3 id="detail-13">3.3.1 Tree Structure Ablation：64 个有价值节点优于更多无效节点</h3>
+<figure class="original-figure" id="original-fig-4"><a aria-label="Zoom Figure 4" class="zoom-link" data-zoom="Original Figure 4" href="assets/figures/fig-04.png"><img alt="Figure 4 : Effectiveness of numbers of candidate tokens for decoding introduced by trees (default number of candidate token for decoding is 1 when using KV cache). Left: The acceleration rate for randomly sampled dense tree settings (blue dots) and optimized sparse tree settings (red stars). Right: The speed (tokens/s) for both settings. The trend lines indicate that while the acceleration rate remains relatively stable for sparse trees, there is a notable decrease in speed as the candidate tokens increases." decoding="async" loading="lazy" src="assets/figures/fig-04.png"/></a><figcaption><strong>Original Figure 4 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 4 : Effectiveness of numbers of candidate tokens for decoding introduced by trees (default number of candidate token for decoding is 1 when using KV cache). Left: The acceleration rate for randomly sampled dense tree settings (blue dots) and optimized sparse tree settings (red stars). Right: The speed (tokens/s) for both settings. The trend lines indicate that while the acceleration rate remains relatively stable for sparse trees, there is a notable decrease in speed as the candidate tokens increases.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 4 深读。</strong> 左图纵轴是 acc. rate，右图纵轴是 tokens/s，两者不能混为一张速度曲线。蓝点为随机 dense 树配置，红星为优化 sparse 配置。64 节点稀疏树可以获得不逊于、更好的接受长度，相比 256 节点 dense 树避免大量低价值验证。沿右图继续增加候选，速度可能下降：接受长度的收益趋于饱和，验证成本继续增长。</p>
+<p>因此树预算应优化 <code>E[accepted tokens] / iteration latency</code>；单独最大化节点数、top-k 覆盖率或 acc. rate 都不够。图上的趋势线提供经验关系，没有证明固定 64 节点是任意模型/上下文/硬件的最优值。</p>
+<h3 id="detail-14">3.3.2 Typical Threshold Ablation：把两个纵轴同时读完</h3>
+<figure class="original-figure" id="original-fig-5"><a aria-label="Zoom Figure 5" class="zoom-link" data-zoom="Original Figure 5" href="assets/figures/fig-05.png"><img alt="Figure 5 : Performance comparison of Medusa using proposed typical sampling. The model is fully fine-tuned from Vicuna-7B. The plot illustrates the acceleration rate and average scores on the writing and roleplay (MT-Bench) with a fixed temperature of 0.7 for 3 different settings: greedy sampling and random sampling (RS) plotted as the star and the dot, and typical sampling curves under different thresholds." decoding="async" loading="lazy" src="assets/figures/fig-05.png"/></a><figcaption><strong>Original Figure 5 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 5 : Performance comparison of Medusa using proposed typical sampling. The model is fully fine-tuned from Vicuna-7B. The plot illustrates the acceleration rate and average scores on the writing and roleplay (MT-Bench) with a fixed temperature of 0.7 for 3 different settings: greedy sampling and random sampling (RS) plotted as the star and the dot, and typical sampling curves under different thresholds.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 5 深读。</strong> 温度固定 0.7，评估 writing 与 roleplay。横轴阈值 ε 从 0.01 到 0.25、步长 0.01；不同曲线使用质量均分和 acc. rate 的双纵轴。星形为 greedy，点为 random sampling，typical 曲线展示更宽允许集合可提升接受长度，但过宽会损害质量。ε=0 会对所有正概率候选开放，不具备质量保证。</p>
+<p>实验符号中 α=√ε 与方法段 δ 的对应记号不够统一，读者应按阈值的实际表达式复现。单次 noisy judge 曲线、两个任务类别和固定温度不构成全场景最佳阈值。应进一步报告任务分布、长回答、不同温度和可靠性指标。</p>
+<h3 id="detail-15">3.3.3 Heads Warmup：限制对 backbone 的早期冲击</h3>
+<figure class="original-figure table-figure" id="original-table-2"><a aria-label="Zoom Table 2" class="zoom-link" data-zoom="Original Table 2" href="assets/tables/table-02.png"><img alt="Table 2 : Comparison of Different Settings of Vicuna-7B. Quality is obtained by evaluating models on MT-Bench using GPT-4 as the judge (higher the better) ." decoding="async" loading="lazy" src="assets/tables/table-02.png"/></a><figcaption><strong>Original Table 2 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Table 2 : Comparison of Different Settings of Vicuna-7B. Quality is obtained by evaluating models on MT-Bench using GPT-4 as the judge (higher the better) .</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<details class="transcription" open=""><summary>Table 2 · Full original values / 全表转录</summary><div aria-label="Original Table 2 full transcription" class="table-scroll" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle original-table" id="S3.T2.3">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_tt"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text">Baseline</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text">Direct Fine-tuning</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_smallcaps">Medusa<span class="ltx_text ltx_font_upright">-1</span></span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_smallcaps">Medusa<span class="ltx_text ltx_font_upright">-2</span></span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text">Quality</span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">6.17</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">5.925</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">6.23</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">6.18</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"><span class="ltx_text">Speedup</span></th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">N/A</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">N/A</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">2.18</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">2.83</span></td></tr>
+</tbody>
+</table></div></details>
+<p><strong>Table 2 深读。</strong> Vicuna-7B baseline 6.17，direct fine-tuning 5.925，下降 0.245 分；Medusa-1 6.23，Medusa-2 6.18。Medusa-1 相对 baseline 的 +0.06 不意味着冻结模型能力被训练增强，可能含采样、接受或 judge 波动。表支持所给训练 recipe 比直接联合微调更稳，但未通过相同预算、多 seed 与逐组件对照将所有改善归因给 warmup。</p>
+<p>direct fine-tuning 的 speedup 是 N/A，而不是 0 或 1。表中质量接近是经验结论，不能取代概率保证。</p>
+<figure class="original-figure table-figure" id="original-table-3"><a aria-label="Zoom Table 3" class="zoom-link" data-zoom="Original Table 3" href="assets/tables/table-03.png"><img alt="Table 3 : Impact of Techniques on Speedup" decoding="async" loading="lazy" src="assets/tables/table-03.png"/></a><figcaption><strong>Original Table 3 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Table 3 : Impact of Techniques on Speedup</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<details class="transcription" open=""><summary>Table 3 · Full original values / 全表转录</summary><div aria-label="Original Table 3 full transcription" class="table-scroll" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle original-table" id="S3.T3.5">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt">Technique</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Speedup</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">Medusa-1 heads without tree attention</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mo>∼</mo></semantics></math>1.5x</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Adding tree attention</td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mo>∼</mo></semantics></math>1.9x</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Using optimized tree configuration</td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mo>∼</mo></semantics></math>2.2x</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">Training heads with Medusa-2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><math class="ltx_Math" display="inline"><semantics><mo>∼</mo></semantics></math>2.8x</td></tr>
+</tbody>
+</table></div></details>
+<p><strong>Table 3 深读。</strong> 无树的 Medusa-1 heads 约 1.5×；加 tree attention 约 1.9×；优化树约 2.2×；换 Medusa-2 训练约 2.8×。这是累计配置收益，不能将四个数相加。逐阶段比例是约 26.7%、15.8%、27.3%，但各阶段不是完整 factorial ablation，也没有单独拆出 typical 与采样模式的贡献。</p>
+<h2 id="discussion">4. Discussion：适用范围由瓶颈决定</h2>
+<p>作者总结：没有独立完整 draft 模型的 Medusa 更易集成，通过共享 hidden、树验证和轻量训练提升 LLM 生成效率。<strong>工程分析：</strong> 它仍需要 tree mask、特殊 position IDs、候选索引、接受规则、KV 重排和下一轮 logits 管理；“结构简单”相对于两套完整模型部署成立，不能理解为无需修改 decoding runtime。</p>
+<p>可用前提是 target 验证额外工作的边际成本较低，而且 heads 的接受贡献足够大。高 batch、长上下文、昂贵 attention、很小 target、受限词表投影或慢 CPU/GPU 同步都可能压低收益。训练适配需求也使它不等于“即插即用支持所有模型”。</p>
+<p>Impact Statement 讨论更低成本、更可获得的生成能力。论文没有实际能耗或端侧电池测量；减少 wall time 不必然同比减少功耗，不能把成本、能耗和吞吐当作互相等价的实测指标。</p>
+<h2 id="appendix-a">Appendix A. Related Work：同一目标有多条优化轴</h2>
+<h3 id="detail-16">A.1 LLM Inference：KV、量化、IO 与并行生成</h3>
+<p>论文讨论 attention IO 优化、KV 减量/压缩、量化和推理引擎，这些分别减少中间矩阵读写、每 token 历史状态、权重字节或调度浪费。Medusa 改变每次读权重后的有效产出，理论上可与这些路线组合，但收益通常不能相乘：一种优化可能让另一个瓶颈突出。</p>
+<p>例如 GQA 缩小 KV，使 attention bandwidth 下降；weight-only 量化压缩权重，使 CPU top-k、head 输出投影或候选 gather 的比例上升；FlashAttention 免去显式 score 存储，但仍要满足 tree mask 的语义。PagedAttention 管理 KV page 不等于自动理解一棵非连续候选树。</p>
+<h3 id="detail-17">A.2 Sampling：接受集合与输出分布</h3>
+<p>论文的 typical acceptance 借鉴概率截断方向，核心是“概率够高则候选可接受”。strict speculative sampling 的目标是完全匹配 fixed target 分布，而本文扩展选择接受较合理的最长路径。两类设计解决的输出契约不同。本文贡献在系统/质量折中上有意义，其合理性应由任务评估支持，而不是错误地用“p=q 也会拒绝”来证明。</p>
+<h2 id="appendix-b">Appendix B. Experimental Settings：复现需要哪些具体数值</h2>
+<h3 id="detail-18">B.1 Baseline 与速度协议</h3>
+<p>主要 baseline 使用默认 Hugging Face 路径；标准 speculative baseline 还尝试不同 draft 大小和草稿长度，并使用编译降低 draft overhead，Appendix D 有具体结果。不同模型、sampling、dtype、GPU 和版本对每张主表的对应披露不够完整。附录算子 profiling 的 A100/A40/A6000 不自动证明主实验也分别用了这些配置。</p>
+<h3 id="detail-19">B.2 所有模型的共同训练配置</h3>
+<div aria-label="Scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>原论文报告</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>框架 / optimizer</td>
+<td>Axolotl；8-bit AdamW</td>
+</tr>
+<tr>
+<td>LR schedule</td>
+<td>cosine + warmup</td>
+</tr>
+<tr>
+<td>Heads</td>
+<td>5 个，每个 1 层；λ_k=0.8^k</td>
+</tr>
+<tr>
+<td>联合训练</td>
+<td>LoRA 或 QLoRA；heads LR 为 backbone 4×</td>
+</tr>
+<tr>
+<td>LoRA 范围</td>
+<td>backbone 全部 Linear，含 LM head</td>
+</tr>
+<tr>
+<td>LoRA 参数</td>
+<td>rank=32，α=16，dropout=0.05</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="detail-20">B.3 Vicuna-7B/13B</h3>
+<p>原文配置为 global batch 64、backbone peak LR 5e−4、heads 2e−3、warmup 40 steps、4-bit backbone；先 Medusa-1 初始化，再 Medusa-2 QLoRA，Eq.2 的 λ₀=0.2。模型基于 Vicuna v1.5，训练 2 epochs，sequence length 4096。数据与模板边界应对齐其 ShareGPT 配置，避免未来位置标签跨对话边界。</p>
+<h3 id="detail-21">B.4 Vicuna-33B / Zephyr-7B</h3>
+<p>采用自蒸馏，约 100k 样本、sequence length 2048、global batch 128；backbone LR 1e−4、head LR 4 倍、warmup 20 steps、λ₀=0.01。这里使用逐渐增大的 sine schedule 代替主实验两阶段方案，但文中 θ₀ 的命名没有充分定义。该缺口标为复现需核对，不能自行补全精确 schedule。这里训练策略与 B.3 不同，应按模型列分别记录。</p>
+<h2 id="appendix-c">Appendix C. Sparse Tree：预计算拓扑，让运行时只用索引</h2>
+<figure class="original-figure" id="original-fig-6"><a aria-label="Zoom Figure 6" class="zoom-link" data-zoom="Original Figure 6" href="assets/figures/fig-06.png"><img alt="Figure 6 : Visualization of a sparse tree setting for Medusa -2 Vicuna-7B. The tree has 64 nodes representing candidate tokens and a depth of 4 which indicates 4 Medusa heads involved in calculation. Each node indicates a token from a top-k prediction of a Medusa head, and the edges show the connections between them. The red lines highlight the path that correctly predicts the future tokens." decoding="async" loading="lazy" src="assets/figures/fig-06.png"/></a><figcaption><strong>Original Figure 6 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 6 : Visualization of a sparse tree setting for Medusa -2 Vicuna-7B. The tree has 64 nodes representing candidate tokens and a depth of 4 which indicates 4 Medusa heads involved in calculation. Each node indicates a token from a top-k prediction of a Medusa head, and the edges show the connections between them. The red lines highlight the path that correctly predicts the future tokens.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 6 深读。</strong> 每个节点表示某个 head 的 top-k rank；四层深度对应 4 个活跃未来 heads，64 个候选节点由校准命中率决定。红线标出一条正确未来路径；树在早期高概率分支扩展更多。读图时看“扩展落在哪些父节点”比只数叶子更重要。正文的虚拟根与 runtime LM 根有计数差别，部署时应检查实际 buffer length。</p>
+<p>稀疏树使用 rank 路径，而不把具体 token 词汇固化；运行时 top-k 换成真实 token ID。可预先生成 <code>tree_attn_mask</code>、<code>tree_indices</code>、<code>tree_position_ids</code>、<code>retrieve_indices</code>。树节点存储顺序与路径逻辑顺序可以不同，retrieve 索引负责映射。</p>
+<p>官方实现 pipeline 中，candidate selection 读取已有 logits，tree decoding 产生所有节点 hidden，再由 posterior evaluation 选 best path，最后 update inference inputs 更新 tokens 和 KV。这条链路是移植时最值得先核验的地方。</p>
+<h2 id="appendix-d">Appendix D. Standard Speculative Decoding：draft 大小与 γ 都要调</h2>
+<figure class="original-figure" id="original-fig-7"><a aria-label="Zoom Figure 7" class="zoom-link" data-zoom="Original Figure 7" href="assets/figures/fig-07.png"><img alt="Figure 7 : Inference speed of various models using speculative decoding on MT-Bench. Baseline model speeds are presented by grey dotted lines for comparison. γ denotes the draft token number." decoding="async" loading="lazy" src="assets/figures/fig-07.png"/></a><figcaption><strong>Original Figure 7 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 7 : Inference speed of various models using speculative decoding on MT-Bench. Baseline model speeds are presented by grey dotted lines for comparison. γ denotes the draft token number.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 7 深读。</strong> 三个原始 panel 完整保留，分别为 Vicuna-7B/13B/33B。横轴 γ 是一次 draft 的 token 数，纵轴是 tokens/s；灰虚线为各自 AR baseline。较长 draft 虽可能减少 target 轮数，却要串行运行小模型更多次，接受也会在首个 mismatch 截断。</p>
+<p>论文测试中较优配置包括 7B 对 Llama-68M 的 γ=4、13B 对 Llama-68M 的 γ=3、33B 对 TinyVicuna-1B 的 γ=3。draft 经过 compile，并非只选一个故意弱的 baseline。但这些是特定旧模型组合；相对于默认 target baseline 的优势不能证明 Medusa 永久优于所有独立 drafter。</p>
+<h2 id="appendix-e">Appendix E. More Model Results：看模型间差异，也检查 caption</h2>
+<figure class="original-figure" id="original-fig-8"><a aria-label="Zoom Figure 8" class="zoom-link" data-zoom="Original Figure 8" href="assets/figures/fig-08.png"><img alt="Figure 8 : Speedup of various models with Medusa -2. Medusa -2 shows significant speed improvement over all the models, while models trained with self-distillation (Zephyr-7B, Vicuna-13/33B) have weaker speedup due to the trade-off between preserving quality and boosting speed." decoding="async" loading="lazy" src="assets/figures/fig-08.png"/></a><figcaption><strong>Original Figure 8 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 8 : Speedup of various models with Medusa -2. Medusa -2 shows significant speed improvement over all the models, while models trained with self-distillation (Zephyr-7B, Vicuna-13/33B) have weaker speedup due to the trade-off between preserving quality and boosting speed.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 8 深读。</strong> 横向比较更多 Medusa-2 模型。不同 target 的 head 可预测性和训练约束带来不同 speedup。必须把柱形与 Table 1 的接受率、overhead 一起读，才能理解为何大模型并非必然获得更高加速比。</p>
+<p><strong>原文一致性提醒。</strong> Figure 8 caption 把 Vicuna-13B 也归到 self-distillation，但 §3.1 与 Appendix B.3 将 7B/13B 归为主数据两阶段训练；B.4 列 33B/Zephyr 为自蒸馏。本精读保留原 caption，按正文与配置分组分析，不将矛盾悄悄消掉。</p>
+<h2 id="appendix-f">Appendix F. AlpacaEval：速度换算到 TPOT</h2>
+<figure class="original-figure table-figure" id="original-table-4"><a aria-label="Zoom Table 4" class="zoom-link" data-zoom="Original Table 4" href="assets/tables/table-04.png"><img alt="Table 4 : Speedup results on AlpacaEval ( Li et al., 2023 ) dataset." decoding="async" loading="lazy" src="assets/tables/table-04.png"/></a><figcaption><strong>Original Table 4 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Table 4 : Speedup results on AlpacaEval ( Li et al., 2023 ) dataset.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<details class="transcription" open=""><summary>Table 4 · Full original values / 全表转录</summary><div aria-label="Original Table 4 full transcription" class="table-scroll" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle original-table" id="A6.T4.3">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt">Model</th>
+<th class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_tt">Base speed (tokens/s)</th>
+<th class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_smallcaps">Medusa</span> speed (tokens/s)</th>
+<th class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_tt">Acc. rate</th>
+<th class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_tt">Speedup</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">Vicuna-7b</th>
+<td class="ltx_td ltx_align_right ltx_border_t">37.07</td>
+<td class="ltx_td ltx_align_right ltx_border_t">106.76</td>
+<td class="ltx_td ltx_align_right ltx_border_t">3.23</td>
+<td class="ltx_td ltx_align_right ltx_border_t">2.88</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">Vicuna-13b</th>
+<td class="ltx_td ltx_align_right">29.01</td>
+<td class="ltx_td ltx_align_right">91.54</td>
+<td class="ltx_td ltx_align_right">3.28</td>
+<td class="ltx_td ltx_align_right">3.16</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">Vicuna-33b</th>
+<td class="ltx_td ltx_align_right">17.87</td>
+<td class="ltx_td ltx_align_right">40.43</td>
+<td class="ltx_td ltx_align_right">2.85</td>
+<td class="ltx_td ltx_align_right">2.26</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Zephyr-7b</th>
+<td class="ltx_td ltx_align_right ltx_border_bb">34.21</td>
+<td class="ltx_td ltx_align_right ltx_border_bb">99.50</td>
+<td class="ltx_td ltx_align_right ltx_border_bb">3.08</td>
+<td class="ltx_td ltx_align_right ltx_border_bb">2.91</td></tr>
+</tbody>
+</table></div></details>
+<p><strong>Table 4 深读。</strong> baseline→Medusa 的 tokens/s 为 37.07→106.76（7B）、29.01→91.54（13B）、17.87→40.43（33B）、34.21→99.50（Zephyr）。从原值重新算 speedup 是 2.880、3.155、2.262、2.909，表内分别舍入 2.88、3.16、2.26、2.91。</p>
+<div aria-label="Scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>模型</th>
+<th style="text-align: right;">吞吐绝对增加 token/s</th>
+<th style="text-align: right;">吞吐相对增加</th>
+<th style="text-align: right;">baseline TPOT → Medusa TPOT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vicuna-7B</td>
+<td style="text-align: right;">+69.69</td>
+<td style="text-align: right;">+188.0%</td>
+<td style="text-align: right;">26.98 → 9.37 ms/token</td>
+</tr>
+<tr>
+<td>Vicuna-13B</td>
+<td style="text-align: right;">+62.53</td>
+<td style="text-align: right;">+215.5%</td>
+<td style="text-align: right;">34.47 → 10.92 ms/token</td>
+</tr>
+<tr>
+<td>Vicuna-33B</td>
+<td style="text-align: right;">+22.56</td>
+<td style="text-align: right;">+126.2%</td>
+<td style="text-align: right;">55.96 → 24.73 ms/token</td>
+</tr>
+<tr>
+<td>Zephyr-7B</td>
+<td style="text-align: right;">+65.29</td>
+<td style="text-align: right;">+190.9%</td>
+<td style="text-align: right;">29.23 → 10.05 ms/token</td>
+</tr>
+</tbody>
+</table></div>
+<p>这些 TPOT 是 <code>1000/tokens_per_second</code> 的平均速度换算，<strong>不是本次实测逐 token 延迟分布</strong>；Medusa 一轮会成块提交，用户可见 token 间隔不是均匀的。Table 4 没有 AlpacaEval win rate 或任务准确率，不能说该表证明质量保持。论文用 AlpacaEval 校准树，又在该数据上报告速度；校准与评估的独立拆分披露不足，应关注分布适配与潜在重复。</p>
+<h2 id="appendix-g">Appendix G. Roofline：多算一些，是否能少花时间？</h2>
+<h3 id="detail-22">G.1 不同阶段的算子复杂度</h3>
+<figure class="original-figure table-figure" id="original-table-5"><a aria-label="Zoom Table 5" class="zoom-link" data-zoom="Original Table 5" href="assets/tables/table-05.png"><img alt="Table 5 : Computational and space complexity of the main operators in different phases. The table is based on Table 2 in the report ( Chen, 2023 ) ." decoding="async" loading="lazy" src="assets/tables/table-05.png"/></a><figcaption><strong>Original Table 5 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Table 5 : Computational and space complexity of the main operators in different phases. The table is based on Table 2 in the report ( Chen, 2023 ) .</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<details class="transcription" open=""><summary>Table 5 · Full original values / 全表转录</summary><div aria-label="Original Table 5 full transcription" class="table-scroll" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle original-table" id="A7.T5.6">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_tt"><span class="ltx_text ltx_font_bold">Operator</span></th>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Input Shape</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Output Shape</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Comp. Complexity</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Space Complexity</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text ltx_font_bold">Prefill</span></th>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>Q</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>K</mi></msub></mrow></semantics></math>, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>V</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mn>2</mn><mo>​</mo><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>h</mi></mrow><mo>+</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>Q</mi><mo>​</mo><msup><mi>K</mi><mi>T</mi></msup></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>s</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><msup><mi>s</mi><mn>2</mn></msup><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mn>2</mn><mo>​</mo><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>+</mo><mrow><mi>b</mi><mo>​</mo><msup><mi>s</mi><mn>2</mn></msup><mo>​</mo><mi>n</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>P</mi><mo>​</mo><mi>V</mi></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>s</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>u</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>g</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>h</mi><mo>​</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mrow><mo>(</mo><mrow><mi>h</mi><mo>+</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mi>h</mi><mo>​</mo><mi>i</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>d</mi></msub></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text ltx_font_bold">Decoding</span></th>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>Q</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>K</mi></msub></mrow></semantics></math>, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>V</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mn>2</mn><mo>​</mo><mi>b</mi><mo>​</mo><mi>h</mi></mrow><mo>+</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>Q</mi><mo>​</mo><msup><mi>K</mi><mi>T</mi></msup></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>d</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mn>1</mn><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>n</mi></mrow><mo>+</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>+</mo><mrow><mi>b</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>P</mi><mo>​</mo><mi>V</mi></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mn>1</mn><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>d</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>u</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>g</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>h</mi><mo>​</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>h</mi><mo>+</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mi>h</mi><mo>​</mo><mi>i</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>d</mi></msub></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mn>1</mn><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text ltx_font_bold">Parallel decoding</span></th>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>Q</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>K</mi></msub></mrow></semantics></math>, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>V</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>q</mi><mo>​</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mn>2</mn><mo>​</mo><mi>b</mi><mo>​</mo><mi>q</mi><mo>​</mo><mi>h</mi></mrow><mo>+</mo><msup><mi>h</mi><mn>2</mn></msup></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>Q</mi><mo>​</mo><msup><mi>K</mi><mi>T</mi></msup></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>q</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>q</mi><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>​</mo><mi>s</mi><mo>​</mo><mi>q</mi><mo>​</mo><mi>n</mi></mrow><mo>+</mo><mrow><mrow><mi>b</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>s</mi><mo>+</mo><mi>q</mi></mrow><mo>)</mo></mrow></mrow><mo>​</mo><mi>n</mi><mo>​</mo><mi>d</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><math class="ltx_Math" display="inline"><semantics><mrow><mi>P</mi><mo>​</mo><mi>V</mi></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>q</mi><mo>)</mo></mrow><mo>,</mo><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>d</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>u</mi></msub></mrow></semantics></math><span class="ltx_text">, <math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>g</mi></msub></mrow></semantics></math></span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mi>b</mi><mo>​</mo><mi>q</mi><mo>​</mo><mi>h</mi><mo>​</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math class="ltx_Math" display="inline"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo>(</mo><mrow><mrow><mi>b</mi><mo>​</mo><mi>q</mi><mo>​</mo><mrow><mo>(</mo><mrow><mi>h</mi><mo>+</mo><mi>i</mi></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mi>h</mi><mo>​</mo><mi>i</mi></mrow></mrow><mo>)</mo></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"><math class="ltx_Math" display="inline"><semantics><mrow><mi>X</mi><mo>​</mo><msub><mi>W</mi><mi>d</mi></msub></mrow></semantics></math></th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>i</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><math class="ltx_Math" display="inline"><semantics><mrow><mo>(</mo><mi>b</mi><mo>,</mo><mi>q</mi><mo>,</mo><mi>h</mi><mo>)</mo></mrow></semantics></math></td>
+<td class="ltx_td ltx_border_bb"></td>
+<td class="ltx_td ltx_border_bb"></td></tr>
+</tbody>
+</table></div></details>
+<p><strong>Table 5 深读。</strong> 原表将 prefill、单 token decode 和 parallel decode 分开。q 从 1 增大，投影和 MLP 的 FLOPs 随 q 增大，而权重加载可在这些位置间复用；attention 对每个新 query 仍要读历史 KV，因此不同算子随 q、B、S 的变化不同。</p>
+<p><strong>原表 shape 校正。</strong> parallel decoding 中 QKᵀ 的 output 被写为 [b,n,s,q]，随后 PV 的输入也出现方向不匹配。为避免 q≠s 时照抄出错，保留原表并给出下面一致的工程记号：</p>
+<div aria-label="Scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>算子</th>
+<th>输入 → 输出</th>
+<th>FLOPs 主项</th>
+<th>主要存储 / IO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>QKV 投影（MHA 示意）</td>
+<td>[B,q,d] × [d,d] → [B,q,d]</td>
+<td>O(Bqd²)</td>
+<td>权重 O(d²)，激活 O(Bqd)</td>
+</tr>
+<tr>
+<td>QKᵀ</td>
+<td>[B,H,q,D_h] × [B,H,D_h,S+q] → [B,H,q,S+q]</td>
+<td>O(BHq(S+q)D_h)</td>
+<td>KV O(BH(S+q)D_h)</td>
+</tr>
+<tr>
+<td>PV</td>
+<td>[B,H,q,S+q] × [B,H,S+q,D_h] → [B,H,q,D_h]</td>
+<td>O(BHq(S+q)D_h)</td>
+<td>若显式写 score，多 O(BHq(S+q))</td>
+</tr>
+<tr>
+<td>MLP up/gate/down</td>
+<td>[B,q,d] → [B,q,i] → [B,q,d]</td>
+<td>O(Bqdi)</td>
+<td>权重 O(di)，中间激活 O(Bqi)</td>
+</tr>
+</tbody>
+</table></div>
+<p>这里 H 为 MHA head 数；GQA 使用 H_q 与 H_kv 区分。树 mask 的零不能自动省掉 dense QK 的所有相应 FLOPs。Fused attention 可避免完整 score 写回，但需支持正确 mask。复杂度是主项，没有隐含包含 host 调度、sampling 与 KV copy。</p>
+<h3 id="detail-23">G.2 九张 Roofline 原图：按 GPU 和规模逐张读取</h3>
+<p>横轴 operational intensity（FLOP/byte），纵轴 FLOP/s，均为对数轴。斜线是 bandwidth roof，水平线是 compute roof。点接近哪条线，说明相应测量条件下受到哪种资源约束；离 roof 很远也可能有 kernel、launch、小矩阵利用率等原因，不能一概断言只缺带宽。<code>ar</code> 是 decode，<code>init</code> 是 prefill；qkv 与 up/gate/down 属于线性层，qk/pv 是 attention 两个矩阵乘。</p>
+<figure class="original-figure" id="original-fig-9"><a aria-label="Zoom Figure 9" class="zoom-link" data-zoom="Original Figure 9" href="assets/figures/fig-09.png"><img alt="Figure 9 : The figure shows the relationship between FLOP/s and Operational Intensity for all benchmarked datapoints of Llama-7B operators on A100-80GB-PCIe. The dashed lines represent the HBM bandwidth limit (1,935GB/s) and the peak performance limit (312 TFLOP/s) ( NVIDIA, ) . ‘ qkv mlp ’ stands for the linear layers projecting hidden features to query/key/value features. ‘ up/gate/down ’ stands for the linear layers following the attention block. ‘ qk/pv ’ stands for the two steps of attention matrix multiplications. ‘ ar ’ stands for the decoding (autoregressive) and ‘ init ’ stands for the prefill phase." decoding="async" loading="lazy" src="assets/figures/fig-09.png"/></a><figcaption><strong>Original Figure 9 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 9 : The figure shows the relationship between FLOP/s and Operational Intensity for all benchmarked datapoints of Llama-7B operators on A100-80GB-PCIe. The dashed lines represent the HBM bandwidth limit (1,935GB/s) and the peak performance limit (312 TFLOP/s) ( NVIDIA, ) . ‘ qkv mlp ’ stands for the linear layers projecting hidden features to query/key/value features. ‘ up/gate/down ’ stands for the linear layers following the attention block. ‘ qk/pv ’ stands for the two steps of attention matrix multiplications. ‘ ar ’ stands for the decoding (autoregressive) and ‘ init ’ stands for the prefill phase.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 9（7B / A100）深读。</strong> 对照相同 operator 的 ar/init 点：单 token 投影与 MLP 位于低算术强度区域，prefill 的多位置矩阵提高复用并更接近计算区。原 caption 的 1,935 GB/s 与 312 TFLOP/s 是图中引用的 roof 标签；不应把它们直接当作本地设备或所有 A100 PCIe 的实测规格。</p>
+<figure class="original-figure" id="original-fig-10"><a aria-label="Zoom Figure 10" class="zoom-link" data-zoom="Original Figure 10" href="assets/figures/fig-10.png"><img alt="Figure 10 : Llama-13B operators on A100-80GB-PCIe." decoding="async" loading="lazy" src="assets/figures/fig-10.png"/></a><figcaption><strong>Original Figure 10 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 10 : Llama-13B operators on A100-80GB-PCIe.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 10（13B / A100）深读。</strong> 同一硬件换更大模型，用点云的尺度和位置看“模型参数更多”与“算术强度更高”是否等价。decode 仍有低强度线性层，增加模型规模不能替代把 q 从 1 提高来复用权重；attention 随历史 KV 长度变动，又与投影不同。</p>
+<figure class="original-figure" id="original-fig-11"><a aria-label="Zoom Figure 11" class="zoom-link" data-zoom="Original Figure 11" href="assets/figures/fig-11.png"><img alt="Figure 11 : Llama-33B operators on A100-80GB-PCIe." decoding="async" loading="lazy" src="assets/figures/fig-11.png"/></a><figcaption><strong>Original Figure 11 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 11 : Llama-33B operators on A100-80GB-PCIe.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 11（33B / A100）深读。</strong> 更大模型的权重字节可使单请求 decode 明显受 memory 影响；prefill 位置较多时，线性层已有高强度。此图支持寻找 decode 余量，不是 Medusa 端到端速度测试。它也提醒：head 附加参数和完整词表投影会加入权重读写。</p>
+<figure class="original-figure" id="original-fig-12"><a aria-label="Zoom Figure 12" class="zoom-link" data-zoom="Original Figure 12" href="assets/figures/fig-12.png"><img alt="Figure 12 : Llama-7B operators on A40." decoding="async" loading="lazy" src="assets/figures/fig-12.png"/></a><figcaption><strong>Original Figure 12 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 12 : Llama-7B operators on A40.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 12（7B / A40）深读。</strong> 换 GPU 后 bandwidth/compute roof 的交点改变；同一 intensity 下能达到的绝对 FLOP/s 不同。不能把 A100 的 q=64 预算和 speedup 直接移到 A40。应比较相同 operator 点相对本图 roof 的距离。</p>
+<figure class="original-figure" id="original-fig-13"><a aria-label="Zoom Figure 13" class="zoom-link" data-zoom="Original Figure 13" href="assets/figures/fig-13.png"><img alt="Figure 13 : Llama-13B operators on A40." decoding="async" loading="lazy" src="assets/figures/fig-13.png"/></a><figcaption><strong>Original Figure 13 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 13 : Llama-13B operators on A40.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 13（13B / A40）深读。</strong> 横向对比 Figure 10 的同规模模型，再纵向对比 Figure 12 的同硬件较小模型，区分硬件效应与模型效应。多候选投影的价值来自更多有效行复用权重，而 qk/pv 的历史 KV 不会因此消失。</p>
+<figure class="original-figure" id="original-fig-14"><a aria-label="Zoom Figure 14" class="zoom-link" data-zoom="Original Figure 14" href="assets/figures/fig-14.png"><img alt="Figure 14 : Llama-33B operators on A40." decoding="async" loading="lazy" src="assets/figures/fig-14.png"/></a><figcaption><strong>Original Figure 14 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 14 : Llama-33B operators on A40.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 14（33B / A40）深读。</strong> 大模型在较低硬件 roof 下可更早遇到容量/算力/带宽边界。点云只能证明 benchmarked operator 条件；未加入训练 heads、接受器与 KV 重排，也没有生成质量维度，不能将 roofline 图当作全部 inference pipeline 的性能画像。</p>
+<figure class="original-figure" id="original-fig-15"><a aria-label="Zoom Figure 15" class="zoom-link" data-zoom="Original Figure 15" href="assets/figures/fig-15.png"><img alt="Figure 15 : Llama-7B operators on A6000." decoding="async" loading="lazy" src="assets/figures/fig-15.png"/></a><figcaption><strong>Original Figure 15 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 15 : Llama-7B operators on A6000.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 15（7B / A6000）深读。</strong> 同样观察 ar/init 分离与线性层、attention 的不同族群。A6000 的 roof 与 A40/A100 不同，说明“GPU 闲置算力可利用”需要针对设备核验。一般原理可以迁移，具体最佳树和收益不能直接迁移。</p>
+<figure class="original-figure" id="original-fig-16"><a aria-label="Zoom Figure 16" class="zoom-link" data-zoom="Original Figure 16" href="assets/figures/fig-16.png"><img alt="Figure 16 : Llama-13B operators on A6000." decoding="async" loading="lazy" src="assets/figures/fig-16.png"/></a><figcaption><strong>Original Figure 16 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 16 : Llama-13B operators on A6000.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 16（13B / A6000）深读。</strong> 对照 Figure 13 同规模/不同设备，避免只按显卡名字排序。低 intensity 点在斜 roof 下，高 intensity 点受水平 roof 限制；有效吞吐还要除去被拒候选的计算，FLOP/s 高并不保证 token/s 高。</p>
+<figure class="original-figure" id="original-fig-17"><a aria-label="Zoom Figure 17" class="zoom-link" data-zoom="Original Figure 17" href="assets/figures/fig-17.png"><img alt="Figure 17 : Llama-33B operators on A6000." decoding="async" loading="lazy" src="assets/figures/fig-17.png"/></a><figcaption><strong>Original Figure 17 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 17 : Llama-33B operators on A6000.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 17（33B / A6000）深读。</strong> 九图的共同结论是：单 token decode 与多 token prefill 有不同复用机会，不同算子也有不同瓶颈。共同形态支持 Medusa 的系统动机；它们没有证明每一种 batch、context、dtype 或新硬件都 memory-bound。</p>
+<h3 id="detail-24">G.3 增加 q：矩阵效率提高，工作量也提高</h3>
+<figure class="original-figure" id="original-fig-18"><a aria-label="Zoom Figure 18" class="zoom-link" data-zoom="Original Figure 18" href="assets/figures/fig-18.png"><img alt="Figure 18 : FLOP/s vs. Operational Intensity of attention matrix multiplication with batch size 16." decoding="async" loading="lazy" src="assets/figures/fig-18.png"/></a><figcaption><strong>Original Figure 18 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 18 : FLOP/s vs. Operational Intensity of attention matrix multiplication with batch size 16.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 18 深读。</strong> Llama-33B、A100、B=16，改变 history sequence length 和候选数。q 增大让 attention 的 FLOP/s 与 intensity 上升，但增加了查询行数；S 越长，KV 工作越重。用 Table 6 的原始数值可以更精确拆解。</p>
+<figure class="original-figure table-figure" id="original-table-6"><a aria-label="Zoom Table 6" class="zoom-link" data-zoom="Original Table 6" href="assets/tables/table-06.png"><img alt="Table 6 : TFLOP/s &amp; Operational Intensity of attention matrix multiplication with batch size 16 for Llama 33B on an A100 80GB PCIe." decoding="async" loading="lazy" src="assets/tables/table-06.png"/></a><figcaption><strong>Original Table 6 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Table 6 : TFLOP/s &amp; Operational Intensity of attention matrix multiplication with batch size 16 for Llama 33B on an A100 80GB PCIe.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<details class="transcription" open=""><summary>Table 6 · Full original values / 全表转录</summary><div aria-label="Original Table 6 full transcription" class="table-scroll" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle original-table" id="A7.T6.3">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt"><span class="ltx_text">Seq. Length</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="8"><span class="ltx_text">Number of Candidate Tokens</span></th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_t"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">1</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">16</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">32</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">48</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">64</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">80</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">96</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">112</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text">128</span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.54 &amp; 0.98</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">7.87 &amp; 12.8</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">14.73 &amp; 21.33</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">19.78 &amp; 27.43</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">25.25 &amp; 32.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">28.63 &amp; 35.56</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">32.58 &amp; 38.4</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">36.57 &amp; 40.73</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">256</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.75 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">11.2 &amp; 13.47</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">21.29 &amp; 23.27</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">28.69 &amp; 30.72</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">36.59 &amp; 36.57</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">41.2 &amp; 41.29</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">45.99 &amp; 45.18</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">52.33 &amp; 48.43</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">512</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">1.02 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">14.69 &amp; 13.84</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">27.47 &amp; 24.38</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">37.35 &amp; 32.68</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">47.09 &amp; 39.38</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">52.24 &amp; 44.91</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">59.55 &amp; 49.55</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">66.35 &amp; 53.49</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">1024</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">1.24 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">17.42 &amp; 14.03</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">32.15 &amp; 24.98</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">43.89 &amp; 33.76</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">54.8 &amp; 40.96</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">60.19 &amp; 46.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">68.28 &amp; 52.07</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">75.45 &amp; 56.44</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">2048</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">1.39 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">19.03 &amp; 14.12</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">35.05 &amp; 25.28</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">48.03 &amp; 34.32</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">59.66 &amp; 41.8</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">63.91 &amp; 48.08</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">72.83 &amp; 53.43</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">80.05 &amp; 58.04</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">4096</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">1.48 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">19.8 &amp; 14.17</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">36.59 &amp; 25.44</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">50.4 &amp; 34.61</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">62.29 &amp; 42.23</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">65.84 &amp; 48.65</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">74.86 &amp; 54.13</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">82.06 &amp; 58.87</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"><span class="ltx_text">8192</span></th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">1.53 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">20.08 &amp; 14.2</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">36.89 &amp; 25.52</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">50.44 &amp; 34.76</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">62.11 &amp; 42.45</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">67.5 &amp; 48.94</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">76.97 &amp; 54.49</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">84.5 &amp; 59.3</span></td></tr>
+</tbody>
+</table></div></details>
+<p><strong>Table 6 深读。</strong> 每格为 <strong>TFLOP/s &amp; FLOP/byte</strong>，不是 latency。B 固定 16，S 有 128–8192 七行，q 有 1、16、32、48、64、80、96、112 八列。S=1024、q=1 为 1.24 &amp; 0.99，q=64 为 54.8 &amp; 40.96，即计算吞吐 44.19×、强度 41.37×。</p>
+<p>若按固定 S 的同类 attention 矩阵工作量近似 q 倍，单次算子时间比例是 <code>64 / 44.19 ≈ 1.45</code>，即一次 64 行验证仍比一次 1 行慢约 45%；它只是远低于逐行做 64 次的时间。这解释了为何不能写“latency 降低 44×”。最终 token/s 还取决于接受几行及其他算子时间。</p>
+<figure class="original-figure" id="original-fig-19"><a aria-label="Zoom Figure 19" class="zoom-link" data-zoom="Original Figure 19" href="assets/figures/fig-19.png"><img alt="Figure 19 : FLOP/s vs. Operational Intensity of attention matrix multiplication with sequence length 1024." decoding="async" loading="lazy" src="assets/figures/fig-19.png"/></a><figcaption><strong>Original Figure 19 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 19 : FLOP/s vs. Operational Intensity of attention matrix multiplication with sequence length 1024.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 19 深读。</strong> 固定 S=1024，改变 batch 和 q。attention 的单 token operational intensity 不因 B 成比例提高：不同请求的 KV 不能共享成同一历史。B 和 q 都可能提升执行效率，但只有同一路径的候选能共享该请求的 KV 读入；仍受缓存、工作空间与 kernel 结构制约。</p>
+<figure class="original-figure table-figure" id="original-table-7"><a aria-label="Zoom Table 7" class="zoom-link" data-zoom="Original Table 7" href="assets/tables/table-07.png"><img alt="Table 7 : TFLOP/s &amp; Operational Intensity of attention matrix multiplication with sequence length 1024 for Llama 33B on an A100 80GB PCIe." decoding="async" loading="lazy" src="assets/tables/table-07.png"/></a><figcaption><strong>Original Table 7 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Table 7 : TFLOP/s &amp; Operational Intensity of attention matrix multiplication with sequence length 1024 for Llama 33B on an A100 80GB PCIe.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<details class="transcription" open=""><summary>Table 7 · Full original values / 全表转录</summary><div aria-label="Original Table 7 full transcription" class="table-scroll" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle original-table" id="A7.T7.3">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt"><span class="ltx_text">Batch Size</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="8"><span class="ltx_text">Number of Candidate Tokens</span></th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_t"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">1</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">16</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">32</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">48</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">64</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">80</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">96</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">112</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text">1</span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.37 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">5.22 &amp; 14.03</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">10.15 &amp; 24.98</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">15.02 &amp; 33.76</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">19.79 &amp; 40.96</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">21.52 &amp; 46.97</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">25.65 &amp; 52.07</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">29.4 &amp; 56.44</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">2</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.54 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">8.25 &amp; 14.03</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">16.0 &amp; 24.98</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">21.62 &amp; 33.76</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">28.24 &amp; 40.96</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">31.84 &amp; 46.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">37.49 &amp; 52.07</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">43.04 &amp; 56.44</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">4</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.75 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">11.41 &amp; 14.03</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">21.97 &amp; 24.98</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">30.02 &amp; 33.76</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">38.71 &amp; 40.96</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">43.41 &amp; 46.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">50.06 &amp; 52.07</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">56.77 &amp; 56.44</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">8</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">1.02 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">14.78 &amp; 14.03</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">27.78 &amp; 24.98</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">38.09 &amp; 33.76</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">47.99 &amp; 40.96</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">53.32 &amp; 46.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">61.0 &amp; 52.07</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">68.11 &amp; 56.44</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">16</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">1.24 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">17.42 &amp; 14.03</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">32.15 &amp; 24.98</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">43.89 &amp; 33.76</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">54.8 &amp; 40.96</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">60.19 &amp; 46.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">68.28 &amp; 52.07</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">75.45 &amp; 56.44</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">32</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">1.39 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">18.89 &amp; 14.03</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">34.67 &amp; 24.98</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">47.57 &amp; 33.76</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">58.89 &amp; 40.96</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">63.61 &amp; 46.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">72.17 &amp; 52.07</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">79.21 &amp; 56.44</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"><span class="ltx_text">64</span></th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">1.48 &amp; 0.99</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">19.58 &amp; 14.03</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">35.87 &amp; 24.98</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">49.45 &amp; 33.76</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">61.13 &amp; 40.96</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">64.84 &amp; 46.97</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">73.73 &amp; 52.07</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">81.02 &amp; 56.44</span></td></tr>
+</tbody>
+</table></div></details>
+<p><strong>Table 7 深读。</strong> q=1 时 B 从 1 到 64，attention TFLOP/s 从 0.37 到 1.48，而 intensity 保持 0.99；这是“更多 batch 提高利用率，却不自动增加单请求 KV 复用”的直接数值证据。q=64 时同样从 19.79 到 61.13 TFLOP/s；并不是 q 和 B 带来的收益能够无限相乘。</p>
+<figure class="original-figure" id="original-fig-20"><a aria-label="Zoom Figure 20" class="zoom-link" data-zoom="Original Figure 20" href="assets/figures/fig-20.png"><img alt="Figure 20 : FLOP/s vs. Operational Intensity of Linear layers." decoding="async" loading="lazy" src="assets/figures/fig-20.png"/></a><figcaption><strong>Original Figure 20 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 20 : FLOP/s vs. Operational Intensity of Linear layers.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 20 深读。</strong> linear up/gate/down 的点随有效行数 Bq 提高，权重矩阵的重复读取可被摊薄；进入 compute roof 后继续加行数主要增加时间。这是 Medusa 在小 batch 有利、在较大 batch 收益趋弱的系统依据。</p>
+<figure class="original-figure table-figure" id="original-table-8"><a aria-label="Zoom Table 8" class="zoom-link" data-zoom="Original Table 8" href="assets/tables/table-08.png"><img alt="Table 8 : TFLOP/s &amp; Operational Intensity of linear layers (up/gate/down) for Llama 33B on an A100 80GB PCIe." decoding="async" loading="lazy" src="assets/tables/table-08.png"/></a><figcaption><strong>Original Table 8 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Table 8 : TFLOP/s &amp; Operational Intensity of linear layers (up/gate/down) for Llama 33B on an A100 80GB PCIe.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<details class="transcription" open=""><summary>Table 8 · Full original values / 全表转录</summary><div aria-label="Original Table 8 full transcription" class="table-scroll" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle original-table" id="A7.T8.3">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt"><span class="ltx_text">Batch Size</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="8"><span class="ltx_text">Number of Candidate Tokens</span></th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_t"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">1</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">16</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">32</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">48</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">64</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">80</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">96</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">112</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text">1</span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">1.26 &amp; 1.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">19.95 &amp; 15.95</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">39.69 &amp; 31.79</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">58.4 &amp; 47.53</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">76.57 &amp; 63.17</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">94.4 &amp; 78.7</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">111.91 &amp; 94.14</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">128.64 &amp; 109.47</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">2</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">2.51 &amp; 2.0</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">39.66 &amp; 31.79</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">76.53 &amp; 63.17</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">112.05 &amp; 94.14</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">145.73 &amp; 124.71</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">130.67 &amp; 154.89</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">129.1 &amp; 184.69</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">148.56 &amp; 214.12</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">4</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">5.03 &amp; 4.0</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">76.44 &amp; 63.17</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">145.8 &amp; 124.71</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">128.85 &amp; 184.69</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">167.85 &amp; 243.17</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">201.19 &amp; 300.21</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">236.93 &amp; 355.85</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">195.91 &amp; 410.14</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">8</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">10.06 &amp; 7.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">145.72 &amp; 124.71</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">168.26 &amp; 243.17</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">236.83 &amp; 355.85</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">221.11 &amp; 463.14</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">207.79 &amp; 565.44</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">236.95 &amp; 663.07</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">227.8 &amp; 756.36</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">16</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">19.96 &amp; 15.95</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">168.35 &amp; 243.17</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">221.41 &amp; 463.14</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">237.5 &amp; 663.07</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">224.71 &amp; 845.59</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">232.49 &amp; 1012.87</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">241.12 &amp; 1166.74</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">229.25 &amp; 1308.76</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">32</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">39.69 &amp; 31.79</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">221.74 &amp; 463.14</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">224.88 &amp; 845.59</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">241.33 &amp; 1166.74</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">239.02 &amp; 1440.25</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">245.83 &amp; 1675.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">243.55 &amp; 1881.24</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">240.33 &amp; 2061.59</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"><span class="ltx_text">64</span></th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">76.57 &amp; 63.17</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">225.19 &amp; 845.59</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">239.2 &amp; 1440.25</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">243.26 &amp; 1881.24</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">246.16 &amp; 2221.31</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">246.91 &amp; 2491.55</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">244.52 &amp; 2711.46</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">246.14 &amp; 2893.91</span></td></tr>
+</tbody>
+</table></div></details>
+<p><strong>Table 8 深读。</strong> MLP 在 B=1、q=1 为 1.26 &amp; 1.0；B=1、q=64 为 76.57 &amp; 63.17；B=64、q=64 为 246.16 &amp; 2221.31。线性层 intensity 随 Bq 大幅上升，但 TFLOP/s 后段接近平台，不能继续按低 batch 的倍率外推。所有 56 格完整保留，没有只选择最佳格。</p>
+<section aria-labelledby="cost-heading" class="mechanism" id="cost-explorer">
+<p class="reading-meta">AGENT-CREATED VISUALIZATION · ORIGINAL TABLES 6–8 DATA</p>
+<h3 id="cost-heading">查询原始 per-op 数据，拆开 FLOP/s 与时间</h3>
+<p>选择原表、固定行和 q。读数直接来自原论文；只在原表离散测量点间选择，不做插值。</p>
+<div class="controls"><label>Original table<select id="cost-table"><option value="6">Table 6 · attention / B=16 / vary S</option><option value="7">Table 7 · attention / S=1024 / vary B</option><option value="8">Table 8 · MLP / vary B</option></select></label><label id="cost-row-label">Fixed row<select id="cost-row"><option selected="" value="1024">S=1024</option></select></label><label>Candidate count q<select id="cost-q"><option>1</option><option>16</option><option>32</option><option>48</option><option selected="">64</option><option>80</option><option>96</option><option>112</option></select></label></div>
+<div aria-live="polite" class="readout" id="cost-readout" role="status">Table 6 · S=1024 · q=64: 54.8 TFLOP/s · 40.96 FLOP/byte · versus q=1: 44.19× FLOP/s · approximate cycle time 1.45×.</div>
+<div class="cost-compare" id="cost-compare"><p>More compute throughput does not mean a faster iteration; useful throughput also depends on accepted tokens.</p></div>
+<p class="hint">固定同一行，按矩阵主工作量约 ∝q，推导 time(q)/time(1)≈q/(FLOP/s ratio)。这是所测算子的主项比例；不是完整模型 latency，也不包含 heads、sampling、KV copy 或同步。</p>
+<noscript><p>Static fallback：Table 6 S=1024，q=1 为 1.24 TFLOP/s、0.99 FLOP/byte；q=64 为 54.8、40.96。吞吐提高 44.19×，工作量约 64×，所以单轮算子时间约 1.45×。</p></noscript>
+</section>
+<p>该交互读取 Tables 6–8 全部 168 个原始数值对；只做格值查询与比例推导，没有插值，也没有伪造新硬件 benchmark。固定同一行时按矩阵主项推导 time ratio，并提示它不是全模型 latency。</p>
+<h3 id="detail-26">G.3 模拟端到端趋势：有解释力，不能当真实服务</h3>
+<figure class="original-figure" id="original-fig-21"><a aria-label="Zoom Figure 21" class="zoom-link" data-zoom="Original Figure 21" href="assets/figures/fig-21.png"><img alt="Figure 21 : Simulated acceleration rate, speedup, and normalized latency ablation using different numbers of candidate tokens under the setting of batch size 1 and sequence length 1024 for Llama-7B on an A100 80GB PCIe." decoding="async" loading="lazy" src="assets/figures/fig-21.png"/></a><figcaption><strong>Original Figure 21 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 21 : Simulated acceleration rate, speedup, and normalized latency ablation using different numbers of candidate tokens under the setting of batch size 1 and sequence length 1024 for Llama-7B on an A100 80GB PCIe.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 21 深读。</strong> Llama-7B、A100、B=1、S=1024 的一层 block 简化模拟。横轴候选数，曲线分别是模拟 acc. rate、speedup 和归一化 latency；约 64 附近出现较好折中。acc. rate 增长但每轮成本也增长，最优点在两者比值，不在最大候选数。</p>
+<p>模拟使用约 <code>0.477·log(q)</code> 的经验接受量近似，其在 q=1 给出 0，而真实普通 decode 至少生成根 token；这是拟合/定义范围问题，不能机械外推到边界。模型没有完整刻画 heads、词表输出、KV gather/copy、接受器、host 同步、通信和服务调度。</p>
+<figure class="original-figure" id="original-fig-22"><a aria-label="Zoom Figure 22" class="zoom-link" data-zoom="Original Figure 22" href="assets/figures/fig-22.png"><img alt="Figure 22 : Simulated speedup with sequence length 1024 for Llama-7B." decoding="async" loading="lazy" src="assets/figures/fig-22.png"/></a><figcaption><strong>Original Figure 22 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 22 : Simulated speedup with sequence length 1024 for Llama-7B.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 22 深读。</strong> 固定 S=1024，模拟不同 B。batch 更大时投影/MLP 原本就更能复用权重，额外候选的“空闲算力窗口”变小；图示 B&gt;32 时可能失去收益。这个阈值属于给定简化模型，不能当成线上 continuous batching 的普适禁用规则。</p>
+<figure class="original-figure" id="original-fig-23"><a aria-label="Zoom Figure 23" class="zoom-link" data-zoom="Original Figure 23" href="assets/figures/fig-23.png"><img alt="Figure 23 : Simulated speedup with batch size 4 for Llama-7B." decoding="async" loading="lazy" src="assets/figures/fig-23.png"/></a><figcaption><strong>Original Figure 23 · 2401.10774v3</strong> · Click to zoom<details><summary>Original caption / source</summary><p>Figure 23 : Simulated speedup with batch size 4 for Llama-7B.</p><a href="sources/2401.10774v3.pdf">Source paper PDF</a></details></figcaption></figure>
+<p><strong>Figure 23 深读。</strong> 固定 B=4，比较不同 S。更长上下文增加 attention 与 KV 成本，多候选要多次读大量历史，收益下降。真实服务还会受到 prefix sharing、KV precision、paging、长短请求混合和调度影响，因此应把它当趋势假设，设计进一步测量。</p>
+<h2 id="audit">Experiment Audit：支持了什么，还缺什么</h2>
+<div aria-label="Scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>审计项</th>
+<th>已有证据</th>
+<th>结论边界 / 建议补测</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>速度</td>
+<td>MT-Bench、AlpacaEval wall-time/tokens/s；多个旧模型</td>
+<td>相对默认实现，未给今日强优化引擎统一对比</td>
+</tr>
+<tr>
+<td>质量</td>
+<td>GPT-4 judge，主模型相对均分接近</td>
+<td>没有统计区间；13B −0.14 分不能隐去；不等价于分布相同</td>
+</tr>
+<tr>
+<td>训练</td>
+<td>M1/M2、两阶段与 self-distill recipe</td>
+<td>warmup 文字/符号不一致；详细训练 token/成本未完全齐全</td>
+</tr>
+<tr>
+<td>树</td>
+<td>dense/sparse 对比；校准 rank accuracy</td>
+<td>独立近似；校准域与线上分布变化；校准/评估拆分不足</td>
+</tr>
+<tr>
+<td>采样</td>
+<td>T=0.7 的写作/角色扮演曲线</td>
+<td>多温度、多任务、长回答、可靠性与分布偏差待补</td>
+</tr>
+<tr>
+<td>算子</td>
+<td>三种 GPU roofline、Tables 6–8</td>
+<td>是 per-op 数据；不含完整 speculative pipeline</td>
+</tr>
+<tr>
+<td>服务</td>
+<td>小 batch 动机与简化 batch 模拟</td>
+<td>continuous batching、p99、SLA、吞吐/延迟折中未充分验证</td>
+</tr>
+<tr>
+<td>端侧</td>
+<td>无 NPU/HTP 性能与功耗实测</td>
+<td>不能从 GPU GEMM 利用率外推端侧动态树收益</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>最值得补的公平对照。</strong> 固定同一 target checkpoint、dtype、prompt/输出长度、temperature、GPU 和引擎版本；分别跑 AR、严格验证 M1、typical M1、严格验证 M2、typical M2。报告每轮候选 q、接受 ℓ 分布、per-op 时间、KV peak、TTFT、平均/尾部 TPOT、整体 tokens/s 和任务质量。这样才能把“模型改变”“规则改变”“runtime 改善”三个来源拆开。</p>
+<p>质量至少分任务测：coding 的 pass@1、math 的 exact match、writing/roleplay 的偏好或 judge 分布；必要时统计失败类型。对确定分类任务才使用 TP/FP/TN/FN 及 Precision/Recall/F1，避免用不适配指标遮蔽真实质量变化。</p>
+<h2 id="evolution">Related Work &amp; Technology Evolution：2018—2026</h2>
+<p>下表的速度均为各来源自报上限或范围，<strong>不形成跨条件排名</strong>。年份取最早公开时间；正文保持 Medusa 2024 年历史语境，后续工作另列。</p>
+<div aria-label="Scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>路线 / 来源</th>
+<th>时间</th>
+<th>核心变化</th>
+<th>优点</th>
+<th>限制 / 与 Medusa 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Blockwise Parallel Decoding [2]</td>
+<td>2018-11</td>
+<td>多未来头 + scoring model 最长前缀</td>
+<td>奠定并行预测再回退思想</td>
+<td>MT/图像设置；Medusa 明确继承这一骨架</td>
+</tr>
+<tr>
+<td>Exact Speculative Sampling [3]</td>
+<td>2022-11 / ICML 2023</td>
+<td>独立 drafter + rejection/residual</td>
+<td>保持固定 target 采样分布</td>
+<td>两模型和 draft 串行成本；接受保证需正确实现</td>
+</tr>
+<tr>
+<td>Medusa [1]</td>
+<td>2024-01</td>
+<td>独立未来 heads、固定树、M1/M2</td>
+<td>复用 target hidden，结构浅</td>
+<td>缺少草稿依赖；typical 不无损；需训练</td>
+</tr>
+<tr>
+<td>EAGLE [4]</td>
+<td>2024-01</td>
+<td>feature-level 自回归并引入移位 token 条件</td>
+<td>建模 token 依赖；论文报告 2.7–3.5×</td>
+<td>draft 仍有多步依赖；不能直接对比旧 Medusa baseline</td>
+</tr>
+<tr>
+<td>Hydra [5]</td>
+<td>2024-02</td>
+<td>sequentially dependent heads</td>
+<td>针对 Medusa 头间独立性；报告最高 1.31× Medusa</td>
+<td>增加依赖计算；结果属其测试条件</td>
+</tr>
+<tr>
+<td>ReDrafter [6]</td>
+<td>2024-03</td>
+<td>recurrent draft head、beam tree、前缀去重</td>
+<td>少量共享参数；GPU/Apple MLX 两类实现</td>
+<td>报告最高 2.8× H100、2.3× Apple，硬件条件不同</td>
+</tr>
+<tr>
+<td>EAGLE-2 [7]</td>
+<td>2024-06</td>
+<td>context-dependent 动态树</td>
+<td>根据在线置信度分配预算；报告 3.05–4.26×</td>
+<td>构树与调度成本；相比静态树更动态</td>
+</tr>
+<tr>
+<td>EAGLE-3 [8]</td>
+<td>2025-03</td>
+<td>多层特征融合，训练模拟 test-time draft</td>
+<td>去掉 feature regression 约束；报告最高 6.5×</td>
+<td>训练/系统配置决定效果；最高值不是通用比例</td>
+</tr>
+<tr>
+<td>DFlash [9]</td>
+<td>2026-02</td>
+<td>条件于 target 特征的轻量 block diffusion drafter</td>
+<td>单次并行提出 token block；严格验证</td>
+<td>需专用 drafter；报告 &gt;6× 和最高 2.5× EAGLE-3 属自身条件</td>
+</tr>
+<tr>
+<td>DFlash / SpecV2 系统更新 [10]</td>
+<td>2026-06</td>
+<td>KV feature 注入、异步准备与 host 清理</td>
+<td>将接受器/prepare/sync 纳入优化</td>
+<td>kernel、concurrency、训练与硬件决定可比性</td>
+</tr>
+</tbody>
+</table></div>
+<figure class="generated-figure" id="diagram-evolution"><div aria-label="evolution explanatory diagram" class="diagram-scroll" role="region" tabindex="0"><svg aria-roledescription="flowchart-v2" class="flowchart" id="evolution-medusa-evolution" role="graphics-document document" style="max-width: 896px;" viewbox="0 0 896 770" width="100%" xmlns="http://www.w3.org/2000/svg"><style>#evolution-medusa-evolution{font-family:DM Sans,PingFang SC,sans-serif;font-size:18px;fill:#d9e7f5;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#evolution-medusa-evolution .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#evolution-medusa-evolution .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#evolution-medusa-evolution .error-icon{fill:#172335;}#evolution-medusa-evolution .error-text{fill:#e8dcca;stroke:#e8dcca;}#evolution-medusa-evolution .edge-thickness-normal{stroke-width:1px;}#evolution-medusa-evolution .edge-thickness-thick{stroke-width:3.5px;}#evolution-medusa-evolution .edge-pattern-solid{stroke-dasharray:0;}#evolution-medusa-evolution .edge-thickness-invisible{stroke-width:0;fill:none;}#evolution-medusa-evolution .edge-pattern-dashed{stroke-dasharray:3;}#evolution-medusa-evolution .edge-pattern-dotted{stroke-dasharray:2;}#evolution-medusa-evolution .marker{fill:#8faac7;stroke:#8faac7;}#evolution-medusa-evolution .marker.cross{stroke:#8faac7;}#evolution-medusa-evolution svg{font-family:DM Sans,PingFang SC,sans-serif;font-size:18px;}#evolution-medusa-evolution p{margin:0;}#evolution-medusa-evolution .label{font-family:DM Sans,PingFang SC,sans-serif;color:#d9e7f5;}#evolution-medusa-evolution .cluster-label text{fill:#e8dcca;}#evolution-medusa-evolution .cluster-label span{color:#e8dcca;}#evolution-medusa-evolution .cluster-label span p{background-color:transparent;}#evolution-medusa-evolution .label text,#evolution-medusa-evolution span{fill:#d9e7f5;color:#d9e7f5;}#evolution-medusa-evolution .node rect,#evolution-medusa-evolution .node circle,#evolution-medusa-evolution .node ellipse,#evolution-medusa-evolution .node polygon,#evolution-medusa-evolution .node path{fill:#17283c;stroke:#6483a8;stroke-width:1px;}#evolution-medusa-evolution .rough-node .label text,#evolution-medusa-evolution .node .label text,#evolution-medusa-evolution .image-shape .label,#evolution-medusa-evolution .icon-shape .label{text-anchor:middle;}#evolution-medusa-evolution .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#evolution-medusa-evolution .rough-node .label,#evolution-medusa-evolution .node .label,#evolution-medusa-evolution .image-shape .label,#evolution-medusa-evolution .icon-shape .label{text-align:center;}#evolution-medusa-evolution .node.clickable{cursor:pointer;}#evolution-medusa-evolution .root .anchor path{fill:#8faac7!important;stroke-width:0;stroke:#8faac7;}#evolution-medusa-evolution .arrowheadPath{fill:#efe7db;}#evolution-medusa-evolution .edgePath .path{stroke:#8faac7;stroke-width:2.0px;}#evolution-medusa-evolution .flowchart-link{stroke:#8faac7;fill:none;}#evolution-medusa-evolution .edgeLabel{background-color:#1e3040;text-align:center;}#evolution-medusa-evolution .edgeLabel p{background-color:#1e3040;}#evolution-medusa-evolution .edgeLabel rect{opacity:0.5;background-color:#1e3040;fill:#1e3040;}#evolution-medusa-evolution .labelBkg{background-color:rgba(30, 48, 64, 0.5);}#evolution-medusa-evolution .cluster rect{fill:#172335;stroke:hsl(216, 0%, 4.9019607843%);stroke-width:1px;}#evolution-medusa-evolution .cluster text{fill:#e8dcca;}#evolution-medusa-evolution .cluster span{color:#e8dcca;}#evolution-medusa-evolution div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:DM Sans,PingFang SC,sans-serif;font-size:12px;background:#172335;border:1px solid hsl(216, 0%, 4.9019607843%);border-radius:2px;pointer-events:none;z-index:100;}#evolution-medusa-evolution .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#d9e7f5;}#evolution-medusa-evolution rect.text{fill:none;stroke-width:0;}#evolution-medusa-evolution .icon-shape,#evolution-medusa-evolution .image-shape{background-color:#1e3040;text-align:center;}#evolution-medusa-evolution .icon-shape p,#evolution-medusa-evolution .image-shape p{background-color:#1e3040;padding:2px;}#evolution-medusa-evolution .icon-shape rect,#evolution-medusa-evolution .image-shape rect{opacity:0.5;background-color:#1e3040;fill:#1e3040;}#evolution-medusa-evolution .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#evolution-medusa-evolution .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#evolution-medusa-evolution :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker class="marker flowchart-v2" id="evolution-medusa-evolution_flowchart-v2-pointEnd" markerheight="8" markerunits="userSpaceOnUse" markerwidth="8" orient="auto" refx="5" refy="5" viewbox="0 0 10 10"><path class="arrowMarkerPath" d="M 0 0 L 10 5 L 0 10 z" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker class="marker flowchart-v2" id="evolution-medusa-evolution_flowchart-v2-pointStart" markerheight="8" markerunits="userSpaceOnUse" markerwidth="8" orient="auto" refx="4.5" refy="5" viewbox="0 0 10 10"><path class="arrowMarkerPath" d="M 0 5 L 10 10 L 10 0 z" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker class="marker flowchart-v2" id="evolution-medusa-evolution_flowchart-v2-circleEnd" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="11" refy="5" viewbox="0 0 10 10"><circle class="arrowMarkerPath" cx="5" cy="5" r="5" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker class="marker flowchart-v2" id="evolution-medusa-evolution_flowchart-v2-circleStart" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="-1" refy="5" viewbox="0 0 10 10"><circle class="arrowMarkerPath" cx="5" cy="5" r="5" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker class="marker cross flowchart-v2" id="evolution-medusa-evolution_flowchart-v2-crossEnd" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="12" refy="5.2" viewbox="0 0 11 11"><path class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker class="marker cross flowchart-v2" id="evolution-medusa-evolution_flowchart-v2-crossStart" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="-1" refy="5.2" viewbox="0 0 11 11"><path class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><g class="root"><g class="clusters"></g><g class="edgePaths"><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M283,92L283,96.167C283,100.333,283,108.667,283.523,116.341C284.047,124.015,285.094,131.029,285.617,134.537L286.141,138.044" data-edge="true" data-et="edge" data-id="evolution-L_A_B_0" data-points="W3sieCI6MjgzLCJ5Ijo5Mn0seyJ4IjoyODMsInkiOjExN30seyJ4IjoyODYuNzMxMzQzMjgzNTgyMSwieSI6MTQyfV0=" id="evolution-L_A_B_0" marker-end="url(#evolution-medusa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M650.836,92L641.197,96.167C631.557,100.333,612.279,108.667,574.957,119.016C537.635,129.365,482.269,141.73,454.587,147.912L426.904,154.095" data-edge="true" data-et="edge" data-id="evolution-L_C_B_0" data-points="W3sieCI6NjUwLjgzNTgyMDg5NTUyMjQsInkiOjkyfSx7IngiOjU5MywieSI6MTE3fSx7IngiOjQyMywieSI6MTU0Ljk2NjY2NjY2NjY2NjY3fV0=" id="evolution-L_C_B_0" marker-end="url(#evolution-medusa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M195.836,226L186.197,230.167C176.557,234.333,157.279,242.667,147.639,250.333C138,258,138,265,138,268.5L138,272" data-edge="true" data-et="edge" data-id="evolution-L_B_D_0" data-points="W3sieCI6MTk1LjgzNTgyMDg5NTUyMjM3LCJ5IjoyMjZ9LHsieCI6MTM4LCJ5IjoyNTF9LHsieCI6MTM4LCJ5IjoyNzZ9XQ==" id="evolution-L_B_D_0" marker-end="url(#evolution-medusa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M390.164,226L399.803,230.167C409.443,234.333,428.721,242.667,438.361,250.333C448,258,448,265,448,268.5L448,272" data-edge="true" data-et="edge" data-id="evolution-L_B_E_0" data-points="W3sieCI6MzkwLjE2NDE3OTEwNDQ3NzYsInkiOjIyNn0seyJ4Ijo0NDgsInkiOjI1MX0seyJ4Ijo0NDgsInkiOjI3Nn1d" id="evolution-L_B_E_0" marker-end="url(#evolution-medusa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M754.269,92L754.891,96.167C755.512,100.333,756.756,108.667,757.378,116.333C758,124,758,131,758,134.5L758,138" data-edge="true" data-et="edge" data-id="evolution-L_C_F_0" data-points="W3sieCI6NzU0LjI2ODY1NjcxNjQxNzksInkiOjkyfSx7IngiOjc1OCwieSI6MTE3fSx7IngiOjc1OCwieSI6MTQyfV0=" id="evolution-L_C_F_0" marker-end="url(#evolution-medusa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M758,226L758,230.167C758,234.333,758,242.667,758,250.333C758,258,758,265,758,268.5L758,272" data-edge="true" data-et="edge" data-id="evolution-L_F_G_0" data-points="W3sieCI6NzU4LCJ5IjoyMjZ9LHsieCI6NzU4LCJ5IjoyNTF9LHsieCI6NzU4LCJ5IjoyNzZ9XQ==" id="evolution-L_F_G_0" marker-end="url(#evolution-medusa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M758,360L758,364.167C758,368.333,758,376.667,758,384.333C758,392,758,399,758,402.5L758,406" data-edge="true" data-et="edge" data-id="evolution-L_G_H_0" data-points="W3sieCI6NzU4LCJ5IjozNjB9LHsieCI6NzU4LCJ5IjozODV9LHsieCI6NzU4LCJ5Ijo0MTB9XQ==" id="evolution-L_G_H_0" marker-end="url(#evolution-medusa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M758,494L758,498.167C758,502.333,758,510.667,758,518.333C758,526,758,533,758,536.5L758,540" data-edge="true" data-et="edge" data-id="evolution-L_H_I_0" data-points="W3sieCI6NzU4LCJ5Ijo0OTR9LHsieCI6NzU4LCJ5Ijo1MTl9LHsieCI6NzU4LCJ5Ijo1NDR9XQ==" id="evolution-L_H_I_0" marker-end="url(#evolution-medusa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M758,628L758,632.167C758,636.333,758,644.667,758,652.333C758,660,758,667,758,670.5L758,674" data-edge="true" data-et="edge" data-id="evolution-L_I_J_0" data-points="W3sieCI6NzU4LCJ5Ijo2Mjh9LHsieCI6NzU4LCJ5Ijo2NTN9LHsieCI6NzU4LCJ5Ijo2Nzh9XQ==" id="evolution-L_I_J_0" marker-end="url(#evolution-medusa-evolution_flowchart-v2-pointEnd)" style=";"></path></g><g class="edgeLabels"><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g class="edgeLabel"><g class="label" data-id="evolution-L_A_B_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="evolution-L_C_B_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="evolution-L_B_D_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="evolution-L_B_E_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="evolution-L_C_F_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="evolution-L_F_G_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="evolution-L_G_H_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="evolution-L_H_I_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="evolution-L_I_J_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g></g><g class="nodes"><g class="node default" id="evolution-flowchart-A-0" transform="translate(283, 50)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2018 / Blockwise / 多头预测与最长前缀</p></span></div></foreignobject></g></g><g class="node default" id="evolution-flowchart-B-1" transform="translate(293, 184)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2024 / Medusa / 共享 hidden 与静态树</p></span></div></foreignobject></g></g><g class="node default" id="evolution-flowchart-C-2" transform="translate(748, 50)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2022–2023 / 严格 speculative rejection</p></span></div></foreignobject></g></g><g class="node default" id="evolution-flowchart-D-5" transform="translate(138, 318)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2024 / Hydra / 增加 head 条件依赖</p></span></div></foreignobject></g></g><g class="node default" id="evolution-flowchart-E-7" transform="translate(448, 318)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2024 / ReDrafter / 递归草稿与前缀去重</p></span></div></foreignobject></g></g><g class="node default" id="evolution-flowchart-F-9" transform="translate(758, 184)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2024 / EAGLE / feature + token 条件</p></span></div></foreignobject></g></g><g class="node default" id="evolution-flowchart-G-11" transform="translate(758, 318)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2024 / EAGLE-2 / 上下文动态树</p></span></div></foreignobject></g></g><g class="node default" id="evolution-flowchart-H-13" transform="translate(758, 452)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2025 / EAGLE-3 / 训练模拟推理</p></span></div></foreignobject></g></g><g class="node default" id="evolution-flowchart-I-15" transform="translate(758, 586)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2026 / DFlash / 并行 block drafter</p></span></div></foreignobject></g></g><g class="node default" id="evolution-flowchart-J-17" transform="translate(758, 720)"><rect class="basic label-container" height="84" style="" width="260" x="-130" y="-42"></rect><g class="label" style="" transform="translate(-100, -27)"><rect></rect><foreignobject height="54" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2026 / SpecV2 / KV 注入与准备重叠</p></span></div></foreignobject></g></g></g></g></g></svg></div><figcaption>Agent-created / Simplified Mermaid diagram · <a href="assets/generated/evolution.mmd">Mermaid source</a> · <a href="assets/generated/evolution.svg">SVG</a></figcaption></figure>
+<p>这张 <strong>Agent-created / Simplified Mermaid diagram</strong> 表示技术关系，不表示单一路线取代所有其他路线。未来 token 依赖、在线预算分配、并行草稿生成和异步 runtime 是不同轴，可以有组合；箭头不是跨论文性能胜负。</p>
+<h2 id="current-state">Current State / SOTA：截至 2026-10-27 的条件化判断</h2>
+<p>本节重新检索并核验原始论文与官方引擎资料。当前公开路线已超出 Medusa 的独立 heads：feature-conditioned draft、动态树、native MTP、并行 block drafter 与 speculative runtime overlap 都在演进。<strong>没有统一 target、硬件、质量、采样和负载的公共结果，就不宣布一个全局 SOTA。</strong></p>
+<p><strong>较强的同条件证据 [10]。</strong> 2026-06-15 的 ZLab / Modal / SGLang 联合官方文章，给出相同 Qwen3-4B target、相同训练数据、5 层 drafter 的 EAGLE-3 与 DFlash 对照：</p>
+<div aria-label="Scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th style="text-align: right;">EAGLE-3 acc. length / speedup</th>
+<th style="text-align: right;">DFlash acc. length / speedup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GSM8K</td>
+<td style="text-align: right;">4.2 / 2.1×</td>
+<td style="text-align: right;">4.2 / 3.3×</td>
+</tr>
+<tr>
+<td>HumanEval</td>
+<td style="text-align: right;">4.3 / 2.2×</td>
+<td style="text-align: right;">4.0 / 3.2×</td>
+</tr>
+<tr>
+<td>MT-Bench</td>
+<td style="text-align: right;">3.1 / 1.4×</td>
+<td style="text-align: right;">3.0 / 2.2×</td>
+</tr>
+</tbody>
+</table></div>
+<p>接受长度相近却速度更高，说明串行 drafter 与 runtime 开销是关键；不能只看 accepted tokens 排名。相对于 EAGLE-3 的比值分别约 1.57、1.45、1.57。该结果比跨论文“最高 6.5× 与最高 6×”互比更有意义；文章正文未把此表所有独立硬件条件单列到每一格，因此仍应按该文章完整配置理解。</p>
+<p><strong>大模型实例。</strong> 同文 Qwen3.5-397B-A17B BF16，8×B200，HumanEval greedy、thinking、最大输出 4096、200 cases、concurrency=1，DFlash block 16 对 AR 报告 &gt;4.3×，对 7-step MTP 约 1.5×。这些条件与 Medusa 的 Vicuna/默认引擎结果完全不同，不列为直接胜负。</p>
+<p><strong>服务工程。</strong> SpecV2 清理 host stop-token 等逻辑，并将 prepare/allocation 与 GPU 工作重叠；Qwen3-8B、单 B200、concurrency=32 的报告从约 11.4k 到 15.3k token/s（约 +33%）。这正说明优化应沿调用链测量：draft/verify 之外，CPU 准备和同步也能决定结果。其 feature→KV 注入和 radix prefix sharing 是新 runtime 设计，不能当成原 Medusa 的机制。</p>
+<p><strong>实际采用。</strong> Hugging Face TGI 文档仍明确支持 Medusa heads 和 n-gram speculation [11]；SGLang 官方更新讨论 EAGLE/DFlash/SpecV2 [10]；vLLM 2026-08-23 的 AMD GPU 官方文章讨论 MI300X/MI355X 上 native MTP、EAGLE-3、DFlash 等路线和 workload 差异 [12]。这些是实现采用证据，不是相同 benchmark 的质量/性能排名。没有读取到的 NVIDIA 旧文档返回 404，未用它作为支持证据。</p>
+<h2 id="implementation">Implementation Notes：先把调用链和缓冲状态迁对</h2>
+<h3 id="detail-27">一个可核验的 greedy 推理循环</h3>
+<p>以下是 <strong>解释性伪代码</strong>，省略 tokenizer、EOS 和严格采样细节；不是官方函数逐字复制。输入 prefix/cache 与 LM/Medusa logits，输出合法 token 序列。<code>posterior</code> 必须来自各节点实际祖先条件；被拒节点不可进入最终 cache。</p>
+<div class="syntax"><div class="listing-head">Python · explanatory pseudocode<button class="copy-code" type="button">Copy code</button></div><pre><span></span><code><span class="k">while</span> <span class="ow">not</span> <span class="n">finished</span><span class="p">:</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">argmax</span><span class="p">(</span><span class="n">lm_logits_at_last_committed</span><span class="p">)</span>
+    <span class="n">ranked</span> <span class="o">=</span> <span class="p">[</span><span class="n">topk</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">budget</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">head_logits</span><span class="p">)]</span>
+    <span class="n">tree_tokens</span> <span class="o">=</span> <span class="n">instantiate_prefix_closed_tree</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">ranked</span><span class="p">,</span> <span class="n">topology</span><span class="p">)</span>
+    <span class="n">old_len</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">logical_length</span>
+    <span class="n">outputs</span> <span class="o">=</span> <span class="n">target</span><span class="p">(</span>
+        <span class="n">tree_tokens</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="n">cache</span><span class="p">,</span>
+        <span class="n">attention_mask</span><span class="o">=</span><span class="n">prefix_plus_ancestor_mask</span><span class="p">,</span>
+        <span class="n">position_ids</span><span class="o">=</span><span class="n">old_len</span> <span class="o">+</span> <span class="n">tree_depths</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="n">retrieve_paths</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">retrieve_indices</span><span class="p">)</span>
+    <span class="n">best</span><span class="p">,</span> <span class="n">extra_accepted</span> <span class="o">=</span> <span class="n">verify_greedy_prefix</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span>
+    <span class="n">accepted</span> <span class="o">=</span> <span class="n">retrieve_indices</span><span class="p">[</span><span class="n">best</span><span class="p">,</span> <span class="p">:</span><span class="n">extra_accepted</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">prefix</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">tree_tokens</span><span class="p">[</span><span class="n">accepted</span><span class="p">])</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">gather_and_compact</span><span class="p">(</span><span class="n">old_len</span> <span class="o">+</span> <span class="n">accepted</span><span class="p">,</span> <span class="n">destination</span><span class="o">=</span><span class="n">old_len</span><span class="p">)</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">logical_length</span> <span class="o">=</span> <span class="n">old_len</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">accepted</span><span class="p">)</span>
+    <span class="n">lm_logits_at_last_committed</span> <span class="o">=</span> <span class="n">outputs</span><span class="o">.</span><span class="n">lm_logits</span><span class="p">[</span><span class="n">accepted</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+    <span class="n">head_logits</span> <span class="o">=</span> <span class="n">outputs</span><span class="o">.</span><span class="n">medusa_logits</span><span class="p">[:,</span> <span class="n">accepted</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+</code></pre></div>
+<p>verify 中根无条件来自 LM，后续从第一处不匹配截断；根接受数不能重复加两次。复制 cache 需要处理 src/dst 重叠，通常先 gather 临时张量，再写回；更新每层长度必须一致。EOS/stop token 若出现在接受块中，最终输出与 cache 应只保留到停止位置，而不是先提交整块再仅截文本。</p>
+<h3 id="detail-28">每轮耗时预算</h3>
+<div class="formula" data-latex="T_{\mathrm{cycle}}=T_{\mathrm{heads}}+T_{\mathrm{build}}+T_{\mathrm{verify}}+T_{\mathrm{accept}}+T_{\mathrm{commit}}+T_{\mathrm{sync}}"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">y</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">e</mi></mrow></mrow></msub><mo>=</mo><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">h</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">s</mi></mrow></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">b</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">d</mi></mrow></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">y</mi></mrow></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">a</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">t</mi></mrow></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">t</mi></mrow></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">y</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">c</mi></mrow></mrow></msub></mrow></math><span class="formula-label">Interpretation · 推理调用链时间拆分</span><details><summary>Copy LaTeX</summary><code>T_{\mathrm{cycle}}=T_{\mathrm{heads}}+T_{\mathrm{build}}+T_{\mathrm{verify}}+T_{\mathrm{accept}}+T_{\mathrm{commit}}+T_{\mathrm{sync}}</code></details></div>
+<p><code>T_heads</code> 包括多头残差和词表投影；<code>T_build</code> 包括 top-k、索引与 token gather；<code>T_verify</code> 是主模型 q 行工作；<code>T_accept</code> 包括概率、阈值/前缀计算；<code>T_commit</code> 包括 KV gather/copy、长度更新；<code>T_sync</code> 包括 <code>.item()</code>、CPU 分支、跨设备/分布式同步和 launch gaps。实测应记录接受长度分布与每项耗时，再计算有效 token/s。</p>
+<p>把所有损耗归给 CUDA 版本、编译或替换模型会掩盖逻辑问题。先检查是否在 token-by-token CPU 循环反复同步、是否 materialize 所有 [K,B,q,V] logits、是否构造不必要 dense mask、是否复制整个历史 cache、是否在结束 token 上误提交，随后才考虑 kernel 和部署选型。</p>
+<h3 id="detail-29">TTFT、TPOT 与端侧内存</h3>
+<p>Medusa 主要减少 decode 轮数；prefill 和首个 token 路径未自然变快。应分别报告 TTFT、decode TPOT、端到端时长和成块提交的用户可见间隔，不能用 decode speedup 等比例折算 TTFT。prefill/decode 分离时，首 token 应保持统一 LM 路径及 logits 数值，避免验证策略与首 token 精度变化混在一起。</p>
+<p>对 NPU/HTP：先核验 tree mask、按 depth 的 RoPE、动态 gather、q shape 与 KV logical length 能否在编译图内运行。固定稀疏树可能比动态树容易编译，但放大 q 也可能增加 RPC、回 CPU 的 sampling、dma-buf workspace 或中间输出。测 <code>dmabuf_dump</code> 的 HTP/ION 峰值并结合 <code>VmHWM</code> 的 CPU 峰值，分别归因权重、KV、candidate logits 与临时拷贝；不能只报模型文件大小。</p>
+<p>采用常驻 Native C++ runner、薄 JNI、复用原始缓冲时，关键是每轮都沿同一状态提交路径，按 token/cycle 记录 accept length 和毫秒级计时。量化版头准确率下降应优先检查 hidden/LM/head 量化与转换输出的精度，再检查 calibration 分布；未来边缘预测会放大某些敏感层误差，不能默认归咎于模型尺寸。</p>
+<h2 id="critique">Critique：长处、代价与尚未回答的问题</h2>
+<p><strong>Novelty。</strong> 多头并行预测并非 Medusa 首创，2018 blockwise 已有；贡献在适配 LLM 的训练 recipe、树验证、稀疏拓扑和开放实现整合。将它放到正确历史脉络更能看清工程价值。</p>
+<p><strong>Correctness。</strong> tree mask/positions/commit 构成可正确实现的验证流程；typical 是经验放宽规则，不能主张 distribution equality。原文 rejection 的极端例子、Table 5 shape、Figure 8 caption 与部分训练符号需要澄清。保留这些错误信息及纠正说明比改写原图更可靠。</p>
+<p><strong>Experiment quality。</strong> 多模型、多类别、dense/sparse、threshold 和 warmup 有覆盖；缺统一严格/放宽接受拆分、置信区间、端到端强 baseline、动态服务和能耗。主结果相对原文 baseline 有说服力，普遍质量无损与任意场景加速没有被证明。</p>
+<p><strong>Scalability / Memory。</strong> 不加载第二套完整 backbone 是优点；K(d²+dV) heads、q 候选 KV、全词表 logits 和 gather workspace 都会占内存。大词表、多头、长 S、大 B 可能改变瓶颈；分布式输出 head 的 vocab parallel 还会引入通信。</p>
+<p><strong>Generalization / Hardware。</strong> 固定树校准方便、可预计算，但领域迁移可能降低 rank 命中；长 context、高并发和端侧小算力不一定有同样余量。附录 roofline 提供趋势依据，不能代替真实服务测量。</p>
+<p><strong>Reproducibility。</strong> 有官方源码与模型 recipe，复现起点清楚；仍需固定 commit、模型/模板版本、精度、树实际节点数、采样 flag 和 timer 范围。源码中数值分支与论文描述不同处，应如实区分源码观察和运行验证。</p>
+<h2 id="related-readings">Related Readings</h2>
+<p><a href="../eagle-3/">EAGLE-3：让草稿模型学会接住自己的输出</a> —— 对照多头并行候选，理解递归自由状态、训练中的反馈和验证成本。</p>
+<ul>
+<li><a href="../flashattention/">FlashAttention：算得更多，为什么反而更快？</a> —— attention IO 与 kernel 路径。</li>
+<li><a href="../gqa/">GQA：让 Query 保留多样性，让 KV 共享历史</a> —— candidate KV 的实际 head 数。</li>
+<li><a href="../mqa/">MQA：多个读头，共用一份历史</a> —— 小 batch 下权重和 KV 的不同带宽账。</li>
+<li><a href="../roformer/">RoFormer：旋转绝对位置，为什么内积只看相对距离？</a> —— tree depth 对 position IDs 的要求。</li>
+<li><a href="../awq/">AWQ：把重要通道的精度，变成端侧真正能用的速度</a> —— 量化与端侧瓶颈迁移。</li>
+</ul>
+<h2 id="references">References &amp; Source Record</h2>
+<p><strong>原论文与资产。</strong> [1] Cai et al., ICML 2024，<a href="sources/2401.10774v3.pdf">v3 PDF</a>、<a href="https://proceedings.mlr.press/v235/cai24b.html">PMLR</a>、<a href="sources/visual-manifest.json">完整图表来源清单</a>、<a href="sources/paper-text.txt">源文本</a>。PDF SHA-256：<code>93d98f2e858c87ee04be440ee81ab8ad93700652ed759227d25fcf75cfdd5ef0</code>。23 Figures 与 8 Tables 均逐号保留。原图由作者源 PDF/PNG 高分辨率渲染，原表由对应原 PDF 页面完整裁取；多 panel 按原顺序组合，未删 legend、坐标轴、脚注。</p>
+<p><strong>相关论文。</strong></p>
+<ul>
+<li>[2] Stern, Shazeer &amp; Uszkoreit. <em>Blockwise Parallel Decoding for Deep Autoregressive Models</em>. NeurIPS 2018. <a href="https://arxiv.org/abs/1811.03115">arXiv:1811.03115</a>。</li>
+<li>[3] Leviathan, Kalman &amp; Matias. <em>Fast Inference from Transformers via Speculative Decoding</em>. ICML 2023. <a href="https://arxiv.org/html/2211.17192v2">arXiv:2211.17192v2</a>，尤其 Algorithm / §2.3 与 Theorem 3.5。</li>
+<li>[4] Li et al. <em>EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty</em>. <a href="https://arxiv.org/abs/2401.15077">arXiv:2401.15077</a>。</li>
+<li>[5] Ankner et al. <em>Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding</em>. <a href="https://arxiv.org/abs/2402.05109">arXiv:2402.05109</a>；<a href="https://github.com/zankner/Hydra">code</a>。</li>
+<li>[6] Cheng et al. <em>Recurrent Drafter for Fast Speculative Decoding in Large Language Models</em>. <a href="https://arxiv.org/abs/2403.09919">arXiv:2403.09919</a>。</li>
+<li>[7] Li et al. <em>EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees</em>. <a href="https://arxiv.org/abs/2406.16858">arXiv:2406.16858</a>。</li>
+<li>[8] Li et al. <em>EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test</em>. <a href="https://arxiv.org/abs/2503.01840">arXiv:2503.01840</a>。</li>
+<li>[9] <em>DFlash: Block Diffusion for Flash Speculative Decoding</em>. ICML 2026. <a href="https://arxiv.org/abs/2602.06036v2">arXiv:2602.06036v2</a>。</li>
+</ul>
+<p><strong>官方代码、项目与引擎资料。</strong></p>
+<ul>
+<li><a href="https://github.com/FasterDecoding/Medusa">Medusa official code</a>，本次检查 commit <code>e2a5d20c048a9b0a4092e6933c34313687422518</code>。重点文件：<code>medusa/model/medusa_model.py</code>、<code>utils.py</code>、<code>kv_cache.py</code>。<a href="https://sites.google.com/view/medusa-llm">作者 project/blog</a> 为早期介绍，与最终 v3 的 M2/recipe 范围需区分。</li>
+<li>[10] ZLab / Modal / SGLang. <em>Next-Generation Speculative Decoding: DFlash and Speculative Decoding V2</em>. 2026-06-15. <a href="https://www.lmsys.org/blog/2026-06-15-next-generation-speculative-decoding-dflash-v2">官方文章</a>。</li>
+<li>[11] Hugging Face TGI. <em>Speculation</em>. <a href="https://huggingface.co/docs/text-generation-inference/conceptual/speculation">官方文档</a>，访问 2026-10-27。</li>
+<li>[12] vLLM. <em>Speculative Decoding on AMD GPUs</em>. 2026-08-23. <a href="https://vllm.ai/blog/2026-08-23-speculative-decoding-amd-gpus">官方文章</a>。</li>
+</ul>
+<p>外部资料核验截止 2026-10-27。上述来源用于机制、历史和当下公开结果的解释；除 Tables 6–8 的代数查询以及页面交互外，没有将外部 benchmark 冒充本地实验。<a href="sources/source-ledger.json">来源与核验记录</a> 提供版本、用途与可比性说明。</p>
+<h2 id="takeaways">My Takeaways：最值得迁移的是每轮有效工作量</h2>
+<p><strong>以下为独立分析 / Interpretation。</strong> Medusa 最有价值的系统观点是：优化单 token 内核之外，还可以增加同一轮权重读取的有效产出。更高 FLOP/s 只有通过接受 token 和真实迭代时间才转换为用户收益；Tables 6–8、Figure 4 和后续同条件 drafter 结果共同说明，accepted length 不是唯一优化目标。</p>
+<p>第一个值得做的方向是 <strong>把树预算与当前资源状态联合控制</strong>：按 B、S、当前延迟预算与在线置信度选 q，而不是沿用固定 64。测试时保持输出契约一致，报告每项 per-op 成本；如果 host 同步占主要部分，增加预测头准确率也未必解决速度瓶颈。</p>
+<p>第二个方向是 <strong>减少与最终路径无关的大词表投影和临时状态</strong>：复用隐藏状态、仅算需要的 head、延迟投影到可确定的节点，并核验这样做是否能保持下一轮草稿可用。它应与 KV 压实、EOS 处理和异步 prepare 协同设计，而不是孤立加一个更快 GEMM。</p>
+<p>第三个方向是 <strong>端侧固定拓扑与精度联动</strong>：在编译图支持的固定 q 下测 HTP/CPU 内存和 TTFT/TPOT，把 head 的预测变化追踪回 hidden/LM/head 转换精度与校准样本。先证明合法路径和 cache 一致，再测接受长度是否补偿 RPC、copy 和工作空间成本。GPU 的空闲算力直觉需要在真实设备上重新成立。</p>
+<p>最重要的阅读结论是：应分别写清 <strong>验证的目标模型、输出分布契约和运行时成本</strong>。这三项一致，精度与速度的比较才可解释、可复现，也才能知道改进来自哪里。</p>
+<p class="reading-meta">Changelog · 2026-10-27：首次精读；完整原图原表、两幅解释图、三个交互、源码与实验审计、截至当日的技术更新。</p></article></main><footer class="site-footer"><a href="../">← Paper Readings</a><span>Source-first reading · Updated 2026-10-27</span></footer></div>
+<dialog id="figure-modal" class="figure-modal" aria-labelledby="zoom-title"><div class="actions"><button id="zoom-close" type="button">Close</button><a id="zoom-download" href="assets/figures/fig-01.png" target="_blank" rel="noopener">Open full resolution</a></div><p id="zoom-title">Original paper figure</p><div class="zoom-scroll"><img id="zoom-image" src="assets/figures/fig-01.png" alt="Medusa overview"></div></dialog>
+<script src="assets/cost-data.js"></script><script src="assets/reading.js"></script><script src="assets/article-navigation.js"></script></body></html>

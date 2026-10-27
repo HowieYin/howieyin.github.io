@@ -1,0 +1,12 @@
+flowchart TD
+  A["已提交前缀 + KV / 长度 S"] --> B["末位置 LM logits + 多头 logits"]
+  B --> C["LM 根 token + top-k rank 候选"]
+  C --> D["前缀闭合树 / 祖先 mask / 按深度 RoPE"]
+  D --> E["Target 一次 q 行验证 / 临时 KV"]
+  E --> F["沿路径验证到首次失败"]
+  F --> G["选择最长合法前缀"]
+  G --> H["gather 选中 KV / 压实 / 更新长度"]
+  H --> A
+  G --> I["保留已接受终点的 logits"]
+  I --> B
+  F --> J["丢弃其余分支的逻辑可见性"]
