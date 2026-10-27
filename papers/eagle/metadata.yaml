@@ -1,0 +1,18 @@
+title: 'EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty'
+slug: eagle
+arxiv: 2401.15077
+version: v3
+version_date: '2025-03-04'
+first_submission: '2024-01-26'
+authors: [Yuhui Li, Fangyun Wei, Chao Zhang, Hongyang Zhang]
+institutions: [Peking University, Microsoft Research, University of Waterloo, Vector Institute]
+venue: ICML 2024
+publication: 'PMLR 235:28935-28948'
+doi: 10.48550/arXiv.2401.15077
+code: https://github.com/SafeAILab/EAGLE/tree/v1
+code_commit: 4a9cf3a1f6cd4a294e6d30a4e7c77cba246d7ca5
+reading_date: '2026-10-27'
+updated: '2026-10-27'
+tags: [LLM, Inference, Speculative Decoding, Systems, Edge AI]
+url: https://howieyin.github.io/papers/eagle/
+pdf_sha256: '3484aad4d255ac8ff3ebbb0df9f3b2fdb222145923f59ad25727812f4748a0f4'
