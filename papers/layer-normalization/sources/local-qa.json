@@ -1,0 +1,105 @@
+{
+  "phase": "local",
+  "widths": [
+    {
+      "width": 375,
+      "scroll": 375,
+      "article": 343,
+      "maths": 39
+    },
+    {
+      "width": 390,
+      "scroll": 390,
+      "article": 358,
+      "maths": 39
+    },
+    {
+      "width": 430,
+      "scroll": 430,
+      "article": 398,
+      "maths": 39
+    },
+    {
+      "width": 1440,
+      "scroll": 1440,
+      "article": 880,
+      "maths": 39
+    },
+    {
+      "width": 1920,
+      "scroll": 1920,
+      "article": 880,
+      "maths": 39
+    }
+  ],
+  "interactions": [
+    "Zero denominator with epsilon=0 is explicitly undefined; no invalid SVG values.",
+    "Real mouse presets/feature shift, keyboard range and select input event: negative scale, epsilon, common shift, RMSNorm.",
+    "Axis LN output independent of another sample; toy BN changes after other-sample scale.",
+    "Cost select input event: T=1 gives 16KiB, decode uses B independent of T.",
+    "Original figure zoom opens and Escape closes."
+  ],
+  "errors": [],
+  "images": [
+    {
+      "src": "assets/original/table-01-invariance.png",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/fig-01-order-embeddings.png",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/table-02-retrieval.png",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/fig-02-attentive-reader.png",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/fig-03-skip-thoughts.png",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/table-03-skip-thoughts.png",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/fig-04-draw.png",
+      "ok": true,
+      "width": 584
+    },
+    {
+      "src": "assets/original/fig-05-handwriting.png",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/fig-06-mnist.png",
+      "ok": true,
+      "width": 1608
+    }
+  ],
+  "tableScroll": {
+    "client": 356,
+    "scroll": 805,
+    "left": 59
+  },
+  "formulaScroll": {
+    "client": 356,
+    "scroll": 744,
+    "left": 59
+  },
+  "reducedMotion": true,
+  "noJS": {
+    "fallbacks": 3,
+    "math": true
+  }
+}

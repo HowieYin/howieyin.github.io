@@ -1,0 +1,326 @@
+{
+  "version": "2211.10438v7",
+  "figures": [
+    {
+      "number": 1,
+      "id": "S1.F1",
+      "caption": "Figure 1 : The model size of large language models is developing at a faster pace than the GPU memory in recent years, leading to a big gap between the supply and demand for memory. Quantization and model compression techniques can help bridge the gap.",
+      "html_assets": [
+        "2211.10438v7/trend.png"
+      ],
+      "page": 1,
+      "bbox": [
+        306,
+        202,
+        545,
+        401
+      ],
+      "asset": "assets/original/fig-01-model-memory-gap.png"
+    },
+    {
+      "number": 2,
+      "id": "S1.F2",
+      "caption": "Figure 2 : SmoothQuant’s intuition: the activation 𝐗 \\mathbf{X} is hard to quantize because outliers stretch the quantization range, leaving few effective bits for most values. We migrate the scale variance from activations to weights 𝐖 \\mathbf{W} during offline to reduce the quantization difficulty of activations. The smoothed activation 𝐗 ^ \\hat{\\mathbf{X}} and the adjusted weight 𝐖 ^ \\hat{\\mathbf{W}} are both easy to quantize.",
+      "html_assets": [
+        "2211.10438v7/intuition.png"
+      ],
+      "page": 2,
+      "bbox": [
+        55,
+        65,
+        292,
+        334
+      ],
+      "asset": "assets/original/fig-02-migration-intuition.png"
+    },
+    {
+      "number": 3,
+      "id": "S2.F3",
+      "caption": "Figure 3 : Definition of per-tensor, per-token, and per-channel quantization. Per-tensor quantization is the most efficient to implement. For vector-wise quantization to efficiently utilize the INT8 GEMM kernels, we can only use scaling factors from the outer dimensions (i.e. , token dimension T T and out channel dimension C o C_{o} ) but not inner dimension (i.e. , in channel dimension C i C_{i} ).",
+      "html_assets": [],
+      "page": 3,
+      "bbox": [
+        55,
+        65,
+        292,
+        327
+      ],
+      "asset": "assets/original/fig-03-quantization-granularity.png"
+    },
+    {
+      "number": 4,
+      "id": "S2.F4",
+      "caption": "Figure 4 : Magnitude of the input activations and weights of a linear layer in OPT-13B before and after SmoothQuant.\nObservations: (1) there are a few channels in the original activation map whose magnitudes are very large (greater than 70); (2) the variance in one activation channel is small; (3) the original weight distribution is flat and uniform. SmoothQuant migrates the outlier channels from activation to weight. In the end, the outliers in the activation are greatly smoothed while the weight is still pretty smooth and flat.",
+      "html_assets": [
+        "2211.10438v7/aw-dist-long.png"
+      ],
+      "page": 4,
+      "bbox": [
+        55,
+        65,
+        545,
+        279
+      ],
+      "asset": "assets/original/fig-04-activation-weight-distributions.png"
+    },
+    {
+      "number": 5,
+      "id": "S4.F5",
+      "caption": "Figure 5 : Main idea of SmoothQuant when α \\alpha is 0.5 0.5 . The smoothing factor s s is obtained on calibration samples and the entire transformation is performed offline. At runtime, the activations are smooth without scaling.",
+      "html_assets": [
+        "2211.10438v7/transform.png"
+      ],
+      "page": 4,
+      "bbox": [
+        307,
+        283,
+        544,
+        424
+      ],
+      "asset": "assets/original/fig-05-offline-smoothing.png"
+    },
+    {
+      "number": 6,
+      "id": "S4.F6",
+      "caption": "Figure 6 : SmoothQuant’s precision mapping for a Transformer block. All compute-intensive operators like linear layers and batched matmul ( BMM s) use INT8 arithmetic.",
+      "html_assets": [
+        "2211.10438v7/quantization-flow.png"
+      ],
+      "page": 5,
+      "bbox": [
+        55,
+        65,
+        292,
+        254
+      ],
+      "asset": "assets/original/fig-06-precision-mapping.png"
+    },
+    {
+      "number": 7,
+      "id": "S5.F7",
+      "caption": "Figure 7 : SmoothQuant-O3 (the most efficient setting, defined in Table 2 ) preserves the accuracy of OPT models across different scales when quantized to INT8. LLM.int8() requires mixed precision and suffers from slowing down.",
+      "html_assets": [
+        "2211.10438v7/model-size.png"
+      ],
+      "page": 6,
+      "bbox": [
+        307,
+        259,
+        544,
+        452
+      ],
+      "asset": "assets/original/fig-07-opt-model-scales.png"
+    },
+    {
+      "number": 8,
+      "id": "S5.F8",
+      "caption": "Figure 8 : The PyTorch implementation of SmoothQuant-O3 achieves up to 1.51 × \\times speedup and 1.96 × \\times memory saving for OPT models on a single NVIDIA A100-80GB GPU, while LLM.int8() slows down the inference in most cases.",
+      "html_assets": [],
+      "page": 8,
+      "bbox": [
+        55,
+        65,
+        292,
+        254
+      ],
+      "asset": "assets/original/fig-08-pytorch-latency-memory.png"
+    },
+    {
+      "number": 9,
+      "id": "S5.F9",
+      "caption": "Figure 9 : Inference latency (top) and memory usage (bottom) of the FasterTransformer implementation on NVIDIA A100-80GB GPUs. For smaller models, the latency can be significantly reduced with SmoothQuant-O3 by up to 1.56x compared to FP16.\nFor the bigger models (OPT-66B and 175B), we can achieve similar or even faster inference using only half number of GPUs.\nMemory footprint is almost halved compared to FP16.",
+      "html_assets": [],
+      "page": 9,
+      "bbox": [
+        55,
+        65,
+        545,
+        242
+      ],
+      "asset": "assets/original/fig-09-fastertransformer-latency-memory.png"
+    },
+    {
+      "number": 10,
+      "id": "S5.F10",
+      "caption": "Figure 10 : A suitable migration strength α \\alpha (sweet spot) makes both activations and weights easy to quantize. If the α \\alpha is too large, weights will be hard to quantize; if too small, activations will be hard to quantize.",
+      "html_assets": [
+        "2211.10438v7/alpha.png"
+      ],
+      "page": 10,
+      "bbox": [
+        55,
+        65,
+        292,
+        239
+      ],
+      "asset": "assets/original/fig-10-alpha-ablation.png"
+    }
+  ],
+  "tables": [
+    {
+      "number": 1,
+      "id": "S3.T1",
+      "caption": "Table 1: Among different activation quantization schemes, only per-channel quantization ( Bondarenko et al., 2021 ) preserves the accuracy, but it is not compatible (marked in gray ) with INT8 GEMM kernels.\nWe report the average accuracy on WinoGrande, HellaSwag, PIQA, and LAMBADA.",
+      "rows": 5,
+      "cells": 30,
+      "page": 3,
+      "bbox": [
+        306,
+        65,
+        545,
+        219
+      ],
+      "asset": "assets/original/table-01.png"
+    },
+    {
+      "number": 2,
+      "id": "S5.T2",
+      "caption": "Table 2: Quantization setting of the baselines and SmoothQuant. All weight and activations use INT8 representations unless specified. For SmoothQuant, the efficiency improves from O1 to O3 (i.e. , lower latency).",
+      "rows": 8,
+      "cells": 24,
+      "page": 5,
+      "bbox": [
+        55,
+        271,
+        292,
+        448
+      ],
+      "asset": "assets/original/table-02.png"
+    },
+    {
+      "number": 3,
+      "id": "S5.T3",
+      "caption": "Table 3: SmoothQuant maintains the accuracy of OPT-175B model after INT8 quantization, even with the most aggressive and most efficient O3 setting (Table 2 ). We extensively benchmark the performance on 7 zero-shot benchmarks (by reporting the average accuracy) and 1 language modeling benchmark (perplexity). *For ZeroQuant, we also tried leaving the input activation of self-attention in FP16 and quantizing the rest to INT8, which is their solution to the GPT-NeoX-20B. But this does not solve the accuracy degradation of OPT-175B.",
+      "rows": 9,
+      "cells": 90,
+      "page": 6,
+      "bbox": [
+        54,
+        65,
+        545,
+        250
+      ],
+      "asset": "assets/original/table-03.png"
+    },
+    {
+      "number": 4,
+      "id": "S5.T4",
+      "caption": "Table 4: SmoothQuant works for different LLMs. We can quantize the 3 largest, openly available LLM models into INT8 without degrading the accuracy. For OPT-175B and BLOOM-176B, we show the average accuracy on WinoGrande, HellaSwag, PIQA, and LAMBADA. For GLM-130B we show the average accuracy on LAMBADA, MMLU, MNLI, and QNLI. *Accuracy is not column-wise comparable due to different datasets.",
+      "rows": 9,
+      "cells": 36,
+      "page": 6,
+      "bbox": [
+        54,
+        261,
+        292,
+        485
+      ],
+      "asset": "assets/original/table-04.png"
+    },
+    {
+      "number": 5,
+      "id": "S5.T5",
+      "caption": "Table 5: SmoothQuant’s performance on the OPT-IML model.",
+      "rows": 7,
+      "cells": 21,
+      "page": 7,
+      "bbox": [
+        54,
+        65,
+        292,
+        195
+      ],
+      "asset": "assets/original/table-05.png"
+    },
+    {
+      "number": 6,
+      "id": "S5.T6",
+      "caption": "Table 6: SmoothQuant can enable lossless W8A8 quantization for LLaMA models ( Touvron et al., 2023a ) . Results are perplexities on the WikiText-2 dataset with a sequence length of 512. We used per-token activation quantization and α \\alpha =0.8 for SmoothQuant.",
+      "rows": 3,
+      "cells": 15,
+      "page": 7,
+      "bbox": [
+        54,
+        203,
+        292,
+        329
+      ],
+      "asset": "assets/original/table-06.png"
+    },
+    {
+      "number": 7,
+      "id": "S5.T7",
+      "caption": "Table 7: SmoothQuant can enable lossless W8A8 quantization for Llama-2 ( Touvron et al., 2023b ) , Falcon ( Almazrouei et al., 2023 ) , Mistral ( Jiang et al., 2023 ) , and Mixtral ( Jiang et al., 2024 ) models. Results are perplexities on the WikiText-2 dataset with a sequence length of 2048. We used per-token activation quantization and per-channel weight quantization for SmoothQuant.",
+      "rows": 15,
+      "cells": 53,
+      "page": 7,
+      "bbox": [
+        306,
+        65,
+        545,
+        469
+      ],
+      "asset": "assets/original/table-07.png"
+    },
+    {
+      "number": 8,
+      "id": "S5.T8",
+      "caption": "Table 8: SmoothQuant ’s performance in the decoding stage.",
+      "rows": 12,
+      "cells": 76,
+      "page": 8,
+      "bbox": [
+        306,
+        65,
+        545,
+        222
+      ],
+      "asset": "assets/original/table-08.png"
+    },
+    {
+      "number": 9,
+      "id": "S5.T9",
+      "caption": "Table 9: SmoothQuant can quantize MT-NLG 530B to W8A8 with negligible accuracy loss.",
+      "rows": 3,
+      "cells": 18,
+      "page": 8,
+      "bbox": [
+        306,
+        229,
+        545,
+        307
+      ],
+      "asset": "assets/original/table-09.png"
+    },
+    {
+      "number": 10,
+      "id": "S5.T10",
+      "caption": "Table 10: When serving MT-NLG 530B, SmoothQuant can reduce the memory by half at a similar latency using half number of GPUs, which allows serving the 530B model within a single node.",
+      "rows": 9,
+      "cells": 45,
+      "page": 9,
+      "bbox": [
+        54,
+        258,
+        292,
+        468
+      ],
+      "asset": "assets/original/table-10.png"
+    },
+    {
+      "number": 11,
+      "id": "S5.T11",
+      "caption": "Table 11: GPU Latency (ms) of different quantization schemes. The coarser the quantization scheme (from per-token to per-tensor, dynamic to static, O1 to O3, defined in Table 2 ), the lower the latency. SmoothQuant achieves lower latency compared to FP16 under all settings, while LLM.int8() is mostly slower.\nThe batch size is 4.",
+      "rows": 7,
+      "cells": 33,
+      "page": 9,
+      "bbox": [
+        306,
+        258,
+        545,
+        433
+      ],
+      "asset": "assets/original/table-11.png"
+    }
+  ]
+}

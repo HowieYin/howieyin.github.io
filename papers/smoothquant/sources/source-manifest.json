@@ -1,0 +1,143 @@
+{
+  "paper_version": "2211.10438v7",
+  "paper_pdf_sha256": "d17856490ff664a99f8d08fe76eabd83219ed048cd1bc18ce3d0571e71056ff8",
+  "official_code_commit": "c61476d728e42ae0d8a35e7e78494edcac3237b5",
+  "sources": [
+    {
+      "id": "cite-1",
+      "description": "Xiao et al. SmoothQuant , arXiv 2211.10438v7，2024-03-29。主要论断、公式 (1)–(4)、Figures 1–10、Tables 1–11、Appendix A。 https://arxiv.org/abs/2211.10438v7",
+      "urls": [
+        "https://arxiv.org/abs/2211.10438v7"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-2",
+      "description": "PMLR / ICML 2023 正式发表元信息。 https://proceedings.mlr.press/v202/xiao23c.html",
+      "urls": [
+        "https://proceedings.mlr.press/v202/xiao23c.html"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-3",
+      "description": "MIT Han Lab，SmoothQuant 官方代码；固定 commit c61476d728e42ae0d8a35e7e78494edcac3237b5 。包含 README、标定、平滑、simulated quant、OPT torch_int、Slides / Talk。 https://github.com/mit-han-lab/smoothquant/tree/c61476d728e42ae0d8a35e7e78494edcac3237b5",
+      "urls": [
+        "https://github.com/mit-han-lab/smoothquant/tree/c61476d728e42ae0d8a35e7e78494edcac3237b5"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-4",
+      "description": "Dettmers et al. LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale ，2022。 https://arxiv.org/abs/2208.07339",
+      "urls": [
+        "https://arxiv.org/abs/2208.07339"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-5",
+      "description": "Yao et al. ZeroQuant: Efficient and Affordable Post-Training Quantization for Large-Scale Transformers ，2022。 https://arxiv.org/abs/2206.01861",
+      "urls": [
+        "https://arxiv.org/abs/2206.01861"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-6",
+      "description": "Nagel et al. Data-Free Quantization Through Weight Equalization and Bias Correction ，2019。 https://arxiv.org/abs/1906.04721",
+      "urls": [
+        "https://arxiv.org/abs/1906.04721"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-7",
+      "description": "Frantar et al. GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers ，2210.17323v2 / ICLR 2023。 https://arxiv.org/abs/2210.17323",
+      "urls": [
+        "https://arxiv.org/abs/2210.17323"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-8",
+      "description": "Lin et al. AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration ，2306.00978v6，MLSys 2024，版本更新 2026-04-25。 https://arxiv.org/abs/2306.00978v6",
+      "urls": [
+        "https://arxiv.org/abs/2306.00978v6"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-9",
+      "description": "Shao et al. OmniQuant: Omnidirectionally Calibrated Quantization for Large Language Models ，2308.13137v3 / ICLR 2024。 https://arxiv.org/abs/2308.13137",
+      "urls": [
+        "https://arxiv.org/abs/2308.13137"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-10",
+      "description": "Ashkboos et al. QuaRot: Outlier-Free 4-Bit Inference in Rotated LLMs ，2404.00456 / NeurIPS 2024。 https://arxiv.org/abs/2404.00456",
+      "urls": [
+        "https://arxiv.org/abs/2404.00456"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-11",
+      "description": "Liu et al. SpinQuant: LLM quantization with learned rotations ，2405.16406v4 / ICLR 2025。 https://arxiv.org/abs/2405.16406",
+      "urls": [
+        "https://arxiv.org/abs/2405.16406"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-12",
+      "description": "Sun et al. FlatQuant: Flatness Matters for LLM Quantization ，2410.09426v4 / ICML 2025。量化器与校准协议参见原表。 https://arxiv.org/html/2410.09426v4",
+      "urls": [
+        "https://arxiv.org/html/2410.09426v4"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-13",
+      "description": "Wang et al. TwinQuant: Learnable Subspace Decomposition for 4-Bit LLM Quantization ，2606.01556v1，2026-06-01 preprint。本文摘录其 Table 1 同协议切片，不声称全领域 SOTA。 https://arxiv.org/html/2606.01556v1",
+      "urls": [
+        "https://arxiv.org/html/2606.01556v1"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-14",
+      "description": "NVIDIA， TensorRT-LLM 1.0.0 Numerical Precision ，INT8 SmoothQuant 与独立 KV flags。 https://nvidia.github.io/TensorRT-LLM/1.0.0/reference/precision.html",
+      "urls": [
+        "https://nvidia.github.io/TensorRT-LLM/1.0.0/reference/precision.html"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-15",
+      "description": "NVIDIA， TensorRT-LLM latest Quantization ，截至 2026-10-27 检索的 backend / model / hardware support matrix。 https://nvidia.github.io/TensorRT-LLM/latest/features/quantization.html",
+      "urls": [
+        "https://nvidia.github.io/TensorRT-LLM/latest/features/quantization.html"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-16",
+      "description": "Luo et al. A Case Study of Selected PTQ Baselines for Reasoning LLMs on Ascend NPU ，2602.17693v1，2026。含 pseudo / real quant 区分；部分表内 Average 算术存在疑点。 https://arxiv.org/html/2602.17693v1",
+      "urls": [
+        "https://arxiv.org/html/2602.17693v1"
+      ],
+      "retrieved": "2026-10-27"
+    },
+    {
+      "id": "cite-17",
+      "description": "AMD ROCm Blog， SmoothQuant model inference on AMD Instinct MI300X using Composable Kernel ，2024；官方工程落地示例。 https://rocm.blogs.amd.com/software-tools-optimization/ck-int8-gemm-sq/README.html",
+      "urls": [
+        "https://rocm.blogs.amd.com/software-tools-optimization/ck-int8-gemm-sq/README.html"
+      ],
+      "retrieved": "2026-10-27"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+flowchart TD
+ X["校准 X · d_in × T"] --> A["均值幅度 s_X"]
+ W["FP16 W · d_out × d_in"] --> C["20 个 alpha：scale → fake quant"]
+ A --> C
+ X --> M["局部输出 MSE"]
+ C --> M
+ M --> S["选择 s；按支持的计算图折叠"]
+ S --> P["eligible groups：clip search"]
+ P --> E["真实导出：packed qweight + scale + zero"]
+ E --> R["验证 unpack / logits / 任务精度"]

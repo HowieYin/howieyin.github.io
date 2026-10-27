@@ -1,0 +1,748 @@
+{
+  "paper": "2001.08361v1",
+  "figures": [
+    {
+      "number": 1,
+      "file": "fig-01.png",
+      "panels": [
+        "SimplePowerLaws.pdf"
+      ],
+      "width": 2702,
+      "height": 821,
+      "caption": "Figure 1: Language modeling performance improves smoothly as we increase the model size, datasetset size, and amount of compute 1 1 1 Here we display predicted compute when using a sufficiently small batch size. See Figure 13 for comparison to the purely empirical data. used for training. For optimal performance all three factors must be scaled up in tandem. Empirical performance has a power-law relationship with each individual factor when not bottlenecked by the other two."
+    },
+    {
+      "number": 2,
+      "file": "fig-02.png",
+      "panels": [
+        "EfficiencyIllustration.pdf"
+      ],
+      "width": 2276,
+      "height": 912,
+      "caption": "Figure 2: We show a series of language model training runs, with models ranging in size from 10 3 10^{3} to 10 9 10^{9} parameters (excluding embeddings)."
+    },
+    {
+      "number": 3,
+      "file": "fig-03.png",
+      "panels": [
+        "ContributionIllustration.pdf"
+      ],
+      "width": 1408,
+      "height": 639,
+      "caption": "Figure 3: As more compute becomes available, we can choose how much to allocate towards training larger models, using larger batches, and training for more steps. We illustrate this for a billion-fold increase in compute. For optimally compute-efficient training, most of the increase should go towards increased model size. A relatively small increase in data is needed to avoid reuse. Of the increase in data, most can be used to increase parallelism through larger batch sizes, with only a very small increase in serial training time required."
+    },
+    {
+      "number": 4,
+      "file": "fig-04.png",
+      "panels": [
+        "LossvsModelDatasetSize.pdf",
+        "LearningCurveFitComparisonIntro.pdf"
+      ],
+      "width": 2923,
+      "height": 805,
+      "caption": "Figure 4: Left : The early-stopped test loss L ⁡ ( N , D ) L(N,D) varies predictably with the dataset size D D and model size N N according to Equation ( 1.5 ). Right : After an initial transient period, learning curves for all model sizes N N can be fit with Equation ( 1.6 ), which is parameterized in terms of S min S_{\\rm min} , the number of steps when training at large batch size (details in Section 5.1 )."
+    },
+    {
+      "number": 5,
+      "file": "fig-05.png",
+      "panels": [
+        "HyperparameterTuning.pdf"
+      ],
+      "width": 2475,
+      "height": 621,
+      "caption": "Figure 5: Performance depends very mildly on model shape when the total number of non-embedding parameters N N is held fixed. The loss varies only a few percent over a wide range of shapes. Small differences in parameter counts are compensated for by using the fit to L ⁡ ( N ) L(N) as a baseline. Aspect ratio in particular can vary by a factor of 40 while only slightly impacting performance; an ( n layer , d model ) = ( 6 , 4288 ) (n_{\\mathrm{layer}},d_{\\mathrm{model}})=(6,4288) reaches a loss within 3% of the ( 48 , 1600 ) (48,1600) model used in [ RWC+19 ] ."
+    },
+    {
+      "number": 6,
+      "file": "fig-06.png",
+      "panels": [
+        "PerfVsModelSizeAllParams.pdf",
+        "PerfVsModelSizeNonEmbed.pdf"
+      ],
+      "width": 2514,
+      "height": 805,
+      "caption": "Figure 6: Left: When we include embedding parameters, performance appears to depend strongly on the number of layers in addition to the number of parameters. Right: When we exclude embedding parameters, the performance of models with different depths converge to a single trend. Only models with fewer than 2 layers or with extreme depth-to-width ratios deviate significantly from the trend."
+    },
+    {
+      "number": 7,
+      "file": "fig-07.png",
+      "panels": [
+        "LSTMvsTransformerSummary.pdf"
+      ],
+      "width": 2924,
+      "height": 934,
+      "caption": "Figure 7:"
+    },
+    {
+      "number": 8,
+      "file": "fig-08.png",
+      "panels": [
+        "GeneralizationVsModelSize.pdf",
+        "TrainingVsConvergence.pdf"
+      ],
+      "width": 2514,
+      "height": 814,
+      "caption": "Figure 8: Left: Generalization performance to other data distributions improves smoothly with model size, with only a small and very slowly growing offset from the WebText2 training distribution. Right: Generalization performance depends only on training distribution performance, and not on the phase of training. We compare generalization of converged models (points) to that of a single large model (dashed curves) as it trains."
+    },
+    {
+      "number": 9,
+      "file": "fig-09.png",
+      "panels": [
+        "DatasetModelSizevsPerformance.pdf",
+        "DatasetModelSizevsChangePerformance.pdf"
+      ],
+      "width": 2938,
+      "height": 805,
+      "caption": "Figure 9: The early-stopped test loss L ⁡ ( N , D ) L(N,D) depends predictably on the dataset size D D and model size N N according to Equation ( 1.5 ). Left :\nFor large D D , performance is a straight power law in N N . For a smaller fixed D D , performance stops improving as N N increases and the model begins to overfit. (The reverse is also true, see Figure 4 .) Right : The extent of overfitting depends predominantly on the ratio N α N α D / D N^{\\frac{\\alpha_{N}}{\\alpha_{D}}}/D , as predicted in equation ( 4.3 ). The line is our fit to that equation."
+    },
+    {
+      "number": 10,
+      "file": "fig-10.png",
+      "panels": [
+        "CriticalBatchSizeVsPerf.pdf"
+      ],
+      "width": 1246,
+      "height": 805,
+      "caption": "Figure 10: The critical batch size B crit B_{\\rm crit} follows a power law in the loss as performance increase, and does not depend directly on the model size. We find that the critical batch size approximately doubles for every 13 % 13\\% decrease in loss. B crit B_{\\rm crit} is measured empirically from the data shown in Figure 18 , but it is also roughly predicted by the gradient noise scale, as in [ MKAT18 ] ."
+    },
+    {
+      "number": 11,
+      "file": "fig-11.png",
+      "panels": [
+        "PerfVsParams-ComputeBudget.pdf",
+        "PerfVsParams-StepBudget.pdf"
+      ],
+      "width": 2490,
+      "height": 805,
+      "caption": "Figure 11: When we hold either total compute or number of training steps fixed, performance follows L ⁡ ( N , S ) L(N,S) from Equation ( 5.6 ). Each value of compute budget has an associated optimal model size that maximizes performance. Mediocre fits at small S S are unsurprising, as the power-law equation for the learning curves breaks down very early in training."
+    },
+    {
+      "number": 12,
+      "file": "fig-12.png",
+      "panels": [
+        "SuboptimalModels.pdf"
+      ],
+      "width": 2455,
+      "height": 782,
+      "caption": "Figure 12: Left: Given a fixed compute budget, a particular model size is optimal, though somewhat larger or smaller models can be trained with minimal additional compute. Right: Models larger than the compute-efficient size require fewer steps to train, allowing for potentially faster training if sufficient additional parallelism is possible. Note that this equation should not be trusted for very large models, as it is only valid in the power-law region of the learning curve, after initial transient effects."
+    },
+    {
+      "number": 13,
+      "file": "fig-13.png",
+      "panels": [
+        "ComputeEfficientFrontierWithAdjustment.pdf"
+      ],
+      "width": 1247,
+      "height": 805,
+      "caption": "Figure 13: When adjusting performance to simulate training far below the critical batch size, we find a somewhat altered power law for L ⁡ ( C min ) L(C_{\\rm min}) when compared with the fully empirical results. The conspicuous lump at 10 − 5 10^{-5} PF-days marks the transition from 1-layer to 2-layer networks; we exclude 1-layer networks in the power-law fits. It is the L ⁡ ( C min ) L(C_{\\rm min}) trend that we expect to provide a reliable extrapolation for larger compute."
+    },
+    {
+      "number": 14,
+      "file": "fig-14.png",
+      "panels": [
+        "ComputevsOptimalModelSize.pdf",
+        "ComputeEfficientSteps.pdf"
+      ],
+      "width": 2514,
+      "height": 805,
+      "caption": "Figure 14: Left: Each value of the compute budget C min C_{\\rm min} has an associated optimal model size N N . Optimal model size grows very rapidly with C min C_{\\rm min} , increasing by 5x for each 10x increase in compute. The number of data examples processed makes up the remainder of the increase, growing relatively modestly by only 2x. Right: The batch-adjusted number of optimization steps also grows very slowly, if at all, meaning that most of the growth in data examples processed can be used for increased batch sizes."
+    },
+    {
+      "number": 15,
+      "file": "fig-15.png",
+      "panels": [
+        "Contradiction.pdf"
+      ],
+      "width": 1988,
+      "height": 783,
+      "caption": "Figure 15: Far beyond the model sizes we study empirically, we find a contradiction between our equations for L ⁡ ( C min ) L(C_{\\rm min}) and L ⁡ ( D ) L(D) due to the slow growth of data needed for compute-efficient training. The intersection marks the point before which we expect our predictions to break down. The location of this point is highly sensitive to the precise exponents from our power-law fits."
+    },
+    {
+      "number": 16,
+      "file": "fig-16.png",
+      "panels": [
+        "EarlyStoppingvsNandD.pdf",
+        "TrainVsTestMedium.pdf"
+      ],
+      "width": 2711,
+      "height": 805,
+      "caption": "Figure 16: Left: We characterize the step on which early stopping occurs, as a function of the extent of overfitting. The red line indicates a lower bound for early stopping that is derived in Section 5.3 . Right: We display train and test loss for a series of 300M parameter models trained on different sized dataset sub-samples. The test loss typically follows that of a run done with unrestricted data until diverging. Note that the degree of overfitting (as compared to the infinite data limit) is significantly overestimated by L test − L train L_{\\rm test}-L_{\\rm train} (denoted by a black bar for each run)."
+    },
+    {
+      "number": 17,
+      "file": "fig-17.png",
+      "panels": [
+        "ComputeVsParamswithUTNoReuse.pdf",
+        "ComputeVsParamswithUTWithReuse.pdf"
+      ],
+      "width": 2514,
+      "height": 805,
+      "caption": "Figure 17: We compare recurrent Transformers [ DGV+18 ] , which re-use parameters, to standard Transformers. Recurrent Transformers perform slightly better when comparing models with equal parameter count, but slightly worse when accounting for reuse and comparing per FLOP."
+    },
+    {
+      "number": 18,
+      "file": "fig-18.png",
+      "panels": [
+        "BatchParetoFronts3M.pdf",
+        "BatchParetoFronts85M.pdf"
+      ],
+      "width": 2496,
+      "height": 805,
+      "caption": "Figure 18: These figures demonstrate fits to Equation ( 5.1 ) for a large number of values of the loss L L , and for two different Transformer model sizes. These fits were used to measure B crit ​ ( L ) B_{\\rm crit}(L) for Figure 10 ."
+    },
+    {
+      "number": 19,
+      "file": "fig-19.png",
+      "panels": [
+        "SampleEfficiencystep_min.pdf",
+        "SampleEfficiencyexamples_min.pdf"
+      ],
+      "width": 2886,
+      "height": 805,
+      "caption": "Figure 19: The number of minimum serial steps needed to reach any fixed value of the test loss decreases precipitously with model size. Sample efficiency (show here for training far below the critical batch size) improves greatly as well, improving by a factor of almost 100 when comparing the smallest possible model to a very large one."
+    },
+    {
+      "number": 20,
+      "file": "fig-20.png",
+      "panels": [
+        "ContextPowerLaw.pdf",
+        "SingleRunTokenTraining.pdf"
+      ],
+      "width": 2695,
+      "height": 805,
+      "caption": "Figure 20: This figure provides information about the performance per token as a function of model size and training time. Left: Loss per token as a function of its position T T in the 1024-token context. Loss scales predictably as a power-law in T T . Right: Test loss per token as a function of training step."
+    },
+    {
+      "number": 21,
+      "file": "fig-21.png",
+      "panels": [
+        "PerformancevsModelSizevsContext.pdf"
+      ],
+      "width": 1461,
+      "height": 805,
+      "caption": "Figure 21: In addition to the averaged loss, individual tokens within the 1024-token context also improve smoothly as model size increases. Training runs with shorter context n ctx = 8 n_{\\rm ctx}=8 (dashed lines) perform better on early tokens, since they can allocate all of their capacity to them."
+    },
+    {
+      "number": 22,
+      "file": "fig-22.png",
+      "panels": [
+        "VariousLearningSchedules.pdf",
+        "LearningRateSchedulesvsPerformance.pdf"
+      ],
+      "width": 2947,
+      "height": 814,
+      "caption": "Figure 22: We test a variety of learning rate schedules including cosine decay, linear decay, as well as other faster/slower decays schedules on a 3 million parameter model, shown on the left.\nFor these experiments we do not decay to zero, since we find that this tends to give a fixed improvement close to the end of training.\nWe find that, as long as the learning rate is not too small and does not decay too quickly, performance does not depend strongly on learning rate.\nRun-to-run variation is at the level of  0.05 in the loss, so averaging multiple runs is necessary to validate performance changes smaller than this level."
+    },
+    {
+      "number": 23,
+      "file": "fig-23.png",
+      "panels": [
+        "PoorLogFit.pdf"
+      ],
+      "width": 1031,
+      "height": 805,
+      "caption": "Figure 23: The trend for performance as a function of parameter count, L ⁡ ( N ) L(N) , is fit better by a power law than by other functions such as a logarithm at a qualitative level."
+    },
+    {
+      "number": 24,
+      "file": "fig-24.png",
+      "panels": [
+        "DepthVsGeneralization.pdf"
+      ],
+      "width": 1246,
+      "height": 806,
+      "caption": "Figure 24: We show evaluations on a series of datasets for models with approximately 1.5 Billion parameters. We observe no effect of depth on generalization; generalization performance depends primarily on training distribution performance. The 12-layer model overfit the Internet Books dataset and we show the early-stopped performance; we have not seen this surprising result in other experiments."
+    }
+  ],
+  "tables": [
+    {
+      "number": 1,
+      "id": "S2.T1"
+    },
+    {
+      "number": 2,
+      "id": "S4.T2"
+    },
+    {
+      "number": 3,
+      "id": "S5.T3"
+    },
+    {
+      "number": 4,
+      "id": "A1.T4"
+    },
+    {
+      "number": 5,
+      "id": "A1.T5"
+    },
+    {
+      "number": 6,
+      "id": "A1.T6"
+    }
+  ],
+  "equations": [
+    {
+      "id": "equation-1.1",
+      "numbers": [
+        "(1.1)"
+      ],
+      "tex": [
+        "L(N)=\\left(N_{\\mathrm{c}}/N\\right)^{\\alpha_{N}};\\penalty\\ \\penalty\\ \\alpha_{N}\\sim 0.076,\\quad N_{\\mathrm{c}}\\sim 8.8\\times 10^{13}\\penalty\\ \\text{(non-embedding parameters)}"
+      ]
+    },
+    {
+      "id": "equation-1.2",
+      "numbers": [
+        "(1.2)"
+      ],
+      "tex": [
+        "L(D)=\\left(D_{\\mathrm{c}}/D\\right)^{\\alpha_{D}};\\penalty\\ \\penalty\\ \\alpha_{D}\\sim 0.095,\\quad D_{\\mathrm{c}}\\sim 5.4\\times 10^{13}\\penalty\\ \\text{(tokens)}"
+      ]
+    },
+    {
+      "id": "equation-1.3",
+      "numbers": [
+        "(1.3)"
+      ],
+      "tex": [
+        "L(C_{\\rm min})=\\left(C_{\\mathrm{c}}^{\\rm min}/C_{\\rm min}\\right)^{\\alpha_{C}^{\\rm min}};\\penalty\\ \\penalty\\ \\alpha_{C}^{\\rm min}\\sim 0.050,\\quad C_{\\mathrm{c}}^{\\rm min}\\sim 3.1\\times 10^{8}\\penalty\\ \\text{(PF-days)}"
+      ]
+    },
+    {
+      "id": "equation-1.4",
+      "numbers": [
+        "(1.4)"
+      ],
+      "tex": [
+        "B_{\\rm crit}\\left(L\\right)=\\frac{B_{\\ast}}{L^{1/\\alpha_{B}}},\\qquad B_{\\ast}\\sim 2\\cdot 10^{8}\\text{ tokens},\\ \\ \\alpha_{B}\\sim 0.21"
+      ]
+    },
+    {
+      "id": "equation-1.5",
+      "numbers": [
+        "(1.5)"
+      ],
+      "tex": [
+        "L(N,D)=\\left[\\left(\\frac{N_{c}}{N}\\right)^{\\frac{\\alpha_{N}}{\\alpha_{D}}}+\\frac{D_{c}}{D}\\right]^{\\alpha_{D}}"
+      ]
+    },
+    {
+      "id": "equation-1.6",
+      "numbers": [
+        "(1.6)"
+      ],
+      "tex": [
+        "L(N,S)=\\left(\\frac{N_{c}}{N}\\right)^{\\alpha_{N}}+\\left(\\frac{S_{c}}{S_{\\rm min}(S)}\\right)^{\\alpha_{S}}"
+      ]
+    },
+    {
+      "id": "equation-1.7",
+      "numbers": [
+        "(1.7)"
+      ],
+      "tex": [
+        "N\\propto C^{\\alpha_{C}^{\\rm min}/\\alpha_{N}},\\quad B\\propto C^{\\alpha_{C}^{\\rm min}/\\alpha_{B}},\\quad S\\propto C^{\\alpha_{C}^{\\rm min}/\\alpha_{S}},\\quad D=B\\cdot S\\quad"
+      ]
+    },
+    {
+      "id": "equation-1.8",
+      "numbers": [
+        "(1.8)"
+      ],
+      "tex": [
+        "\\alpha_{C}^{\\rm min}=1/\\left(1/\\alpha_{S}+1/\\alpha_{B}+1/\\alpha_{N}\\right)"
+      ]
+    },
+    {
+      "id": "equation-2.1",
+      "numbers": [
+        "(2.1)"
+      ],
+      "tex": [
+        "\\displaystyle N",
+        "\\displaystyle\\approx 2d_{{\\rm model}}n_{{\\rm layer}}\\left(2d_{{\\rm attn}}+d_{{\\rm ff}}\\right)",
+        "\\displaystyle=12n_{\\rm layer}d_{{\\rm model}}^{2}\\quad\\text{ with the standard }\\quad d_{\\rm attn}=d_{\\rm ff}/4=d_{{\\rm model}}"
+      ]
+    },
+    {
+      "id": "equation-2.2",
+      "numbers": [
+        "(2.2)"
+      ],
+      "tex": [
+        "C_{\\rm forward}\\approx 2N+2n_{{\\rm layer}}n_{{\\rm ctx}}d_{{\\rm model}}"
+      ]
+    },
+    {
+      "id": "equation-3.1",
+      "numbers": [
+        "(3.1)"
+      ],
+      "tex": [
+        "L(N)\\approx\\left(\\frac{N_{c}}{N}\\right)^{\\alpha_{N}}"
+      ]
+    },
+    {
+      "id": "equation-3.2",
+      "numbers": [
+        "(3.2)"
+      ],
+      "tex": [
+        "L(D)\\approx\\left(\\frac{D_{c}}{D}\\right)^{\\alpha_{D}}"
+      ]
+    },
+    {
+      "id": "equation-3.3",
+      "numbers": [
+        "(3.3)"
+      ],
+      "tex": [
+        "L(C)\\approx\\left(\\frac{C_{c}}{C}\\right)^{\\alpha_{C}}"
+      ]
+    },
+    {
+      "id": "equation-4.1",
+      "numbers": [
+        "(4.1)"
+      ],
+      "tex": [
+        "L(N,D)=\\left[\\left(\\frac{N_{c}}{N}\\right)^{\\frac{\\alpha_{N}}{\\alpha_{D}}}+\\frac{D_{c}}{D}\\right]^{\\alpha_{D}}"
+      ]
+    },
+    {
+      "id": "equation-4.2",
+      "numbers": [
+        "(4.2)"
+      ],
+      "tex": [
+        "\\delta L(N,D)\\equiv\\frac{L(N,D)}{L(N,\\infty)}-1"
+      ]
+    },
+    {
+      "id": "equation-4.3",
+      "numbers": [
+        "(4.3)"
+      ],
+      "tex": [
+        "\\delta L\\approx\\left(1+\\left(\\frac{N}{N_{c}}\\right)^{\\frac{\\alpha_{N}}{\\alpha_{D}}}\\frac{D_{c}}{D}\\right)^{\\alpha_{D}}-1"
+      ]
+    },
+    {
+      "id": "equation-4.4",
+      "numbers": [
+        "(4.4)"
+      ],
+      "tex": [
+        "D\\gtrsim(5\\times 10^{3})\\,N^{0.74}"
+      ]
+    },
+    {
+      "id": "equation-5.1",
+      "numbers": [
+        "(5.1)"
+      ],
+      "tex": [
+        "\\left(\\frac{S}{S_{\\rm min}}-1\\right)\\left(\\frac{E}{E_{\\rm min}}-1\\right)=1"
+      ]
+    },
+    {
+      "id": "equation-5.2",
+      "numbers": [
+        "(5.2)"
+      ],
+      "tex": [
+        "B_{\\rm crit}(L)\\equiv\\frac{E_{\\rm min}}{S_{\\rm min}}"
+      ]
+    },
+    {
+      "id": "equation-5.3",
+      "numbers": [
+        "(5.3)"
+      ],
+      "tex": [
+        "B_{\\rm crit}(L)\\approx\\frac{B_{*}}{L^{1/\\alpha_{B}}}"
+      ]
+    },
+    {
+      "id": "equation-5.4",
+      "numbers": [
+        "(5.4)"
+      ],
+      "tex": [
+        "S_{\\rm min}(S)\\equiv\\frac{S}{1+B_{\\rm crit}(L)/B}\\qquad(\\text{minimum steps, at }B\\gg B_{\\rm crit})"
+      ]
+    },
+    {
+      "id": "equation-5.5",
+      "numbers": [
+        "(5.5)"
+      ],
+      "tex": [
+        "C_{\\rm min}(C)\\equiv\\frac{C}{1+B/B_{\\rm crit}(L)}\\qquad(\\text{minimum compute, at }B\\ll B_{\\rm crit})"
+      ]
+    },
+    {
+      "id": "equation-5.6",
+      "numbers": [
+        "(5.6)"
+      ],
+      "tex": [
+        "L(N,S_{\\rm min})=\\left(\\frac{N_{c}}{N}\\right)^{\\alpha_{N}}+\\left(\\frac{S_{c}}{S_{\\rm min}}\\right)^{\\alpha_{S}}"
+      ]
+    },
+    {
+      "id": "equation-5.7",
+      "numbers": [
+        "(5.7)"
+      ],
+      "tex": [
+        "S_{\\rm stop}(N,D)\\gtrsim\\frac{S_{c}}{\\left[L(N,D)-L(N,\\infty)\\right]^{1/\\alpha_{S}}}"
+      ]
+    },
+    {
+      "id": "equation-6.1",
+      "numbers": [
+        "(6.1)"
+      ],
+      "tex": [
+        "N(C_{\\rm min})\\propto(C_{\\rm min})^{0.73}."
+      ]
+    },
+    {
+      "id": "equation-6.2",
+      "numbers": [
+        "(6.2)"
+      ],
+      "tex": [
+        "S_{\\rm min}\\propto(C_{\\rm min})^{0.03},"
+      ]
+    },
+    {
+      "id": "equation-6.3",
+      "numbers": [
+        "(6.3)"
+      ],
+      "tex": [
+        "L(C_{\\rm min})=\\left(\\frac{C_{c}^{\\rm min}}{C_{\\rm min}}\\right)^{\\alpha_{C}^{\\rm min}}"
+      ]
+    },
+    {
+      "id": "equation-6.4",
+      "numbers": [
+        "(6.4)"
+      ],
+      "tex": [
+        "\\alpha_{C}^{\\rm min}\\equiv\\frac{1}{1/\\alpha_{S}+1/\\alpha_{B}+1/\\alpha_{N}}\\approx 0.054"
+      ]
+    },
+    {
+      "id": "equation-6.5",
+      "numbers": [
+        "(6.5)"
+      ],
+      "tex": [
+        "N(C_{\\rm min})\\propto(C_{\\rm min})^{\\alpha_{C}^{\\rm min}/\\alpha_{N}}\\approx(C_{\\rm min})^{0.71}"
+      ]
+    },
+    {
+      "id": "equation-6.6",
+      "numbers": [
+        "(6.6)"
+      ],
+      "tex": [
+        "D\\propto N^{0.74}\\propto C_{\\rm min}^{0.54}"
+      ]
+    },
+    {
+      "id": "equation-6.7",
+      "numbers": [
+        "(6.7)"
+      ],
+      "tex": [
+        "D(C_{\\rm min})=\\frac{2C_{\\rm min}}{6N(C_{\\rm min})}\\approx\\left(4\\times 10^{10}\\ {\\rm tokens}\\right)(C_{\\rm min}/\\mathrm{PF}{\\text{-}}\\mathrm{Day})^{0.26}"
+      ]
+    },
+    {
+      "id": "equation-6.8",
+      "numbers": [
+        "(6.8)"
+      ],
+      "tex": [
+        "C^{*}\\sim 10^{4}\\penalty\\ \\mathrm{PF}{\\text{-}}\\mathrm{Days}\\quad N^{*}\\sim 10^{12}\\penalty\\ \\text{parameters},\\quad D^{*}\\sim 10^{12}\\penalty\\ \\text{tokens},\\quad L^{*}\\sim 1.7\\penalty\\ \\text{nats/token}"
+      ]
+    },
+    {
+      "id": "equation-B.1",
+      "numbers": [
+        "(B.1)"
+      ],
+      "tex": [
+        "L\\left(N,S\\right)=\\left(\\frac{N_{c}}{N}\\right)^{\\alpha_{N}}+\\left(\\frac{S_{c}}{S}\\right)^{\\alpha_{S}}."
+      ]
+    },
+    {
+      "id": "equation-B.2",
+      "numbers": [
+        "(B.2)"
+      ],
+      "tex": [
+        "B\\left(L\\right)=\\frac{B_{\\ast}}{L^{1/\\alpha_{B}}}."
+      ]
+    },
+    {
+      "id": "equation-B.3",
+      "numbers": [
+        "(B.3)"
+      ],
+      "tex": [
+        "L\\left(N,C\\right)=\\left(\\frac{N_{c}}{N}\\right)^{\\alpha_{N}}+\\left(6B_{\\ast}S_{c}\\frac{N}{L^{1/\\alpha_{B}}C}\\right)^{\\alpha_{S}}."
+      ]
+    },
+    {
+      "id": "equation-B.4",
+      "numbers": [
+        "(B.4)"
+      ],
+      "tex": [
+        "\\displaystyle 0",
+        "\\displaystyle=\\frac{\\partial L}{\\partial N}\\big|_{C}",
+        "\\displaystyle=-\\frac{\\alpha_{N}}{N}\\left(\\frac{N_{c}}{N}\\right)^{\\alpha_{N}}+\\frac{\\alpha_{S}}{N}\\left(6B_{\\ast}S_{c}\\frac{N}{L^{1/\\alpha_{B}}C}\\right)^{\\alpha_{S}}\\left(1-5\\frac{N}{L}\\cancel{\\frac{\\partial L}{\\partial N}\\big|_{C}}\\right)",
+        "\\displaystyle\\implies\\frac{\\alpha_{N}}{\\alpha_{S}}\\left(\\frac{N_{c}}{N}\\right)^{\\alpha_{N}}",
+        "\\displaystyle=\\left(6B_{\\ast}S_{c}\\frac{N}{L^{1/\\alpha_{B}}C}\\right)^{\\alpha_{S}}"
+      ]
+    },
+    {
+      "id": "equation-B.5",
+      "numbers": [
+        "(B.5)"
+      ],
+      "tex": [
+        "L\\left(N_{{\\rm eff}}\\left(C\\right),C\\right)=\\left(1+\\frac{\\alpha_{N}}{\\alpha_{S}}\\right)L\\left(N_{{\\rm eff}},\\infty\\right),"
+      ]
+    },
+    {
+      "id": "equation-B.6",
+      "numbers": [
+        "(B.6)"
+      ],
+      "tex": [
+        "\\displaystyle L\\left(C\\right)",
+        "\\displaystyle=\\left(\\frac{C_{c}}{C}\\right)^{\\alpha_{C}}"
+      ]
+    },
+    {
+      "id": "equation-B.7",
+      "numbers": [
+        "(B.7)"
+      ],
+      "tex": [
+        "\\displaystyle\\alpha_{C}",
+        "\\displaystyle=1/\\left(1/\\alpha_{S}+1/\\alpha_{B}+1/\\alpha_{N}\\right)\\approx 0.052"
+      ]
+    },
+    {
+      "id": "equation-B.8",
+      "numbers": [
+        "(B.8)"
+      ],
+      "tex": [
+        "\\displaystyle C_{c}",
+        "\\displaystyle=6N_{c}B_{\\ast}S_{c}\\left(1+\\frac{\\alpha_{N}}{\\alpha_{S}}\\right)^{1/\\alpha_{S}+1/\\alpha_{N}}\\left(\\frac{\\alpha_{S}}{\\alpha_{N}}\\right)^{1/\\alpha_{S}}."
+      ]
+    },
+    {
+      "id": "equation-B.9",
+      "numbers": [
+        "(B.9)"
+      ],
+      "tex": [
+        "\\displaystyle\\frac{N\\left(C\\right)}{N_{c}}=\\left(\\frac{C}{C_{c}}\\right)^{\\alpha_{C}/\\alpha_{N}}\\left(1+\\frac{\\alpha_{N}}{\\alpha_{S}}\\right)^{1/\\alpha_{N}}"
+      ]
+    },
+    {
+      "id": "equation-B.10",
+      "numbers": [
+        "(B.10)"
+      ],
+      "tex": [
+        "\\displaystyle S\\left(C\\right)",
+        "\\displaystyle=\\frac{C_{c}}{6N_{c}B_{\\ast}}\\left(1+\\frac{\\alpha_{N}}{\\alpha_{S}}\\right)^{-1/\\alpha_{N}}\\left(\\frac{C}{C_{c}}\\right)^{\\alpha_{C}/\\alpha_{S}}"
+      ]
+    },
+    {
+      "id": "equation-B.11",
+      "numbers": [
+        "(B.11)"
+      ],
+      "tex": [
+        "L\\left(N,C\\right)=\\left(1+f\\right)L\\left(N,\\infty\\right)."
+      ]
+    },
+    {
+      "id": "equation-B.12",
+      "numbers": [
+        "(B.12)"
+      ],
+      "tex": [
+        "\\displaystyle\\frac{N_{f}}{N_{f^{\\prime}}}",
+        "\\displaystyle=\\left(\\frac{1+f}{1+f^{\\prime}}\\right)^{1/\\alpha_{N}}\\approx 2.7"
+      ]
+    },
+    {
+      "id": "equation-B.13",
+      "numbers": [
+        "(B.13)"
+      ],
+      "tex": [
+        "\\displaystyle\\frac{S_{f}}{S_{f^{\\prime}}}",
+        "\\displaystyle=\\left(\\frac{1+\\frac{1}{f}}{1+\\frac{1}{f^{\\prime}}}\\right)^{1/\\alpha_{S}}\\approx 0.13"
+      ]
+    },
+    {
+      "id": "equation-B.14",
+      "numbers": [
+        "(B.14)"
+      ],
+      "tex": [
+        "\\displaystyle\\frac{C_{f}}{C_{f^{\\prime}}}",
+        "\\displaystyle=\\frac{N_{f}}{N_{f^{\\prime}}}\\frac{S_{f}}{S_{f^{\\prime}}}\\approx 0.35"
+      ]
+    },
+    {
+      "id": "equation-B.15",
+      "numbers": [
+        "(B.15)"
+      ],
+      "tex": [
+        "C\\left(N,L\\right)=\\left(6B_{\\ast}S_{c}\\frac{N}{L^{1/\\alpha_{B}}}\\right)\\left(L-\\left(\\frac{N_{c}}{N}\\right)^{\\alpha_{N}}\\right)^{-1/\\alpha_{S}}."
+      ]
+    },
+    {
+      "id": "equation-B.16",
+      "numbers": [
+        "(B.16)"
+      ],
+      "tex": [
+        "\\frac{C\\left(N,N_{{\\rm eff}}\\right)}{C\\left(N_{{\\rm eff}},N_{{\\rm eff}}\\right)}=\\frac{N}{N_{{\\rm eff}}}\\left[1+\\frac{\\alpha_{S}}{\\alpha_{N}}\\left(1-\\left(\\frac{N_{{\\rm eff}}}{N}\\right)^{\\alpha_{N}}\\right)\\right]^{-1/\\alpha_{S}}."
+      ]
+    },
+    {
+      "id": "equation-B.17",
+      "numbers": [
+        "(B.17)"
+      ],
+      "tex": [
+        "\\frac{S\\left(N,N_{{\\rm eff}}\\right)}{S\\left(N_{{\\rm eff}},N_{{\\rm eff}}\\right)}=\\left[1+\\frac{\\alpha_{S}}{\\alpha_{N}}\\left(1-\\left(\\frac{N_{{\\rm eff}}}{N}\\right)^{\\alpha_{N}}\\right)\\right]^{-1/\\alpha_{S}}."
+      ]
+    },
+    {
+      "id": "equation-D.1",
+      "numbers": [
+        "(D.1)"
+      ],
+      "tex": [
+        "\\mathrm{LR}(N)\\approx 0.003239+-0.0001395\\log(N)"
+      ]
+    }
+  ]
+}

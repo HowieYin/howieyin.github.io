@@ -1,0 +1,6 @@
+flowchart LR
+ A["HBM 压缩权重"] --> B["unpack / dequantize"]
+ C["FP16 activation"] --> D["浮点乘加"]
+ B --> D
+ D --> E["输出与非量化算子"]
+ E --> F["FP16 KV cache"]

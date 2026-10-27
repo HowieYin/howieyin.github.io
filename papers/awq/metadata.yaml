@@ -1,0 +1,25 @@
+slug: awq
+title: "AWQ: Activation-aware Weight Quantization for On-Device LLM Compression and Acceleration"
+reading_title: "AWQ：把重要通道的精度，变成端侧真正能用的速度"
+authors: [Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang, Guangxuan Xiao, Xingyu Dang, Chuang Gan, Song Han]
+institutions: [MIT, Shanghai Jiao Tong University, NVIDIA, Tsinghua University, MIT-IBM Watson AI Lab, UMass Amherst]
+venue: MLSys 2024
+award: Best Paper
+initial_date: 2023-06-01
+version_date: 2026-04-25
+version: v6
+arxiv: "2306.00978"
+doi: "10.48550/arXiv.2306.00978"
+paper: "https://arxiv.org/pdf/2306.00978v6"
+code: "https://github.com/mit-han-lab/llm-awq"
+code_revision: d6e797a42b9ef7778de8ee2352116e0f48a78d61
+project: "https://hanlab.mit.edu/projects/awq"
+reading_date: 2026-10-27
+last_updated: 2026-10-27
+published_url: "https://howieyin.github.io/papers/awq/"
+tags: [LLM, VLM, Quantization, Inference, Systems, Edge AI]
+original_figures: 10
+original_tables: 10
+numbered_equation_groups: 5
+appendix: false
+language: zh-CN

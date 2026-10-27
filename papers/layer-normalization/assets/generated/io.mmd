@@ -1,0 +1,6 @@
+flowchart TD
+  N0["输入主激活：N = B × T × D 个元素<br/>Row-fused：读入一行 → fp32 mean / variance"]
+  N1["标准化与 affine 就地计算<br/>保持局部临时值，写回输出 → 主激活 read + write ≈ 2Ns"]
+  N2["五 kernel 物化链：mean / center / square / variance / affine<br/>主激活约 (1+2+2+1+2)Ns = 8Ns；参数与小统计另计"]
+  N0 --> N1
+  N1 --> N2

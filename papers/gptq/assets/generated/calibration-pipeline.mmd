@@ -1,0 +1,9 @@
+flowchart TD
+ A["C4 128段 × 2048 token"] --> B["加载一个 Transformer block"]
+ B --> C["收集 Linear 输入及 Gram"]
+ C --> D["GPTQ 逐层重建"]
+ D --> E["重放量化 block"]
+ E --> F["下一 block 输入"]
+ F --> B
+ D --> G["打包权重、scale、zero"]
+ G --> H["匹配 runtime kernel"]

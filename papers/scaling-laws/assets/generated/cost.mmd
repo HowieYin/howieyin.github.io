@@ -1,0 +1,5 @@
+flowchart TD
+  n0["权重参数与GEMM<br/>主体 N≈12ℓd²；每token forward≈2N"] --> n1
+  n1["补齐完整成本<br/>attention / vocabulary head / activations / recomputation"] --> n2
+  n2["训练预算与系统时间<br/>主体 FLOPs≈6NE；实际吞吐取决于kernel/通信/IO"] --> n3
+  n3["部署账本<br/>prefill / decode；KV=2ℓbtd scalars；测TTFT与TPOT"]

@@ -1,0 +1,8 @@
+flowchart TD
+  N0["当前输入 xₜ 与循环状态 hₜ₋₁<br/>Wₓ xₜ → 4H；Wₕ hₜ₋₁ → 4H"]
+  N1["两条投影分别做 4H LN，然后相加+b<br/>LN → concat gates → split f/i/o/g → sigmoid / tanh"]
+  N2["更新 H 维 cell cₜ<br/>forget gate × old cell + input gate × candidate"]
+  N3["第三处 H 维 LN 只用于读取 cell<br/>hₜ = sigmoid(oₜ) × tanh(LN(cₜ))；不是重写保存的 cₜ"]
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3

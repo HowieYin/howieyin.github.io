@@ -1,0 +1,484 @@
+{
+  "1": {
+    "headers": [
+      "Method",
+      "Weight matrix<br>re-scaling",
+      "Weight matrix<br>re-centering",
+      "Weight vector<br>re-scaling",
+      "Dataset<br>re-scaling",
+      "Dataset<br>re-centering",
+      "Single training case<br>re-scaling"
+    ],
+    "rows": [
+      [
+        "BatchNorm",
+        "✓",
+        "✗",
+        "✓",
+        "✓",
+        "✓",
+        "✗"
+      ],
+      [
+        "WeightNorm",
+        "✓",
+        "✗",
+        "✓",
+        "✗",
+        "✗",
+        "✗"
+      ],
+      [
+        "LayerNorm",
+        "✓",
+        "✓",
+        "✗",
+        "✓",
+        "✗",
+        "✓"
+      ],
+      [
+        "RMSNorm",
+        "✓",
+        "✗",
+        "✗",
+        "✓",
+        "✗",
+        "✓"
+      ],
+      [
+        "pRMSNorm",
+        "✓",
+        "✗",
+        "✗",
+        "✓",
+        "✗",
+        "✓"
+      ]
+    ],
+    "caption": "Invariance properties of different normalization methods. ``cmark'' indicates invariant, while ``xmark'' denotes the opposite."
+  },
+  "2": {
+    "headers": [
+      "Model",
+      "Test14",
+      "Test17",
+      "Time"
+    ],
+    "rows": [
+      [
+        "Baseline",
+        "21.7",
+        "23.4",
+        "399±3.40s"
+      ],
+      [
+        "LayerNorm",
+        "22.6",
+        "23.6",
+        "665±32.5s"
+      ],
+      [
+        "L2-Norm",
+        "20.7",
+        "22.0",
+        "482±19.7s"
+      ],
+      [
+        "RMSNorm",
+        "22.4",
+        "<strong>23.7</strong>",
+        "501±11.8s (24.7%)"
+      ],
+      [
+        "pRMSNorm",
+        "<strong>22.6</strong>",
+        "23.1",
+        "493±10.7s (25.9%)"
+      ]
+    ],
+    "caption": "SacreBLEU score on newstest2014 (Test14) and newstest2017 (Test17) for RNNSearch using Tensorflow-version Nematus. ``Time'': the time in second per 1k training steps. We set p to 6.25%. We highlight the best results in bold, and show the speedup of RMSNorm against LayerNorm in bracket."
+  },
+  "3": {
+    "headers": [
+      "Framework",
+      "Model",
+      "Test14",
+      "Test17",
+      "Time"
+    ],
+    "rows": [
+      [
+        "Th",
+        "Baseline",
+        "21.8",
+        "22.9",
+        "596±20.8s"
+      ],
+      [
+        "Th",
+        "LayerNorm",
+        "22.3",
+        "23.8",
+        "988±1.10s"
+      ],
+      [
+        "Th",
+        "RMSNorm",
+        "22.5",
+        "23.2",
+        "652±24.1s (34.0%)"
+      ],
+      [
+        "Th",
+        "pRMSNorm",
+        "<strong>22.7</strong>",
+        "<strong>24.0</strong>",
+        "658±17.9s (33.4%)"
+      ],
+      [
+        "Py",
+        "Baseline",
+        "22.7",
+        "<strong>24.7</strong>",
+        "427±6.50s"
+      ],
+      [
+        "Py",
+        "LayerNorm",
+        "23.2",
+        "24.3",
+        "857±17.2s"
+      ],
+      [
+        "Py",
+        "RMSNorm",
+        "22.9",
+        "24.5",
+        "763±16.2s (11.0%)"
+      ],
+      [
+        "Py",
+        "pRMSNorm",
+        "<strong>23.2</strong>",
+        "24.6",
+        "754±36.1s (12.0%)"
+      ]
+    ],
+    "caption": "SacreBLEU score on newstest2014 (Test14) and newstest2017 (Test17) for RNNSearch. ``Th'': Theano-version Nematus, ``Py'': an in-house PyTorch-based RNNSearch."
+  },
+  "4": {
+    "headers": [
+      "Model",
+      "Test14",
+      "Test17",
+      "Time"
+    ],
+    "rows": [
+      [
+        "Baseline",
+        "−",
+        "−",
+        "210±0.23s"
+      ],
+      [
+        "LayerNorm",
+        "26.6",
+        "27.7",
+        "248±1.31s"
+      ],
+      [
+        "RMSNorm",
+        "<strong>26.8</strong>",
+        "27.7",
+        "231±0.04s (6.9%)"
+      ],
+      [
+        "pRMSNorm",
+        "26.5",
+        "<strong>27.8</strong>",
+        "225±1.63s (9.3%)"
+      ]
+    ],
+    "caption": "SacreBLEU score on newstest2014 (Test14) and newstest2017 (Test17) for the Transformer. ``Time'': the time in second per 1k training steps, which is measured using Tesla V100. ``-'' indicates that we fail to train this model and BLEU score is 0."
+  },
+  "5": {
+    "headers": [
+      "Model",
+      "Statistic",
+      "1",
+      "2",
+      "3",
+      "4",
+      "ALL"
+    ],
+    "rows": [
+      [
+        "Baseline",
+        "M",
+        "−2.60",
+        "−1.19",
+        "−1.43",
+        "−1.53",
+        "−1.60"
+      ],
+      [
+        "Baseline",
+        "S",
+        "7.35",
+        "2.33",
+        "2.61",
+        "2.73",
+        "3.04"
+      ],
+      [
+        "LayerNorm",
+        "M",
+        "−0.43",
+        "−0.48",
+        "−0.50",
+        "−0.50",
+        "−0.51"
+      ],
+      [
+        "LayerNorm",
+        "S",
+        "1.19",
+        "1.51",
+        "1.51",
+        "1.51",
+        "1.51"
+      ],
+      [
+        "RMSNorm",
+        "M",
+        "−0.40",
+        "−0.60",
+        "−0.69",
+        "−0.74",
+        "−0.73"
+      ],
+      [
+        "RMSNorm",
+        "S",
+        "1.27",
+        "1.51",
+        "1.50",
+        "1.49",
+        "1.50"
+      ]
+    ],
+    "caption": "Mean (M) and standard deviation (S) statistics estimated on the hidden-to-hidden mapping of decoder-part GRU cell in RNNSearch model. We use the newstest2013 dataset. ALL: the statistics averaged across all token positions. Numbers 1,2,3,4 indicate the statistic estimated for specific token positions."
+  },
+  "6": {
+    "headers": [
+      "Model",
+      "Time"
+    ],
+    "rows": [
+      [
+        "Baseline",
+        "315±6.30s"
+      ],
+      [
+        "BatchNorm-Everywhere",
+        "348±10.5s"
+      ],
+      [
+        "BatchNorm-LSTM",
+        "345±11.2s"
+      ],
+      [
+        "LayerNorm",
+        "392±5.70s"
+      ],
+      [
+        "RMSNorm",
+        "333±5.20s (15.1%)"
+      ],
+      [
+        "pRMSNorm",
+        "330±5.50s (15.8%)"
+      ]
+    ],
+    "caption": "Time in seconds per 0.1k training steps for the attentive reader model."
+  },
+  "7": {
+    "headers": [
+      "Group",
+      "Model",
+      "Caption R@1",
+      "Caption R@5",
+      "Caption R@10",
+      "Caption Mean r",
+      "Image R@1",
+      "Image R@5",
+      "Image R@10",
+      "Image Mean r"
+    ],
+    "rows": [
+      [
+        "Existing Work",
+        "Sym (Vendrov et al.)",
+        "45.4",
+        "",
+        "88.7",
+        "5.8",
+        "36.3",
+        "",
+        "85.8",
+        "9.0"
+      ],
+      [
+        "Existing Work",
+        "OE + Baseline (Vendrov et al.)†",
+        "46.7",
+        "",
+        "88.9",
+        "5.7",
+        "37.9",
+        "",
+        "85.9",
+        "8.1"
+      ],
+      [
+        "Existing Work",
+        "OE + Baseline (Ba et al.)‡",
+        "46.6",
+        "79.3",
+        "89.1",
+        "5.2",
+        "37.8",
+        "73.6",
+        "85.7",
+        "7.9"
+      ],
+      [
+        "Existing Work",
+        "OE + LayerNorm (Ba et al.)",
+        "48.5",
+        "<strong>80.6</strong>",
+        "89.8",
+        "<strong>5.1</strong>",
+        "38.9",
+        "74.3",
+        "86.3",
+        "7.6"
+      ],
+      [
+        "This Work",
+        "OE + Baseline",
+        "45.8",
+        "79.7",
+        "88.8",
+        "5.4",
+        "37.6",
+        "73.6",
+        "85.8",
+        "7.7"
+      ],
+      [
+        "This Work",
+        "OE + LayerNorm",
+        "47.9",
+        "79.5",
+        "89.2",
+        "5.3",
+        "38.4",
+        "74.6",
+        "<strong>86.7</strong>",
+        "7.5"
+      ],
+      [
+        "This Work",
+        "OE + RMSNorm",
+        "<strong>48.7</strong>",
+        "79.7",
+        "89.5",
+        "5.3",
+        "<strong>39.0</strong>",
+        "<strong>74.8</strong>",
+        "86.3",
+        "7.5"
+      ],
+      [
+        "This Work",
+        "OE + pRMSNorm",
+        "46.8",
+        "79.8",
+        "<strong>90.3</strong>",
+        "5.2",
+        "39.0",
+        "74.5",
+        "86.3",
+        "<strong>7.4</strong>"
+      ]
+    ],
+    "caption": "Average R@K values across 5 test sets from Microsoft COCO. R@K: Recall @ K, higher is better. Mean r: mean rank, lower is better. The number in bold highlights the best result. ‡ denotes the reproduced results of †."
+  },
+  "8": {
+    "headers": [
+      "Model",
+      "Time"
+    ],
+    "rows": [
+      [
+        "Baseline",
+        "2.11±0.047s"
+      ],
+      [
+        "LayerNorm",
+        "12.02±0.191s"
+      ],
+      [
+        "RMSNorm",
+        "7.12±0.207s (40.8%)"
+      ],
+      [
+        "pRMSNorm",
+        "4.34±0.168s (63.9%)"
+      ]
+    ],
+    "caption": "Time in seconds per 0.1k training steps for the order-embedding model."
+  },
+  "10": {
+    "headers": [
+      "Model",
+      "Test Error",
+      "Time"
+    ],
+    "rows": [
+      [
+        "Baseline",
+        "8.96%",
+        "21±0.0s"
+      ],
+      [
+        "BatchNorm",
+        "8.25%",
+        "38±0.0s"
+      ],
+      [
+        "WeightNorm",
+        "8.28%",
+        "23±0.0s"
+      ],
+      [
+        "LayerNorm",
+        "10.49%",
+        "39±0.4s"
+      ],
+      [
+        "RMSNorm",
+        "8.83%",
+        "31±0.5s (20.5%)"
+      ],
+      [
+        "pRMSNorm",
+        "10.37%",
+        "30±0.4s (23.1%)"
+      ]
+    ],
+    "caption": "Test error rate and time in seconds per training epoch for the ConvPool-CNN-C model. Time is measured with GeForce RTX 2080 Ti."
+  }
+}

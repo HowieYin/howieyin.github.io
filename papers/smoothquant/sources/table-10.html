@@ -1,0 +1,59 @@
+<figure class="ltx_table" id="S5.T10">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 10: </span>When serving MT-NLG 530B, SmoothQuant can reduce the memory by half at a similar latency using <em class="ltx_emph ltx_font_italic">half</em> number of GPUs, which allows serving the 530B model within a single node.</figcaption>
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">SeqLen</span></td>
+<td class="ltx_td ltx_align_left ltx_border_tt" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">Prec.</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">#GPUs</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">Latency</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">Memory</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">128</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">232ms</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">1040GB</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td" style="padding:-0.25pt 7.0pt;"></td>
+<td class="ltx_td ltx_align_left" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">INT8</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">8</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">253ms</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">527GB</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">256</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">451ms</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">1054GB</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td" style="padding:-0.25pt 7.0pt;"></td>
+<td class="ltx_td ltx_align_left" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">INT8</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">8</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">434ms</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">533GB</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">512</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">838ms</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">1068GB</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td" style="padding:-0.25pt 7.0pt;"></td>
+<td class="ltx_td ltx_align_left" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">INT8</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">8</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">839ms</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">545GB</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">1024</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">1707ms</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">1095GB</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_bb" style="padding:-0.25pt 7.0pt;"></td>
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">INT8</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">8</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">1689ms</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 7.0pt;"><span class="ltx_text" style="font-size:90%;">570GB</span></td></tr>
+</table>
+</figure>

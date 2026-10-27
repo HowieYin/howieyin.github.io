@@ -1,0 +1,5 @@
+flowchart TD
+  n0["模型与资源输入<br/>shape / unique D / optimizer / batch / schedule"] --> n1
+  n1["自回归训练与checkpoint<br/>IDs [b,t] → hidden [b,t,d] → logits [b,t,V] → scalar loss"] --> n2
+  n2["run统计与预算截面<br/>保留 N、D、E、C、B、S；同计算比较不同模型"] --> n3
+  n3["拟合 + 外推验证<br/>单轴 → 联合函数 → batch校正 → compute frontier"]

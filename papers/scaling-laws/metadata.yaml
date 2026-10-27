@@ -1,0 +1,16 @@
+title: Scaling Laws for Neural Language Models
+authors: [Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B. Brown, Benjamin Chess, Rewon Child, Scott Gray, Alec Radford, Jeffrey Wu, Dario Amodei]
+institution: [OpenAI, Johns Hopkins University]
+year: 2020
+venue: arXiv preprint
+published: 2020-01-23
+version: 2001.08361v1
+doi: 10.48550/arXiv.2001.08361
+reading_date: 2026-10-27
+last_updated: 2026-10-27
+tags: [LLM, Training, Systems]
+url: https://howieyin.github.io/papers/scaling-laws/
+code: null
+figures: 24
+tables: 6
+numbered_equations: 50
