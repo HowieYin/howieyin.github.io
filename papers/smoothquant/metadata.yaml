@@ -1,0 +1,15 @@
+title: "SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models"
+authors: [Guangxuan Xiao, Ji Lin, Mickael Seznec, Hao Wu, Julien Demouth, Song Han]
+institutions: [MIT, NVIDIA]
+venue: ICML 2023
+arxiv: 2211.10438v7
+first_published: 2022-11-18
+version_date: 2024-03-29
+reading_date: 2026-10-27
+last_updated: 2026-10-27
+doi: 10.48550/arXiv.2211.10438
+pdf: sources/2211.10438v7.pdf
+code: https://github.com/mit-han-lab/smoothquant
+project: https://hanlab.mit.edu/projects/smoothquant
+production_url: https://howieyin.github.io/papers/smoothquant/
+tags: [LLM, Quantization, Inference, Systems]

@@ -1,0 +1,11 @@
+flowchart TB
+subgraph OFF["Offline · 冻结 checkpoint"]
+A["代表性语料前向 / 输入通道 absmax"] --> B["选择 α / 共同消费者的权重 absmax"]
+B --> C["计算 s / Norm γ、β 除 s / 所有 fc 输入列乘 s"]
+C --> D["平滑后重新标定 Q/DQ / 导出整数权重"]
+end
+D --> E["Runtime · Norm 已产生 X/s"]
+E --> F["激活编码 INT8 / dynamic 或 static"]
+F --> G["INT8 GEMM / INT32 累加"]
+G --> H["尺度 epilogue / FP16 或 INT8 输出"]
+H --> I["Norm、Softmax、残差与缓存依后端精度"]

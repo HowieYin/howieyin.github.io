@@ -1,0 +1,50 @@
+<figure class="ltx_table" id="S5.T4">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 4: </span>SmoothQuant works for different LLMs. We can quantize the 3 largest, openly available LLM models into INT8 without degrading the accuracy. For OPT-175B and BLOOM-176B, we show the average accuracy on WinoGrande, HellaSwag, PIQA, and LAMBADA. For GLM-130B we show the average accuracy on LAMBADA, MMLU, MNLI, and QNLI. *Accuracy is not column-wise comparable due to different datasets. </figcaption>
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_border_tt" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">Method</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_tt" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">OPT-175B</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_tt" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">BLOOM-176B</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_tt" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">GLM-130B*</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">71.6%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">68.2%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">73.8%</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">W8A8</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">32.3%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">64.2%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">26.9%</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">ZeroQuant</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">31.7%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">67.4%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">26.7%</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left" style="padding:-0.25pt 1.0pt;"><span class="ltx_text ltx_font_typewriter" style="font-size:90%;">LLM.int8()</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">71.4%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">68.0%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">73.8%</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">Outlier Suppression</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">31.7%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">54.1%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">63.5%</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O1</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text ltx_font_bold" style="font-size:90%;">71.2<span class="ltx_text ltx_font_medium">%</span></span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">68.3%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding:-0.25pt 1.0pt;"><span class="ltx_text ltx_font_bold" style="font-size:90%;">73.7%</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O2</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">71.1%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text ltx_font_bold" style="font-size:90%;">68.4<span class="ltx_text ltx_font_medium">%</span></span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">72.5%</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_border_bb" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O3</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_bb" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">71.1%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_bb" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">67.4%</span></td>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_bb" style="padding:-0.25pt 1.0pt;"><span class="ltx_text" style="font-size:90%;">72.8%</span></td></tr>
+</table>
+</figure>
