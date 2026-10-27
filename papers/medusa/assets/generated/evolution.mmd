@@ -1,0 +1,10 @@
+flowchart TD
+  A["2018 / Blockwise / 多头预测与最长前缀"] --> B["2024 / Medusa / 共享 hidden 与静态树"]
+  C["2022–2023 / 严格 speculative rejection"] --> B
+  B --> D["2024 / Hydra / 增加 head 条件依赖"]
+  B --> E["2024 / ReDrafter / 递归草稿与前缀去重"]
+  C --> F["2024 / EAGLE / feature + token 条件"]
+  F --> G["2024 / EAGLE-2 / 上下文动态树"]
+  G --> H["2025 / EAGLE-3 / 训练模拟推理"]
+  H --> I["2026 / DFlash / 并行 block drafter"]
+  I --> J["2026 / SpecV2 / KV 注入与准备重叠"]
