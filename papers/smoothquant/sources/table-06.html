@@ -1,0 +1,24 @@
+<figure class="ltx_table" id="S5.T6">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 6: </span>SmoothQuant can enable lossless W8A8 quantization for LLaMA models <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/2211.10438v7#bib.bib34" title="">Touvron et al., 2023a</a>)</cite>. Results are perplexities on the WikiText-2 dataset with a sequence length of 512. We used per-token activation quantization and <math alttext="\alpha" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>=0.8 for SmoothQuant.
+</figcaption>
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Wiki PPL<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo><annotation encoding="application/x-tex">\downarrow</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">7B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">13B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">30B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">65B</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">11.51</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">10.05</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">7.53</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">6.17</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">W8A8 SmoothQuant</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">11.56</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">10.08</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">7.56</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">6.20</span></td></tr>
+</table>
+</figure>

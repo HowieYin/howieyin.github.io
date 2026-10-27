@@ -1,0 +1,46 @@
+<figure class="ltx_table" id="S5.T11">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 11: </span>GPU Latency (ms) of different quantization schemes. The coarser the quantization scheme (from per-token to per-tensor, dynamic to static, O1 to O3, defined in Table <a class="ltx_ref" href="https://arxiv.org/html/2211.10438v7#S5.T2" title="Table 2 ‣ Baselines. ‣ 5.1 Setups ‣ 5 Experiments ‣ SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models"><span class="ltx_text ltx_ref_tag">2</span></a>), the lower the latency. SmoothQuant achieves lower latency compared to FP16 under all settings, while <span class="ltx_text ltx_font_typewriter">LLM.int8()</span> is mostly slower.
+The batch size is 4.</figcaption>
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">Model</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">OPT-13B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">OPT-30B</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">Sequence Length</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">256</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">512</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">256</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">512</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">152.6</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">296.3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">343.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">659.9</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text ltx_font_typewriter" style="font-size:90%;">LLM.int8()</span></td>
+<td class="ltx_td ltx_align_center" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">237.1</span></td>
+<td class="ltx_td ltx_align_center" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">371.5</span></td>
+<td class="ltx_td ltx_align_center" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">387.9</span></td>
+<td class="ltx_td ltx_align_center" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">654.9</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O1</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">124.5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">243.3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">246.7</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">490.7</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O2</span></td>
+<td class="ltx_td ltx_align_center" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">120.5</span></td>
+<td class="ltx_td ltx_align_center" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">235.1</span></td>
+<td class="ltx_td ltx_align_center" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">240.2</span></td>
+<td class="ltx_td ltx_align_center" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">478.3</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">112.1</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">223.1</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">227.6</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:-0.25pt;padding-bottom:-0.25pt;"><span class="ltx_text" style="font-size:90%;">458.4</span></td></tr>
+</table>
+</figure>
