@@ -1,0 +1,143 @@
+{
+  "paper": "https://arxiv.org/abs/2210.17323v2",
+  "date": "2026-10-27",
+  "figures": [
+    {
+      "file": "assets/original/fig-01a-opt.svg",
+      "url": "https://arxiv.org/html/2210.17323v2/opt4-abs.svg",
+      "caption": "Figure 1: Quantizing OPT models to 4 and BLOOM models to 3 bit precision, comparing GPTQ with the FP16 baseline and round-to-nearest (RTN) (Yao et al., 2022; Dettmers et al., 2022)."
+    },
+    {
+      "file": "assets/original/fig-01b-bloom.svg",
+      "url": "https://arxiv.org/html/2210.17323v2/bloom3-abs.svg",
+      "caption": "Figure 1: Quantizing OPT models to 4 and BLOOM models to 3 bit precision, comparing GPTQ with the FP16 baseline and round-to-nearest (RTN) (Yao et al., 2022; Dettmers et al., 2022)."
+    },
+    {
+      "file": "assets/original/fig-02-procedure.svg",
+      "url": "https://arxiv.org/html/2210.17323v2/gptq-new-2.svg",
+      "caption": "Figure 2: GPTQ quantization procedure. Blocks of consecutive columns (bolded) are quantized at a given step, using the inverse Hessian information stored in the Cholesky decomposition, and the remaining weights (blue) are updated at the end of the step. The quantization procedure is applied recursively inside each block: the white middle column is currently being quantized."
+    },
+    {
+      "file": "assets/original/fig-03-lambada.svg",
+      "url": "https://arxiv.org/html/2210.17323v2/lambada_task.svg",
+      "caption": "Figure 3: The accuracy of OPT and BLOOM models post-GPTQ, measured on LAMBADA."
+    },
+    {
+      "file": "assets/original/fig-04-grouping.svg",
+      "url": "https://arxiv.org/html/2210.17323v2/groupsizes.svg",
+      "caption": "Figure 4: GPTQ at 4-bit with different group-sizes on medium sized OPT models."
+    }
+  ],
+  "tables": [
+    {
+      "number": 1,
+      "source": "2210.17323v2",
+      "caption": "Table 1: Comparison with state-of-the-art post-training methods for vision models."
+    },
+    {
+      "number": 2,
+      "source": "2210.17323v2",
+      "caption": "Table 2: GPTQ runtime for full quantization of the 4 largest OPT and BLOOM models."
+    },
+    {
+      "number": 3,
+      "source": "2210.17323v2",
+      "caption": "Table 3: OPT perplexity results on WikiText2."
+    },
+    {
+      "number": 4,
+      "source": "2210.17323v2",
+      "caption": "Table 4: BLOOM perplexity results for WikiText2."
+    },
+    {
+      "number": 5,
+      "source": "2210.17323v2",
+      "caption": "Table 5: Results summary for OPT-175B and BLOOM-176B. “g1024” and “g128” denote results with groupings of size 1024 and 128, respectively."
+    },
+    {
+      "number": 6,
+      "source": "2210.17323v2",
+      "caption": "Table 6: Average per-token latency (batch size 1) when generating sequences of length 128."
+    },
+    {
+      "number": 7,
+      "source": "2210.17323v2",
+      "caption": "Table 7: 2-bit GPTQ quantization results with varying group-sizes; perplexity on WikiText2."
+    },
+    {
+      "number": 8,
+      "source": "2210.17323v2",
+      "caption": "Table 8: Comparison of GPTQ relative to OBQ on BERT-base/SQuAD and OPT-125M/WikiText2."
+    },
+    {
+      "number": 9,
+      "source": "2210.17323v2",
+      "caption": "Table 9: OPT perplexity results on PTB."
+    },
+    {
+      "number": 10,
+      "source": "2210.17323v2",
+      "caption": "Table 10: BLOOM perplexity results for PTB."
+    },
+    {
+      "number": 11,
+      "source": "2210.17323v2",
+      "caption": "Table 11: OPT perplexity results on C4. We note that the calibration data used by GPTQ is sampled from the C4 training set, this task is thus not fully zero-shot."
+    },
+    {
+      "number": 12,
+      "source": "2210.17323v2",
+      "caption": "Table 12: BLOOM perplexity results for C4. We note that the calibration data used by GPTQ is sampled from the C4 training set, this task is thus not fully zero-shot."
+    },
+    {
+      "number": 13,
+      "source": "2210.17323v2",
+      "caption": "Table 13: OPT accuracy on LAMBADA."
+    },
+    {
+      "number": 14,
+      "source": "2210.17323v2",
+      "caption": "Table 14: BLOOM accuracy on LAMBADA."
+    },
+    {
+      "number": 15,
+      "source": "2210.17323v2",
+      "caption": "Table 15: OPT accuracy on PIQA."
+    },
+    {
+      "number": 16,
+      "source": "2210.17323v2",
+      "caption": "Table 16: BLOOM accuracy on PIQA."
+    },
+    {
+      "number": 17,
+      "source": "2210.17323v2",
+      "caption": "Table 17: OPT accuracy on ARC-easy."
+    },
+    {
+      "number": 18,
+      "source": "2210.17323v2",
+      "caption": "Table 18: BLOOM accuracy on ARC-easy."
+    },
+    {
+      "number": 19,
+      "source": "2210.17323v2",
+      "caption": "Table 19: OPT accuracy on ARC-challenge."
+    },
+    {
+      "number": 20,
+      "source": "2210.17323v2",
+      "caption": "Table 20: BLOOM accuracy on ARC-challenge."
+    },
+    {
+      "number": 21,
+      "source": "2210.17323v2",
+      "caption": "Table 21: OPT accuracy on StoryCloze."
+    },
+    {
+      "number": 22,
+      "source": "2210.17323v2",
+      "caption": "Table 22: BLOOM accuracy on StoryCloze."
+    }
+  ]
+}
