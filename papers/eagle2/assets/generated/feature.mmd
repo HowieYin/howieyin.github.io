@@ -1,0 +1,4 @@
+flowchart TD
+A["Target feature B×S×d"] --> C["Concat B×S×2d"]
+B["Shifted token embedding B×S×d"] --> C
+C --> F["FC 2d to d"] --> D["One draft decoder layer"] --> H["Shared target LM head"] --> P["Logits and confidence"]
