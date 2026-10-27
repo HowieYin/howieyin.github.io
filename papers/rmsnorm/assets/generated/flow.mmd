@@ -1,0 +1,10 @@
+flowchart TB
+  X["Input a · M × D"] --> LN["LayerNorm: μ = mean(a)"]
+  X --> RMS["RMSNorm: r² = mean(a²)"]
+  LN --> C["Centered a − μ"]
+  C --> V["σ² = mean((a − μ)²)"]
+  V --> LZ["z = (a − μ) / σ"]
+  RMS --> RZ["z = a / r"]
+  LZ --> A["Per-channel gain g · optional bias b"]
+  RZ --> A
+  A --> Y["Output · M × D"]

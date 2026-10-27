@@ -1,0 +1,291 @@
+[
+  {
+    "kind": "fig",
+    "number": 1,
+    "file": "assets/original/fig-01.png",
+    "pdf_page": 2,
+    "clip_pdf_points": [
+      104,
+      70,
+      508,
+      235
+    ],
+    "scale": 4,
+    "width": 1616,
+    "height": 660,
+    "caption": "Training procedure of a GRU-based RNNSearch for the first 10k training steps. Baseline means the original model without any normalization. When the Baseline training loss arrives at 7.0, the loss of LayerNorm reaches 5.4 after the same number of training steps (a), but only 5.9 after the same training time (b).",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "fig",
+    "number": 2,
+    "file": "assets/original/fig-02.png",
+    "pdf_page": 6,
+    "clip_pdf_points": [
+      104,
+      70,
+      289,
+      208
+    ],
+    "scale": 4,
+    "width": 740,
+    "height": 552,
+    "caption": "SacreBLEU score on newstest2013 for the RNNSearch. Models are implemented according to Nematus in Tensorflow.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "fig",
+    "number": 3,
+    "file": "assets/original/fig-03.png",
+    "pdf_page": 7,
+    "clip_pdf_points": [
+      104,
+      70,
+      270,
+      216
+    ],
+    "scale": 4,
+    "width": 664,
+    "height": 584,
+    "caption": "SacreBLEU score on newstest2013 (devset) for the RNNSearch with pRMSNorm. We use Tensorflow-version Nematus, and change p by a step size of 10%.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "fig",
+    "number": 4,
+    "file": "assets/original/fig-04.png",
+    "pdf_page": 7,
+    "clip_pdf_points": [
+      346,
+      441,
+      508,
+      577
+    ],
+    "scale": 4,
+    "width": 648,
+    "height": 544,
+    "caption": "SacreBLEU score curve of LayerNorm and RMSNorm on newstest2013 (devset) when the initialization center is 0.2.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "fig",
+    "number": 5,
+    "file": "assets/original/fig-05.png",
+    "pdf_page": 8,
+    "clip_pdf_points": [
+      104,
+      70,
+      280,
+      201
+    ],
+    "scale": 4,
+    "width": 704,
+    "height": 524,
+    "caption": "Error rate on validation set for the attentive reader model.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "fig",
+    "number": 6,
+    "file": "assets/original/fig-06.png",
+    "pdf_page": 8,
+    "clip_pdf_points": [
+      120,
+      200,
+      482,
+      314
+    ],
+    "scale": 4,
+    "width": 1448,
+    "height": 456,
+    "caption": "Recall@K values on validation set for the order-embedding models.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "fig",
+    "number": 7,
+    "file": "assets/original/fig-07.png",
+    "pdf_page": 13,
+    "clip_pdf_points": [
+      347,
+      305,
+      508,
+      450
+    ],
+    "scale": 4,
+    "width": 644,
+    "height": 580,
+    "caption": "SacreBLEU score curve over training steps on newstest2013 (devset) for the RNNSearch. Models are trained with Nematus in Theano.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 1,
+    "file": "assets/original/table-01.png",
+    "pdf_page": 4,
+    "clip_pdf_points": [
+      104,
+      69,
+      508,
+      160
+    ],
+    "scale": 4,
+    "width": 1616,
+    "height": 364,
+    "caption": "Invariance properties of different normalization methods. ``cmark'' indicates invariant, while ``xmark'' denotes the opposite.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 2,
+    "file": "assets/original/table-02.png",
+    "pdf_page": 6,
+    "clip_pdf_points": [
+      290,
+      72,
+      506,
+      204
+    ],
+    "scale": 4,
+    "width": 864,
+    "height": 528,
+    "caption": "SacreBLEU score on newstest2014 (Test14) and newstest2017 (Test17) for RNNSearch using Tensorflow-version Nematus. ``Time'': the time in second per 1k training steps. We set p to 6.25%. We highlight the best results in bold, and show the speedup of RMSNorm against LayerNorm in bracket.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 3,
+    "file": "assets/original/table-03.png",
+    "pdf_page": 7,
+    "clip_pdf_points": [
+      270,
+      76,
+      508,
+      210
+    ],
+    "scale": 4,
+    "width": 952,
+    "height": 536,
+    "caption": "SacreBLEU score on newstest2014 (Test14) and newstest2017 (Test17) for RNNSearch. ``Th'': Theano-version Nematus, ``Py'': an in-house PyTorch-based RNNSearch.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 4,
+    "file": "assets/original/table-04.png",
+    "pdf_page": 7,
+    "clip_pdf_points": [
+      104,
+      220,
+      282,
+      328
+    ],
+    "scale": 4,
+    "width": 712,
+    "height": 432,
+    "caption": "SacreBLEU score on newstest2014 (Test14) and newstest2017 (Test17) for the Transformer. ``Time'': the time in second per 1k training steps, which is measured using Tesla V100. ``-'' indicates that we fail to train this model and BLEU score is 0.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 5,
+    "file": "assets/original/table-05.png",
+    "pdf_page": 7,
+    "clip_pdf_points": [
+      282,
+      213,
+      506,
+      336
+    ],
+    "scale": 4,
+    "width": 896,
+    "height": 492,
+    "caption": "Mean (M) and standard deviation (S) statistics estimated on the hidden-to-hidden mapping of decoder-part GRU cell in RNNSearch model. We use the newstest2013 dataset. ALL: the statistics averaged across all token positions. Numbers 1,2,3,4 indicate the statistic estimated for specific token positions.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 6,
+    "file": "assets/original/table-06.png",
+    "pdf_page": 8,
+    "clip_pdf_points": [
+      282,
+      85,
+      505,
+      187
+    ],
+    "scale": 4,
+    "width": 892,
+    "height": 408,
+    "caption": "Time in seconds per 0.1k training steps for the attentive reader model.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 7,
+    "file": "assets/original/table-07.png",
+    "pdf_page": 9,
+    "clip_pdf_points": [
+      104,
+      69,
+      508,
+      189
+    ],
+    "scale": 4,
+    "width": 1616,
+    "height": 480,
+    "caption": "Average R@K values across 5 test sets from Microsoft COCO. R@K: Recall @ K, higher is better. Mean r: mean rank, lower is better. The number in bold highlights the best result. ‡ denotes the reproduced results of †.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 8,
+    "file": "assets/original/table-08.png",
+    "pdf_page": 8,
+    "clip_pdf_points": [
+      347,
+      459,
+      508,
+      542
+    ],
+    "scale": 4,
+    "width": 644,
+    "height": 332,
+    "caption": "Time in seconds per 0.1k training steps for the order-embedding model.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 9,
+    "file": "assets/original/table-09.png",
+    "pdf_page": 9,
+    "clip_pdf_points": [
+      104,
+      187,
+      282,
+      312
+    ],
+    "scale": 4,
+    "width": 712,
+    "height": 500,
+    "caption": "Training error rate for the ConvPool-CNN-C model.",
+    "source": "1910.07467v1.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 10,
+    "file": "assets/original/table-10.png",
+    "pdf_page": 9,
+    "clip_pdf_points": [
+      282,
+      192,
+      506,
+      302
+    ],
+    "scale": 4,
+    "width": 896,
+    "height": 440,
+    "caption": "Test error rate and time in seconds per training epoch for the ConvPool-CNN-C model. Time is measured with GeForce RTX 2080 Ti.",
+    "source": "1910.07467v1.pdf"
+  }
+]

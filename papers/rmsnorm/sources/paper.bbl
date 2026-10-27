@@ -1,0 +1,271 @@
+\begin{thebibliography}{37}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Abadi et~al.(2016)Abadi, Barham, Chen, Chen, Davis, Dean, Devin,
+  Ghemawat, Irving, Isard, Kudlur, Levenberg, Monga, Moore, Murray, Steiner,
+  Tucker, Vasudevan, Warden, Wicke, Yu, and
+  Zheng]{Abadi:2016:TSL:3026877.3026899}
+Mart\'{\i}n Abadi, Paul Barham, Jianmin Chen, Zhifeng Chen, Andy Davis, Jeffrey
+  Dean, Matthieu Devin, Sanjay Ghemawat, Geoffrey Irving, Michael Isard,
+  Manjunath Kudlur, Josh Levenberg, Rajat Monga, Sherry Moore, Derek~G. Murray,
+  Benoit Steiner, Paul Tucker, Vijay Vasudevan, Pete Warden, Martin Wicke, Yuan
+  Yu, and Xiaoqiang Zheng.
+\newblock Tensorflow: A system for large-scale machine learning.
+\newblock In \emph{Proceedings of the 12th USENIX Conference on Operating
+  Systems Design and Implementation}, OSDI'16, pages 265--283, 2016.
+\newblock ISBN 978-1-931971-33-1.
+
+\bibitem[Arpit et~al.(2016)Arpit, Zhou, Kota, and
+  Govindaraju]{arpit2016normalization}
+Devansh Arpit, Yingbo Zhou, Bhargava~U Kota, and Venu Govindaraju.
+\newblock Normalization propagation: A parametric technique for removing
+  internal covariate shift in deep networks.
+\newblock \emph{arXiv preprint arXiv:1603.01431}, 2016.
+
+\bibitem[Ba et~al.(2016)Ba, Kiros, and Hinton]{ba2016layer}
+Jimmy~Lei Ba, Jamie~Ryan Kiros, and Geoffrey~E Hinton.
+\newblock Layer normalization.
+\newblock \emph{arXiv preprint arXiv:1607.06450}, 2016.
+
+\bibitem[Bahdanau et~al.(2014)Bahdanau, Cho, and Bengio]{bahdanau+al-2014-nmt}
+Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio.
+\newblock Neural machine translation by jointly learning to align and
+  translate.
+\newblock \emph{arXiv e-prints}, abs/1409.0473, September 2014.
+
+\bibitem[Bjorck et~al.(2018)Bjorck, Gomes, Selman, and
+  Weinberger]{NIPS2018_7996}
+Nils Bjorck, Carla~P Gomes, Bart Selman, and Kilian~Q Weinberger.
+\newblock Understanding batch normalization.
+\newblock In S.~Bengio, H.~Wallach, H.~Larochelle, K.~Grauman, N.~Cesa-Bianchi,
+  and R.~Garnett, editors, \emph{Advances in Neural Information Processing
+  Systems 31}, pages 7694--7705. Curran Associates, Inc., 2018.
+\newblock URL
+  \url{http://papers.nips.cc/paper/7996-understanding-batch-normalization.pdf}.
+
+\bibitem[Chen et~al.(2018)Chen, Firat, Bapna, Johnson, Macherey, Foster, Jones,
+  Schuster, Shazeer, Parmar, Vaswani, Uszkoreit, Kaiser, Chen, Wu, and
+  Hughes]{P18-1008}
+Mia~Xu Chen, Orhan Firat, Ankur Bapna, Melvin Johnson, Wolfgang Macherey,
+  George Foster, Llion Jones, Mike Schuster, Noam Shazeer, Niki Parmar, Ashish
+  Vaswani, Jakob Uszkoreit, Lukasz Kaiser, Zhifeng Chen, Yonghui Wu, and
+  Macduff Hughes.
+\newblock The best of both worlds: Combining recent advances in neural machine
+  translation.
+\newblock In \emph{Proceedings of the 56th Annual Meeting of the Association
+  for Computational Linguistics (Volume 1: Long Papers)}, pages 76--86.
+  Association for Computational Linguistics, 2018.
+
+\bibitem[Cho et~al.(2014)Cho, Van~Merri{\"e}nboer, Gulcehre, Bahdanau,
+  Bougares, Schwenk, and Bengio]{cho2014learning}
+Kyunghyun Cho, Bart Van~Merri{\"e}nboer, Caglar Gulcehre, Dzmitry Bahdanau,
+  Fethi Bougares, Holger Schwenk, and Yoshua Bengio.
+\newblock Learning phrase representations using rnn encoder-decoder for
+  statistical machine translation.
+\newblock \emph{arXiv preprint arXiv:1406.1078}, 2014.
+
+\bibitem[Cooijmans et~al.(2016)Cooijmans, Ballas, Laurent, G{\"u}l{\c{c}}ehre,
+  and Courville]{cooijmans2016recurrent}
+Tim Cooijmans, Nicolas Ballas, C{\'e}sar Laurent, {\c{C}}a{\u{g}}lar
+  G{\"u}l{\c{c}}ehre, and Aaron Courville.
+\newblock Recurrent batch normalization.
+\newblock \emph{arXiv preprint arXiv:1603.09025}, 2016.
+
+\bibitem[Hermann et~al.(2015)Hermann, Kocisky, Grefenstette, Espeholt, Kay,
+  Suleyman, and Blunsom]{hermann2015teaching}
+Karl~Moritz Hermann, Tomas Kocisky, Edward Grefenstette, Lasse Espeholt, Will
+  Kay, Mustafa Suleyman, and Phil Blunsom.
+\newblock Teaching machines to read and comprehend.
+\newblock In \emph{Advances in Neural Information Processing Systems}, pages
+  1693--1701, 2015.
+
+\bibitem[Hoffer et~al.(2018)Hoffer, Banner, Golan, and Soudry]{hoffer2018norm}
+Elad Hoffer, Ron Banner, Itay Golan, and Daniel Soudry.
+\newblock Norm matters: efficient and accurate normalization schemes in deep
+  networks.
+\newblock \emph{arXiv preprint arXiv:1803.01814}, 2018.
+
+\bibitem[Ioffe(2017)]{ioffe2017batch}
+Sergey Ioffe.
+\newblock Batch renormalization: Towards reducing minibatch dependence in
+  batch-normalized models.
+\newblock In \emph{Advances in Neural Information Processing Systems}, pages
+  1945--1953, 2017.
+
+\bibitem[Ioffe and Szegedy(2015)]{Ioffe:2015:BNA:3045118.3045167}
+Sergey Ioffe and Christian Szegedy.
+\newblock Batch normalization: Accelerating deep network training by reducing
+  internal covariate shift.
+\newblock In \emph{Proceedings of the 32Nd International Conference on
+  International Conference on Machine Learning - Volume 37}, ICML'15, pages
+  448--456, 2015.
+
+\bibitem[Kingma and Ba(2014)]{kingma2014adam}
+Diederik~P Kingma and Jimmy Ba.
+\newblock Adam: A method for stochastic optimization.
+\newblock \emph{arXiv preprint arXiv:1412.6980}, 2014.
+
+\bibitem[Kiros et~al.(2014)Kiros, Salakhutdinov, and
+  Zemel]{DBLP:journals/corr/KirosSZ14}
+Ryan Kiros, Ruslan Salakhutdinov, and Richard~S. Zemel.
+\newblock Unifying visual-semantic embeddings with multimodal neural language
+  models.
+\newblock \emph{CoRR}, abs/1411.2539, 2014.
+
+\bibitem[Krizhevsky and Hinton(2009)]{krizhevsky2009learning}
+A.~Krizhevsky and G.~Hinton.
+\newblock Learning multiple layers of features from tiny images.
+\newblock \emph{Master's thesis, Department of Computer Science, University of
+  Toronto}, 2009.
+
+\bibitem[Laurent et~al.(2016)Laurent, Pereyra, Brakel, Zhang, and
+  Bengio]{laurent2016batch}
+C{\'e}sar Laurent, Gabriel Pereyra, Phil{\'e}mon Brakel, Ying Zhang, and Yoshua
+  Bengio.
+\newblock Batch normalized recurrent neural networks.
+\newblock In \emph{2016 IEEE International Conference on Acoustics, Speech and
+  Signal Processing (ICASSP)}, pages 2657--2661. IEEE, 2016.
+
+\bibitem[Lin et~al.(2014)Lin, Maire, Belongie, Hays, Perona, Ramanan,
+  Doll{\'a}r, and Zitnick]{lin2014microsoft}
+Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva
+  Ramanan, Piotr Doll{\'a}r, and C~Lawrence Zitnick.
+\newblock Microsoft coco: Common objects in context.
+\newblock In \emph{European conference on computer vision}, pages 740--755.
+  Springer, 2014.
+
+\bibitem[Nguyen and Chiang(2017)]{nguyen2017improving}
+Toan~Q Nguyen and David Chiang.
+\newblock Improving lexical choice in neural machine translation.
+\newblock \emph{arXiv preprint arXiv:1710.01329}, 2017.
+
+\bibitem[Parmar et~al.(2018)Parmar, Vaswani, Uszkoreit, Kaiser, Shazeer, and
+  Ku]{parmar2018image}
+Niki Parmar, Ashish Vaswani, Jakob Uszkoreit, Lukasz Kaiser, Noam Shazeer, and
+  Alexander Ku.
+\newblock Image transformer.
+\newblock \emph{arXiv preprint arXiv:1802.05751}, 2018.
+
+\bibitem[Paszke et~al.(2017)Paszke, Gross, Chintala, Chanan, Yang, DeVito, Lin,
+  Desmaison, Antiga, and Lerer]{paszke2017automatic}
+Adam Paszke, Sam Gross, Soumith Chintala, Gregory Chanan, Edward Yang, Zachary
+  DeVito, Zeming Lin, Alban Desmaison, Luca Antiga, and Adam Lerer.
+\newblock Automatic differentiation in pytorch.
+\newblock In \emph{NIPS-W}, 2017.
+
+\bibitem[Post(2018)]{post2018call}
+Matt Post.
+\newblock A call for clarity in reporting bleu scores.
+\newblock \emph{arXiv preprint arXiv:1804.08771}, 2018.
+
+\bibitem[Salimans and Kingma(2016)]{NIPS2016_6114}
+Tim Salimans and Durk~P Kingma.
+\newblock Weight normalization: A simple reparameterization to accelerate
+  training of deep neural networks.
+\newblock In \emph{Advances in Neural Information Processing Systems 29}, pages
+  901--909. 2016.
+
+\bibitem[Santurkar et~al.(2018)Santurkar, Tsipras, Ilyas, and
+  Madry]{santurkar2018does}
+Shibani Santurkar, Dimitris Tsipras, Andrew Ilyas, and Aleksander Madry.
+\newblock How does batch normalization help optimization?
+\newblock In \emph{Advances in Neural Information Processing Systems 31}, pages
+  2488--2498. 2018.
+
+\bibitem[Sennrich et~al.(2015)Sennrich, Haddow, and Birch]{sennrich2015neural}
+Rico Sennrich, Barry Haddow, and Alexandra Birch.
+\newblock Neural machine translation of rare words with subword units.
+\newblock \emph{arXiv preprint arXiv:1508.07909}, 2015.
+
+\bibitem[Sennrich et~al.(2017)Sennrich, Firat, Cho, Birch, Haddow, Hitschler,
+  Junczys-Dowmunt, L{\"a}ubli, {Miceli Barone}, Mokry, and
+  Nadejde]{sennrich2017nematus}
+Rico Sennrich, Orhan Firat, Kyunghyun Cho, Alexandra Birch, Barry Haddow,
+  Julian Hitschler, Marcin Junczys-Dowmunt, Samuel L{\"a}ubli, Antonio~Valerio
+  {Miceli Barone}, Jozef Mokry, and Maria Nadejde.
+\newblock {Nematus: a Toolkit for Neural Machine Translation}.
+\newblock In \emph{{Proceedings of the Software Demonstrations of the 15th
+  Conference of the European Chapter of the Association for Computational
+  Linguistics}}, pages 65--68, Valencia, Spain, April 2017.
+
+\bibitem[Sharma et~al.(2018)Sharma, Ding, Goodman, and
+  Soricut]{sharma2018conceptual}
+Piyush Sharma, Nan Ding, Sebastian Goodman, and Radu Soricut.
+\newblock Conceptual captions: A cleaned, hypernymed, image alt-text dataset
+  for automatic image captioning.
+\newblock In \emph{Proceedings of the 56th Annual Meeting of the Association
+  for Computational Linguistics (Volume 1: Long Papers)}, pages 2556--2565,
+  2018.
+
+\bibitem[Shimodaira(2000)]{CIS-166708}
+Hidetoshi Shimodaira.
+\newblock Improving predictive inference under covariate shift by weighting the
+  log-likelihood function.
+\newblock \emph{Journal of Statistical Planning and Inference}, 90\penalty0
+  (2):\penalty0 227--244, 2000.
+
+\bibitem[Simonyan and Zisserman(2014)]{simonyan2014very}
+Karen Simonyan and Andrew Zisserman.
+\newblock Very deep convolutional networks for large-scale image recognition.
+\newblock \emph{arXiv preprint arXiv:1409.1556}, 2014.
+
+\bibitem[{Theano Development Team}(2016)]{2016arXiv160502688short}
+{Theano Development Team}.
+\newblock {Theano: A {Python} framework for fast computation of mathematical
+  expressions}.
+\newblock \emph{arXiv e-prints}, May 2016.
+
+\bibitem[Ulyanov et~al.(2016)Ulyanov, Vedaldi, and
+  Lempitsky]{DBLP:journals/corr/UlyanovVL16}
+Dmitry Ulyanov, Andrea Vedaldi, and Victor~S. Lempitsky.
+\newblock Instance normalization: The missing ingredient for fast stylization.
+\newblock \emph{CoRR}, 2016.
+
+\bibitem[Vaswani et~al.(2017)Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez,
+  Kaiser, and Polosukhin]{NIPS2017_7181}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+  Aidan~N Gomez, {\L}ukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need.
+\newblock In \emph{Advances in Neural Information Processing Systems 30}, pages
+  5998--6008. 2017.
+
+\bibitem[Vendrov et~al.(2015)Vendrov, Kiros, Fidler, and
+  Urtasun]{vendrov2015order}
+Ivan Vendrov, Ryan Kiros, Sanja Fidler, and Raquel Urtasun.
+\newblock Order-embeddings of images and language.
+\newblock \emph{arXiv preprint arXiv:1511.06361}, 2015.
+
+\bibitem[Wu et~al.(2018)Wu, Li, Deng, Liu, Wu, Xie, and Shi]{wu2018l1}
+Shuang Wu, Guoqi Li, Lei Deng, Liu Liu, Dong Wu, Yuan Xie, and Luping Shi.
+\newblock L1-norm batch normalization for efficient training of deep neural
+  networks.
+\newblock \emph{IEEE transactions on neural networks and learning systems},
+  2018.
+
+\bibitem[Wu and He(2018)]{wu2018group}
+Yuxin Wu and Kaiming He.
+\newblock Group normalization.
+\newblock In \emph{Proceedings of the European Conference on Computer Vision
+  (ECCV)}, pages 3--19, 2018.
+
+\bibitem[Zhang and Sennrich(2019)]{zhang2019lightweight}
+Biao Zhang and Rico Sennrich.
+\newblock A lightweight recurrent network for sequence modeling.
+\newblock \emph{arXiv preprint arXiv:1905.13324}, 2019.
+
+\bibitem[Zhang et~al.(2019)Zhang, Dauphin, and Ma]{zhang2018residual}
+Hongyi Zhang, Yann~N. Dauphin, and Tengyu Ma.
+\newblock Residual learning without normalization via better initialization.
+\newblock In \emph{International Conference on Learning Representations}, 2019.
+
+\bibitem[Zhou et~al.(2018)Zhou, Dong, Xu, and Xu]{zhou2018syllable}
+Shiyu Zhou, Linhao Dong, Shuang Xu, and Bo~Xu.
+\newblock Syllable-based sequence-to-sequence speech recognition with the
+  transformer in mandarin chinese.
+\newblock \emph{arXiv preprint arXiv:1804.10752}, 2018.
+
+\end{thebibliography}
