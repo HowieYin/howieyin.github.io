@@ -37,7 +37,7 @@
     catch {button.textContent="请选取上方 LaTeX 复制";}
   }));
   if (document.querySelector(".mermaid")) {
-    mermaid.initialize({startOnLoad:false, theme:"base", securityLevel:"strict", themeVariables:{
+    mermaid.initialize({startOnLoad:false, theme:"base", securityLevel:"strict", htmlLabels:false, flowchart:{htmlLabels:false}, themeVariables:{
       primaryColor:"#172334", primaryTextColor:"#e7ebf2", primaryBorderColor:"#6384b5",
       lineColor:"#99baff", secondaryColor:"#111720", tertiaryColor:"#111720",
       clusterBkg:"#101823", clusterBorder:"#374256", fontFamily:"DM Sans, PingFang SC, sans-serif"
