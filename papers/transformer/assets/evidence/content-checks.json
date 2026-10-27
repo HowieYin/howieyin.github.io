@@ -1,0 +1,22 @@
+[
+  {
+    "table": 1,
+    "rows": 6,
+    "cellsPreserved": true
+  },
+  {
+    "table": 2,
+    "rows": 12,
+    "cellsPreserved": true
+  },
+  {
+    "table": 3,
+    "rows": 22,
+    "cellsPreserved": true
+  },
+  {
+    "table": 4,
+    "rows": 13,
+    "cellsPreserved": true
+  }
+]

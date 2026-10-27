@@ -1,0 +1,15 @@
+{
+  "checks": 11,
+  "causalFirstRow": [
+    1,
+    0
+  ],
+  "toyProbability": 0.6697615493266569,
+  "baseSelfMiB": 48,
+  "crossMiB": 6,
+  "cost": {
+    "projection": 1073741824,
+    "mixing": 536870912,
+    "ffn": 2147483648
+  }
+}

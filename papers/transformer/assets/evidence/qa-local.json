@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-27",
+  "environment": "Local Chromium against static repository",
+  "widths": [
+    375,
+    390,
+    430,
+    1440,
+    1920
+  ],
+  "originalFigures": 5,
+  "originalTables": 4,
+  "mathExpressions": 11,
+  "diagrams": 4,
+  "pageImages": 9,
+  "consoleErrors": [],
+  "failedRequests": [],
+  "reducedMotion": {
+    "tokens": 4352,
+    "label": "Play growth",
+    "transition": "0s"
+  },
+  "noJavaScript": {
+    "figures": 5,
+    "tables": 4,
+    "math": 11,
+    "toy": true,
+    "cache": true
+  },
+  "checks": [
+    "anchors",
+    "overflow",
+    "asset loading",
+    "TOC highlight",
+    "mouse toggles",
+    "keyboard range",
+    "KV-sharing input",
+    "play/pause",
+    "zoom/Escape",
+    "local links"
+  ]
+}

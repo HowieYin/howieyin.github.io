@@ -1,0 +1,10 @@
+flowchart TD
+  source["Source IDs"] --> encoder["Embedding + PE / Encoder ×6"]
+  target["Shift-right target IDs"] --> causal["Causal self-attention"]
+  encoder --> memory["Source K/V for each decoder layer"]
+  causal --> cross["Cross-attention: Q from target"]
+  memory --> cross
+  cross --> ffn["FFN / repeat decoder ×6"]
+  ffn --> logits["Vocabulary logits"]
+  logits --> next["Select next token"]
+  next --> target

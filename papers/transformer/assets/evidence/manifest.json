@@ -1,0 +1,162 @@
+[
+  {
+    "name": "paper",
+    "url": "https://arxiv.org/html/1706.03762v7",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "fe1288e9c6f8322156429ab44bf5ced203155f8ecc7ea9fe6cfd125872c72a3b",
+    "local_file": "paper.html"
+  },
+  {
+    "name": "arxiv",
+    "url": "https://arxiv.org/abs/1706.03762",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "4dc896b86d954997eb7b2572b29a761da642de00f4229bf648da3580b2ca7785",
+    "local_file": "arxiv.html"
+  },
+  {
+    "name": "bahdanau",
+    "url": "https://arxiv.org/abs/1409.0473",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "9a505071fbd13df1e38547072b34c80684edbedb49af3c2a3bc12a426c1bd72d",
+    "local_file": "bahdanau.html"
+  },
+  {
+    "name": "convs2s",
+    "url": "https://arxiv.org/abs/1705.03122",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "5c932f4dbaa3cdcb8a84439cd6c747f69cfdd6fe42dc07ccbff614b668885e29",
+    "local_file": "convs2s.html"
+  },
+  {
+    "name": "bert",
+    "url": "https://arxiv.org/abs/1810.04805",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "dab568b0a86ade336c02d873fa9156dc8da5d7326b1ba04cedf21f96f0f46aac",
+    "local_file": "bert.html"
+  },
+  {
+    "name": "t5",
+    "url": "https://arxiv.org/abs/1910.10683",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "d63a2e5dcb42efa321cc48415b8243233ef5c5ab5ab72da05cf340acf22ba01e",
+    "local_file": "t5.html"
+  },
+  {
+    "name": "gpt3",
+    "url": "https://arxiv.org/abs/2005.14165",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "ab71cfaa5b3b9faff9f0624cdb9ce4fa74d843448f2e7e7343fe926616ab98cf",
+    "local_file": "gpt3.html"
+  },
+  {
+    "name": "mqa",
+    "url": "https://arxiv.org/abs/1911.02150",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "0eae2b26b08827adae146a3517bceba861e58712f0e84d8e839700753d0c004b",
+    "local_file": "mqa.html"
+  },
+  {
+    "name": "gqa",
+    "url": "https://arxiv.org/abs/2305.13245",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "c268294a56ee6dc4dc58e4d71111a44bf0c9e0a00bbcc7b09ea4aedb0ad84499",
+    "local_file": "gqa.html"
+  },
+  {
+    "name": "roformer",
+    "url": "https://arxiv.org/abs/2104.09864",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "05f358917fc49cfe74bea6da957e548f7b6d63b871fa21add387e20a7c2ba314",
+    "local_file": "roformer.html"
+  },
+  {
+    "name": "flashattention",
+    "url": "https://arxiv.org/abs/2205.14135",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "08fc19eeceb6b92cbd088c522dd9147e177ac2c7d99c9474deb447387d66fb30",
+    "local_file": "flashattention.html"
+  },
+  {
+    "name": "mamba2",
+    "url": "https://arxiv.org/abs/2405.21060",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "b0a017295d702aaf7015eadbb5af3af60117a64966a86d6d63e4f3300d8e2c12",
+    "local_file": "mamba2.html"
+  },
+  {
+    "name": "deepseekv3",
+    "url": "https://arxiv.org/abs/2412.19437",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "8fc704c04c8a4051dc932199f548ebe1d8a72697c522a9b3eda121cba4f0ce91",
+    "local_file": "deepseekv3.html"
+  },
+  {
+    "name": "attention-interpretability",
+    "url": "https://aclanthology.org/N19-1357/",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "f146b811d42c1035e7a585588b9178ddb9e6e85920c8eff3788d791758d0a4dd",
+    "local_file": "attention-interpretability.html"
+  },
+  {
+    "name": "sacrebleu",
+    "url": "https://aclanthology.org/W18-6319/",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "dd73589f3880e59b2d9159ef60f0392b0f0ba7d01bbfbdc947d38b3ef56db8e3",
+    "local_file": "sacrebleu.html"
+  },
+  {
+    "name": "north-small-translate",
+    "url": "https://arxiv.org/html/2609.13916v1",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "b7d0e10f18257d7071c003663c3ba9f416e25f90ca5e5a89eec8a0dd3ac26a21",
+    "local_file": "north-small-translate.html"
+  },
+  {
+    "name": "wmt26-findings",
+    "url": "https://www2.statmt.org/wmt26/pdf/2026.wmt-1.48.pdf",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "a2985cadb52966be116dfb07e0f6ad79aa481bfb260a2f19d53d265e3f4abf9b",
+    "local_file": "wmt26-findings.pdf"
+  },
+  {
+    "name": "official-transformer",
+    "url": "https://raw.githubusercontent.com/tensorflow/tensor2tensor/master/tensor2tensor/models/transformer.py",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "67d9be570d1e136fa2ce768f0d0a2435be94dbee2fb531ef86d573ffce1a8902",
+    "local_file": "official-transformer.py"
+  },
+  {
+    "name": "official-attention",
+    "url": "https://raw.githubusercontent.com/tensorflow/tensor2tensor/master/tensor2tensor/layers/common_attention.py",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "527edba7d51cb6599cb7497f3ca594423834b7d269e737988ace45337bd5b7dd",
+    "local_file": "official-attention.py"
+  },
+  {
+    "name": "official-readme",
+    "url": "https://raw.githubusercontent.com/tensorflow/tensor2tensor/master/README.md",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "f5c84772c4f81e941cea69c0f493cbad6eb86024d16573f550ad457bf87898ec",
+    "local_file": "official-readme.html"
+  }
+]

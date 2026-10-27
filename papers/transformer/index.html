@@ -1,0 +1,1035 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="theme-color" content="#0c1016">
+<title>Attention Is All You Need：Transformer 逐章精读 — Paper Readings · Howie Yin</title>
+<meta name="description" content="Transformer 原论文15页逐章精读：5原图4原表、Q/K/V公式与shape、训练和推理、注意力与KV交互、实验审计与WMT26评测。">
+<link rel="canonical" href="https://howieyin.github.io/papers/transformer/">
+<meta property="og:title" content="Attention Is All You Need：用内容决定信息流">
+<meta property="og:type" content="article"><meta property="og:description" content="原图表与实验审计；从公式和因果训练，到KV Cache与逐算子成本。">
+<meta property="og:url" content="https://howieyin.github.io/papers/transformer/">
+<meta property="og:image" content="https://howieyin.github.io/papers/transformer/assets/original/fig-01-architecture.png">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css">
+</head><body><a class="skip-link" href="#main">Skip to content</a>
+<div class="page reading-page"><header class="site-header">
+<a class="wordmark" href="../../" aria-label="Howie Yin, home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav>
+</header><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents / 目录</summary><ol><li><a href="#section-1">Paper Metadata</a></li><li><a href="#section-2">Abstract / TL;DR：先建立全局</a></li><li><a href="#section-3">1. Introduction：论文究竟移除了什么瓶颈？</a></li><li><a href="#section-4">2. Background：从固定路径变成内容寻址</a></li><li><a href="#section-5">3. Model Architecture：按真实数据流重建</a></li><li><a href="#section-6">4. Why Self-Attention：复杂度表需要读脚注</a></li><li><a href="#section-7">5. Training：可复原的设置与缺失信息</a></li><li><a href="#section-8">6. Results：按每张表核对结论</a></li><li><a href="#section-9">7. Conclusion：成立的贡献与没有回答的问题</a></li><li><a href="#section-10">Attention Visualizations：原附录三张图逐项读</a></li><li><a href="#section-11">Engineering Reconstruction：KV、计算与端到端性能</a></li><li><a href="#section-12">Related Work &amp; Technology Evolution</a></li><li><a href="#section-13">Current State：截至 2026-10-27 怎样判断“最好”？</a></li><li><a href="#section-14">Critique：贡献、代价与下一步实验</a></li><li><a href="#section-15">Takeaways、阅读审校与可下载证据</a></li><li><a href="#section-16">References：原论文、后续论文与官方资料</a></li></ol></details></aside>
+<main id="main"><article class="article"><p class="eyebrow">PAPER READING / 2017 · ATTENTION · TRAINING · INFERENCE</p><h1>Attention Is All You Need</h1>
+<p>用内容决定信息流：从 Transformer 原论文，到训练并行与逐 Token 推理。</p>
+<h2 id="section-1">Paper Metadata</h2>
+<p><strong>作者</strong>：Ashish Vaswani、Noam Shazeer、Niki Parmar、Jakob Uszkoreit、Llion Jones、Aidan N. Gomez、Łukasz Kaiser、Illia Polosukhin。<strong>机构</strong>：Google Brain、Google Research、University of Toronto。<strong>会议</strong>：NIPS 2017（现称 NeurIPS）。</p>
+<p><strong>首次提交</strong>：2017-06-12。<strong>本文阅读版本</strong>：1706.03762v7，2023-08-02，15 页，包括 References 与 Attention Visualizations。2017 是论文发表年，2023 是这个修订版本的日期。阅读与更新日期：<strong>2026-10-27</strong>。</p>
+<p><a href="assets/original/1706.03762v7.pdf">原论文 PDF</a> · <a href="https://arxiv.org/abs/1706.03762" rel="noopener noreferrer">arXiv</a> · <a href="https://arxiv.org/html/1706.03762v7" rel="noopener noreferrer">arXiv HTML v7</a> · <a href="https://doi.org/10.48550/arXiv.1706.03762" rel="noopener noreferrer">DOI</a> · <a href="https://github.com/tensorflow/tensor2tensor" rel="noopener noreferrer">官方 Tensor2Tensor</a></p>
+<p>本文按 Abstract → §1–7 → Attention Visualizations 的顺序精读，再展开实现、后续研究与当前评测。<strong>原论文</strong>表示 PDF 内证据；<strong>外部来源</strong>表示后续论文或官方资料；<strong>分析 / 推导</strong>表示本文重建。原图 5 张、原表 4 张全部保留，原表提供可选择文字的版本与 PDF 原貌；额外图示和交互均标明来源。</p>
+<h2 id="section-2">Abstract / TL;DR：先建立全局</h2>
+<p><strong>一句话</strong>：Transformer 把序列内的信息交换改成注意力，把每个位置的特征加工交给 FFN，在翻译任务上证明了无需循环和卷积也能构建有效的 encoder–decoder。</p>
+<p><strong>一段话</strong>：以前的翻译模型通常逐位置运行 RNN，或者堆叠卷积扩大感受野，再通过 attention 读取源句。Transformer 让每个位置直接根据 Q 与 K 的相似度选择 V，以多头机制同时保留多种读取关系，用位置编码表达顺序。训练时已知整条目标句，右移输入加因果 mask 可以并行计算各位置；生成时下一个词还未知，仍需一步步产生。原论文在 WMT14 英德上得到 28.4 BLEU；英法表格为 41.8，但正文有 41.0 的冲突。它的历史贡献是建立一种通用序列架构，不能由这些实验推出今天所有模型或硬件上的性能结论。</p>
+<p><strong>五个关键点</strong>：</p>
+<ol>
+<li>Attention 负责跨位置通信；FFN 负责单位置的非线性变换，二者相互补充。</li>
+<li>多头不是重复同一个注意力图，而是先用不同投影构建不同的 Q/K/V 子空间。</li>
+<li>因果 mask 配合目标输入右移，既防止训练泄漏，又允许 teacher forcing 并行。</li>
+<li>短信息路径带来建模优势，但全连接注意力的序列混合计算为二次增长。</li>
+<li>原文的训练时间、BLEU、PPL 与解析 F1 都有明确设置；不能直接换算成推理延迟、准确率或现代榜单排名。</li>
+</ol>
+<p><strong>推荐阅读路径</strong>：先看 <a href="#architecture">Figure 1 与数据流</a>，再用 <a href="#attention-lab">注意力交互</a> 理解式 (1)，看 <a href="#table-2">Table 2</a> 校准历史贡献。关注部署时，继续看 <a href="#cache-lab">KV 与 FLOPs</a> 和 <a href="#implementation">复现边界</a>。</p>
+<h2 id="section-3">1. Introduction：论文究竟移除了什么瓶颈？</h2>
+<p><strong>原论文，p.1–2。</strong> 问题是 sequence transduction：给定源序列，生成另一条序列，如英语到德语翻译。当时的高质量模型以 RNN/LSTM/GRU encoder–decoder 为主，attention 已经广泛存在，Transformer 并不是注意力机制的发明。</p>
+<p>RNN 的核心依赖是 <code>h_t = f(h_(t−1), x_t)</code>。即使所有输入 token 已知，计算第 t 个隐藏状态仍要等待前一状态。这限制训练时沿序列长度维度的并行；长序列又受单设备内存约束，难以简单靠更大 batch 抵消。</p>
+<p>作者的观察是：<strong>让每个位置直接读取其他位置，可以同时缩短通信路径和解除层内位置计算的循环依赖。</strong> “All You Need” 要结合全文读：架构还需要 embedding、位置编码、FFN、残差、LayerNorm、输出投影、loss 与优化器；它移除的是作为序列建模骨架的 recurrence 与 convolution。</p>
+<p><strong>证据与边界。</strong> 论文通过两个翻译任务和一个句法解析任务验证这条路线，报告更高 BLEU 和较低的估计训练成本。它没有给出消除每个模块的完整因果实验，也没有证明 self-attention 对所有任务都最优。序列维度训练并行与自回归推理串行必须分开理解。</p>
+<h2 id="section-4">2. Background：从固定路径变成内容寻址</h2>
+<p><strong>原论文，p.2；外部来源 [R2–R3]。</strong> 在经典 encoder–decoder 中，编码器把源句变成状态，解码器依据目标前缀生成下一词。Bahdanau attention 允许 decoder 动态读取源句不同位置，缓解压缩成一个固定向量的瓶颈，但编码器和解码器的 RNN 仍沿时间步串行。</p>
+<p>ConvS2S 使用卷积，在已知序列上可以并行计算。代价是一个局部卷积层只能读取邻近 token；远距离信息要跨越多个层。论文也讨论 Extended Neural GPU、ByteNet 等路线，并指出长距离路径会随着距离增加。</p>
+<p>Transformer 把读取关系交给输入内容：同一句中，一个 token 可以在一层里与很远的 token 建立连接。作者同时承认，加权平均可能降低有效分辨率；多头用不同子空间减轻这个问题。<strong>分析</strong>：这是从“固定拓扑逐步传消息”转向“每层动态决定读哪些位置”。短路径有利于表达，不能直接等同于梯度稳定或推理更快。</p>
+<h2 id="section-5">3. Model Architecture：按真实数据流重建</h2>
+<p><span id="architecture"></span></p>
+<h3>3.1 Encoder and Decoder Stacks</h3>
+<figure class="original-figure" id="figure-1">
+<button aria-label="放大原论文 Figure 1" data-zoom="" type="button">
+<img alt="Figure 1: The Transformer - model architecture." height="1416" loading="lazy" src="assets/original/fig-01-architecture.png" width="1608"/></button>
+<figcaption><strong>Original paper · Figure 1 · PDF p.3</strong> · 点击放大<br/>Figure 1: The Transformer - model architecture.</figcaption>
+<a href="assets/original/fig-01-architecture.png">查看完整高分辨率原图</a></figure>
+<p><strong>这张图解决什么问题？</strong> Figure 1 说明 encoder 如何产生源句表示，以及 decoder 如何同时读取目标历史与源句。阅读时从左右下方的 embedding 开始，沿纵向箭头向上，再跟随 encoder 输出通往 decoder 中间 attention 的横向箭头。</p>
+<p><strong>组件与数据流</strong>：左边是 6 层 encoder，每层为 self-attention → Add &amp; Norm → FFN → Add &amp; Norm。右边是 6 层 decoder，每层先 masked self-attention，再 encoder–decoder attention，最后 FFN，每个子层后都有残差与归一化。右下角的 <strong>Outputs (shifted right)</strong> 是训练时的目标前缀输入，右上角才是预测分布，不能把两者当作同一条未右移序列。</p>
+<p><strong>原论文配置</strong>：base 的模型宽度 D = 512、FFN 隐层 2048、8 头、每头 d_k = d_v = 64。big 为 D = 1024、FFN 4096、16 头，每头仍是 64；6 层指 encoder 和 decoder 各 6 层。所有残差分支的外部维度保持 D，便于相加。原版使用 <strong>post-LN</strong>：</p>
+<div aria-label="结构重建 · post-LN" class="formula" id="equation-residual"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>LayerNorm</mo><mo stretchy="false">(</mo><mi>x</mi><mo>+</mo><mo>Dropout</mo><mo stretchy="false">(</mo><mo>Sublayer</mo><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mo stretchy="false">)</mo></mrow></math><span class="equation-number">结构重建 · post-LN</span></div>
+<p><strong>符号与运算</strong>：x 为 <code>[B,n,D]</code>，Sublayer 输出相同 shape，dropout 后逐元素加上 x，再沿最后的特征维进行 LayerNorm。归一化不是跨 token 混合。论文没有用现代 decoder 中常见的 pre-LN、RMSNorm、SwiGLU，也没有在这篇论文里使用 RoPE。</p>
+<p><strong>关键观察</strong>：decoder 中间的 attention 不是 encoder self-attention 的复制；它的 Q 来自目标，K/V 来自源句。这条桥接通道使输出与输入对齐。<strong>分析</strong>：把图拆成“目标历史读取”“源句读取”“单位置加工”，比把整个 decoder 当作黑盒更容易定位实现问题。</p>
+<figure class="generated-figure"><div class="diagram-scroll" tabindex="0"><svg aria-labelledby="svg-flow-title" role="img" viewbox="0 0 700 520" xmlns="http://www.w3.org/2000/svg"><title id="svg-flow-title">Source memory meets target history</title><defs><marker id="arrow-flow" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="9" refy="5" viewbox="0 0 10 10"><path d="M0 0L10 5L0 10Z" fill="#97b9e7"></path></marker></defs><rect fill="#152133" height="76" rx="7" stroke="#627992" width="260" x="25" y="30"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="155.0" y="56">Source IDs [B,n_s]</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="155.0" y="79">Embedding × √D + PE</text><rect fill="#1b304a" height="76" rx="7" stroke="#627992" width="260" x="25" y="160"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="155.0" y="186">Encoder × 6</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="155.0" y="209">Self-attention → FFN</text><path d="M155 106 L155 156" fill="none" marker-end="url(#arrow-flow)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#152133" height="76" rx="7" stroke="#627992" width="260" x="25" y="290"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="155.0" y="316">Encoder memory</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="155.0" y="339">[B,n_s,D]</text><path d="M155 236 L155 286" fill="none" marker-end="url(#arrow-flow)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#152133" height="76" rx="7" stroke="#627992" width="300" x="375" y="30"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="56">Shifted target [B,n_t]</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="79">Embedding × √D + PE</text><rect fill="#1b304a" height="76" rx="7" stroke="#627992" width="300" x="375" y="160"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="186">Causal self-attention</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="209">Target history only</text><path d="M525 106 L525 156" fill="none" marker-end="url(#arrow-flow)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#1b304a" height="76" rx="7" stroke="#627992" width="300" x="375" y="290"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="316">Cross-attention → FFN</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="339">Q: target · K/V: source</text><path d="M525 236 L525 286" fill="none" marker-end="url(#arrow-flow)" stroke="#97b9e7" stroke-width="1.6"></path><path d="M285 328 L371 328" fill="none" marker-end="url(#arrow-flow)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#152133" height="76" rx="7" stroke="#627992" width="300" x="375" y="420"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="446">Repeat decoder layer × 6</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="469">Logits [B,n_t,Vocab]</text><path d="M525 366 L525 416" fill="none" marker-end="url(#arrow-flow)" stroke="#97b9e7" stroke-width="1.6"></path></svg></div><figcaption>Agent-created Visualization · 本文根据数据流绘制；移动端可横向滚动。不是论文原图。</figcaption></figure>
+<div aria-label="分析表格，可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>张量 / 阶段</th>
+<th>Shape</th>
+<th>信息来自哪里</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>源 token ID</td>
+<td><code>[B,n_s]</code></td>
+<td>完整输入句</td>
+</tr>
+<tr>
+<td>Encoder 输入 / 输出</td>
+<td><code>[B,n_s,D]</code></td>
+<td>embedding + PE，经 6 层编码</td>
+</tr>
+<tr>
+<td>右移目标 ID</td>
+<td><code>[B,n_t]</code></td>
+<td>BOS 与正确目标前缀</td>
+</tr>
+<tr>
+<td>Decoder 隐状态</td>
+<td><code>[B,n_t,D]</code></td>
+<td>因果目标历史与源句</td>
+</tr>
+<tr>
+<td>Cross-attention Q</td>
+<td><code>[B,h,n_t,d_k]</code></td>
+<td>decoder 当前子层输入</td>
+</tr>
+<tr>
+<td>Cross-attention K / V</td>
+<td><code>[B,h,n_s,d_k]</code> / <code>[B,h,n_s,d_v]</code></td>
+<td>encoder 最后一层输出</td>
+</tr>
+<tr>
+<td>Cross 权重 A</td>
+<td><code>[B,h,n_t,n_s]</code></td>
+<td>每个目标位置对源位置的分布</td>
+</tr>
+<tr>
+<td>词表 logits</td>
+<td><code>[B,n_t,Vocab]</code></td>
+<td>decoder 输出 × 共享 embedding 的转置</td>
+</tr>
+</tbody>
+</table></div>
+<p>源句与目标句长度 n_s、n_t 独立；矩阵通常不是方阵。Padding mask 必须分别跟随对应序列长度。</p>
+<h3>3.2 Attention：Q、K、V 不是三个固定含义的单词</h3>
+<p><strong>原论文，p.3–5。</strong> Query 是“当前位置用什么特征发起读取”，Key 是“其他位置用什么特征被检索”，Value 是“读到后实际带走什么内容”。它们是可学习投影后的向量，不必具有可直接命名的人类语义。Self-attention 时三者都源于同一隐藏序列，但通常使用不同权重；cross-attention 时来源不同。</p>
+<h4>3.2.1 Scaled Dot-Product Attention — 式 (1)</h4>
+<figure class="original-figure" id="figure-2">
+<button aria-label="放大原论文 Figure 2" data-zoom="" type="button">
+<img alt="Figure 2: (left) Scaled Dot-Product Attention. (right) Multi-Head Attention consists of several attention layers running in parallel." height="936" loading="lazy" src="assets/original/fig-02-attention.png" width="1608"/></button>
+<figcaption><strong>Original paper · Figure 2 · PDF p.4</strong> · 点击放大<br/>Figure 2: (left) Scaled Dot-Product Attention. (right) Multi-Head Attention consists of several attention layers running in parallel.</figcaption>
+<a href="assets/original/fig-02-attention.png">查看完整高分辨率原图</a></figure>
+<p><strong>如何读 Figure 2？</strong> 左图从 Q/K 的 MatMul 开始，经 Scale、可选 Mask、SoftMax，最后与 V 做 MatMul。右图把输入分别投影成 h 组 Q/K/V，各组独立 attention，再 concat 与输出 Linear。图中输入排列为 V、K、Q；不要据横向排列误认三个投影的数据来源。</p>
+<div aria-label="原论文式 (1) · p.4" class="formula" id="equation-attention"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>Attention</mo><mo stretchy="false">(</mo><mi>Q</mi><mo>,</mo><mi>K</mi><mo>,</mo><mi>V</mi><mo stretchy="false">)</mo><mo>=</mo><mo>softmax</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mfrac><mrow><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup></mrow><mrow><msqrt><mrow><msub><mi>d</mi><mi>k</mi></msub></mrow></msqrt></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mi>V</mi></mrow></math><span class="equation-number">原论文式 (1) · p.4</span></div>
+<p><strong>符号与 shape</strong>：暂时省略 B、h。Q 为 <code>[n_q,d_k]</code>，K 为 <code>[n_k,d_k]</code>，V 为 <code>[n_k,d_v]</code>；QKᵀ 为 <code>[n_q,n_k]</code>，softmax 沿 key 轴逐行归一化，输出为 <code>[n_q,d_v]</code>。如果加 mask，先将不允许位置的分数设为 −∞，再 softmax；将输出清零无法修复已发生的信息泄漏。</p>
+<p><strong>逐步计算</strong>：QKᵀ 给出每个 query 与每个 key 的内容相似度；除以 √d_k 控制 logit 尺度；softmax 将一行变成非负且和为 1 的权重；AV 把该 query 的读取结果组合出来。权重行不是词表概率，也不是 token 的预测置信度。</p>
+<p><strong>为什么缩放？</strong> 原文脚注假设 q、k 各分量独立、均值为 0、方差为 1，则点积有 d_k 个项，方差为 d_k。除以 √d_k 后方差回到 1，避免维度增大时 softmax 过度饱和，使梯度变小。真实训练特征未必独立同分布，所以这是动机而非严格分布定理。它也不等同于数值稳定 softmax：实现还要减去每行最大值。</p>
+<p><strong>Toy example / 分析</strong>：Q = K = <code>[[1,0],[0,1]]</code>，V = <code>[[10,0],[0,20]]</code>。第一行缩放后 logits 是 <code>[0.7071,0]</code>，权重约 <code>[0.6698,0.3302]</code>，输出约 <code>[6.698,6.605]</code>；启用 causal mask 后第一行只能读第一个 value，变成 <code>[10,0]</code>。没有“选中一个 key”这一步，输出通常是连续加权和。</p>
+<p><span id="attention-lab"></span></p>
+<section aria-label="Attention laboratory" class="mechanism">
+<p class="reading-meta">AGENT-CREATED INTERACTIVE · EQUATION (1)</p><h3>同一行 Query，缩放与 mask 改变了什么？</h3>
+<div class="controls">
+<label>Token 数<select id="token-count"><option>2</option><option>4</option><option>6</option></select></label>
+<label>每头维度 d_k<select id="head-dim"><option>2</option><option>8</option><option>64</option></select></label>
+<label>Q/K 分量倍率 <output id="gain-output">1.0</output><input id="logit-gain" max="3" min="0.5" step="0.5" type="range" value="1"/></label>
+<label class="toggle"><input checked="" id="scaled-attention" type="checkbox"/>除以 √d_k</label>
+<label class="toggle"><input id="causal-mask" type="checkbox"/>因果 mask：仅 j ≤ i</label>
+</div><div class="attention-grid" id="attention-grid" style="--tokens:2">
+<span>Q ↓ / K →</span><span>k0</span><span>k1</span><span>q0</span><span class="weight">0.670</span><span class="weight">0.330</span><span>q1</span><span class="weight">0.330</span><span class="weight">0.670</span></div>
+<div aria-live="polite" class="readout" id="attention-readout">默认 Q=K=I₂，V=[[10,0],[0,20]]；q0 输出 [6.6976,6.6048]。</div>
+<div class="actions"><button id="reset-attention" type="button">Reset toy example</button></div>
+<p class="hint">点击 q 行标签选择读取结果。蓝色越深权重越大，× 表示禁止读取；每行和为 1。为便于复算，Q/K 用重复 one-hot 通道，V 按 [10,0]、[0,20] 交替。这是构造数据，不是论文 attention，也不满足缩放动机中的独立分量假设。</p>
+<noscript><p>静态例子已显示。开启 JavaScript 可调整维度、缩放和因果 mask。</p></noscript></section>
+<p><strong>工程含义 / 推导</strong>：单头两次混合 MatMul 的乘加 FLOPs 为 <code>2·n_q·n_k·d_k + 2·n_q·n_k·d_v</code>，尚未包括 Q/K/V 投影与 softmax。方阵 self-attention 为二次序列增长；cross-attention 为源长 × 目标长。一个 query 如果整行都被 mask，普通 softmax 会遇到未定义结果；padding/query 有效性要在实际实现中处理。</p>
+<h4>3.2.2 Multi-Head Attention — 未编号核心公式</h4>
+<div aria-label="原论文未编号公式 · p.5" class="formula" id="equation-multihead"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>MultiHead</mo><mo stretchy="false">(</mo><mi>Q</mi><mo>,</mo><mi>K</mi><mo>,</mo><mi>V</mi><mo stretchy="false">)</mo><mo>=</mo><mo>Concat</mo><mo stretchy="false">(</mo><msub><mo>head</mo><mn>1</mn></msub><mo>,</mo><mi>…</mi><mo>,</mo><msub><mo>head</mo><mi>h</mi></msub><mo stretchy="false">)</mo><msup><mi>W</mi><mi>O</mi></msup></mrow></math><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mo>head</mo><mi>i</mi></msub><mo>=</mo><mo>Attention</mo><mo stretchy="false">(</mo><mi>Q</mi><msubsup><mi>W</mi><mi>i</mi><mi>Q</mi></msubsup><mo>,</mo><mi>K</mi><msubsup><mi>W</mi><mi>i</mi><mi>K</mi></msubsup><mo>,</mo><mi>V</mi><msubsup><mi>W</mi><mi>i</mi><mi>V</mi></msubsup><mo stretchy="false">)</mo></mrow></math><span class="equation-number">原论文未编号公式 · p.5</span></div>
+<p>W_i^Q、W_i^K 为 <code>[D,d_k]</code>，W_i^V 为 <code>[D,d_v]</code>，每个 head 输出 <code>[B,n_q,d_v]</code>。concat 得到 <code>[B,n_q,h·d_v]</code>，W^O 为 <code>[h·d_v,D]</code>，把多个读取结果重新混合回残差需要的 D 维。</p>
+<p>原版取 <code>h·d_k = h·d_v = D</code>。多头把一个宽 attention 分成多个窄 attention，主要投影与混合算术量大致相同；<strong>不能因此说实际耗时严格相同</strong>，因为 kernel shape、launch、转置与 memory layout 会改变硬件效率。注意力权重存储还带有 h 这个维度。</p>
+<p><strong>为什么多个头？</strong> 一个 softmax 行只能给出一种归一化读取分布；多个头各自计算分布，再做输出混合，能同时保留不同的关系。Table 3 的单头结果低 0.9 BLEU，是任务内支持；32 头反而下降，说明更多头不是单调收益。附录展示头之间的不同图案，但没有证明每个头承担固定语言学功能。</p>
+<h4>3.2.3 三种 attention 使用方式</h4>
+<div aria-label="分析表格，可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>Q 来源</th>
+<th>K/V 来源</th>
+<th>Mask</th>
+<th>目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Encoder self-attention</td>
+<td>encoder 当前隐藏状态</td>
+<td>同一层输入</td>
+<td>源 padding；无因果限制</td>
+<td>双向理解源句</td>
+</tr>
+<tr>
+<td>Decoder self-attention</td>
+<td>decoder 当前隐藏状态</td>
+<td>同一层输入</td>
+<td>目标 padding + 因果</td>
+<td>只读取可用目标前缀</td>
+</tr>
+<tr>
+<td>Encoder–decoder attention</td>
+<td>decoder self-attention 后状态</td>
+<td>encoder 最终输出</td>
+<td>源 padding</td>
+<td>把目标位置与源句对齐</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>分析</strong>：调试 attention 时先查 Q/K/V 来源、mask 广播维度和 key 轴 softmax，再查数值。把 cross-attention 当成 self-attention，或把源 padding 广播到目标轴，都可能不报 shape 错却改变含义。</p>
+<h3>3.3 Position-wise Feed-Forward Networks — 式 (2)</h3>
+<div aria-label="原论文式 (2) · p.5" class="formula" id="equation-ffn"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>FFN</mo><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mo>max</mo><mo stretchy="false">(</mo><mn>0</mn><mo>,</mo><mi>x</mi><msub><mi>W</mi><mn>1</mn></msub><mo>+</mo><msub><mi>b</mi><mn>1</mn></msub><mo stretchy="false">)</mo><msub><mi>W</mi><mn>2</mn></msub><mo>+</mo><msub><mi>b</mi><mn>2</mn></msub></mrow></math><span class="equation-number">原论文式 (2) · p.5</span></div>
+<p>x 为 <code>[B,n,D]</code>，W₁ 为 <code>[D,d_ff]</code>、b₁ 为 <code>[d_ff]</code>；ReLU 后为 <code>[B,n,d_ff]</code>；W₂ 为 <code>[d_ff,D]</code>、b₂ 为 <code>[D]</code>，输出恢复 <code>[B,n,D]</code>。同一层中所有位置共享 FFN 权重，不同层有不同权重。等价描述是两次 kernel size 为 1 的卷积，但这不引入相邻位置通信。</p>
+<p><strong>直觉 / 分析</strong>：attention 先把别的位置的信息运来，FFN 再在本位置进行非线性组合。如果只做注意力加权平均，位置间能交流，却缺少足够的逐位置变换能力。</p>
+<p><strong>计算 / 推导</strong>：两个线性层约 <code>4·B·n·D·d_ff</code> FLOPs。在 base、n = 512、B = 1 时是 2.147 GFLOPs；这比 QKᵀ 与 AV 合计的 0.537 GFLOPs 大得多。因此只优化 attention 未必显著改善短句端到端耗时。</p>
+<h3>3.4 Embeddings and Softmax</h3>
+<p><strong>原论文，p.5。</strong> 输入、输出 embedding 把 token 映射到 D 维，输出端 Linear 与 Softmax 生成词表分布。论文共享两个 embedding 层与 pre-softmax 线性变换的权重，并将 embedding 乘以 √D。这个缩放发生在 embedding 查表之后，与 attention 的 1/√d_k 是两件事。</p>
+<p><strong>参数重建 / 推导</strong>：以约 37k 共享词表估算，主要矩阵参数为：</p>
+<div aria-label="本文主要矩阵参数推导" class="formula" id="equation-parameters"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>P</mi><mrow><mrow><mi mathvariant="normal">m</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">j</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi></mrow></mrow></msub><mo>≈</mo><msub><mi>V</mi><mrow><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">b</mi></mrow></mrow></msub><mi>D</mi><mo>+</mo><mn>6</mn><mo stretchy="false">(</mo><mn>4</mn><msup><mi>D</mi><mn>2</mn></msup><mo>+</mo><mn>2</mn><mi>D</mi><msub><mi>d</mi><mrow><mrow><mi mathvariant="normal">f</mi><mi mathvariant="normal">f</mi></mrow></mrow></msub><mo stretchy="false">)</mo><mo>+</mo><mn>6</mn><mo stretchy="false">(</mo><mn>8</mn><msup><mi>D</mi><mn>2</mn></msup><mo>+</mo><mn>2</mn><mi>D</mi><msub><mi>d</mi><mrow><mrow><mi mathvariant="normal">f</mi><mi mathvariant="normal">f</mi></mrow></mrow></msub><mo stretchy="false">)</mo></mrow></math><span class="equation-number">本文主要矩阵参数推导</span></div>
+<p>分别对应共享 embedding、6 层 encoder、6 层 decoder；decoder 每层有 self 与 cross 两套 attention。代入 D = 512、d_ff = 2048 得约 <strong>62.98M</strong>，接近论文报告的 <strong>65M</strong>，但不是精确复原。词表“约 37k”的取整、实际配置、bias 与 LayerNorm 等都会影响差异；不能把近似值当成源代码精确参数统计。big 原文为 <strong>213M</strong>。</p>
+<p>词表投影单独有 <code>2·B·n_t·D·Vocab</code> 的乘加成本，常被只讨论 attention 的估算漏掉；增量解码时也可能显著占比。</p>
+<h3>3.5 Positional Encoding：有顺序，但尚不是 RoPE</h3>
+<div aria-label="原论文未编号公式 · p.6" class="formula" id="equation-position"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>P</mi><msub><mi>E</mi><mrow><mo stretchy="false">(</mo><mi>p</mi><mi>o</mi><mi>s</mi><mo>,</mo><mn>2</mn><mi>i</mi><mo stretchy="false">)</mo></mrow></msub><mo>=</mo><mi>sin</mi><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mfrac><mrow><mi>p</mi><mi>o</mi><mi>s</mi></mrow><mrow><msup><mn>10000</mn><mrow><mn>2</mn><mi>i</mi><mo>/</mo><mi>D</mi></mrow></msup></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>,</mo><mspace width="1em"></mspace><mi>P</mi><msub><mi>E</mi><mrow><mo stretchy="false">(</mo><mi>p</mi><mi>o</mi><mi>s</mi><mo>,</mo><mn>2</mn><mi>i</mi><mo>+</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msub><mo>=</mo><mi>cos</mi><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mfrac><mrow><mi>p</mi><mi>o</mi><mi>s</mi></mrow><mrow><msup><mn>10000</mn><mrow><mn>2</mn><mi>i</mi><mo>/</mo><mi>D</mi></mrow></msup></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow></mrow></math><span class="equation-number">原论文未编号公式 · p.6</span></div>
+<p>pos 是位置，i 是通道对编号 <code>0…D/2−1</code>；每一对通道共享角频率 <code>ω_i = 10000^(−2i/D)</code>。PE shape 是 <code>[n,D]</code>，广播到 batch 后与 embedding <strong>相加</strong>。偶数通道用 sin，奇数通道用 cos；波长从 2π 延伸到接近 10000·2π。</p>
+<p><strong>为什么选择 sin/cos？</strong> 对固定偏移 Δ，由和角公式可把 <code>PE(pos+Δ)</code> 表成 <code>PE(pos)</code> 的一个只依赖 Δ 的二维线性变换。每个通道对 <code>[sin θ, cos θ]</code> 的变换矩阵是 <code>[[cos δ,sin δ],[-sin δ,cos δ]]</code>。这让网络有机会学到相对偏移关系。</p>
+<p><strong>边界 / 分析</strong>：相对位移的线性可表示性，<strong>不等于最终 QKᵀ 只依赖位置差</strong>。这里 attention 用的是对 <code>embedding + PE</code> 的投影，展开点积会有内容–位置交叉项。作者选择正弦编码还出于外推到更长序列的期待；Table 3 的 25.8 与 learned PE 的 25.7 只支持该开发集上效果接近，没有提供系统性的长度外推实验证明。</p>
+<p>后来的 <a href="../roformer/">RoFormer 精读</a> 在 Q/K 上旋转，构造相对位置点积性质；<a href="../vrope/">VRoPE 精读</a> 进一步处理视频空间与时间坐标。两者都是后续路线，不能倒写成 2017 原版使用的方法。</p>
+<h2 id="section-6">4. Why Self-Attention：复杂度表需要读脚注</h2>
+<section aria-label="Original Table 1" id="table-1">
+<p class="table-caption"><strong>Original paper · Table 1 · PDF p.6</strong><br/>Table 1: Maximum path lengths, per-layer complexity and minimum number of sequential operations for different layer types. n is the sequence length, d is the representation dimension, k is the kernel size of convolutions and r the size of the neighborhood in restricted self-attention.</p>
+<div aria-label="原表 1，可横向滚动" class="table-scroll" role="region" tabindex="0"><table class="original-table">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt">Layer Type</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Complexity per Layer</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Sequential</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Maximum Path Length</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_column"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column">Operations</th>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>Self-Attention</th>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="O(n^{2}\cdot d)" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><msup><mi>n</mi><mn>2</mn></msup><mo lspace="0.222em" rspace="0.222em">⋅</mo><mi>d</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(n^{2}\cdot d)</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="O(1)" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(1)</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="O(1)" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(1)</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">Recurrent</th>
+<td class="ltx_td ltx_align_center"><math alttext="O(n\cdot d^{2})" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mi>n</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mi>d</mi><mn>2</mn></msup></mrow><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(n\cdot d^{2})</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math alttext="O(n)" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(n)</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math alttext="O(n)" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(n)</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">Convolutional</th>
+<td class="ltx_td ltx_align_center"><math alttext="O(k\cdot n\cdot d^{2})" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mi>k</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><mi>n</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mi>d</mi><mn>2</mn></msup></mrow><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(k\cdot n\cdot d^{2})</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math alttext="O(1)" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(1)</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math alttext="O(log_{k}(n))" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi>g</mi><mi>k</mi></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(log_{k}(n))</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Self-Attention (restricted)</th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><math alttext="O(r\cdot n\cdot d)" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mi>r</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><mi>n</mi><mo lspace="0.222em" rspace="0.222em">⋅</mo><mi>d</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(r\cdot n\cdot d)</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><math alttext="O(1)" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(1)</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><math alttext="O(n/r)" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mi>n</mi><mo>/</mo><mi>r</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(n/r)</annotation></semantics></math></td></tr>
+</tbody>
+</table></div>
+<details><summary>展开 PDF 原表：核对全部单元格、空白与加粗</summary>
+<figure class="original-figure"><button aria-label="放大 PDF Table 1" data-zoom="" type="button"><img alt="Table 1: Maximum path lengths, per-layer complexity and minimum number of sequential operations for different layer types. n is the sequence length, d is the representation dimension, k is the kernel size of convolutions and r the size of the neighborhood in restricted self-attention." loading="lazy" src="assets/original/table-01.png"/></button><figcaption>PDF 原貌 · 完整表格与原 caption</figcaption></figure></details>
+</section>
+<p><strong>比较对象与指标</strong>：Table 1 比较不同层类型的每层复杂度、最低串行操作数量与最大信息路径。n 是序列长，d 是表示宽度，k 是卷积核宽度，r 是局部 attention 邻域。它不是 BLEU 表，也不是测量出的 kernel 耗时表。</p>
+<p>Self-attention 给出 <code>O(n²d)</code>、<code>O(1)</code> 串行阶段和 <code>O(1)</code> 路径；RNN 为 <code>O(nd²)</code>、<code>O(n)</code> 阶段和 <code>O(n)</code> 路径。因此当 n &lt; d 时，混合部分的理论计算量有利；更核心的区别是所有位置能在一层直接联系。</p>
+<p><strong>两个容易漏掉的限制</strong>：第一，表中的 attention 成本突出序列混合项，完整 block 还有 <code>O(nd²)</code> 的投影和 <code>O(nd·d_ff)</code> 的 FFN。第二，convolution 的 <code>O(log_k n)</code> 路径对应扩张卷积；普通连续卷积需要 <code>O(n/k)</code> 层，论文 p.7 明确区分了两者。</p>
+<p><strong>局部化 trade-off</strong>：限制在大小 r 的邻域后，混合成本成为 <code>O(rnd)</code>，但全局信息传播路径增长为 <code>O(n/r)</code>。论文把它列作未来工作，不能当作本实验实际训练的窗口 attention。</p>
+<p><strong>分析</strong>：O(1) 是单层沿已知序列的位置依赖深度，不是整个网络只需一个操作，更不是任意长度文本能一次性生成。实际模型仍有 L 层依赖，自回归推理仍有 T 步依赖。Tensor shape、memory IO 与硬件并行度必须加入分析。</p>
+<h2 id="section-7">5. Training：可复原的设置与缺失信息</h2>
+<h3>5.1 Training Data and Batching</h3>
+<p><strong>原论文，p.7。</strong> WMT14 英德约 <strong>4.5M 句对</strong>，BPE，共享源/目标约 <strong>37k</strong> 词表；英法约 <strong>36M 句对</strong>，使用 <strong>32k word-piece</strong> 词表。按近似句长组 batch，减少 padding；每批约 <strong>25k 源 token + 25k 目标 token</strong>，不是 25k 个句子。</p>
+<p><strong>实验审计</strong>：论文报告了数据规模、tokenizer 类型和近似 batch token 数，但没有统一给出训练语料的完整有效 token 总数、各长度区间分布和所有 baseline 的同预算训练版本。将 batch token 数 × step 数作为累计处理 token 的粗估时，还必须区分源/目标、padding 与跨设备统计口径，不能说它就是去重训练集 token 数。</p>
+<h3>5.2 Hardware and Schedule</h3>
+<p>使用一台机器的 <strong>8 张 NVIDIA P100</strong>。base 每 step 约 <strong>0.4 s</strong>，训练 <strong>100k steps，约 12 小时</strong>；big 每 step 约 <strong>1.0 s</strong>，训练 <strong>300k steps，约 3.5 天</strong>。0.4×100k = 11.11 小时，1×300k = 3.47 天，与原文近似时间同一量级。</p>
+<p><strong>边界</strong>：原文训练成本用估计的持续单精度能力作代理，并没有提供完整 mixed precision recipe、通信 trace、显存峰值、功耗、TTFT 或 TPOT。后文 FP16 Cache 例子是工程场景，不是声称论文当时以 FP16 训练。</p>
+<h3>5.3 Optimizer — 式 (3)</h3>
+<div aria-label="原论文式 (3) · p.7" class="formula" id="equation-schedule"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">e</mi></mrow><mo>=</mo><msup><mi>D</mi><mrow><mo>−</mo><mn>0.5</mn></mrow></msup><mo>min</mo><mo stretchy="false">(</mo><msup><mi>s</mi><mrow><mo>−</mo><mn>0.5</mn></mrow></msup><mo>,</mo><mi>s</mi><mspace width="0.167em"></mspace><msup><mi>w</mi><mrow><mo>−</mo><mn>1.5</mn></mrow></msup><mo stretchy="false">)</mo></mrow></math><span class="equation-number">原论文式 (3) · p.7</span></div>
+<p>Adam 参数为 β₁ = 0.9、β₂ = 0.98、ε = 10⁻⁹。s 为 optimizer step，w 为 warmup_steps = <strong>4000</strong>，D 为模型宽度。s≤w 时学习率线性增加；s&gt;w 时按 s⁻¹ᐟ² 衰减。base 在 s = 4000 的峰值约 <strong>0.000699</strong>，s = 100000 时约 <strong>0.000140</strong>。</p>
+<p><strong>直觉 / 分析</strong>：先避免训练初期大步更新，再随训练推进减小步长；D⁻¹ᐟ² 提供宽度相关缩放。它不是 cosine schedule，也不是只写一个固定 learning rate 就能复现。实际实现的 step 从 0 还是 1 开始、额外倍率与梯度累计的 optimizer step 定义都需要核对。</p>
+<h3>5.4 Regularization 与训练目标重建</h3>
+<p>子层输出在残差相加前 dropout；encoder / decoder 的 embedding 与 PE 相加后也 dropout。base 的 P_drop = <strong>0.1</strong>，Table 3 的 big 为 <strong>0.3</strong>，英法 big 特例仍是 <strong>0.1</strong>。Label smoothing ε_ls = <strong>0.1</strong>；原文指出它提高 BLEU，却使 perplexity 更差。</p>
+<div aria-label="本文训练目标重建 · 排除 padding" class="formula" id="equation-loss"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>ℒ</mi><mo>=</mo><mo>−</mo><munder><mo>∑</mo><mi>t</mi></munder><munder><mo>∑</mo><mi>v</mi></munder><msub><mi>q</mi><mi>t</mi></msub><mo stretchy="false">(</mo><mi>v</mi><mo stretchy="false">)</mo><mi>log</mi><msub><mi>P</mi><mi>θ</mi></msub><mo stretchy="false">(</mo><mi>v</mi><mo>∣</mo><msub><mi>y</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo>,</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></math><span class="equation-number">本文训练目标重建 · 排除 padding</span></div>
+<p><strong>推导，非原文编号公式。</strong> 给定源 x，目标序列 y，训练最大化正确目标前缀条件下的 next-token 概率，等价于最小化上述交叉熵。P 是模型词表分布，q 为 label-smoothed 目标分布；可用 <code>q(correct)=1−ε</code>，其余有效词项共享 ε。实际实现须确认 padding/BOS 等特殊 token 是否排除，以及采用 ε/V 还是 ε/(V−1) 的约定。训练 loss 不一定等于评测普通 hard-label NLL，因此 PPL 变化不能单独决定翻译质量。</p>
+<figure class="generated-figure"><div class="diagram-scroll" tabindex="0"><svg aria-labelledby="svg-training-title" role="img" viewbox="0 0 700 335" xmlns="http://www.w3.org/2000/svg"><title id="svg-training-title">Known targets enable parallel training</title><defs><marker id="arrow-training" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="9" refy="5" viewbox="0 0 10 10"><path d="M0 0L10 5L0 10Z" fill="#97b9e7"></path></marker></defs><rect fill="#152133" height="76" rx="7" stroke="#627992" width="310" x="25" y="30"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="180.0" y="56">Gold labels</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="180.0" y="79">y₁   y₂   y₃   EOS</text><rect fill="#1b304a" height="76" rx="7" stroke="#627992" width="310" x="365" y="30"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="520.0" y="56">Shift right</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="520.0" y="79">BOS   y₁   y₂   y₃</text><path d="M335 67 L361 67" fill="none" marker-end="url(#arrow-training)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#152133" height="145" rx="7" stroke="#627992" width="310" x="365" y="155"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="520.0" y="181">Causal input support</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="520.0" y="204">q₀: BOS</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="520.0" y="227">q₁: BOS + y₁</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="520.0" y="250">q₂: BOS + y₁ + y₂</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="520.0" y="273">q₃: BOS + y₁ + y₂ + y₃</text><path d="M520 106 L520 151" fill="none" marker-end="url(#arrow-training)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#1b304a" height="99" rx="7" stroke="#627992" width="280" x="25" y="200"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="165.0" y="226">All rows in one forward</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="165.0" y="249">Predict y₁ y₂ y₃ EOS</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="165.0" y="272">Each row lacks its answer</text><path d="M365 242 L309 242" fill="none" marker-end="url(#arrow-training)" stroke="#97b9e7" stroke-width="1.6"></path></svg></div><figcaption>Agent-created Visualization · 本文根据数据流绘制；移动端可横向滚动。不是论文原图。</figcaption></figure>
+<p><strong>右移与 mask / 分析</strong>：目标 <code>[y₁,y₂,y₃,EOS]</code> 的 decoder 输入是 <code>[BOS,y₁,y₂,y₃]</code>。第 i 行只能读 j≤i 的输入；当前位置看到的是前一个目标 token，而非该行要预测的答案。所有正确前缀已知，能一次计算各行 logits；这是 teacher forcing。若不右移，即使 mask 是下三角，也会让当前位置读到答案。</p>
+<h2 id="section-8">6. Results：按每张表核对结论</h2>
+<h3>6.1 Machine Translation — Table 2</h3>
+<section aria-label="Original Table 2" id="table-2">
+<p class="table-caption"><strong>Original paper · Table 2 · PDF p.8</strong><br/>Table 2: The Transformer achieves better BLEU scores than previous state-of-the-art models on the English-to-German and English-to-French newstest2014 tests at a fraction of the training cost.</p>
+<div aria-label="原表 2，可横向滚动" class="table-scroll" role="region" tabindex="0"><table class="original-table">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_tt" rowspan="2"><span class="ltx_text">Model</span></th>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2">BLEU</td>
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2">Training Cost (FLOPs)</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">EN-DE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">EN-FR</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">EN-DE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">EN-FR</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">ByteNet <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib18" rel="noopener noreferrer" title="">18</a>]</cite></th>
+<td class="ltx_td ltx_align_center ltx_border_t">23.75</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">Deep-Att + PosUnk <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib39" rel="noopener noreferrer" title="">39</a>]</cite></th>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">39.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center"><math alttext="1.0\cdot 10^{20}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>1.0</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>20</mn></msup></mrow><annotation encoding="application/x-tex">1.0\cdot 10^{20}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">GNMT + RL <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib38" rel="noopener noreferrer" title="">38</a>]</cite></th>
+<td class="ltx_td ltx_align_center">24.6</td>
+<td class="ltx_td ltx_align_center">39.92</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center"><math alttext="2.3\cdot 10^{19}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>2.3</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>19</mn></msup></mrow><annotation encoding="application/x-tex">2.3\cdot 10^{19}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math alttext="1.4\cdot 10^{20}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>1.4</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>20</mn></msup></mrow><annotation encoding="application/x-tex">1.4\cdot 10^{20}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">ConvS2S <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib9" rel="noopener noreferrer" title="">9</a>]</cite></th>
+<td class="ltx_td ltx_align_center">25.16</td>
+<td class="ltx_td ltx_align_center">40.46</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center"><math alttext="9.6\cdot 10^{18}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>9.6</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>18</mn></msup></mrow><annotation encoding="application/x-tex">9.6\cdot 10^{18}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math alttext="1.5\cdot 10^{20}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>1.5</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>20</mn></msup></mrow><annotation encoding="application/x-tex">1.5\cdot 10^{20}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">MoE <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib32" rel="noopener noreferrer" title="">32</a>]</cite></th>
+<td class="ltx_td ltx_align_center">26.03</td>
+<td class="ltx_td ltx_align_center">40.56</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center"><math alttext="2.0\cdot 10^{19}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>2.0</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>19</mn></msup></mrow><annotation encoding="application/x-tex">2.0\cdot 10^{19}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math alttext="1.2\cdot 10^{20}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>1.2</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>20</mn></msup></mrow><annotation encoding="application/x-tex">1.2\cdot 10^{20}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>Deep-Att + PosUnk Ensemble <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib39" rel="noopener noreferrer" title="">39</a>]</cite></th>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">40.4</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="8.0\cdot 10^{20}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>8.0</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>20</mn></msup></mrow><annotation encoding="application/x-tex">8.0\cdot 10^{20}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">GNMT + RL Ensemble <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib38" rel="noopener noreferrer" title="">38</a>]</cite></th>
+<td class="ltx_td ltx_align_center">26.30</td>
+<td class="ltx_td ltx_align_center">41.16</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center"><math alttext="1.8\cdot 10^{20}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>1.8</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>20</mn></msup></mrow><annotation encoding="application/x-tex">1.8\cdot 10^{20}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math alttext="1.1\cdot 10^{21}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>1.1</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>21</mn></msup></mrow><annotation encoding="application/x-tex">1.1\cdot 10^{21}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">ConvS2S Ensemble <cite class="ltx_cite ltx_citemacro_citep">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib9" rel="noopener noreferrer" title="">9</a>]</cite></th>
+<td class="ltx_td ltx_align_center">26.36</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">41.29</span></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center"><math alttext="7.7\cdot 10^{19}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>7.7</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>19</mn></msup></mrow><annotation encoding="application/x-tex">7.7\cdot 10^{19}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center"><math alttext="1.2\cdot 10^{21}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>1.2</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>21</mn></msup></mrow><annotation encoding="application/x-tex">1.2\cdot 10^{21}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_rule" style="width:0.0pt;height:9.5pt;--ltx-bg-color:black;display:inline-block;"></span>Transformer (base model)</th>
+<td class="ltx_td ltx_align_center ltx_border_t">27.3</td>
+<td class="ltx_td ltx_align_center ltx_border_t">38.1</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" colspan="2" style="font-weight:700"><math alttext="3.3\cdot 10^{18}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn class="ltx_mathvariant_bold" mathvariant="bold">3.3</mn><mo class="ltx_mathvariant_bold" lspace="0.222em" mathvariant="bold" rspace="0.222em">⋅</mo><msup><mn>𝟏𝟎</mn><mn>𝟏𝟖</mn></msup></mrow><annotation encoding="application/x-tex">3.3\cdot 10^{18}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Transformer (big)</th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">28.4</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">41.8</span></td>
+<td class="ltx_td ltx_border_bb"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" colspan="2"><math alttext="2.3\cdot 10^{19}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>2.3</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mn>10</mn><mn>19</mn></msup></mrow><annotation encoding="application/x-tex">2.3\cdot 10^{19}</annotation></semantics></math></td></tr>
+</tbody>
+</table></div>
+<details><summary>展开 PDF 原表：核对全部单元格、空白与加粗</summary>
+<figure class="original-figure"><button aria-label="放大 PDF Table 2" data-zoom="" type="button"><img alt="Table 2: The Transformer achieves better BLEU scores than previous state-of-the-art models on the English-to-German and English-to-French newstest2014 tests at a fraction of the training cost." loading="lazy" src="assets/original/table-02.png"/></button><figcaption>PDF 原貌 · 完整表格与原 caption</figcaption></figure></details>
+</section>
+<p><strong>读表方式</strong>：数据为 WMT14，测试集 <strong>newstest2014</strong>；BLEU 越高越好，Training Cost 的 FLOPs 越低越好。原表没画 ↑/↓，本文只解释方向而不改原貌。空白表示未报告，不是 0。single 与 ensemble 是不同成本设置。base 用最后 <strong>5 个 checkpoint</strong> 的权重平均，big 用最后 <strong>20 个</strong>；权重平均产生单个模型，不等于运行多个模型再集成预测。</p>
+<p>解码采用 <strong>beam size 4</strong>、length penalty <strong>α = 0.6</strong>，在 dev 上选择；最长输出设为输入长 + 50，允许提前结束。BLEU 是翻译与参考文本的 n-gram 匹配指标，并带 brevity penalty；不能称为“28.4% 翻译准确率”。tokenization 与评测脚本会影响分数，后续 SacreBLEU [R13] 强调可复现的评测签名。</p>
+<div aria-label="分析表格，可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>对比 / 本文复算</th>
+<th style="text-align: right;">绝对差</th>
+<th style="text-align: right;">数值比值</th>
+<th>可以支持的结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EN–DE big 28.4 vs ConvS2S ensemble 26.36</td>
+<td style="text-align: right;"><strong>+2.04 BLEU</strong></td>
+<td style="text-align: right;">+7.74% 的分数算术比</td>
+<td>当时英德超过最强表内 ensemble；不是准确率提升 7.74%</td>
+</tr>
+<tr>
+<td>EN–DE base 27.3 vs 同上 26.36</td>
+<td style="text-align: right;">+0.94 BLEU</td>
+<td style="text-align: right;">+3.57%</td>
+<td>base 也超过该英德 ensemble</td>
+</tr>
+<tr>
+<td>EN–FR big 41.8 vs MoE single 40.56</td>
+<td style="text-align: right;">+1.24 BLEU</td>
+<td style="text-align: right;">+3.06%</td>
+<td>按表格与摘要值，超过最强表内 single</td>
+</tr>
+<tr>
+<td>EN–FR big 41.8 vs ConvS2S ensemble 41.29</td>
+<td style="text-align: right;">+0.51 BLEU</td>
+<td style="text-align: right;">+1.24%</td>
+<td>仅按 41.8 的口径</td>
+</tr>
+<tr>
+<td>EN–FR base 38.1 vs MoE single 40.56</td>
+<td style="text-align: right;">−2.46 BLEU</td>
+<td style="text-align: right;">−6.07%</td>
+<td>base 并没有同时胜过两个语言任务的所有方法</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>原文冲突</strong>：摘要与 Table 2 写 <strong>41.8</strong>，§6.1 正文写 <strong>41.0</strong>，本文不擅自纠正。如果按 41.0，则相对 MoE single 仅 <strong>+0.44 BLEU</strong>，相对 ConvS2S ensemble 是 <strong>−0.29</strong>。因此英法是否超过最强 ensemble 取决于冲突的取值。英德 28.4 的证据没有这个冲突。</p>
+<p><strong>训练成本如何得来？</strong> 原文是 <code>wall time × GPU 数 × 估计持续 TFLOPS</code>，脚注使用 K80 2.8、K40 3.7、M40 6.0、P100 9.5 TFLOPS。Transformer 两行的 cost 单元格横跨 EN–DE / EN–FR 两列，分别是 <strong>3.3×10¹⁸</strong> 与 <strong>2.3×10¹⁹</strong>；它不是两个独立语言任务的逐算子测量值。</p>
+<p><strong>成本复算与公平性</strong>：big/base 约 <strong>6.97×</strong>；英德 big 与 GNMT single 的代理成本相同，约为 ConvS2S ensemble 的 <strong>1/3.35</strong>；英法与 MoE single 相比约 <strong>1/5.22</strong>。这些是文献估计之间的比值，各模型的数据、硬件、优化、模型规模和训练时间并非统一控制；它支持“历史上的质量与估计成本组合很强”，不能当作严格同硬件的 FLOP/能效测量。</p>
+<h3>6.2 Model Variations — Table 3</h3>
+<section aria-label="Original Table 3" id="table-3">
+<p class="table-caption"><strong>Original paper · Table 3 · PDF p.9</strong><br/>Table 3: Variations on the Transformer architecture. Unlisted values are identical to those of the base model. All metrics are on the English-to-German translation development set, newstest2013. Listed perplexities are per-wordpiece, according to our byte-pair encoding, and should not be compared to per-word perplexities.</p>
+<div aria-label="原表 3，可横向滚动" class="table-scroll" role="region" tabindex="0"><table class="original-table">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text"><math alttext="N" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>N</mi><annotation encoding="application/x-tex">N</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text"><math alttext="d_{\text{model}}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi>d</mi><mtext>model</mtext></msub><annotation encoding="application/x-tex">d_{\text{model}}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text"><math alttext="d_{\text{ff}}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi>d</mi><mtext>ff</mtext></msub><annotation encoding="application/x-tex">d_{\text{ff}}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text"><math alttext="h" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>h</mi><annotation encoding="application/x-tex">h</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text"><math alttext="d_{k}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi>d</mi><mi>k</mi></msub><annotation encoding="application/x-tex">d_{k}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text"><math alttext="d_{v}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi>d</mi><mi>v</mi></msub><annotation encoding="application/x-tex">d_{v}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text"><math alttext="P_{drop}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi>P</mi><mrow><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi></mrow></msub><annotation encoding="application/x-tex">P_{drop}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text"><math alttext="\epsilon_{ls}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi>ϵ</mi><mrow><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi></mrow></msub><annotation encoding="application/x-tex">\epsilon_{ls}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">train</td>
+<td class="ltx_td ltx_align_center ltx_border_t">PPL</td>
+<td class="ltx_td ltx_align_center ltx_border_t">BLEU</td>
+<td class="ltx_td ltx_align_center ltx_border_t">params</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center ltx_border_r">steps</td>
+<td class="ltx_td ltx_align_center">(dev)</td>
+<td class="ltx_td ltx_align_center">(dev)</td>
+<td class="ltx_td ltx_align_center"><math alttext="\times 10^{6}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mphantom></mphantom><mo lspace="0.222em" rspace="0.222em">×</mo><msup><mn>10</mn><mn>6</mn></msup></mrow><annotation encoding="application/x-tex">\times 10^{6}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+base</td>
+<td class="ltx_td ltx_align_center ltx_border_t">6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">512</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2048</td>
+<td class="ltx_td ltx_align_center ltx_border_t">8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">64</td>
+<td class="ltx_td ltx_align_center ltx_border_t">64</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">100K</td>
+<td class="ltx_td ltx_align_center ltx_border_t">4.92</td>
+<td class="ltx_td ltx_align_center ltx_border_t">25.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">65</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" rowspan="4"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+<span class="ltx_text">(A)</span></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">512</td>
+<td class="ltx_td ltx_align_center ltx_border_t">512</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">5.29</td>
+<td class="ltx_td ltx_align_center ltx_border_t">24.9</td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">4</td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">5.00</td>
+<td class="ltx_td ltx_align_center">25.5</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">16</td>
+<td class="ltx_td ltx_align_center">32</td>
+<td class="ltx_td ltx_align_center">32</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">4.91</td>
+<td class="ltx_td ltx_align_center">25.8</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">32</td>
+<td class="ltx_td ltx_align_center">16</td>
+<td class="ltx_td ltx_align_center">16</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">5.01</td>
+<td class="ltx_td ltx_align_center">25.4</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" rowspan="2"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+<span class="ltx_text">(B)</span></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">16</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">5.16</td>
+<td class="ltx_td ltx_align_center ltx_border_t">25.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">58</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">32</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">5.01</td>
+<td class="ltx_td ltx_align_center">25.4</td>
+<td class="ltx_td ltx_align_center">60</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" rowspan="7"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+<span class="ltx_text">(C)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">2</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">6.11</td>
+<td class="ltx_td ltx_align_center ltx_border_t">23.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">36</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">5.19</td>
+<td class="ltx_td ltx_align_center">25.3</td>
+<td class="ltx_td ltx_align_center">50</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">4.88</td>
+<td class="ltx_td ltx_align_center">25.5</td>
+<td class="ltx_td ltx_align_center">80</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">256</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">32</td>
+<td class="ltx_td ltx_align_center">32</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">5.75</td>
+<td class="ltx_td ltx_align_center">24.5</td>
+<td class="ltx_td ltx_align_center">28</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">1024</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">4.66</td>
+<td class="ltx_td ltx_align_center">26.0</td>
+<td class="ltx_td ltx_align_center">168</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">1024</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">5.12</td>
+<td class="ltx_td ltx_align_center">25.4</td>
+<td class="ltx_td ltx_align_center">53</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">4096</td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">4.75</td>
+<td class="ltx_td ltx_align_center">26.2</td>
+<td class="ltx_td ltx_align_center">90</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" rowspan="4"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+<span class="ltx_text">(D)</span></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">5.77</td>
+<td class="ltx_td ltx_align_center ltx_border_t">24.6</td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">0.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">4.95</td>
+<td class="ltx_td ltx_align_center">25.5</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">0.0</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">4.67</td>
+<td class="ltx_td ltx_align_center">25.3</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">0.2</td>
+<td class="ltx_td ltx_border_r"></td>
+<td class="ltx_td ltx_align_center">5.47</td>
+<td class="ltx_td ltx_align_center">25.7</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+(E)</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" colspan="7">positional embedding instead of sinusoids</td>
+<td class="ltx_td ltx_border_r ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">4.92</td>
+<td class="ltx_td ltx_align_center ltx_border_t">25.7</td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+big</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t">6</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t">1024</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t">4096</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t">16</td>
+<td class="ltx_td ltx_border_b ltx_border_t"></td>
+<td class="ltx_td ltx_border_b ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t">0.3</td>
+<td class="ltx_td ltx_border_b ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t">300K</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t"><span class="ltx_text ltx_font_bold">4.33</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t"><span class="ltx_text ltx_font_bold">26.4</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t">213</td></tr>
+</tbody>
+</table></div>
+<details><summary>展开 PDF 原表：核对全部单元格、空白与加粗</summary>
+<figure class="original-figure"><button aria-label="放大 PDF Table 3" data-zoom="" type="button"><img alt="Table 3: Variations on the Transformer architecture. Unlisted values are identical to those of the base model. All metrics are on the English-to-German translation development set, newstest2013. Listed perplexities are per-wordpiece, according to our byte-pair encoding, and should not be compared to per-word perplexities." loading="lazy" src="assets/original/table-03.png"/></button><figcaption>PDF 原貌 · 完整表格与原 caption</figcaption></figure></details>
+</section>
+<p><strong>设置</strong>：英德 <strong>newstest2013 开发集</strong>，beam 同 §6.1，但<strong>没有 checkpoint averaging</strong>。PPL 为 <strong>per-wordpiece</strong>，不能与按词统计的 perplexity 直接比较。未列设置继承 base；big 的空白 d_k / d_v 因而为 <strong>64 / 64</strong>。Table 3 base dev 25.8 与 Table 2 test 27.3 不是同一评测设置。</p>
+<p><strong>(A) Head 数</strong>：保持总宽度与主要计算量，h = 1 / 4 / 8 / 16 / 32 时 BLEU 为 24.9 / 25.5 / 25.8 / 25.8 / 25.4。单头低 <strong>0.9</strong>，16 头没有再提高，32 头退 <strong>0.4</strong>。支持多头有效和每头宽度存在 trade-off，不支持“头数越多越好”。</p>
+<p><strong>(B) Key 维度</strong>：d_k 从 64 降为 16 / 32，BLEU 25.1 / 25.4，参数 58M / 60M；d_v 未列，仍继承 64。作者推测点积兼容性判定不容易；这并没有直接实验证明一个更复杂的打分函数必然更好。</p>
+<p><strong>(C) 宽度与深度</strong>：N = 2 / 4 / 8 的 BLEU 为 23.7 / 25.3 / 25.5，参数 36M / 50M / 80M；8 层并未超过 6 层 base。D = 256 / 1024 得到 24.5 / 26.0，参数 28M / 168M。d_ff = 1024 / 4096 为 25.4 / 26.2，参数 53M / 90M。d_ff 增大是较明显的收益来源，同时直接增加 FFN 成本；“更大总更好”是超出这张表的概括。</p>
+<p><strong>(D) 正则化</strong>：移除 dropout 使 BLEU 从 25.8 降到 <strong>24.6</strong>；P_drop = 0.2 为 25.5。去掉 label smoothing 后 <strong>PPL 4.67 更低</strong>，但 BLEU <strong>25.3 更差</strong>；ε_ls = 0.2 得 PPL 5.47、BLEU 25.7。这个结果清楚展示 loss / calibration 与任务指标之间的取舍。</p>
+<p><strong>(E) 位置编码</strong>：learned PE 得 25.7，sinusoidal 25.8，单次差距仅 <strong>0.1 BLEU</strong>。未提供多 seed 方差或显著性，不能宣称正弦必然优于 learned。</p>
+<p><strong>big</strong>：213M、300k steps、dev BLEU 26.4 / PPL 4.33，对比 base 65M、100k。参数约 <strong>3.28×</strong>，训练步数 <strong>3×</strong>，多项超参同时改变；这不是单因素“只加宽度”的消融。</p>
+<p><strong>缺失实验 / 分析</strong>：建议补多 seed、同预算 head/FFN 对比、长句分桶、长度外推、去位置编码、严格匹配的 pre/post-LN，以及头干预实验。原表是有价值的探索，但不足以对每一模块给出稳定、独立的因果排序。</p>
+<h3>6.3 English Constituency Parsing — Table 4</h3>
+<section aria-label="Original Table 4" id="table-4">
+<p class="table-caption"><strong>Original paper · Table 4 · PDF p.10</strong><br/>Table 4: The Transformer generalizes well to English constituency parsing (Results are on Section 23 of WSJ)</p>
+<div aria-label="原表 4，可横向滚动" class="table-scroll" role="region" tabindex="0"><table class="original-table">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">Parser</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">Training</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">WSJ 23 F1</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Vinyals &amp; Kaiser el al. (2014) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib37" rel="noopener noreferrer" title="">37</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">WSJ only, discriminative</td>
+<td class="ltx_td ltx_align_center ltx_border_t">88.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">Petrov et al. (2006) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib29" rel="noopener noreferrer" title="">29</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_r">WSJ only, discriminative</td>
+<td class="ltx_td ltx_align_center">90.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">Zhu et al. (2013) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib40" rel="noopener noreferrer" title="">40</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_r">WSJ only, discriminative</td>
+<td class="ltx_td ltx_align_center">90.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">Dyer et al. (2016) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib8" rel="noopener noreferrer" title="">8</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_r">WSJ only, discriminative</td>
+<td class="ltx_td ltx_align_center">91.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Transformer (4 layers)</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">WSJ only, discriminative</td>
+<td class="ltx_td ltx_align_center ltx_border_t">91.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Zhu et al. (2013) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib40" rel="noopener noreferrer" title="">40</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">semi-supervised</td>
+<td class="ltx_td ltx_align_center ltx_border_t">91.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">Huang &amp; Harper (2009) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib14" rel="noopener noreferrer" title="">14</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_r">semi-supervised</td>
+<td class="ltx_td ltx_align_center">91.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">McClosky et al. (2006) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib26" rel="noopener noreferrer" title="">26</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_r">semi-supervised</td>
+<td class="ltx_td ltx_align_center">92.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r">Vinyals &amp; Kaiser el al. (2014) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib37" rel="noopener noreferrer" title="">37</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_r">semi-supervised</td>
+<td class="ltx_td ltx_align_center">92.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Transformer (4 layers)</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">semi-supervised</td>
+<td class="ltx_td ltx_align_center ltx_border_t">92.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Luong et al. (2015) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib23" rel="noopener noreferrer" title="">23</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">multi-task</td>
+<td class="ltx_td ltx_align_center ltx_border_t">93.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">Dyer et al. (2016) <cite class="ltx_cite ltx_citemacro_cite">[<a class="ltx_ref" href="https://arxiv.org/html/1706.03762v7#bib.bib8" rel="noopener noreferrer" title="">8</a>]</cite></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">generative</td>
+<td class="ltx_td ltx_align_center ltx_border_b">93.3</td></tr>
+</tbody>
+</table></div>
+<details><summary>展开 PDF 原表：核对全部单元格、空白与加粗</summary>
+<figure class="original-figure"><button aria-label="放大 PDF Table 4" data-zoom="" type="button"><img alt="Table 4: The Transformer generalizes well to English constituency parsing (Results are on Section 23 of WSJ)" loading="lazy" src="assets/original/table-04.png"/></button><figcaption>PDF 原貌 · 完整表格与原 caption</figcaption></figure></details>
+</section>
+<p><strong>任务与设置</strong>：将英语句子转换成线性化的 constituency tree，输出有强结构约束且往往比输入长。4 层 Transformer，D = <strong>1024</strong>；WSJ 约 <strong>40k 训练句</strong>、<strong>16k</strong> 词表；半监督高置信语料约 <strong>17M 句</strong>、<strong>32k</strong> 词表。WSJ Section 22 调 dropout、学习率和 beam，Section 23 测试；解析任务最大输出设为输入长 + <strong>300</strong>，beam <strong>21</strong>、length penalty <strong>0.3</strong>（p.10）。</p>
+<p><strong>读表与结论</strong>：F1 衡量 labeled constituents / spans 匹配，越高越好。WSJ-only 的 Transformer <strong>91.3</strong>，低于 Dyer <strong>91.7</strong>，差 <strong>−0.4 F1</strong>；semi-supervised <strong>92.7</strong>，比表内其他同组最高 <strong>92.1</strong> 高 <strong>+0.6</strong>，但低于 multi-task Luong <strong>93.0</strong> 和 generative Dyer <strong>93.3</strong>。训练范式、额外语料不同，不能合成一个公平的纯架构排行榜。</p>
+<p><strong>原文 claim 审计</strong>：§6.3 说除 RNNG 外胜过全部先前模型，忽略了表中 Luong 93.0；更稳妥的结论是<strong>在表内半监督组表现最好，并显示迁移到结构输出任务的可行性</strong>。不能据三个有限任务宣称全面通用性。</p>
+<p><strong>指标细分 / 分析</strong>：若以 labeled span 为元素，TP 是预测和标注同时出现的 span，FP 是多预测的 span，FN 是漏掉的 span；Precision = TP/(TP+FP)，Recall = TP/(TP+FN)，F1 = 2PR/(P+R)。论文未公布计数或独立 P/R，无法从一个 F1 唯一反推出它们。TN 与普通分类 accuracy 不适合作为这类解析表的替代指标，也不能编造混淆矩阵。</p>
+<h2 id="section-9">7. Conclusion：成立的贡献与没有回答的问题</h2>
+<p><strong>原论文，p.10。</strong> 作者总结 Transformer 完全以 attention 构建序列转导模型，在翻译上得到强结果且训练更快，并扩展到 constituency parsing。未来方向包括图像、音频、视频、局部 attention 和减少生成的串行性。</p>
+<p><strong>分析</strong>：历史上最重要的贡献是把 attention、位置表示、逐位置 FFN 与残差组织成一个可扩展的序列架构。今天的 LLM/VLM 延续了这个骨架，但常常修改归一化、位置编码、KV 表示、FFN、训练目标、并行与内核实现。阅读原论文能建立数据流基准，同时避免把后续优化归给 2017 实验。</p>
+<h2 id="section-10">Attention Visualizations：原附录三张图逐项读</h2>
+<h3>Figure 3 — making … more difficult：一跳连接长依赖</h3>
+<figure class="original-figure" id="figure-3">
+<button aria-label="放大原论文 Figure 3" data-zoom="" type="button">
+<img alt="Figure 3: An example of the attention mechanism following long-distance dependencies in the encoder self-attention in layer 5 of 6. Many of the attention heads attend to a distant dependency of the verb ‘making’, completing the phrase ‘making…more difficult’. Attentions here shown only for the word ‘making’. Different colors represent different heads. Best viewed in color." height="1044" loading="lazy" src="assets/original/fig-03-long-distance.png" width="1608"/></button>
+<figcaption><strong>Original paper · Figure 3 · PDF p.13</strong> · 点击放大<br/>Figure 3: An example of the attention mechanism following long-distance dependencies in the encoder self-attention in layer 5 of 6. Many of the attention heads attend to a distant dependency of the verb ‘making’, completing the phrase ‘making…more difficult’. Attentions here shown only for the word ‘making’. Different colors represent different heads. Best viewed in color.</figcaption>
+<a href="assets/original/fig-03-long-distance.png">查看完整高分辨率原图</a></figure>
+<p><strong>目的与阅读顺序</strong>：这张图展示 encoder 第 <strong>5/6 层</strong>中，query <strong>making</strong> 的注意力。上、下两排是同一句 token；从上排 making 沿彩色连线看下排被读取位置。不同颜色为不同 head，透明度和色块显示注意力强弱；句末 <code>&lt;EOS&gt;</code> / <code>&lt;pad&gt;</code> 也属于原图内容。</p>
+<p><strong>观察</strong>：多个头指向远处 <strong>more / difficult</strong>，对应 “making … more difficult” 的关系，也有头指向自己或较近位置。其价值是直观说明不同 head 可以跨越插入的短语，在一层直接联系远处词项。</p>
+<p><strong>解释边界</strong>：这是筛选出的单词、单句、单层 attention，未说明这些连接对翻译结果的必要性，也不能推出全模型头都自动变成长依赖检测器。注意力图是读取模式，不是完整因果归因。</p>
+<h3>Figure 4 — its：指代与不同读取关系</h3>
+<figure class="original-figure" id="figure-4">
+<button aria-label="放大原论文 Figure 4" data-zoom="" type="button">
+<img alt="Figure 4: Two attention heads, also in layer 5 of 6, apparently involved in anaphora resolution. Top: Full attentions for head 5. Bottom: Isolated attentions from just the word ‘its’ for attention heads 5 and 6. Note that the attentions are very sharp for this word." height="2000" loading="lazy" src="assets/original/fig-04-anaphora.png" width="1608"/></button>
+<figcaption><strong>Original paper · Figure 4 · PDF p.14</strong> · 点击放大<br/>Figure 4: Two attention heads, also in layer 5 of 6, apparently involved in anaphora resolution. Top: Full attentions for head 5. Bottom: Isolated attentions from just the word ‘its’ for attention heads 5 and 6. Note that the attentions are very sharp for this word.</figcaption>
+<a href="assets/original/fig-04-anaphora.png">查看完整高分辨率原图</a></figure>
+<p><strong>如何读</strong>：上半部分保留 head <strong>5</strong> 的整句 attention；下半部分只保留 <strong>its</strong> 发出的关系，并展示 head <strong>5 / 6</strong>。原句是 “The Law will never be perfect, but its application should be just …”。跟随 its 的连线，看它与 <strong>Law / application</strong> 的联系；不要把下半部分误当成整个 layer 的所有 heads。</p>
+<p><strong>观察与意义</strong>：两个头对 its 都很尖锐，但关注的关联不同，符合指代与名词短语结构的直觉。原 caption 使用 “apparently involved”，是定性描述。</p>
+<p><strong>分析</strong>：把这张图理解为“多种读取关系可以并存”最稳妥。要证明模型通过这些头完成 anaphora resolution，需要屏蔽/替换头或改变指代语句的干预，并测量输出变化。</p>
+<h3>Figure 5 — 结构相关模式：不同头并不重复</h3>
+<figure class="original-figure" id="figure-5">
+<button aria-label="放大原论文 Figure 5" data-zoom="" type="button">
+<img alt="Figure 5: Many of the attention heads exhibit behaviour that seems related to the structure of the sentence. We give two such examples above, from two different heads from the encoder self-attention at layer 5 of 6. The heads clearly learned to perform different tasks." height="1892" loading="lazy" src="assets/original/fig-05-syntax.png" width="1608"/></button>
+<figcaption><strong>Original paper · Figure 5 · PDF p.15</strong> · 点击放大<br/>Figure 5: Many of the attention heads exhibit behaviour that seems related to the structure of the sentence. We give two such examples above, from two different heads from the encoder self-attention at layer 5 of 6. The heads clearly learned to perform different tasks.</figcaption>
+<a href="assets/original/fig-05-syntax.png">查看完整高分辨率原图</a></figure>
+<p><strong>组件与阅读</strong>：上下两个完整面板来自 encoder 第 <strong>5/6 层</strong>的不同头，上面绿色、下面红色。同一原句的源/目标 token 排列、标点、EOS/PAD 全部保留。对比每个位置发出的线，而不是只比较颜色。</p>
+<p><strong>观察</strong>：上图可见跨词组、偏向 Law、application、missing 等位置的聚合；下图不少位置保持较强自连接，也出现较局部的其他联系。它说明两个头学到不同分布，不证明每条边等同于句法树依存边。</p>
+<p><strong>外部来源 [R12]</strong>：后续研究 “Attention is not Explanation” 进一步提醒，attention weights 未必能作为预测解释的充分依据。这不否定原图的观察价值，而是区分可视化发现与干预后的机制证据。</p>
+<h2 id="section-11">Engineering Reconstruction：KV、计算与端到端性能</h2>
+<p><span id="implementation"></span></p>
+<h3>从训练矩阵到增量 decoder</h3>
+<p><strong>推导，原论文没有这些推理 benchmark。</strong> Encoder 先处理完整源句一次。Decoder 每层保存过去目标 token 的 self-attention K/V；每个新 token 只生成当前 Q/K/V，把新的 K/V append，再读取历史。Cross-attention 的 K/V 由不变的 encoder 输出在各 decoder 层各自投影一次，可重复使用。</p>
+<figure class="generated-figure"><div class="diagram-scroll" tabindex="0"><svg aria-labelledby="svg-cache-title" role="img" viewbox="0 0 700 450" xmlns="http://www.w3.org/2000/svg"><title id="svg-cache-title">One new token, two cache lifetimes</title><defs><marker id="arrow-cache" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="9" refy="5" viewbox="0 0 10 10"><path d="M0 0L10 5L0 10Z" fill="#97b9e7"></path></marker></defs><rect fill="#1b304a" height="76" rx="7" stroke="#627992" width="205" x="25" y="25"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="127.5" y="51">New target token</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="127.5" y="74">Q_t, K_t, V_t</text><rect fill="#1b304a" height="99" rx="7" stroke="#627992" width="405" x="265" y="25"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="467.5" y="51">Self attention + layer cache</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="467.5" y="74">K₁…K_t · V₁…V_t</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="467.5" y="97">Append and read once per step</text><path d="M230 63 L261 63" fill="none" marker-end="url(#arrow-cache)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#152133" height="99" rx="7" stroke="#627992" width="405" x="265" y="185"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="467.5" y="211">Cross-attention: updated target Q</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="467.5" y="234">Projected source K / V cache</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="467.5" y="257">Source K/V fixed across target steps</text><path d="M468 122 L468 181" fill="none" marker-end="url(#arrow-cache)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#152133" height="76" rx="7" stroke="#627992" width="205" x="25" y="185"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="127.5" y="211">Source encoder</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="127.5" y="234">Computed once</text><path d="M230 223 L261 223" fill="none" marker-end="url(#arrow-cache)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#152133" height="76" rx="7" stroke="#627992" width="405" x="265" y="345"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="467.5" y="371">FFN → next layer → vocabulary</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="467.5" y="394">Choose token → next step</text><path d="M468 282 L468 341" fill="none" marker-end="url(#arrow-cache)" stroke="#97b9e7" stroke-width="1.6"></path></svg></div><figcaption>Agent-created Visualization · 本文根据数据流绘制；移动端可横向滚动。不是论文原图。</figcaption></figure>
+<p><strong>每步数据流</strong>：当前 token embedding → decoder layer 1 的新 self Q/K/V → 读取该层历史 cache → 源 K/V cross 读取 → FFN → 后续层 → 词表 logits → 选 token → 下一步。各层 cache 存的是该层输入所生成的 K/V，不能把上一层的 cache 当成本层数据复用。</p>
+<div aria-label="本文 KV 存储推导 · 非论文实测" class="formula" id="equation-cache"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>M</mi><mrow><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi></mrow></mrow></msub><mo>=</mo><mn>2</mn><msub><mi>L</mi><mi>d</mi></msub><mi>B</mi><mi>T</mi><msub><mi>h</mi><mrow><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi></mrow></mrow></msub><msub><mi>d</mi><mrow><mrow><mi mathvariant="normal">h</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">d</mi></mrow></mrow></msub><mi>b</mi></mrow></math><span class="equation-number">本文 KV 存储推导 · 非论文实测</span></div>
+<p>L_d 是 decoder 层数，B 是 batch，T 是缓存目标长度，h_KV 是 KV head 数，d_head 是每头宽度，b 是每元素字节，2 代表 K 与 V。原版 MHA 的 h_KV = h。Cross cache 把 T 换成 n_s；beam search 还要处理不同前缀 cache 的复制、索引与潜在共享，下面按 B=1、单序列估算。</p>
+<p><strong>base 场景 / 推导</strong>：6 层、T = 4096、8 KV heads、64 维、FP16 得 self cache <strong>48 MiB</strong>；源长 512 的 cross cache <strong>6 MiB</strong>。它们不包括 encoder 输出、权重、allocator、工作区与 activation。8 头、T = 4096、FP16 的单层物化 self attention 矩阵 A 为 <strong>256 MiB</strong>。Cache 和 A 是不同数据结构：前者线性随 T 增长，后者在 prefill 可二次增长。</p>
+<p><span id="cache-lab"></span></p>
+<section aria-label="KV and FLOPs laboratory" class="mechanism" id="cache-widget">
+<p class="reading-meta">AGENT-CREATED INTERACTIVE · ENGINEERING DERIVATION</p><h3>长度增长：Cache 线性，混合计算二次</h3>
+<div class="controls">
+<label>目标长度 T / 成本序列长 n <output id="cache-tokens-output">4096</output><input id="cache-tokens" max="8192" min="256" step="256" type="range" value="4096"/></label>
+<label>Decoder 层数 <output id="decoder-layers-output">6</output><input id="decoder-layers" max="24" min="1" step="1" type="range" value="6"/></label>
+<label>KV heads<select id="kv-heads"><option value="8">8 · Original MHA</option><option value="4">4 · GQA scenario</option><option value="1">1 · MQA scenario</option></select></label>
+<label>KV 元素大小<select id="cache-bytes"><option value="2">2 bytes · FP16 / BF16</option><option value="4">4 bytes · FP32</option><option value="1">1 byte · ideal INT8</option></select></label>
+<label>源序列长度 n_s <output id="source-tokens-output">512</output><input id="source-tokens" max="2048" min="128" step="128" type="range" value="512"/></label>
+<label>Batch <output id="cache-batch-output">1</output><input id="cache-batch" max="8" min="1" step="1" type="range" value="1"/></label>
+</div><div aria-live="polite" class="readout" id="cache-readout">默认：self KV 48 MiB，cross KV 6 MiB；物化 A 单层 256 MiB。</div>
+<div id="flop-bars"><p class="hint">成本条显示 encoder-style 单层投影、混合和 FFN，D=512，d_ff=2048，B=1。</p></div>
+<div class="actions"><button id="step-decode" type="button">+256 tokens</button><button id="play-decode" type="button">Play growth</button><button id="reset-cache" type="button">Reset base</button></div>
+<p class="hint">Cache 用所选 batch / 层数 / KV heads；FLOPs 始终是 B=1 的一层 encoder-style 估算，query heads 固定 8，d_head 固定 64。理想 INT8 不计量化元数据和精度损失；物化 A 表示相同字节数的存储情景，不保证实际 kernel 的 softmax 精度。播放每次增长 256 token，仅展示公式趋势，不代表实测时间；可暂停，离开组件自动停止。</p>
+<noscript><p>默认容量与计算公式在正文完整保留。开启 JavaScript 可修改参数。</p></noscript></section>
+<p><strong>后续技术边界 [R7–R10]</strong>：MQA/GQA 减少 h_KV，有利于 cache 容量和 decode 的读取带宽；MLA 压缩 KV 的表示，公式需要按其实际 latent 结构重建。FlashAttention 分块、维护在线 softmax，以减少大 attention 矩阵的 HBM 写回；它保持 exact attention 的数学结果（浮点舍入允许差异），不消除二次混合算术，也不消除 token 生成的串行依赖。交互里的 KV heads 调整是后续技术的容量示意，不是 2017 模型的一项消融。</p>
+<h3>一层 encoder 的 per-op 成本</h3>
+<div aria-label="本文 encoder block 推导 · B=1 · 乘加=2 FLOPs" class="formula" id="equation-flops"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>F</mi><mrow><mrow><mi mathvariant="normal">p</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">j</mi></mrow></mrow></msub><mo>=</mo><mn>8</mn><mi>n</mi><msup><mi>D</mi><mn>2</mn></msup><mo>,</mo><mspace width="1em"></mspace><msub><mi>F</mi><mrow><mrow><mi mathvariant="normal">m</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">x</mi></mrow></mrow></msub><mo>=</mo><mn>4</mn><msup><mi>n</mi><mn>2</mn></msup><mi>D</mi><mo>,</mo><mspace width="1em"></mspace><msub><mi>F</mi><mrow><mrow><mi mathvariant="normal">F</mi><mi mathvariant="normal">F</mi><mi mathvariant="normal">N</mi></mrow></mrow></msub><mo>=</mo><mn>4</mn><mi>n</mi><mi>D</mi><msub><mi>d</mi><mrow><mrow><mi mathvariant="normal">f</mi><mi mathvariant="normal">f</mi></mrow></mrow></msub></mrow></math><span class="equation-number">本文 encoder block 推导 · B=1 · 乘加=2 FLOPs</span></div>
+<p>约定乘法 + 加法算 <strong>2 FLOPs</strong>，B=1，h·d_k=h·d_v=D。投影含 Q/K/V/O 四个线性层；mixing 含 QKᵀ 和 AV；FFN 含 W₁/W₂。n = 512、D = 512、d_ff = 2048 时：<strong>1.074G + 0.537G + 2.147G = 3.758 GFLOPs</strong>。</p>
+<p>mixing / projection = n/(2D)，mixing / FFN = n/d_ff；base 的两处交点分别为 n=1024、n=2048。长序列的注意力二次项最终占主导，短序列 FFN 和投影同样值得关注。这个估算不是 decoder 全层成本：decoder 还包括 cross-attention，完整训练还有 backward，完整生成还有词表投影、softmax、LN、采样等。</p>
+<p><strong>TTFT / TPOT 分析</strong>：翻译式 encoder–decoder 的 TTFT 至少包括 encoder、首个 decoder step、调度与数据准备；TPOT 受逐步 decoder、权重/KV 读取、词表头和输出策略影响。小 batch 的 decode 常受带宽与 kernel launch 限制，不能由训练 FLOPs 推出毫秒耗时。若关注 NPU/HTP，还要测动态 shape、transpose、softmax/LN 的算子支持、设备 fallback 与同步链路。</p>
+<p><strong>量化边界</strong>：把 b 从 2 改成 1 只代表理想 KV 存储大小减半。实际 INT8/INT4 带有 scale、zero point、group alignment 与解量化成本，可能改变 attention logit 精度。本文没有提供量化质量或吞吐实测；应在转换/导出环节检查 QK 的数值差异、mask 与 softmax，再用真实翻译/OCR等任务评测。</p>
+<h3>复现伪代码与官方代码核对</h3>
+<pre><code class="language-python"># Paper-style structure; x:[B,n,D]. Helpers include masks and stable softmax.
+def encoder_layer(x, source_padding):
+    x = layer_norm(x + dropout(mha(x, x, x, source_padding)))
+    return layer_norm(x + dropout(relu(x @ W1 + b1) @ W2 + b2))
+
+def decoder_layer(y, enc, causal_and_target_padding, source_padding):
+    y = layer_norm(y + dropout(mha(y, y, y, causal_and_target_padding)))
+    y = layer_norm(y + dropout(mha(y, enc, enc, source_padding)))
+    return layer_norm(y + dropout(relu(y @ W1 + b1) @ W2 + b2))
+
+# labels:[B,n_t], excluding padding in loss
+decoder_ids = shift_right(labels)  # BOS + labels[:-1]
+logits = decode(decoder_ids, encode(source_ids)) @ embedding.T
+loss = smoothed_cross_entropy(logits, labels)
+</code></pre>
+<p><strong>输入 / 输出</strong>：encoder 接收源隐藏表示并输出同 shape；decoder 接收右移目标表示和 encoder memory；最终 logits 按词表轴归一化并对有效 label 计算 loss。<code>mha</code> 内部必须进行独立投影、split heads、按 key 轴 softmax 与合并头。上面省略初始化、embedding 缩放、PE、cache、训练态切换和 bias 细节，不能直接当成完整可运行训练脚本。</p>
+<p><strong>外部来源，官方代码 [R14]，2026-10-27 检索</strong>：当前 Tensor2Tensor <code>transformer_base()</code> 调用 v3，v3 又从 v2 构建；v2 把 <code>layer_preprocess_sequence</code> 设为 <code>"n"</code>、<code>layer_postprocess_sequence</code> 设为 <code>"da"</code>，且 warmup <strong>8000</strong>，attention / ReLU dropout 各 <strong>0.1</strong>。这已是演进的 <strong>pre-LN</strong> 配置，不能直接声称 <code>master + transformer_base</code> 精确复现论文的 post-LN / 4000 warmup。</p>
+<p>官方 attention 文件能核对 split/combine heads、dot-product attention 与 lower-triangle bias 等操作。复现要固定 commit、hyperparameter set、词表、预处理与 BLEU 签名；仅链接 “官方仓库” 不足以固定历史实验。阅读源码时尤其要跟踪实际 preset 的调用链。</p>
+<h2 id="section-12">Related Work &amp; Technology Evolution</h2>
+<figure class="generated-figure"><div class="diagram-scroll" tabindex="0"><svg aria-labelledby="svg-evolution-title" role="img" viewbox="0 0 700 440" xmlns="http://www.w3.org/2000/svg"><title id="svg-evolution-title">Architecture, positions, KV and IO</title><defs><marker id="arrow-evolution" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="9" refy="5" viewbox="0 0 10 10"><path d="M0 0L10 5L0 10Z" fill="#97b9e7"></path></marker></defs><rect fill="#1b304a" height="76" rx="7" stroke="#627992" width="650" x="25" y="25"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="350.0" y="51">2014 Bahdanau → 2017 ConvS2S</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="350.0" y="74">2017 Transformer: content communication</text><rect fill="#152133" height="122" rx="7" stroke="#627992" width="300" x="25" y="160"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="175.0" y="186">Architecture</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="175.0" y="209">2018 BERT / 2019 T5</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="175.0" y="232">2020 GPT-3</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="175.0" y="255">2024 Mamba-2 alternative</text><rect fill="#152133" height="122" rx="7" stroke="#627992" width="300" x="375" y="160"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="186">Positions &amp; memory / IO</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="209">2019 MQA → 2023 GQA</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="232">2021 RoFormer / 2022 FlashAttention</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="525.0" y="255">2024 DeepSeek-V3: MLA + MoE</text><path d="M180 102 L180 156" fill="none" marker-end="url(#arrow-evolution)" stroke="#97b9e7" stroke-width="1.6"></path><path d="M525 102 L525 156" fill="none" marker-end="url(#arrow-evolution)" stroke="#97b9e7" stroke-width="1.6"></path><rect fill="#152133" height="76" rx="7" stroke="#627992" width="650" x="25" y="335"></rect><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="350.0" y="361">2026 evaluation: specific tasks, metrics and system budgets</text><text fill="#dce7f7" font-family="sans-serif" font-size="14" text-anchor="middle" x="350.0" y="384">Different branches solve different bottlenecks</text><path d="M180 282 L180 331" fill="none" marker-end="url(#arrow-evolution)" stroke="#97b9e7" stroke-width="1.6"></path><path d="M525 282 L525 331" fill="none" marker-end="url(#arrow-evolution)" stroke="#97b9e7" stroke-width="1.6"></path></svg></div><figcaption>Agent-created Visualization · 本文根据数据流绘制；移动端可横向滚动。不是论文原图。</figcaption></figure>
+<p>以下是外部研究与本文分析。时间线分成架构、位置、KV 与 IO 多条路线；它们解决不同问题，没有形成一个每一步都“取代上一代”的单一排行。</p>
+<div aria-label="分析表格，可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作 / 年份 / 来源</th>
+<th>核心想法</th>
+<th>优势</th>
+<th>限制</th>
+<th>与本论文的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bahdanau attention · 2014 [R2]</td>
+<td>decoder 动态对齐源状态</td>
+<td>解除固定向量读取瓶颈</td>
+<td>RNN 仍串行</td>
+<td>attention 的前史</td>
+</tr>
+<tr>
+<td>ConvS2S · 2017 [R3]</td>
+<td>卷积序列转导 + attention</td>
+<td>训练位置可并行</td>
+<td>全局联系需多层</td>
+<td>同期替代路线</td>
+</tr>
+<tr>
+<td>Transformer · 2017 [R1]</td>
+<td>self / cross attention + FFN</td>
+<td>内容通信、短路径、训练并行</td>
+<td>全局混合二次；生成串行</td>
+<td>本文骨架</td>
+</tr>
+<tr>
+<td>BERT · 2018 [R4]</td>
+<td>双向 Transformer encoder + 预训练</td>
+<td>上下文表征</td>
+<td>不直接是自回归生成器</td>
+<td>encoder 路线</td>
+</tr>
+<tr>
+<td>T5 · 2019 [R5]</td>
+<td>text-to-text encoder–decoder</td>
+<td>统一多任务接口</td>
+<td>编码器和解码器成本</td>
+<td>保留原型两栈</td>
+</tr>
+<tr>
+<td>GPT-3 · 2020 [R6]</td>
+<td>大规模 autoregressive decoder</td>
+<td>通用生成、in-context learning</td>
+<td>数据/计算大；逐步生成</td>
+<td>decoder 路线</td>
+</tr>
+<tr>
+<td>MQA · 2019 [R7]</td>
+<td>多 Q heads 共享一组 K/V</td>
+<td>更小 cache / 更少读取</td>
+<td>质量与共享取舍</td>
+<td>改变 KV 结构</td>
+</tr>
+<tr>
+<td>RoFormer · 2021 [R8]</td>
+<td>在 Q/K 上旋转编码位置</td>
+<td>相对位置点积结构</td>
+<td>长度外推仍需评测</td>
+<td>修改 additive PE</td>
+</tr>
+<tr>
+<td>FlashAttention · 2022 [R9]</td>
+<td>IO-aware tiled exact attention</td>
+<td>少物化、减少 HBM IO</td>
+<td>不改二次算术</td>
+<td>改内核与存储</td>
+</tr>
+<tr>
+<td>GQA · 2023 [R10]</td>
+<td>多组 query 共享 KV</td>
+<td>MHA 与 MQA 的折中</td>
+<td>仍需模型训练/转换评测</td>
+<td>KV head 维度演进</td>
+</tr>
+<tr>
+<td>Mamba-2 · 2024 [R11]</td>
+<td>structured state-space duality</td>
+<td>长序列高效路线</td>
+<td>不等价于全局 softmax attention</td>
+<td>替代/混合架构方向</td>
+</tr>
+<tr>
+<td>DeepSeek-V3 · 2024 [R15]</td>
+<td>MLA + MoE 等训练系统</td>
+<td>压缩 KV、稀疏参数使用</td>
+<td>实现与分布式复杂</td>
+<td>组合多条优化路线</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>与站内知识连接</strong>：<a href="../roformer/">RoFormer</a> 展开 additive PE 与 rotary 的区别；<a href="../vrope/">VRoPE</a> 展开多模态位置轴；<a href="../mqa/">MQA</a> 展开共享 KV、增量解码与带宽成本。Transformer 本篇提供这些后续工作的 attention、shape 和因果训练基础。</p>
+<h2 id="section-13">Current State：截至 2026-10-27 怎样判断“最好”？</h2>
+<p><strong>外部来源 [R16–R17]，本轮检索。</strong> Transformer 是架构族，无法为整族定义一个全球 SOTA 分数。为了与原论文任务关联，这里查看最新 <strong>WMT26 General MT 官方 Findings</strong>，同时保留模型规模、系统形态和评测口径。</p>
+<p><strong>官方跨语言结果，§6.4</strong>：Wayfinder 在与全部系统比较的 <strong>23 个语言方向中 17 个</strong>进入最高统计组，Gemini 3.1 Pro <strong>15/23</strong>，TRIVE <strong>14/23</strong>，Lumen <strong>13/23</strong>。只比较 constrained submissions 时，Lumen 为 <strong>20/23</strong>；该受限赛道要求总参数低于 <strong>20B</strong> 且满足许可条件，Appendix B.13 说明其 Qwen3 <strong>14B</strong> backbone，最终权重发布。这些计数是“在多少方向进入并列最高组”，不是单一准确率。</p>
+<div aria-label="分析表格，可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>WMT26 英语→德语，官方 §6.2</th>
+<th style="text-align: right;">Human cESA</th>
+<th style="text-align: right;">评估文档数</th>
+<th>排名区间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wayfinder</td>
+<td style="text-align: right;">79.1</td>
+<td style="text-align: right;">198</td>
+<td>1–4</td>
+</tr>
+<tr>
+<td>TRIVE</td>
+<td style="text-align: right;">78.5</td>
+<td style="text-align: right;">198</td>
+<td>1–4</td>
+</tr>
+<tr>
+<td>Gemini 3.1 Pro</td>
+<td style="text-align: right;">78.2</td>
+<td style="text-align: right;">198</td>
+<td>1–4</td>
+</tr>
+<tr>
+<td>GPT-5.5</td>
+<td style="text-align: right;">77.1</td>
+<td style="text-align: right;">131</td>
+<td>1–4</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>如何解读</strong>：评测动态分配导致样本数不同，排名区间相同意味着不能根据这几项小数宣称唯一显著冠军。Wayfinder 使用 API ensemble / agent pipeline，官方没有披露总参数量；它不是一个可与原版 65M/213M 直接并列的单模型。托管 API 与最终权重发布也要区分，不能把系统可调用当作模型开源。</p>
+<p><strong>一个口径陷阱</strong>：North Small Translate [R17] 的论文 Table 1 / 4 报 <strong>218B 总参数 / 25B 激活参数</strong>，自报 WMT26 <strong>GEMBA 83.6</strong>、agentic <strong>84.4</strong>。这是 LLM judge 口径；不是上表官方 human cESA，也不是“翻译准确率 83.6%”。没有同一评测集、同一计分器和同一系统限制，就不能把数字拼成一个榜。</p>
+<p><strong>与 2017 的可比性</strong>：WMT14 的 newstest2014 / BLEU 与 WMT26 的文档级多领域数据 / human cESA、系统规模、数据预算、指令和 agent 流程均不同。当前证据能说明翻译系统已扩展到大模型与组合系统，不能计算“从 28.4 到 79.1 提升了多少 BLEU”。SOTA 段落属于有日期的补充研究，不改变原论文的历史结论。</p>
+<h2 id="section-14">Critique：贡献、代价与下一步实验</h2>
+<p><strong>创新性与正确性</strong>：attention 本身已有前史，创新是构造完整无循环、无卷积的序列转导骨架并给出强实验；公式、shape 和信息流清楚。位置外推与可解释性主要是动机/定性观察，原文个别结果表述还存在冲突与过度概括。</p>
+<p><strong>实验质量与泛化</strong>：两个翻译任务、一个结构预测任务，以及 head、宽度、FFN、dropout、label smoothing、PE 消融，足以建立可行性。基线来自不同文献，缺少多 seed、统一预算和部分模块的独立对照；小数据解析表现也并非绝对最高。</p>
+<p><strong>工程复杂度与复现</strong>：结构比很多循环模型规整，易用大矩阵并行；mask、右移、归一化顺序、词表共享和 decode cache 却都可能产生静默错误。如今官方默认 preset 已变，必须固定历史配置。</p>
+<p><strong>扩展性、计算与内存</strong>：序列内信息路径短、架构便于加宽加深；长上下文的全局混合、attention activation、decoder cache 与词表头成为不同瓶颈。头数改变可能不改主 FLOPs，却改存储与 kernel 效率。</p>
+<p><strong>硬件依赖</strong>：论文的效率优势建立在 P100 与训练任务上。端侧的算子支持、动态长度、数据布局、精度和 CPU/device 边界会决定真正耗时。成本公式与能力提升必须结合实际 trace，不应自动迁移到 HTP/NPU。</p>
+<p><strong>隐藏取舍</strong>：并行训练依赖已知目标前缀；生成仍逐步。Label smoothing 改善 BLEU 同时恶化 PPL。多头增加表示能力，却可能增加小矩阵和存储压力。Sinusoidal 无需学习位置表，却不能自动保证长度外推。</p>
+<p><strong>未答问题与可行改进</strong>：同训练预算下哪种 head/FFN 配比最优？长句与罕见词是否同样受益？不同 heads 被屏蔽后质量怎样？位置外推究竟在哪些长度失效？建议补同预算、多 seed、长度分桶、干预、同设备的 prefill/decode trace 与真实峰值内存实验；MQA/GQA、RoPE、FlashAttention 是不同层面的后续改进，需分别验证效果。</p>
+<h2 id="section-15">Takeaways、阅读审校与可下载证据</h2>
+<p><strong>我的理解</strong>：把 Transformer 记成三件相互配合的事：<strong>attention 搬运信息，FFN 加工信息，位置和 mask 限定信息关系</strong>。再把训练、prefill 和 decode 拆开，就能从公式追踪到实际算子、cache 与任务指标。原版结构是分析后续模型的一把标尺，不能代替后续模型的实际配置与性能证据。</p>
+<p>两轮审校分别检查“读者能否按 Q/K/V、右移和表格复算主结论”与“逐项回到 PDF/官方源核对数字和限定条件”。确认全部 15 页、5 图、4 表；保留 41.8/41.0 冲突，修正解析表 claim 范围，区分 dev/test 和平均 checkpoint，标记 FLOPs/KV 推导与当前评测口径。交互模型还独立验证已知矩阵结果、因果第一行、稳定 softmax、MiB 换算和 per-op FLOPs。</p>
+<p><a href="assets/evidence/research-audit.md">研究与审校记录</a> · <a href="assets/evidence/manifest.json">来源检索清单</a> · <a href="assets/evidence/inventory.json">图表完整性清单</a> · <a href="assets/evidence/model-checks.json">交互模型校验</a> · <a href="assets/evidence/reading-source.md">Markdown 讲解源稿</a> · <a href="assets/evidence/paper.bib">BibTeX</a></p>
+<p><strong>更新记录</strong>：2026-10-27，首次精读发布，按 v7 逐页核对并补充 WMT26 官方评测与工程推导。</p>
+<h2 id="section-16">References：原论文、后续论文与官方资料</h2>
+<ul>
+<li><strong>[R1]</strong> Vaswani et al. <em>Attention Is All You Need</em>, NIPS 2017，1706.03762v7。<a href="assets/original/1706.03762v7.pdf">PDF</a>，<a href="https://arxiv.org/abs/1706.03762" rel="noopener noreferrer">https://arxiv.org/abs/1706.03762</a> 。全篇主证据；图 1–5、表 1–4、式 (1)–(3)。</li>
+<li><strong>[R2]</strong> Bahdanau, Cho, Bengio. <em>Neural Machine Translation by Jointly Learning to Align and Translate</em>, 2014 / ICLR 2015。<a href="https://arxiv.org/abs/1409.0473" rel="noopener noreferrer">https://arxiv.org/abs/1409.0473</a></li>
+<li><strong>[R3]</strong> Gehring et al. <em>Convolutional Sequence to Sequence Learning</em>, 2017。<a href="https://arxiv.org/abs/1705.03122" rel="noopener noreferrer">https://arxiv.org/abs/1705.03122</a></li>
+<li><strong>[R4]</strong> Devlin et al. <em>BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</em>, 2018 / NAACL 2019。<a href="https://arxiv.org/abs/1810.04805" rel="noopener noreferrer">https://arxiv.org/abs/1810.04805</a></li>
+<li><strong>[R5]</strong> Raffel et al. <em>Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer</em>, 2019 / JMLR 2020。<a href="https://arxiv.org/abs/1910.10683" rel="noopener noreferrer">https://arxiv.org/abs/1910.10683</a></li>
+<li><strong>[R6]</strong> Brown et al. <em>Language Models are Few-Shot Learners</em>, 2020。<a href="https://arxiv.org/abs/2005.14165" rel="noopener noreferrer">https://arxiv.org/abs/2005.14165</a></li>
+<li><strong>[R7]</strong> Shazeer. <em>Fast Transformer Decoding: One Write-Head is All You Need</em>, 2019。<a href="https://arxiv.org/abs/1911.02150" rel="noopener noreferrer">https://arxiv.org/abs/1911.02150</a></li>
+<li><strong>[R8]</strong> Su et al. <em>RoFormer: Enhanced Transformer with Rotary Position Embedding</em>, 2021。<a href="https://arxiv.org/abs/2104.09864" rel="noopener noreferrer">https://arxiv.org/abs/2104.09864</a></li>
+<li><strong>[R9]</strong> Dao et al. <em>FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness</em>, 2022。<a href="https://arxiv.org/abs/2205.14135" rel="noopener noreferrer">https://arxiv.org/abs/2205.14135</a></li>
+<li><strong>[R10]</strong> Ainslie et al. <em>GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints</em>, 2023。<a href="https://arxiv.org/abs/2305.13245" rel="noopener noreferrer">https://arxiv.org/abs/2305.13245</a></li>
+<li><strong>[R11]</strong> Dao, Gu. <em>Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality</em>, 2024。<a href="https://arxiv.org/abs/2405.21060" rel="noopener noreferrer">https://arxiv.org/abs/2405.21060</a></li>
+<li><strong>[R12]</strong> Jain, Wallace. <em>Attention is not Explanation</em>, NAACL 2019。<a href="https://aclanthology.org/N19-1357/" rel="noopener noreferrer">https://aclanthology.org/N19-1357/</a></li>
+<li><strong>[R13]</strong> Post. <em>A Call for Clarity in Reporting BLEU Scores</em>, WMT 2018。<a href="https://aclanthology.org/W18-6319/" rel="noopener noreferrer">https://aclanthology.org/W18-6319/</a></li>
+<li><strong>[R14]</strong> TensorFlow / Tensor2Tensor 官方源码，检索于 2026-10-27：<a href="https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/models/transformer.py" rel="noopener noreferrer">模型与配置</a>，<a href="https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/layers/common_attention.py" rel="noopener noreferrer">Attention 实现</a>。快照哈希见 manifest。</li>
+<li><strong>[R15]</strong> DeepSeek-AI. <em>DeepSeek-V3 Technical Report</em>, 2024。<a href="https://arxiv.org/abs/2412.19437" rel="noopener noreferrer">https://arxiv.org/abs/2412.19437</a></li>
+<li><strong>[R16]</strong> <em>Findings of the WMT 2026 General Machine Translation Shared Task</em>，§6.2 / §6.4 与 Appendix B.13。<a href="https://www2.statmt.org/wmt26/pdf/2026.wmt-1.48.pdf" rel="noopener noreferrer">https://www2.statmt.org/wmt26/pdf/2026.wmt-1.48.pdf</a></li>
+<li><strong>[R17]</strong> <em>North Small Translate</em> 论文，2026，2609.13916v1，Table 1 / 4。<a href="https://arxiv.org/html/2609.13916v1" rel="noopener noreferrer">https://arxiv.org/html/2609.13916v1</a></li>
+</ul>
+<p>上述扩展来源在本轮研究中实际检索，URL、状态、日期与内容哈希见清单。对原论文所有引用的完整书目，请见 PDF pp.10–12 的 References；本文只列对讲解与扩展调研直接使用的来源。</p></article></main></div>
+<footer class="site-footer"><span>© 2026 Howie Yin · Updated October 27, 2026</span><div class="footer-links"><a href="../">Paper Readings</a><a href="#main">Back to top ↑</a></div></footer></div>
+<dialog id="figure-dialog" aria-label="论文原图高分辨率查看"><button type="button" id="close-dialog">Close / 关闭</button><a id="full-figure" target="_blank" rel="noopener">Open original ↗</a><img id="zoom-image" alt=""></dialog>
+<script type="module" src="assets/reading.js"></script></body></html>
