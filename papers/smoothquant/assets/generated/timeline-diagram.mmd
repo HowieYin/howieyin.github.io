@@ -1,0 +1,6 @@
+flowchart TB
+A["2019 · Weight Equalization / 等价缩放"] --> B["2022 · LLM.int8、ZeroQuant、GPTQ / 并行路线"]
+B --> C["2022–23 · SmoothQuant / 固定通道尺度 / W8A8"]
+C --> D["2023–24 · AWQ、OmniQuant / activation-aware 与 learned transform"]
+D --> E["2024–25 · QuaRot、SpinQuant、FlatQuant / 旋转与 affine / 4bit"]
+E --> F["2026 · TwinQuant 子空间 / 推理模型校准 / 原生 FP8、FP4"]
