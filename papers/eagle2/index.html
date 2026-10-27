@@ -1,0 +1,1217 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>EAGLE-2：把验证预算分给更可能走通的路径 — Paper Readings · Howie Yin</title><meta name="description" content="2406.16858v2全文精读：7张原图、3张完整表；路径value、动态树、sampling correction、attention与KV提交，交互实验、成本审计与2026更新。"><link rel="canonical" href="https://howieyin.github.io/papers/eagle2/"><meta property="og:title" content="EAGLE-2：把验证预算分给更可能走通的路径"><meta property="og:type" content="article"><meta property="og:description" content="2406.16858v2全文精读：7张原图、3张完整表；路径value、动态树、sampling correction、attention与KV提交，交互实验、成本审计与2026更新。"><meta property="og:image" content="https://howieyin.github.io/papers/eagle2/assets/original/fig-04-static-dynamic-tree.png"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../">howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents / 目录</summary><ol><li><a href="#section-1">阅读入口：一句话、一段话、五个关键点</a></li><li><a href="#section-2">Abstract：改善的是树的分配策略</a></li><li><a href="#section-3">1. Introduction：固定树把算力花在了不值得验证的分支</a></li><li><a href="#section-4">2. Preliminaries：先分清提案、预测与验证</a></li><li><a href="#section-5">3. Observations：两条经验前提</a></li><li><a href="#section-6">4. Context-Aware Dynamic Draft Tree：把局部置信度变成路径价值</a></li><li><a href="#section-7">5. Experiments：逐表检查收益、代价与可比性</a></li><li><a href="#section-8">6. Related Work：2024 年时它与谁相邻</a></li><li><a href="#section-9">7. Conclusion：有效的调度，不是免费的多 token</a></li><li><a href="#section-10">Appendix A：实现参数不能与当前默认值混用</a></li><li><a href="#section-11">技术演进：从草稿质量到预算、词表和并行草稿</a></li><li><a href="#section-12">截至 2026-10-27：当前强路线与可比性审计</a></li><li><a href="#section-13">我的判断、开放问题与可行改进</a></li><li><a href="#section-14">相关精读与参考资料</a></li></ol></details></aside><main id="main"><article class="article"><h1>EAGLE-2：把验证预算分给更可能走通的路径</h1>
+<p>同一个 draft model，不同上下文需要不同的树。EAGLE-2 用路径置信度分配候选节点，再让原模型并行验证；关键成本仍落在 draft、LM head、树注意力与 KV 提交的整条链路上。</p>
+<p class="reading-meta">FULL PAPER READING · 2406.16858v2 · UPDATED 2026-10-27</p>
+<p><strong>论文</strong>：EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees。<strong>作者</strong>：Yuhui Li、Fangyun Wei、Chao Zhang、Hongyang Zhang。<strong>机构</strong>：Peking University、Microsoft Research、University of Waterloo、Vector Institute。</p>
+<p><strong>版本</strong>：2024-06-30 的 arXiv v2，12 页；后发表于 EMNLP 2024，pp. 7421–7432，DOI 10.18653/v1/2024.emnlp-main.422。下面按 v2 的章节顺序精读，最终会议版和后续工作另作来源标记。</p>
+<p><a href="https://arxiv.org/pdf/2406.16858v2">PDF v2</a> · <a href="https://arxiv.org/abs/2406.16858v2">arXiv v2</a> · <a href="https://aclanthology.org/2024.emnlp-main.422/">会议版 / DOI</a> · <a href="https://github.com/SafeAILab/EAGLE">官方代码</a> · <a href="https://sites.google.com/view/eagle-llm">项目页面</a></p>
+<p><strong>来源约定</strong>：<strong>Paper</strong> 表示 v2 原文；<strong>External Source</strong> 表示前作、后续论文或官方实现；<strong>Interpretation</strong> 表示本文的推导、工程重构或评审判断。原始图表完整保留；补充图与交互均标记 Agent-created。</p>
+<p><strong>阅读起点与目标</strong>：适合已了解 Transformer decode、softmax 与 KV Cache 的工程研究者；读完可重构 EAGLE-2 的候选扩展、路径筛选和验证提交，并判断论文加速比能否迁移到自己的 runtime。</p>
+<h2 id="section-1">阅读入口：一句话、一段话、五个关键点</h2>
+<p><strong>一句话</strong>：EAGLE-2 把 EAGLE 的固定 draft tree 改成按当前上下文的路径价值动态扩展、全局筛选的树，在沿用原验证机制的条件下提高每轮有效产出。</p>
+<p><strong>一段话</strong>：自回归 decode 每输出一个 token，就要执行一次大模型。Speculative decoding 先用小模型提出候选，再让大模型一次验证多个位置。EAGLE 已经用 feature 预测降低 draft 成本，但固定树形仍会把有限验证预算浪费在低概率分支上。EAGLE-2 观察到接受率依赖上下文，且 EAGLE draft confidence 在实验中接近接受率，于是用从根到节点的 confidence 连乘估计路径价值：逐层只继续展开最有价值的前沿，最后从全部已探索节点中选出高价值子树。收益来自候选预算的重新分配；不需要为 EAGLE-2 重新训练一个新模型。</p>
+<ol>
+<li><strong>问题</strong>：固定位置、固定宽深的候选树无法适应“此处容易预测，彼处有歧义”的变化。</li>
+<li><strong>观察</strong>：接受率随 query 变化；Vicuna 7B 的置信度分箱均值接近接受率分箱均值。</li>
+<li><strong>方法</strong>：Expansion 用路径 value 选择继续生成的前沿；Reranking 在全部候选里选最终验证节点。</li>
+<li><strong>结果</strong>：v2 的 MT-bench 图示约 3.05–4.26×；Table 1 全任务区间为 2.48–5.00×。不能把图示区间当作全表范围。</li>
+<li><strong>边界</strong>：confidence 校准是经验依据，严格无损来自正确验证；更长接受长度不自动等于更高吞吐，也不代表少存一份 target 权重。</li>
+</ol>
+<h2 id="section-2">Abstract：改善的是树的分配策略</h2>
+<p><strong>Paper</strong>：摘要给出相对普通自回归约 3.05–4.26×，比 EAGLE 快约 20%–40%；不需要额外训练。</p>
+<p><strong>Interpretation</strong>：这些数字是论文的概括口径，必须回到模型、任务和温度逐格比较。3.05–4.26× 对应主图所展示的 MT-bench 结果子集；全表还包括 CNN/DM、Natural Questions 等更低加速的任务以及 HumanEval 的 5.00×。非 greedy 条件下，个别相对 EAGLE 的增益超过 40%。最终 EMNLP 版摘要采用 “up to 5x / 1.3x” 表述，不能倒灌进 v2。</p>
+<h3>Figure 1 — 温度 1 下的无损加速比较</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 1" data-zoom="assets/original/fig-01-temperature-one.png" type="button"><img alt="Figure 1 : Speedup ratios of different methods at temperature=1. For speculative sampling, the Vicuna series uses Vicuna-68M as the draft model. LLaMA2-Chat lacks a suitable draft model, and is marked as N/A. Methods like Medusa relax acceptance conditions under non-greedy settings, which do not guarantee lossless acceleration. In this paper, we only compare with speculative sampling based methods ensuring the output text distribution remains constant. In Table 1 , we present comparisons with additional methods, but this figure only showcases a subset, including the fastest among these methods, EAGLE." loading="lazy" src="assets/original/fig-01-temperature-one.png"/></button><figcaption><strong>Figure 1 · Original Paper v2 · PDF p.1</strong> · 点击放大，原 caption 保留于图中。<br/>Figure 1 : Speedup ratios of different methods at temperature=1. For speculative sampling, the Vicuna series uses Vicuna-68M as the draft model. LLaMA2-Chat lacks a suitable draft model, and is marked as N/A. Methods like Medusa relax acceptance conditions under non-greedy settings, which do not guarantee lossless acceleration. In this paper, we only compare with speculative sampling based methods ensuring the output text distribution remains constant. In Table 1 , we present comparisons with additional methods, but this figure only showcases a subset, including the fastest among these methods, EAGLE.</figcaption></figure>
+<p><strong>目的与读法</strong>：按横轴模型逐组比较粉色 EAGLE-2、蓝色 EAGLE 和紫色标准 speculative sampling；纵轴是相对同一原模型普通生成的 speedup，越高越好。Vicuna 使用 Vicuna-68M 作为标准 draft；LLaMA2-Chat 没有对应合适 draft，标为 N/A，不能当作 0。</p>
+<p><strong>关键观察</strong>：四个模型的 EAGLE-2 均高于 EAGLE，例如 Vicuna 13B 是 3.80× 对 2.32×，相对提高 63.79%。图中没有温度 1 的 Medusa/Hydra 等结果，因为作者只比较保持目标分布的采样机制。</p>
+<p><strong>解释边界</strong>：图证明所测条件下的系统速度差异；没有显示 GPU 型号、单轮 draft/verify 耗时或方差。此处的“无损”指理论输出分布，不是两次随机运行逐 token 完全一样。</p>
+<h2 id="section-3">1. Introduction：固定树把算力花在了不值得验证的分支</h2>
+<p><strong>What / Why</strong>：大模型的单 token decode 通常受内存访问与低并行度限制。一次验证多位置可以提高计算利用率，但要付出 draft 与多候选验证成本。EAGLE 已提高 draft 的预测效率；EAGLE-2 进一步问：每轮的树是不是都应该长得一样？</p>
+<p><strong>How / Evidence</strong>：作者用数学题中的歧义位置解释预算分配，并在多个模型和任务上与 EAGLE 比较。贡献是利用上下文置信度动态确定树形，保持 draft model 与 lossless 验证路线。</p>
+<p><strong>Interpretation</strong>：方法可以看成一个在线候选调度器。它改变“哪批节点进入昂贵验证”，并不修改大模型的知识、最终输出头或目标分布。</p>
+<h3>Figure 2 — greedy 模式，覆盖更大的 target</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 2" data-zoom="assets/original/fig-02-greedy-speedup.png" type="button"><img alt="Figure 2 : Speedup ratios of different methods at temperature=0. For speculative sampling, the Vicuna series uses Vicuna-68M as the draft model. LLaMA2-Chat 7B, 13B, and LLaMA3-Instruct 8B lack suitable draft models and are marked as N/A. LLaMA2-Chat 70B and LLaMA3-Instruct 70B use LLaMA2-Chat 7B and LLaMA3-Instruct 8B as draft models, respectively. In Table 1 , we present comparisons with additional methods, but this figure only showcases a subset, including the fastest among these methods, EAGLE." loading="lazy" src="assets/original/fig-02-greedy-speedup.png"/></button><figcaption><strong>Figure 2 · Original Paper v2 · PDF p.2</strong> · 点击放大，原 caption 保留于图中。<br/>Figure 2 : Speedup ratios of different methods at temperature=0. For speculative sampling, the Vicuna series uses Vicuna-68M as the draft model. LLaMA2-Chat 7B, 13B, and LLaMA3-Instruct 8B lack suitable draft models and are marked as N/A. LLaMA2-Chat 70B and LLaMA3-Instruct 70B use LLaMA2-Chat 7B and LLaMA3-Instruct 8B as draft models, respectively. In Table 1 , we present comparisons with additional methods, but this figure only showcases a subset, including the fastest among these methods, EAGLE.</figcaption></figure>
+<p><strong>如何阅读</strong>：先看温度为 0，再在同一模型内比较柱子；EAGLE-2 的 7 个粉色柱子是 3.62、4.26、3.43、4.21、3.51、3.46、3.29×。颜色代表不同系统，N/A 仍表示未比较。</p>
+<p><strong>Components / Data flow</strong>：Vicuna 的标准 draft 是 68M；LLaMA2-Chat 70B、LLaMA3-Instruct 70B 的标准 speculative baseline 分别使用各自系列的 7B、8B。横跨模型比较时，target 与 draft 尺寸同时变化。</p>
+<p><strong>Why it matters</strong>：动态树的收益并不局限于一个小 target，但 greedy 的候选匹配条件也不能替代温度 1 的分布修正。Figure 2 中部分标准 speculative sampling 柱子没有在 Table 2 列出，不能称 Table 2 为该图所有 baseline 的完整数值表。</p>
+<h2 id="section-4">2. Preliminaries：先分清提案、预测与验证</h2>
+<h3>2.1 Speculative Sampling：正确性由验证保障</h3>
+<p><strong>Paper</strong>：小模型自回归产生 draft，大模型并行检查；拒绝之后修正采样分布。树状候选用专门 attention mask 保持每条路径的因果关系。</p>
+<p><strong>Interpretation · 符号</strong>：在已接受前缀 h 下，P(x|h) 为 target 对词表 x 的分布，Q(x|h) 为真正提出候选的 proposal。二者形状为 V；单 token x 的值是标量。下面是标准 speculative sampling 的重构公式，不是 v2 新增公式。</p>
+<div class="formula" data-equation="accept" data-tex="a(x)=\min\left(1,\frac{P(x\mid h)}{Q(x\mid h)}\right),\quad R(x\mid h)=\frac{[P(x\mid h)-Q(x\mid h)]_+}{Z},\quad Z=\sum_x[P(x\mid h)-Q(x\mid h)]_+"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>a</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mo>min</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mn>1</mn><mo>,</mo><mfrac><mrow><mi>P</mi><mo stretchy="false">(</mo><mi>x</mi><mo>∣</mo><mi>h</mi><mo stretchy="false">)</mo></mrow><mrow><mi>Q</mi><mo stretchy="false">(</mo><mi>x</mi><mo>∣</mo><mi>h</mi><mo stretchy="false">)</mo></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>,</mo><mspace width="1em"></mspace><mi>R</mi><mo stretchy="false">(</mo><mi>x</mi><mo>∣</mo><mi>h</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mo stretchy="false">[</mo><mi>P</mi><mo stretchy="false">(</mo><mi>x</mi><mo>∣</mo><mi>h</mi><mo stretchy="false">)</mo><mo>−</mo><mi>Q</mi><mo stretchy="false">(</mo><mi>x</mi><mo>∣</mo><mi>h</mi><mo stretchy="false">)</mo><msub><mo stretchy="false">]</mo><mo>+</mo></msub></mrow><mrow><mi>Z</mi></mrow></mfrac><mo>,</mo><mspace width="1em"></mspace><mi>Z</mi><mo>=</mo><munder><mo>∑</mo><mi>x</mi></munder><mo stretchy="false">[</mo><mi>P</mi><mo stretchy="false">(</mo><mi>x</mi><mo>∣</mo><mi>h</mi><mo stretchy="false">)</mo><mo>−</mo><mi>Q</mi><mo stretchy="false">(</mo><mi>x</mi><mo>∣</mo><mi>h</mi><mo stretchy="false">)</mo><msub><mo stretchy="false">]</mo><mo>+</mo></msub></mrow></math><span class="equation-number">Interpretation · 标准提案修正</span><details><summary>可复制 TeX</summary><code>a(x)=\min\left(1,\frac{P(x\mid h)}{Q(x\mid h)}\right),\quad R(x\mid h)=\frac{[P(x\mid h)-Q(x\mid h)]_+}{Z},\quad Z=\sum_x[P(x\mid h)-Q(x\mid h)]_+</code></details></div>
+<p><strong>每一步</strong>：从 Q 采到 x 后，以 a(x) 接受；拒绝时从正部残差 R 采样。Z 为残差总质量，若 P=Q 则拒绝概率为 0，无须使用 R。以 P=(.7,.3)、Q=(.4,.6) 为例，候选 A 必接受，B 以 .5 接受；拒绝质量 .3 全部补到 A。</p>
+<div class="formula" data-equation="mass" data-tex="Q(x)a(x)+ZR(x)=\min(P(x),Q(x))+[P(x)-Q(x)]_+=P(x)"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Q</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mi>a</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>+</mo><mi>Z</mi><mi>R</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mo>min</mo><mo stretchy="false">(</mo><mi>P</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>,</mo><mi>Q</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mo>+</mo><mo stretchy="false">[</mo><mi>P</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>−</mo><mi>Q</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><msub><mo stretchy="false">]</mo><mo>+</mo></msub><mo>=</mo><mi>P</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></math><span class="equation-number">Interpretation · 分布保持证明</span><details><summary>可复制 TeX</summary><code>Q(x)a(x)+ZR(x)=\min(P(x),Q(x))+[P(x)-Q(x)]_+=P(x)</code></details></div>
+<p>接受部分给出 min(P,Q)，拒绝后的补偿给出 P−min(P,Q)，两者相加恢复 P。证明依赖正确的条件 proposal 和残差更新，与 confidence 是否校准无关。</p>
+<p><strong>工程含义</strong>：若树构建时用 deterministic top-k、重排或无放回候选，不能直接把“网络 softmax Q”冒充实际提案分布套上 P/Q。要使用对应候选生成方式的修正机制。greedy 可以匹配 target argmax；随机采样需按实际提案更新残差。</p>
+<p><strong>External Source · 官方代码核对</strong>：固定快照中的 <code>utils.py</code> 在非 greedy 路径对按顺序检查的确定候选使用 <code>qx=1</code>，拒绝后将该候选的残差质量置零并归一化；greedy 路径比较 target argmax 并用连续匹配长度选择路径。这体现的是与实现相匹配的修正，不能简化成“confidence 就是接受概率”。<a href="https://github.com/SafeAILab/EAGLE/blob/cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b/eagle/model/utils.py">固定版本 utils.py</a></p>
+<h3>2.2 EAGLE：预测 feature，利用下一 token 消除不确定性</h3>
+<h3>Figure 3 — Feature draft 与 target verification</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 3" data-zoom="assets/original/fig-03-feature-draft-verify.png" type="button"><img alt="Figure 3 : Comparison of standard speculative sampling and EAGLE. For simplicity, EAGLE’s tree-structured draft is shown only in the verification stage, while the illustration of the drafting stage uses a chain-structured draft. Here, t_i denotes the i-th token embedding, and f_i denotes the i-th feature vector in the second-to-top-layer of LLM before LM head." loading="lazy" src="assets/original/fig-03-feature-draft-verify.png"/></button><figcaption><strong>Figure 3 · Original Paper v2 · PDF p.3</strong> · 点击放大，原 caption 保留于图中。<br/>Figure 3 : Comparison of standard speculative sampling and EAGLE. For simplicity, EAGLE’s tree-structured draft is shown only in the verification stage, while the illustration of the drafting stage uses a chain-structured draft. Here, t_i denotes the i-th token embedding, and f_i denotes the i-th feature vector in the second-to-top-layer of LLM before LM head.</figcaption></figure>
+<p><strong>目的</strong>：解释 EAGLE-2 继承的 EAGLE 基础。先读左侧 drafting：标准小模型依赖 token，EAGLE 使用 target feature 加位移 token 信息预测下一 feature；再读右侧 verification：大模型检查候选，勾叉表明路径能接受到哪里。</p>
+<p><strong>Components</strong>：tᵢ 是 token embedding；fᵢ 是输出头之前用于 draft 的 target feature。原文以 “second-to-top-layer / before LM head” 描述，实际读取哪个 hidden state 必须结合实现，不能理解为最后两个 Transformer 层都要一起运行。</p>
+<p><strong>Data flow / Why it matters</strong>：feature 比离散 token 包含更多状态，但下一 feature 也受下一 token 影响，所以把下一步 token 信息前移对齐。图为简化在 draft 阶段画成链，verification 画树；不能据此说 EAGLE 只能生成链。</p>
+<h3>继承结构、Tensor Shape 与训练边界</h3>
+<p><strong>External Source · EAGLE 前作与 legacy EAGLE-2 实现</strong>：设 B 为 batch、S 为已处理位置、d 为 target hidden size、V 为词表。输入 feature <code>[B,S,d]</code> 与位移 token id <code>[B,S]</code>；embedding 得 <code>[B,S,d]</code>，concat 成 <code>[B,S,2d]</code>，FC 回 <code>[B,S,d]</code>，一个 decoder layer 预测下一 feature，复用 target LM head 生成 <code>[B,S,V]</code> logits。</p>
+<figure class="generated-figure"><div class="diagram-scroll"><svg aria-label="EAGLE-2 继承的 feature draft" role="img" viewbox="0 0 760 490" xmlns="http://www.w3.org/2000/svg"><style>text{font-family:system-ui,sans-serif;fill:#dce7f6;font-size:16px}.small{fill:#a2b4ce;font-size:13px}rect{fill:#18273b;stroke:#718aaa}path{fill:none;stroke:#98b6dd;stroke-width:1.5}</style><rect height="72" rx="6" width="600" x="80" y="15"></rect><text x="104" y="43">Target feature [B,S,d] + shifted token [B,S]</text><text class="small" x="104" y="68">token embedding → [B,S,d]；target 冻结</text><path d="M380 87V112m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="115"></rect><text x="104" y="143">Concat [B,S,2d] → FC [B,S,d]</text><text class="small" x="104" y="168">token 与 feature 对齐；下一 token 消除 feature 预测歧义</text><path d="M380 187V212m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="215"></rect><text x="104" y="243">One draft decoder layer → predicted feature [B,S,d]</text><text class="small" x="104" y="268">EAGLE-2 无新训练；使用已有 EAGLE draft</text><path d="M380 287V312m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="315"></rect><text x="104" y="343">Shared target LM head → logits [B,S,V]</text><text class="small" x="104" y="368">softmax / log-softmax → candidate confidence</text><text class="small" x="30" y="470">结构依据 EAGLE 前作与 cnets1 legacy route；不适用于 EAGLE-3 cnets。</text></svg></div><figcaption>Agent-created Simplified Diagram · EAGLE-2 继承的 feature draft · <a href="assets/generated/feature.svg">SVG</a> / <a href="assets/generated/feature.mmd">Mermaid source</a></figcaption></figure>
+<p><strong>训练输入 / 输出</strong>：冻结 target，离线收集 feature 与对齐 token；draft 预测 feature，再映射到目标词表。EAGLE 前作使用 SmoothL1 feature regression 与权重 .1 的 soft-label cross entropy。这不是 EAGLE-2 新 loss。</p>
+<div class="formula" data-equation="training" data-tex="\mathcal{L}_{\rm draft}=\mathcal{L}_{\rm SmoothL1}(f,\hat f)+0.1\,\mathcal{L}_{\rm softCE}(P,\hat P)"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>ℒ</mi><mrow><mi mathvariant="normal">d</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi></mrow></msub><mo>=</mo><msub><mi>ℒ</mi><mrow><mi mathvariant="normal">S</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">h</mi><mi mathvariant="normal">L</mi><mn>1</mn></mrow></msub><mo stretchy="false">(</mo><mi>f</mi><mo>,</mo><mover accent="true"><mi>f</mi><mo>^</mo></mover><mo stretchy="false">)</mo><mo>+</mo><mn>0.1</mn><mspace width="0.167em"></mspace><msub><mi>ℒ</mi><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">C</mi><mi mathvariant="normal">E</mi></mrow></msub><mo stretchy="false">(</mo><mi>P</mi><mo>,</mo><mover accent="true"><mi>P</mi><mo>^</mo></mover><mo stretchy="false">)</mo></mrow></math><span class="equation-number">External Source · EAGLE 前作训练</span><details><summary>可复制 TeX</summary><code>\mathcal{L}_{\rm draft}=\mathcal{L}_{\rm SmoothL1}(f,\hat f)+0.1\,\mathcal{L}_{\rm softCE}(P,\hat P)</code></details></div>
+<p><strong>External Source</strong>：EAGLE 前作报告 7B/13B/70B target 对应约 .24B/.37B/.99B trainable draft 参数、68K ShareGPT 样本、AdamW 学习率 3×10⁻⁵、β=(.9,.95)、gradient clip .5。EAGLE-2 沿用已有 draft，不在本文重新训练；上述设置来自前作，不能填入 v2 未披露的测评硬件栏。<a href="https://arxiv.org/abs/2401.15077v3">EAGLE v3</a></p>
+<p><strong>优化目标区分</strong>：训练让 draft feature/输出分布靠近 target；EAGLE-2 的运行时树选择则让有限节点预算落在更可能被接受的路径上。它们属于两个不同层次。</p>
+<h3>Figure 4 — 同样预算，树形随上下文变化</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 4" data-zoom="assets/original/fig-04-static-dynamic-tree.png" type="button"><img alt="Figure 4 : Differences between EAGLE and EAGLE-2. EAGLE always uses a fixed draft shape. When the query is “10+2=”, the next token is very likely to be correctly predicted as “1”. However, with a static draft tree, EAGLE would still add two candidates, even though the probability of the other candidate “3” being correct is very low. EAGLE-2, on the other hand, adjusts the shape of draft tree based on the context. When the query is “10+2”, the next token is difficult to predict, so EAGLE-2 adds two candidates. For the simpler query “10+2=”, EAGLE-2 adds only one candidate “1”." loading="lazy" src="assets/original/fig-04-static-dynamic-tree.png"/></button><figcaption><strong>Figure 4 · Original Paper v2 · PDF p.3</strong> · 点击放大，原 caption 保留于图中。<br/>Figure 4 : Differences between EAGLE and EAGLE-2. EAGLE always uses a fixed draft shape. When the query is “10+2=”, the next token is very likely to be correctly predicted as “1”. However, with a static draft tree, EAGLE would still add two candidates, even though the probability of the other candidate “3” being correct is very low. EAGLE-2, on the other hand, adjusts the shape of draft tree based on the context. When the query is “10+2”, the next token is difficult to predict, so EAGLE-2 adds two candidates. For the simpler query “10+2=”, EAGLE-2 adds only one candidate “1”.</figcaption></figure>
+<p><strong>如何阅读</strong>：左侧 EAGLE 对 “10+2” 和 “10+2=” 均给固定分叉；右侧 EAGLE-2 在歧义位置保留 “=” 与 “+”，在确定位置把预算放到 “1→2” 的更深路径。</p>
+<p><strong>关键观察</strong>：宽度用于覆盖不确定性，深度用于利用确定性。EAGLE-2 通过 value 排序产生这种结果，而不是手写“数学题必须走深”的规则。</p>
+<p><strong>My interpretation / Caveat</strong>：示例说明设计动机，未提供算式 query 的独立耗时统计；最终树只在已探索候选里筛选，不能保证找到所有可能 token 路径中的最优树。</p>
+<h2 id="section-5">3. Observations：两条经验前提</h2>
+<h3>3.1 Context-Dependent Acceptance Rates</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 5" data-zoom="assets/original/fig-05-context-acceptance.png" type="button"><img alt="Figure 5 : Acceptance rates of draft tokens at different positions. In the left figure, P1-P6 indicate positions in the token tree, corresponding to positions 1-6 on the horizontal axis in the right figure. The right figure shows the acceptance rates of draft tokens at positions P1-P6." loading="lazy" src="assets/original/fig-05-context-acceptance.png"/></button><figcaption><strong>Figure 5 · Original Paper v2 · PDF p.4</strong> · 点击放大，原 caption 保留于图中。<br/>Figure 5 : Acceptance rates of draft tokens at different positions. In the left figure, P1-P6 indicate positions in the token tree, corresponding to positions 1-6 on the horizontal axis in the right figure. The right figure shows the acceptance rates of draft tokens at positions P1-P6.</figcaption></figure>
+<p><strong>Figure 5 解决的问题</strong>：位置 P1–P6 是否具有稳定、通用的接受率？左图定义二叉树位置，右图横轴是同一组位置、纵轴是接受率，每个点代表一个 query。</p>
+<p><strong>读法</strong>：同一个位置竖向分散，说明 query 差异；不同位置总体分布也有差异，说明深度与分支 rank 的影响仍然存在。</p>
+<p><strong>Interpretation</strong>：固定树通常利用平均位置统计；当同一位置从近 0 到近 1 都可能出现，仅按位置分配候选就会错配预算。图支持 context dependence，不能把所有差异直接归因为文本难度，因为路径前缀、token rank 等因素共同影响。</p>
+<h3>3.2 Well-Calibrated Draft Model</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 6" data-zoom="assets/original/fig-06-confidence-calibration.png" type="button"><img alt="Figure 6 : Average acceptance rates for different confidence score intervals of the draft model. The red dashed line connects (0,0) and (1,1) to aid in visual assessment. The original LLM is Vicuna 7B." loading="lazy" src="assets/original/fig-06-confidence-calibration.png"/></button><figcaption><strong>Figure 6 · Original Paper v2 · PDF p.4</strong> · 点击放大，原 caption 保留于图中。<br/>Figure 6 : Average acceptance rates for different confidence score intervals of the draft model. The red dashed line connects (0,0) and (1,1) to aid in visual assessment. The original LLM is Vicuna 7B.</figcaption></figure>
+<p><strong>Figure 6 读法</strong>：横轴是 draft confidence 分箱，柱高是该区间 token 的平均接受率；红色虚线是 y=x。target 是 Vicuna 7B，论文观察来自 Alpaca。极低 confidence 区间接受率约 .04，极高区间约 .98。</p>
+<p><strong>核心观察</strong>：confidence 越高，平均接受率越高，并且大体接近对角线。这样无需调用 target 就能用 cheap proxy 估计候选价值。</p>
+<p><strong>Caveat</strong>：分箱平均校准不等于单 token 相等，也不等于在任意模型、温度、任务或深度都校准。图没有置信区间、样本数、ECE/Brier score 或跨域校准曲线。<code>c=.8</code> 不能保证此候选恰好以 .8 被接受，更不是 <code>min(1,P/Q)</code> 的另一种写法。</p>
+<h2 id="section-6">4. Context-Aware Dynamic Draft Tree：把局部置信度变成路径价值</h2>
+<h3>原公式逐步拆解</h3>
+<div class="formula" data-equation="value" data-tex="V_i=\prod_{t_j\in {\rm Path}({\rm root},t_i)}p_j\approx\prod_{t_j\in {\rm Path}({\rm root},t_i)}c_j"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>V</mi><mi>i</mi></msub><mo>=</mo><munder><mo>∏</mo><mrow><msub><mi>t</mi><mi>j</mi></msub><mo>∈</mo><mrow><mi mathvariant="normal">P</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">h</mi></mrow><mo stretchy="false">(</mo><mrow><mi mathvariant="normal">r</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">t</mi></mrow><mo>,</mo><msub><mi>t</mi><mi>i</mi></msub><mo stretchy="false">)</mo></mrow></munder><msub><mi>p</mi><mi>j</mi></msub><mo>≈</mo><munder><mo>∏</mo><mrow><msub><mi>t</mi><mi>j</mi></msub><mo>∈</mo><mrow><mi mathvariant="normal">P</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">h</mi></mrow><mo stretchy="false">(</mo><mrow><mi mathvariant="normal">r</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">t</mi></mrow><mo>,</mo><msub><mi>t</mi><mi>i</mi></msub><mo stretchy="false">)</mo></mrow></munder><msub><mi>c</mi><mi>j</mi></msub></mrow></math><span class="equation-number">Original Paper v2 · 原文未编号公式</span><details><summary>可复制 TeX</summary><code>V_i=\prod_{t_j\in {\rm Path}({\rm root},t_i)}p_j\approx\prod_{t_j\in {\rm Path}({\rm root},t_i)}c_j</code></details></div>
+<p><strong>Paper · 原文未编号公式</strong>：Vᵢ 为节点 i 的 value；Path(root,i) 为从根到 i 的路径；pⱼ 为路径节点的条件接受率；cⱼ 为 draft confidence；根节点已由 target 确定，value 设为 1。</p>
+<p><strong>Shape</strong>：每个 cⱼ/pⱼ/Vᵢ 都是标量；如果候选池有 N 个节点，存储 <code>[N]</code> 的 score、parent index 和 depth。c 来自 draft logits 的 softmax；p 是未知、要估计的接受行为，不是上文 target 词表分布 P。</p>
+<p><strong>推导直觉</strong>：节点 i 被实际接受，要求祖先先被接受，再接受 i。连乘应理解为概率链式分解中的条件概率，不需要假设这些事件相互独立。用 c 替代每个条件 p 才是经验近似。</p>
+<p><strong>Toy example</strong>：<code>It→is→a→good</code> 的边 confidence 为 .6、.8、.7，value 是 .6×.8×.7=.336。另一支 <code>It→has→to</code> 的局部 .7 看起来很高，但整条路径只有 .2×.7=.14。用局部 confidence 排序会忽略“走到这里”的代价。</p>
+<p><strong>工程含义</strong>：用 log value 把连乘变加法，避免深路径数值下溢；c=0 对应 −∞。因为 0≤c≤1，parent value≥child value，按 value 排序通常自然保留祖先。相等时必须保证浅层优先，不能无条件相信任意 top-k 实现的 tie 顺序。</p>
+<h3>4.1 Expansion：每层只扩展高价值前沿</h3>
+<p><strong>Input / Output</strong>：输入已验证 prefix、root token、draft 状态；输出比最终预算更大的候选池及其 parent/score。每步在当前层选择 k 个高 value 节点，给 draft model 作为并行输入；每个 parent 生成 b 个候选 child，累积路径 value。</p>
+<p><strong>What changed</strong>：EAGLE 的固定树先决定哪些位置有资格生成；EAGLE-2 把资格交给当前 score。它依然是逐层 draft，不能称“一次小模型 forward 就生成整棵树”。</p>
+<p><strong>官方实现对照 · External Source</strong>：<code>cnets1.py::topK_genrate</code> 将 log-softmax child score 与 parent score 相加；每层 k parents × k children 形成 k² 候选，再取 k 个作为下层前沿。未进入前沿的候选仍可留在全局池中供 reranking。论文 Fig. 7 的 k=2 是示意，附录扩展宽度是 10。</p>
+<h3>4.2 Reranking：全局预算与祖先闭包</h3>
+<p><strong>Paper</strong>：扩展完成后，从所有候选中保留 value 最大的 m 个，展平成一维序列并生成树 attention mask。m 是最终验证预算，和扩展前沿 k 不是同一个量。</p>
+<h3>Figure 7 — 完整算法、展平顺序与注意力</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 7" data-zoom="assets/original/fig-07-expansion-rerank-mask.png" type="button"><img alt="Figure 7 : Illustration of EAGLE-2. The numbers beside the edges represent the confidence scores of the draft model, and the numbers in brackets within the blocks represent the value of the nodes. During the expansion phase, we select the top 2 nodes with the highest value from the current layer ( orange blocks) as inputs to the draft model and connect the generated tokens ( green blocks) to the draft tree. In the rerank phase, we select the top 8 nodes with the highest value from all nodes ( blue blocks), flatten them into a 1-dimensional sequence to form the final draft. We then construct the attention mask according to the tree structure, ensuring each token can only see its ancestor nodes." loading="lazy" src="assets/original/fig-07-expansion-rerank-mask.png"/></button><figcaption><strong>Figure 7 · Original Paper v2 · PDF p.5</strong> · 点击放大，原 caption 保留于图中。<br/>Figure 7 : Illustration of EAGLE-2. The numbers beside the edges represent the confidence scores of the draft model, and the numbers in brackets within the blocks represent the value of the nodes. During the expansion phase, we select the top 2 nodes with the highest value from the current layer ( orange blocks) as inputs to the draft model and connect the generated tokens ( green blocks) to the draft tree. In the rerank phase, we select the top 8 nodes with the highest value from all nodes ( blue blocks), flatten them into a 1-dimensional sequence to form the final draft. We then construct the attention mask according to the tree structure, ensuring each token can only see its ancestor nodes.</figcaption></figure>
+<p><strong>如何阅读</strong>：从上到下：橙色节点表示本层选择展开的 top-2，绿色是新生成 children；中间蓝色表示最终 top-8；然后是展平序列与 mask。</p>
+<p><strong>Components / 数值</strong>：<code>is=.6</code>、<code>has=.2</code>；第二层 <code>a=.48</code>、<code>the=.06</code>、<code>to=.14</code>、另一 <code>a=.02</code>。展开 a(.48) 和 to(.14)，产生 good=.336、nice=.048、be=.084、do=.028。原图将末层值四舍五入成 .34、.05、.08、.03。</p>
+<p><strong>最终 top-8</strong>：保留 It、is、has、a(.48)、the、to、good、be；删去 a(.02)、nice、do。按 value 选出集合后，按拓扑/原候选顺序展平，得到 <code>It is has a the to good be</code>；展平顺序不是 value 的递减顺序。</p>
+<p><strong>Data flow</strong>：每个 query 只访问共享已验证 prefix、自己的祖先和自己。<code>be</code> 看 It/has/to/be，不能看 is/a/good；<code>good</code> 看 It/is/a/good，不能看另一分支。否则验证的 target 条件分布会被兄弟 token 污染。</p>
+<p><strong>Position ids</strong>：位置取 prefix length + 相对 depth，而不是数组下标。<code>is</code> 与 <code>has</code> 深度相同，应使用相同的相对 position；一维展平只是为了批量执行，不改变树的因果位置。</p>
+<section class="mechanism" id="tree-widget"><p class="reading-meta">AGENT-CREATED VISUALIZATION · FIGURE 7 PATH VALUES &amp; MASK</p><h3>改一个边的 confidence，哪条路径留下？</h3><div class="controls"><label>It → is confidence<input id="confidence-is" max="1" min="0" step=".01" type="range" value=".6"/><output id="confidence-is-out">0.60</output></label><label>It → has confidence<input id="confidence-has" max="1" min="0" step=".01" type="range" value=".2"/><output id="confidence-has-out">0.20</output></label><label>最终节点预算（含 root）<input id="tree-budget" max="11" min="1" type="range" value="8"/><output id="tree-budget-out">8</output></label><label>关注的 Query<select id="tree-query"><option value="be">be</option></select></label></div><div class="diagram-scroll" id="tree-drawing"></div><p class="hint">蓝色=保留，灰色=移除；节点显示路径 value，边显示局部 confidence。候选池固定为 Figure 7，未重新生成新 token。</p><div aria-label="树注意力矩阵，横向滚动" class="mask-scroll" tabindex="0"><div id="tree-mask"></div></div><div aria-live="polite" class="readout" id="tree-readout"></div><div class="actions"><button id="tree-reset">恢复 Figure 7</button></div><noscript><p>静态示例：top-8 保留 It/is/has/a/the/to/good/be；be 只看共享 prefix 与 It/has/to/be。good 的 value=.336，be=.084。原始 Figure 7 展示完整树和 mask。</p></noscript></section>
+<p><strong>交互解释</strong>：调低 <code>It→is</code>，它整条子树的 value 都下降；提高 <code>It→has</code>，to/be 路径会更有竞争力。节点预算变小后，mask 跟随实际保留集合变化。组件采用根在内的 m，与 Figure 7 一致；官方配置是否把 root 单独计数要读实现，不能直接互换数值。</p>
+<h3>可复现伪代码</h3>
+<pre><code><span class="c1"># 输入 prefix/root + draft state；输出候选 IDs、parents、depth 与 mask</span>
+<span class="n">pool</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
+<span class="n">frontier</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">depth</span><span class="p">):</span>
+<span class="n">children</span> <span class="o">=</span> <span class="n">draft_expand</span><span class="p">(</span><span class="n">frontier</span><span class="p">,</span> <span class="n">branching</span><span class="o">=</span><span class="n">b</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">children</span><span class="p">:</span>
+<span class="n">child</span><span class="o">.</span><span class="n">log_value</span> <span class="o">=</span> <span class="n">child</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">log_value</span> <span class="o">+</span> <span class="n">log</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">confidence</span><span class="p">)</span>
+<span class="n">pool</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">children</span><span class="p">)</span>
+<span class="n">frontier</span> <span class="o">=</span> <span class="n">top_k</span><span class="p">(</span><span class="n">children</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="p">(</span><span class="n">log_value</span><span class="p">,</span> <span class="n">shallow_first</span><span class="p">),</span> <span class="n">k</span><span class="o">=</span><span class="n">k</span><span class="p">)</span>
+<span class="n">selected</span> <span class="o">=</span> <span class="n">top_m</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="p">(</span><span class="n">log_value</span><span class="p">,</span> <span class="n">shallow_first</span><span class="p">),</span> <span class="n">m</span><span class="o">=</span><span class="n">m</span><span class="p">)</span>
+<span class="n">selected</span> <span class="o">=</span> <span class="n">topological_order</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span>
+<span class="n">mask</span> <span class="o">=</span> <span class="n">shared_prefix_plus_ancestors_and_self</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span>
+<span class="n">position_ids</span> <span class="o">=</span> <span class="n">prefix_length</span> <span class="o">+</span> <span class="n">relative_depth</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span>
+<span class="n">target_logits</span><span class="p">,</span> <span class="n">target_features</span><span class="p">,</span> <span class="n">temporary_kv</span> <span class="o">=</span> <span class="n">target_verify</span><span class="p">(</span><span class="n">selected</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">position_ids</span><span class="p">)</span>
+<span class="n">accepted_path</span><span class="p">,</span> <span class="n">next_root</span> <span class="o">=</span> <span class="n">corrected_acceptance</span><span class="p">(</span><span class="n">target_logits</span><span class="p">,</span> <span class="n">actual_proposals</span><span class="p">)</span>
+<span class="n">commit_only_accepted_path</span><span class="p">(</span><span class="n">temporary_kv</span><span class="p">,</span> <span class="n">accepted_path</span><span class="p">)</span>
+</code></pre>
+<p><strong>条件</strong>：浅层优先解决 confidence=1 或 0 时的 ties；如果引入长度奖励、外部重标定或 score 噪声后破坏 parent≥child，就要显式做祖先闭包，不能直接 top-m。上述伪代码用于机制解释，真实 sampling correction 还需要按路径记录提案和残差状态。</p>
+<h3>执行链路、KV 提交与成本</h3>
+<figure class="generated-figure"><div class="diagram-scroll"><svg aria-label="一轮 speculative cycle 的状态提交" role="img" viewbox="0 0 760 590" xmlns="http://www.w3.org/2000/svg"><style>text{font-family:system-ui,sans-serif;fill:#dce7f6;font-size:16px}.small{fill:#a2b4ce;font-size:13px}rect{fill:#18273b;stroke:#718aaa}path{fill:none;stroke:#98b6dd;stroke-width:1.5}</style><rect height="72" rx="6" width="600" x="80" y="15"></rect><text x="104" y="43">已验证 prefix + target root</text><text class="small" x="104" y="68">prefix KV 已提交；draft 使用对齐 feature/token</text><path d="M380 87V112m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="115"></rect><text x="104" y="143">Expansion → candidate pool → global rerank</text><text class="small" x="104" y="168">log value；选择祖先闭包；展平 + depth position + mask</text><path d="M380 187V212m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="215"></rect><text x="104" y="243">Target parallel verification</text><text class="small" x="104" y="268">临时 KV 包含候选分支；每条路径隔离兄弟 token</text><path d="M380 287V312m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="315"></rect><text x="104" y="343">Corrected acceptance → one accepted path + next root</text><text class="small" x="104" y="368">greedy 连续匹配或正确 proposal residual correction</text><path d="M380 387V412m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="415"></rect><text x="104" y="443">Gather accepted KV → compact prefix → next cycle</text><text class="small" x="104" y="468">落选分支丢弃；token / feature / cache length 同步</text><text class="small" x="30" y="570">树构建提高效率；分布正确性依赖 verifier、attention、positions 和 KV。</text></svg></div><figcaption>Agent-created Simplified Diagram · 一轮 speculative cycle 的状态提交 · <a href="assets/generated/cycle.svg">SVG</a> / <a href="assets/generated/cycle.mmd">Mermaid source</a></figcaption></figure>
+<p><strong>External Source · 当前固定实现</strong>：target 并行验证后，<code>update_inference_inputs</code> 根据被接受路径 gather 临时 KV，把它搬到连续 prefix 位置，更新 current length；同时更新 draft 所需 feature 与下一 root。落选节点的临时 KV 不应作为未来 prefix 留存。官方路径含 batch=1 假设，不宜直接套到连续批处理服务。</p>
+<p><strong>长度口径</strong>：代码 <code>new_token += accept_length + 1</code>，root 是由 target 确定的 token，另外计 1。v2 将 τ 描述为每轮 generated tokens，并称 average acceptance length；阅读和复现时应明确是否包含 root/bonus，避免拿 draft-only acceptance 对齐另一系统的 generated-per-cycle。</p>
+<p><strong>Interpretation · 逻辑成本重构</strong>：</p>
+<div aria-label="比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>环节</th>
+<th>典型形状 / 操作</th>
+<th>成本与瓶颈</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Draft FC/decoder</td>
+<td>前沿 <code>[B,k,d]</code>；concat <code>[B,k,2d]</code></td>
+<td>深度 D 轮顺序依赖，小网络 kernel/RPC 开销可能明显</td>
+</tr>
+<tr>
+<td>Draft LM head</td>
+<td><code>[B,k,d] × [d,V] → [B,k,V]</code></td>
+<td>每层约 BkdV MAC；大词表和 logits 带宽不可忽略</td>
+</tr>
+<tr>
+<td>候选池与选择</td>
+<td>O(Dkb) 个 child；官方 b=k</td>
+<td>top-k、索引构造、同步、parent lookup</td>
+</tr>
+<tr>
+<td>Target verify</td>
+<td>m 个位置；hidden <code>[B,m,d]</code>、logits <code>[B,m,V]</code></td>
+<td>全部 target 权重仍需驻留；验证更宽有时更划算，有时增加延迟</td>
+</tr>
+<tr>
+<td>Tree attention</td>
+<td>mask 逻辑 <code>[B,m,S+m]</code></td>
+<td>稠密执行仍可做被 mask 的计算，稀疏树语义不等于稀疏 kernel</td>
+</tr>
+<tr>
+<td>KV commit</td>
+<td>gather 被接受路径 → 连续 prefix</td>
+<td>索引/拷贝和 cache length 更新必须与 token/features 一致</td>
+</tr>
+</tbody>
+</table></div>
+<div class="formula" data-equation="cost" data-tex="M_{\rm KV,new}=2LBmh_{\rm kv}d_hs"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>M</mi><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi><mo>,</mo><mi mathvariant="normal">n</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">w</mi></mrow></msub><mo>=</mo><mn>2</mn><mi>L</mi><mi>B</mi><mi>m</mi><msub><mi>h</mi><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">v</mi></mrow></msub><msub><mi>d</mi><mi>h</mi></msub><mi>s</mi></mrow></math><span class="equation-number">Interpretation · 新增 target KV 逻辑字节</span><details><summary>可复制 TeX</summary><code>M_{\rm KV,new}=2LBmh_{\rm kv}d_hs</code></details></div>
+<p>L 为 target 层数、h_kv 为 KV heads、d_h 为 head dim、s 为元素字节数；临时新 KV 为 <code>2LBmh_kv d_h s</code> 字节，不含已有 prefix、draft KV、workspace、logits 或 allocator 峰值。稠密 attention 逻辑计算约 O(LBm(S+m)d)；若 kernel 真正只计算祖先，理想相关项约 O(LBm(S+D)d)，不是本文已测实现保证。</p>
+<section class="mechanism" id="cost-widget"><p class="reading-meta">AGENT-CREATED CALCULATOR · LOGICAL TARGET KV</p><h3>最终树预算扩大，新增 KV 多大？</h3><div class="controls"><label>Target 层数 L<select id="cost-layers"><option selected="" value="32">32</option><option value="40">40</option><option value="80">80</option></select></label><label>验证节点 m<select id="cost-tokens"><option value="8">8</option><option value="48">48</option><option value="50">50</option><option selected="" value="60">60</option><option value="128">128</option><option value="256">256</option></select></label><label>KV heads<select id="cost-heads"><option value="1">1 · MQA</option><option selected="" value="8">8 · GQA</option><option value="32">32 · MHA</option></select></label><label>Head dim<select id="cost-dim"><option value="64">64</option><option selected="" value="128">128</option><option value="256">256</option></select></label><label>元素字节数（假设）<select id="cost-bytes"><option value="1">INT8 · 1</option><option selected="" value="2">FP16/BF16 · 2</option><option value="4">FP32 · 4</option></select></label></div><div aria-live="polite" class="readout" id="cost-readout"></div><p class="hint">B=1；所有数值是读者选择的结构参数，不是论文 GPU 实测。元素字节选项不证明该 KV 格式已受实现支持。</p><noscript><p>默认 32 layers / 60 nodes / 8 KV heads / dim 128 / 2 bytes：新增逻辑 target KV 为 7.86 MB（7.50 MiB）。</p></noscript></section>
+<div class="formula" data-equation="speed" data-tex="{\rm Speedup}\approx\frac{\tau\,t_{\rm AR}}{T_{\rm draft}+T_{\rm verify}+T_{\rm select}+T_{\rm commit}}"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mi mathvariant="normal">S</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">p</mi></mrow><mo>≈</mo><mfrac><mrow><mi>τ</mi><mspace width="0.167em"></mspace><msub><mi>t</mi><mrow><mi mathvariant="normal">A</mi><mi mathvariant="normal">R</mi></mrow></msub></mrow><mrow><msub><mi>T</mi><mrow><mi mathvariant="normal">d</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">y</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">t</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">t</mi></mrow></msub></mrow></mfrac></mrow></math><span class="equation-number">Interpretation · 同口径周期成本模型</span><details><summary>可复制 TeX</summary><code>{\rm Speedup}\approx\frac{\tau\,t_{\rm AR}}{T_{\rm draft}+T_{\rm verify}+T_{\rm select}+T_{\rm commit}}</code></details></div>
+<p>τ 为同口径每轮产出，t_AR 为普通单 token decode 时间。分母包含 draft、target verify、select/mask 和 commit。增大 m 可能提高 τ，也可能抬高验证耗时；最大化 value 的子树并不等于硬件上的 latency-optimal 树。这里是结构性成本模型，没有制造 per-op 实测时间。</p>
+<h2 id="section-7">5. Experiments：逐表检查收益、代价与可比性</h2>
+<h3>Setup 审计</h3>
+<div aria-label="比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>v2 可以确认</th>
+<th>未披露 / 不能自行补全</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Target</td>
+<td>Vicuna 7B/13B；LLaMA2-Chat 7B/13B/70B；LLaMA3-Instruct 8B/70B</td>
+<td>精确 checkpoint hash、权重格式</td>
+</tr>
+<tr>
+<td>Task</td>
+<td>MT-bench、HumanEval、GSM8K、Alpaca、CNN/DM、Natural Questions</td>
+<td>全部采样子集、prompt/output 长度分布</td>
+</tr>
+<tr>
+<td>Sampling</td>
+<td>temperature 0、1；部分方法只比较 greedy</td>
+<td>top-p/top-k 等完整组合与 RNG 对齐</td>
+</tr>
+<tr>
+<td>Metrics</td>
+<td>相对 AR speedup ↑；平均每轮长度 τ ↑</td>
+<td>方差/误差条、端到端 p50/p99、TTFT/TPOT 分解</td>
+</tr>
+<tr>
+<td>Draft</td>
+<td>沿用 EAGLE；附录说明预算、深度和扩展宽度</td>
+<td>EAGLE-2 无新训练 tokens/loss/optimizer</td>
+</tr>
+<tr>
+<td>Hardware / runtime</td>
+<td>v2 没有足以复现的完整配置</td>
+<td>GPU、precision、batch、TP、kernel、warmup、重复次数</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Baseline fairness</strong>：温度 1 只和 lossless 采样比较是合理边界；温度 0 可比较更广。但模型间不同 draft 大小、实现优化程度与未公开 runtime 使横向结果无法当作统一硬件成本排序。没有 precision / batch 信息，就不能宣称所有 baseline 的资源预算完全公平。</p>
+<h3>5.1 Effectiveness · Table 1：完整 32 个数据行</h3>
+<div aria-label="Table 1 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2">MT-bench</td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2">HumanEval</td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2">GSM8K</td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2">Alpaca</td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2">CNN/DM</td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2">Natural Ques.</td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2">Mean</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">Model</td>
+<td class="ltx_td ltx_align_center ltx_border_t">Method</td>
+<td class="ltx_td ltx_align_center ltx_border_t">Speedup</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Speedup</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Speedup</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Speedup</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Speedup</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Speedup</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Speedup</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" colspan="16">Temperature=0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="7"><span class="ltx_text">V 13B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">SpS</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.93x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.27</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.23x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.57</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.77x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.01</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.76x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.03</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.93x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.33</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.66x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.88</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.88x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.18</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">PLD</td>
+<td class="ltx_td ltx_align_center">1.58x</td>
+<td class="ltx_td ltx_align_center">1.63</td>
+<td class="ltx_td ltx_align_center">1.85x</td>
+<td class="ltx_td ltx_align_center">1.93</td>
+<td class="ltx_td ltx_align_center">1.68x</td>
+<td class="ltx_td ltx_align_center">1.73</td>
+<td class="ltx_td ltx_align_center">1.16x</td>
+<td class="ltx_td ltx_align_center">1.19</td>
+<td class="ltx_td ltx_align_center">2.42x</td>
+<td class="ltx_td ltx_align_center">2.50</td>
+<td class="ltx_td ltx_align_center">1.14x</td>
+<td class="ltx_td ltx_align_center">1.17</td>
+<td class="ltx_td ltx_align_center">1.64x</td>
+<td class="ltx_td ltx_align_center">1.69</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Medusa</td>
+<td class="ltx_td ltx_align_center">2.07x</td>
+<td class="ltx_td ltx_align_center">2.59</td>
+<td class="ltx_td ltx_align_center">2.50x</td>
+<td class="ltx_td ltx_align_center">2.78</td>
+<td class="ltx_td ltx_align_center">2.23x</td>
+<td class="ltx_td ltx_align_center">2.64</td>
+<td class="ltx_td ltx_align_center">2.08x</td>
+<td class="ltx_td ltx_align_center">2.45</td>
+<td class="ltx_td ltx_align_center">1.71x</td>
+<td class="ltx_td ltx_align_center">2.09</td>
+<td class="ltx_td ltx_align_center">1.81x</td>
+<td class="ltx_td ltx_align_center">2.10</td>
+<td class="ltx_td ltx_align_center">2.07x</td>
+<td class="ltx_td ltx_align_center">2.44</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Lookahead</td>
+<td class="ltx_td ltx_align_center">1.65x</td>
+<td class="ltx_td ltx_align_center">1.69</td>
+<td class="ltx_td ltx_align_center">1.71x</td>
+<td class="ltx_td ltx_align_center">1.75</td>
+<td class="ltx_td ltx_align_center">1.81x</td>
+<td class="ltx_td ltx_align_center">1.90</td>
+<td class="ltx_td ltx_align_center">1.46x</td>
+<td class="ltx_td ltx_align_center">1.51</td>
+<td class="ltx_td ltx_align_center">1.46x</td>
+<td class="ltx_td ltx_align_center">1.50</td>
+<td class="ltx_td ltx_align_center">1.36x</td>
+<td class="ltx_td ltx_align_center">1.39</td>
+<td class="ltx_td ltx_align_center">1.58x</td>
+<td class="ltx_td ltx_align_center">1.62</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Hydra</td>
+<td class="ltx_td ltx_align_center">2.88x</td>
+<td class="ltx_td ltx_align_center">3.65</td>
+<td class="ltx_td ltx_align_center">3.28x</td>
+<td class="ltx_td ltx_align_center">3.87</td>
+<td class="ltx_td ltx_align_center">2.93x</td>
+<td class="ltx_td ltx_align_center">3.66</td>
+<td class="ltx_td ltx_align_center">2.86x</td>
+<td class="ltx_td ltx_align_center">3.53</td>
+<td class="ltx_td ltx_align_center">2.05x</td>
+<td class="ltx_td ltx_align_center">2.81</td>
+<td class="ltx_td ltx_align_center">2.11x</td>
+<td class="ltx_td ltx_align_center">2.88</td>
+<td class="ltx_td ltx_align_center">2.69x</td>
+<td class="ltx_td ltx_align_center">3.40</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE</td>
+<td class="ltx_td ltx_align_center">3.07x</td>
+<td class="ltx_td ltx_align_center">3.98</td>
+<td class="ltx_td ltx_align_center">3.58x</td>
+<td class="ltx_td ltx_align_center">4.39</td>
+<td class="ltx_td ltx_align_center">3.08x</td>
+<td class="ltx_td ltx_align_center">3.97</td>
+<td class="ltx_td ltx_align_center">3.03x</td>
+<td class="ltx_td ltx_align_center">3.95</td>
+<td class="ltx_td ltx_align_center">2.49x</td>
+<td class="ltx_td ltx_align_center">3.52</td>
+<td class="ltx_td ltx_align_center">2.42x</td>
+<td class="ltx_td ltx_align_center">3.11</td>
+<td class="ltx_td ltx_align_center">2.95x</td>
+<td class="ltx_td ltx_align_center">3.82</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE-2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.26x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.83</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.96x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">5.41</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.22x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.79</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.25x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.89</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.40x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.21</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.13x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.74</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.04x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.65</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="4"><span class="ltx_text">L2 13B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">PLD</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.42x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.46</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.63x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.70</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.41x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.44</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.16x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.20</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.42x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.45</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.12x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.15</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.36x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.40</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Lookahead</td>
+<td class="ltx_td ltx_align_center">1.58x</td>
+<td class="ltx_td ltx_align_center">1.64</td>
+<td class="ltx_td ltx_align_center">1.80x</td>
+<td class="ltx_td ltx_align_center">1.85</td>
+<td class="ltx_td ltx_align_center">1.65x</td>
+<td class="ltx_td ltx_align_center">1.69</td>
+<td class="ltx_td ltx_align_center">1.47x</td>
+<td class="ltx_td ltx_align_center">1.50</td>
+<td class="ltx_td ltx_align_center">1.46x</td>
+<td class="ltx_td ltx_align_center">1.53</td>
+<td class="ltx_td ltx_align_center">1.42x</td>
+<td class="ltx_td ltx_align_center">1.45</td>
+<td class="ltx_td ltx_align_center">1.56x</td>
+<td class="ltx_td ltx_align_center">1.61</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE</td>
+<td class="ltx_td ltx_align_center">3.03x</td>
+<td class="ltx_td ltx_align_center">3.90</td>
+<td class="ltx_td ltx_align_center">3.76x</td>
+<td class="ltx_td ltx_align_center">4.52</td>
+<td class="ltx_td ltx_align_center">3.20x</td>
+<td class="ltx_td ltx_align_center">4.03</td>
+<td class="ltx_td ltx_align_center">3.01x</td>
+<td class="ltx_td ltx_align_center">3.83</td>
+<td class="ltx_td ltx_align_center">2.70x</td>
+<td class="ltx_td ltx_align_center">3.59</td>
+<td class="ltx_td ltx_align_center">2.83x</td>
+<td class="ltx_td ltx_align_center">3.47</td>
+<td class="ltx_td ltx_align_center">3.09x</td>
+<td class="ltx_td ltx_align_center">3.89</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE-2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.21x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.75</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">5.00x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">5.52</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.31x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.90</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.13x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.61</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.45x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.24</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.51x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.04</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.10x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.68</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="7"><span class="ltx_text">V 7B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">SpS</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.82x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.36</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.99x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.61</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.71x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.26</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.65x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.21</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.81x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.44</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.60x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.16</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.76x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.34</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">PLD</td>
+<td class="ltx_td ltx_align_center">1.61x</td>
+<td class="ltx_td ltx_align_center">1.68</td>
+<td class="ltx_td ltx_align_center">1.82x</td>
+<td class="ltx_td ltx_align_center">1.87</td>
+<td class="ltx_td ltx_align_center">1.82x</td>
+<td class="ltx_td ltx_align_center">1.99</td>
+<td class="ltx_td ltx_align_center">1.21x</td>
+<td class="ltx_td ltx_align_center">1.31</td>
+<td class="ltx_td ltx_align_center">2.53x</td>
+<td class="ltx_td ltx_align_center">2.72</td>
+<td class="ltx_td ltx_align_center">1.23x</td>
+<td class="ltx_td ltx_align_center">1.44</td>
+<td class="ltx_td ltx_align_center">1.70x</td>
+<td class="ltx_td ltx_align_center">1.84</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Medusa</td>
+<td class="ltx_td ltx_align_center">1.91x</td>
+<td class="ltx_td ltx_align_center">2.52</td>
+<td class="ltx_td ltx_align_center">2.02x</td>
+<td class="ltx_td ltx_align_center">2.67</td>
+<td class="ltx_td ltx_align_center">1.89x</td>
+<td class="ltx_td ltx_align_center">2.59</td>
+<td class="ltx_td ltx_align_center">1.79x</td>
+<td class="ltx_td ltx_align_center">2.48</td>
+<td class="ltx_td ltx_align_center">1.42x</td>
+<td class="ltx_td ltx_align_center">2.02</td>
+<td class="ltx_td ltx_align_center">1.51x</td>
+<td class="ltx_td ltx_align_center">2.09</td>
+<td class="ltx_td ltx_align_center">1.76x</td>
+<td class="ltx_td ltx_align_center">2.40</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Lookahead</td>
+<td class="ltx_td ltx_align_center">1.63x</td>
+<td class="ltx_td ltx_align_center">1.69</td>
+<td class="ltx_td ltx_align_center">1.72x</td>
+<td class="ltx_td ltx_align_center">1.77</td>
+<td class="ltx_td ltx_align_center">1.84x</td>
+<td class="ltx_td ltx_align_center">1.99</td>
+<td class="ltx_td ltx_align_center">1.38x</td>
+<td class="ltx_td ltx_align_center">1.57</td>
+<td class="ltx_td ltx_align_center">1.44x</td>
+<td class="ltx_td ltx_align_center">1.53</td>
+<td class="ltx_td ltx_align_center">1.45x</td>
+<td class="ltx_td ltx_align_center">1.60</td>
+<td class="ltx_td ltx_align_center">1.58x</td>
+<td class="ltx_td ltx_align_center">1.69</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Hydra</td>
+<td class="ltx_td ltx_align_center">2.69x</td>
+<td class="ltx_td ltx_align_center">3.60</td>
+<td class="ltx_td ltx_align_center">2.98x</td>
+<td class="ltx_td ltx_align_center">3.79</td>
+<td class="ltx_td ltx_align_center">2.73x</td>
+<td class="ltx_td ltx_align_center">3.66</td>
+<td class="ltx_td ltx_align_center">2.66x</td>
+<td class="ltx_td ltx_align_center">3.58</td>
+<td class="ltx_td ltx_align_center">2.01x</td>
+<td class="ltx_td ltx_align_center">2.70</td>
+<td class="ltx_td ltx_align_center">2.25x</td>
+<td class="ltx_td ltx_align_center">2.86</td>
+<td class="ltx_td ltx_align_center">2.55x</td>
+<td class="ltx_td ltx_align_center">3.37</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE</td>
+<td class="ltx_td ltx_align_center">2.90x</td>
+<td class="ltx_td ltx_align_center">3.94</td>
+<td class="ltx_td ltx_align_center">3.33x</td>
+<td class="ltx_td ltx_align_center">4.29</td>
+<td class="ltx_td ltx_align_center">3.01x</td>
+<td class="ltx_td ltx_align_center">4.00</td>
+<td class="ltx_td ltx_align_center">2.79x</td>
+<td class="ltx_td ltx_align_center">3.89</td>
+<td class="ltx_td ltx_align_center">2.33x</td>
+<td class="ltx_td ltx_align_center">3.42</td>
+<td class="ltx_td ltx_align_center">2.31x</td>
+<td class="ltx_td ltx_align_center">3.21</td>
+<td class="ltx_td ltx_align_center">2.78x</td>
+<td class="ltx_td ltx_align_center">3.79</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE-2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.62x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.98</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.95x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">5.33</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.63x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.46x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.86</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">2.94x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.12</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">2.76x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.82</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.39x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.68</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="4"><span class="ltx_text">L2 7B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">PLD</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.38x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.43</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.52x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.59</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.32x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.37</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.15x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.19</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.48x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.52</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.15x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.20</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.33x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.38</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Lookahead</td>
+<td class="ltx_td ltx_align_center">1.61x</td>
+<td class="ltx_td ltx_align_center">1.66</td>
+<td class="ltx_td ltx_align_center">1.72x</td>
+<td class="ltx_td ltx_align_center">1.77</td>
+<td class="ltx_td ltx_align_center">1.58x</td>
+<td class="ltx_td ltx_align_center">1.65</td>
+<td class="ltx_td ltx_align_center">1.49x</td>
+<td class="ltx_td ltx_align_center">1.52</td>
+<td class="ltx_td ltx_align_center">1.49x</td>
+<td class="ltx_td ltx_align_center">1.54</td>
+<td class="ltx_td ltx_align_center">1.48x</td>
+<td class="ltx_td ltx_align_center">1.53</td>
+<td class="ltx_td ltx_align_center">1.56x</td>
+<td class="ltx_td ltx_align_center">1.61</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE</td>
+<td class="ltx_td ltx_align_center">2.78x</td>
+<td class="ltx_td ltx_align_center">3.62</td>
+<td class="ltx_td ltx_align_center">3.17x</td>
+<td class="ltx_td ltx_align_center">4.24</td>
+<td class="ltx_td ltx_align_center">2.91x</td>
+<td class="ltx_td ltx_align_center">3.82</td>
+<td class="ltx_td ltx_align_center">2.78x</td>
+<td class="ltx_td ltx_align_center">3.71</td>
+<td class="ltx_td ltx_align_center">2.43x</td>
+<td class="ltx_td ltx_align_center">3.41</td>
+<td class="ltx_td ltx_align_center">2.61x</td>
+<td class="ltx_td ltx_align_center">3.44</td>
+<td class="ltx_td ltx_align_center">2.78x</td>
+<td class="ltx_td ltx_align_center">3.71</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE-2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.43x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.70</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.03x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">5.39</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.52x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.77</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.45x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.66</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.01x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.12</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.15x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.19</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.43x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.64</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" colspan="16">Temperature=1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span class="ltx_text">V 13B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">SpS</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.62x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.84</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.72x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.97</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.46x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.73</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.52x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.78</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.66x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.89</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.43x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.70</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.55x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.82</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE</td>
+<td class="ltx_td ltx_align_center">2.32x</td>
+<td class="ltx_td ltx_align_center">3.20</td>
+<td class="ltx_td ltx_align_center">2.65x</td>
+<td class="ltx_td ltx_align_center">3.63</td>
+<td class="ltx_td ltx_align_center">2.57x</td>
+<td class="ltx_td ltx_align_center">3.60</td>
+<td class="ltx_td ltx_align_center">2.45x</td>
+<td class="ltx_td ltx_align_center">3.57</td>
+<td class="ltx_td ltx_align_center">2.23x</td>
+<td class="ltx_td ltx_align_center">3.26</td>
+<td class="ltx_td ltx_align_center">2.14x</td>
+<td class="ltx_td ltx_align_center">3.06</td>
+<td class="ltx_td ltx_align_center">2.39x</td>
+<td class="ltx_td ltx_align_center">3.39</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE-2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.80x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.40</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.22x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.89</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.77x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.41</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.78x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.37</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.25x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.07x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.54</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.65x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.26</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text">L2 13B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">EAGLE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.68x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.45</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.89x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.78</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.82x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.67</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.66x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.55</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.41x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.39</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.37x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.31</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.64x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.53</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE-2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.92x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.51</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.58x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">5.29</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.21x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.80</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.85x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.48</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.31x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.08</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.43x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.89</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.88x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.51</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span class="ltx_text">V 7B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">SpS</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.50x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.87</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.55x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.95</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.53x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.82</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.56x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.85</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.63x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.91</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.33x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.72</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.52x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.85</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE</td>
+<td class="ltx_td ltx_align_center">2.13x</td>
+<td class="ltx_td ltx_align_center">3.17</td>
+<td class="ltx_td ltx_align_center">2.39x</td>
+<td class="ltx_td ltx_align_center">3.43</td>
+<td class="ltx_td ltx_align_center">2.34x</td>
+<td class="ltx_td ltx_align_center">3.29</td>
+<td class="ltx_td ltx_align_center">2.21x</td>
+<td class="ltx_td ltx_align_center">3.30</td>
+<td class="ltx_td ltx_align_center">2.08x</td>
+<td class="ltx_td ltx_align_center">3.12</td>
+<td class="ltx_td ltx_align_center">1.95x</td>
+<td class="ltx_td ltx_align_center">2.86</td>
+<td class="ltx_td ltx_align_center">2.18x</td>
+<td class="ltx_td ltx_align_center">3.20</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE-2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.05x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.28</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.33x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.65</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.07x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.49</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.08x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.43</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">2.63x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.76</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">2.48x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.56</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">2.94x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.20</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" rowspan="2"><span class="ltx_text">L2 7B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">EAGLE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.22x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.30</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.61x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.79</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.40x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.52</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.29x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.33</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.19x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.15</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.22x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.12</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.32x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.37</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">EAGLE-2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">3.19x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">4.41</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">3.67x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">5.06</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">3.35x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">4.62</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">3.20x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">4.48</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">2.73x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">3.85</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">2.81x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">4.01</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">3.15x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">4.41</span></td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper v2 · Table 1 · Speedup / τ ↑。完整保留行列与分组。</p>
+<details><summary>展开 Table 1 原始排版与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 1" data-zoom="assets/original/table-01-complete-results.png" type="button"><img alt="Table 1 : Speedup ratios and average acceptance lengths τ of different methods. V represents Vicuna, L2 represents LLaMA2-Chat. SpS denotes standard speculative sampling, with its draft model being Vicuna-68M. Methods like Medusa relax acceptance conditions under non-greedy settings, which do not guarantee lossless acceleration. Therefore, we do not compare EAGLE-2 with these methods." loading="lazy" src="assets/original/table-01-complete-results.png"/></button><figcaption><strong>Table 1 · Original Paper v2 · PDF p.7</strong> · 点击放大，原 caption 保留于图中。<br/>Table 1 : Speedup ratios and average acceptance lengths τ of different methods. V represents Vicuna, L2 represents LLaMA2-Chat. SpS denotes standard speculative sampling, with its draft model being Vicuna-68M. Methods like Medusa relax acceptance conditions under non-greedy settings, which do not guarantee lossless acceleration. Therefore, we do not compare EAGLE-2 with these methods.</figcaption></figure></details>
+<p><strong>如何阅读</strong>：两个左侧字段 Model / Method，随后 6 个任务与 Mean，每组含 Speedup、τ，共 16 列。Temperature=0 有 22 个数据行，Temperature=1 有 10 个数据行；另有标题与分组行。原截图保留 bold、布局与完整 caption，网页表保留所有行列。</p>
+<p><strong>最强 baseline</strong>：同模型、同温度下 EAGLE 是主要最强可比 baseline。Mean speedup 的核算如下，绝对差单位为“相对 AR 的倍数差”，不是毫秒或百分点。</p>
+<div aria-label="比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Target</th>
+<th style="text-align: right;">Temp</th>
+<th style="text-align: right;">EAGLE</th>
+<th style="text-align: right;">EAGLE-2</th>
+<th style="text-align: right;">绝对差</th>
+<th style="text-align: right;">相对 EAGLE 提升</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vicuna 13B</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2.95×</td>
+<td style="text-align: right;">4.04×</td>
+<td style="text-align: right;">1.09×</td>
+<td style="text-align: right;">36.95%</td>
+</tr>
+<tr>
+<td>LLaMA2-Chat 13B</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">3.09×</td>
+<td style="text-align: right;">4.10×</td>
+<td style="text-align: right;">1.01×</td>
+<td style="text-align: right;">32.69%</td>
+</tr>
+<tr>
+<td>Vicuna 7B</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2.78×</td>
+<td style="text-align: right;">3.39×</td>
+<td style="text-align: right;">.61×</td>
+<td style="text-align: right;">21.94%</td>
+</tr>
+<tr>
+<td>LLaMA2-Chat 7B</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2.78×</td>
+<td style="text-align: right;">3.43×</td>
+<td style="text-align: right;">.65×</td>
+<td style="text-align: right;">23.38%</td>
+</tr>
+<tr>
+<td>Vicuna 13B</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">2.39×</td>
+<td style="text-align: right;">3.65×</td>
+<td style="text-align: right;">1.26×</td>
+<td style="text-align: right;">52.72%</td>
+</tr>
+<tr>
+<td>LLaMA2-Chat 13B</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">2.64×</td>
+<td style="text-align: right;">3.88×</td>
+<td style="text-align: right;">1.24×</td>
+<td style="text-align: right;">46.97%</td>
+</tr>
+<tr>
+<td>Vicuna 7B</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">2.18×</td>
+<td style="text-align: right;">2.94×</td>
+<td style="text-align: right;">.76×</td>
+<td style="text-align: right;">34.86%</td>
+</tr>
+<tr>
+<td>LLaMA2-Chat 7B</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">2.32×</td>
+<td style="text-align: right;">3.15×</td>
+<td style="text-align: right;">.83×</td>
+<td style="text-align: right;">35.78%</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Claim audit</strong>：greedy Mean 增益约 22%–37%，温度 1 约 35%–53%，所以摘要 “20–40%” 不是每个格子的边界。全任务 EAGLE-2 speedup 最低 2.48×（V7、temp 1、NQ），最高 5.00×（L2 13B、temp 0、HumanEval）。</p>
+<p><strong>细节校正</strong>：正文提到 “EAGLE up to 5x” 有命名含混；对应 Table 1 的 5.00× 属于 EAGLE-2。PLD 在 CNN/DM 的突出成绩是它自身强项，不代表击败 EAGLE-2：V7 是 2.53× vs 2.94×，V13 是 2.42× vs 3.40×。</p>
+<p><strong>成本与 trade-off</strong>：长度上升与 speedup 上升支持调度有效，但原表没给 select/verify 的额外时间和内存。Mean 是任务加速比的摘要，不等于将所有请求串起来后的总体吞吐倍率。</p>
+<h3>Table 2 — 大 target 与 LLaMA3</h3>
+<div aria-label="Table 2 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Model</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Method</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Speedup</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA2-Chat 70B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">PLD</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.31x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.39</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Lookahead</td>
+<td class="ltx_td ltx_align_center">1.52x</td>
+<td class="ltx_td ltx_align_center">1.64</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE</td>
+<td class="ltx_td ltx_align_center">3.01x</td>
+<td class="ltx_td ltx_align_center">3.81</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE-2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.51x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.48</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="2"><span class="ltx_text">LLaMA3-Instruct 70B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">EAGLE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.83x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.62</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">EAGLE-2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">3.29x</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">4.16</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" rowspan="2"><span class="ltx_text">LLaMA3-Instruct 8B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">EAGLE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.72x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.65</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">EAGLE-2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">3.46x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">4.53</span></td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper v2 · Table 2 · Speedup / τ ↑。完整保留行列与分组。</p>
+<details><summary>展开 Table 2 原始排版与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 2" data-zoom="assets/original/table-02-large-models.png" type="button"><img alt="Table 2 : Speedup ratios and average acceptance lengths τ with LLaMA2-Chat 70B, LLaMA3-Instruct 70B, and LLaMA3-Instruct 8B as the original LLMs, with the temperature set to 0, on the MT-bench dataset." loading="lazy" src="assets/original/table-02-large-models.png"/></button><figcaption><strong>Table 2 · Original Paper v2 · PDF p.8</strong> · 点击放大，原 caption 保留于图中。<br/>Table 2 : Speedup ratios and average acceptance lengths τ with LLaMA2-Chat 70B, LLaMA3-Instruct 70B, and LLaMA3-Instruct 8B as the original LLMs, with the temperature set to 0, on the MT-bench dataset.</figcaption></figure></details>
+<p><strong>条件</strong>：MT-bench，temperature=0。LLaMA2-Chat 70B 有 PLD/Lookahead/EAGLE/EAGLE-2 四行；另两组各两行，总计 8 个数据行。</p>
+<div aria-label="比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Speedup EAGLE → EAGLE-2</th>
+<th style="text-align: right;">相对增益</th>
+<th>τ EAGLE → EAGLE-2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LLaMA2-Chat 70B</td>
+<td>3.01 → 3.51×</td>
+<td style="text-align: right;">16.61%</td>
+<td>3.81 → 4.48</td>
+</tr>
+<tr>
+<td>LLaMA3-Instruct 70B</td>
+<td>2.83 → 3.29×</td>
+<td style="text-align: right;">16.25%</td>
+<td>3.62 → 4.16</td>
+</tr>
+<tr>
+<td>LLaMA3-Instruct 8B</td>
+<td>2.72 → 3.46×</td>
+<td style="text-align: right;">27.21%</td>
+<td>3.65 → 4.53</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Interpretation</strong>：dynamic tree 在更大 target 上仍有收益，但提升并非所有尺寸都 20%–40%。不能把 8B vs 70B 的倍率差解释为只由 target 大小造成，预算、模型可预测性和 runtime 也不同。</p>
+<h3>5.2 Ablation · Table 3：value 比 reranking 更关键</h3>
+<div aria-label="Table 3 完整行列，横向滚动" class="table-scroll original-table" role="region" tabindex="0"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="2">MT-bench</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="2">GSM8K</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Method</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Speedup</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Speedup</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><math alttext="\tau" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">w/o both</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.81x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.92</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.85x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.93</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">w/o value</td>
+<td class="ltx_td ltx_align_center">3.21x</td>
+<td class="ltx_td ltx_align_center">4.39</td>
+<td class="ltx_td ltx_align_center">2.93x</td>
+<td class="ltx_td ltx_align_center">3.96</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">w/o reranking</td>
+<td class="ltx_td ltx_align_center">3.48x</td>
+<td class="ltx_td ltx_align_center">4.86</td>
+<td class="ltx_td ltx_align_center">3.50x</td>
+<td class="ltx_td ltx_align_center">4.85</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">EAGLE-2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">3.62x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">4.98</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">3.63x</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">4.97</span></td></tr>
+</tbody>
+</table></div>
+<p class="table-caption">Original Paper v2 · Table 3 · Speedup / τ ↑。完整保留行列与分组。</p>
+<details><summary>展开 Table 3 原始排版与 caption</summary><figure class="original-figure"><button aria-label="放大 Table 3" data-zoom="assets/original/table-03-ablations.png" type="button"><img alt="Table 3 : Ablation experiment results with temperature set to 0 on Vicuna 7B. “w/o value” indicates not using value and directly using confidence, “w/o reranking” indicates not performing reranking, and “w/o both” indicates neither value nor reranking is used." loading="lazy" src="assets/original/table-03-ablations.png"/></button><figcaption><strong>Table 3 · Original Paper v2 · PDF p.8</strong> · 点击放大，原 caption 保留于图中。<br/>Table 3 : Ablation experiment results with temperature set to 0 on Vicuna 7B. “w/o value” indicates not using value and directly using confidence, “w/o reranking” indicates not performing reranking, and “w/o both” indicates neither value nor reranking is used.</figcaption></figure></details>
+<p><strong>条件与方向</strong>：Vicuna 7B、temperature=0；MT-bench/GSM8K，Speedup 与 τ 均越大越好。4 种 variant × 2 个任务 × 2 个指标完整保留。</p>
+<p><strong>5.2.1 Value and Confidence Score</strong>：MT 去掉 value、直接用局部 confidence，3.62→3.21×，相对 full 下降 11.33%；τ 4.98→4.39。GSM 更明显：3.63→2.93×，下降 19.28%；τ 4.97→3.96。祖先成功概率是主要信号。</p>
+<p><strong>5.2.2 Reranking</strong>：MT 去掉全局 rerank，3.62→3.48×，下降 3.87%；GSM 3.63→3.50×，下降 3.58%。最后筛选的额外收益较小但两个任务方向一致。</p>
+<p><strong>同时移除</strong>：MT 2.81×/3.92，GSM 2.85×/3.93；full 分别提高 28.83%/27.37%。不能把 value 与 rerank 的百分比相加：两个组件相互影响，也没有误差条来判断统计显著性。</p>
+<h3>如果作为 reviewer，还缺哪些实验？</h3>
+<ul>
+<li>逐轮记录 draft forward、LM head、top-k、mask construction、verify、KV gather/commit 的 latency 与 GPU 利用率；报告 TTFT、TPOT、p50/p99。</li>
+<li>固定总节点预算，仅改变树形；再固定硬件、探索 m/depth/k 的 Pareto 曲线，核对“多接受”是否抵消“多验证”。</li>
+<li>分任务、深度、rank、temperature 测 calibration 与置信区间；测试失配时静态树是否更稳。</li>
+<li>在长 context、continuous batching、高 concurrency、不同 target 架构与量化精度下复现；报告临时 KV 与峰值显存。</li>
+<li>随机模式检验输出分布与实际 proposal 修正；把 greedy 输出一致与统计分布一致分开验收。</li>
+</ul>
+<h2 id="section-8">6. Related Work：2024 年时它与谁相邻</h2>
+<p><strong>Paper</strong>：相关工作涵盖 speculative decoding、检索型草稿、Lookahead、Medusa/Hydra、多分支验证，以及 Sequoia 的树形优化。EAGLE-2 与前作共享 feature draft，新增的是 context-aware 树生成和筛选。</p>
+<div aria-label="比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作</th>
+<th>时间</th>
+<th>核心路线</th>
+<th>优势</th>
+<th>限制 / 与 EAGLE-2 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speculative Decoding / Sampling</td>
+<td>2022 preprint；2023 ICML</td>
+<td>小模型提案、大模型验证与残差修正</td>
+<td>目标分布可保持；一般性框架</td>
+<td>小模型成本/兼容性；EAGLE-2 继承验证思想</td>
+</tr>
+<tr>
+<td>PLD / prompt lookup</td>
+<td>2023</td>
+<td>复用 prompt/文本匹配片段</td>
+<td>无额外模型、复制任务强</td>
+<td>自由续写适用性受重复度限制</td>
+</tr>
+<tr>
+<td>Lookahead</td>
+<td>2023–2024</td>
+<td>并行 token 候选构建与验证</td>
+<td>不需要单独训练同类 draft</td>
+<td>候选质量与执行成本需权衡</td>
+</tr>
+<tr>
+<td>Medusa</td>
+<td>2024</td>
+<td>target feature 上的多头候选 + tree verify</td>
+<td>草稿开销低、多个未来位置并行</td>
+<td>随机接受变体可改变分布；不可和 lossless 结果混排</td>
+</tr>
+<tr>
+<td>Hydra</td>
+<td>2024</td>
+<td>顺序相关的多头草稿</td>
+<td>强化未来 token 间依赖</td>
+<td>训练/候选与验证预算不同；v2 引作相关路线</td>
+</tr>
+<tr>
+<td>Sequoia</td>
+<td>2024</td>
+<td>用统计模型与硬件成本优化树</td>
+<td>明确考虑接受率/验证成本</td>
+<td>先验/硬件模型与 query 实时信号不同</td>
+</tr>
+<tr>
+<td>EAGLE</td>
+<td>2024-01</td>
+<td>feature autoregression + token shift</td>
+<td>高质量 cheap draft</td>
+<td>静态树；EAGLE-2 直接沿用同一 draft</td>
+</tr>
+<tr>
+<td>EAGLE-2</td>
+<td>2024-06</td>
+<td>query confidence 的路径 value + rerank</td>
+<td>无重训；预算随上下文变化</td>
+<td>校准、候选池覆盖、kernel 与批处理决定收益</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>来源时间边界</strong>：Sequoia 现有 arXiv v3 是 2025 修订，不能把修订中的所有系统结论当成 2024 年 EAGLE-2 已比较过的内容。上表历史定位遵循 v2 引用语境。</p>
+<h2 id="section-9">7. Conclusion：有效的调度，不是免费的多 token</h2>
+<p><strong>Paper</strong>：context-dependent acceptance 与 calibrated confidence 使动态树成为可行设计；EAGLE-2 相对 EAGLE 提高速度，且不需要新训练。</p>
+<p><strong>Interpretation</strong>：论文最有价值的抽象是将“节点存在的资格”从固定模板转向路径成功概率。正确性与效率分别由 target verifier 和候选调度负责。校准好坏主要影响候选利用率；验证/位置/KV 链路正确与否影响输出正确性。</p>
+<h2 id="section-10">Appendix A：实现参数不能与当前默认值混用</h2>
+<p><strong>Paper</strong>：7B/8B、13B、70B target 的 draft token budget 分别为 60、50、48；depth=6；每轮 expansion 选择 10 个节点。不要用 Figure 7 的 top-2/top-8 当论文实验配置。</p>
+<p><strong>Paper · Baseline 实现</strong>：standard speculative sampling 使用 HuggingFace Transformers assisted generation；PLD、Lookahead、Medusa、Hydra 使用默认设置与官方权重；EAGLE 的 Vicuna/LLaMA2 draft 使用官方权重，LLaMA3-Instruct draft 由 ShareGPT 训练。后者是适配 target 的 draft 准备，不是 EAGLE-2 动态树新增的训练步骤。</p>
+<p><strong>External Source · 固定代码快照</strong>：2026-02-20 的 commit <code>cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b</code> 用于核对当前官方实现。<code>ea_model.py</code> 的 <code>use_eagle3</code> 默认 True；显式 False 才进入 <code>cnets1.Model</code> 的 legacy EAGLE-2 路径。<code>cnets.Model</code> 已是 EAGLE-3 的融合与独立输出头，不能据此重构 EAGLE-2。</p>
+<div aria-label="比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>代码位点</th>
+<th>对应机制</th>
+<th>复现时要核对</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cnets1.Model</code></td>
+<td>feature+embedding、FC 2d→d、一个 decoder</td>
+<td>target hidden state、token shift、shared head</td>
+</tr>
+<tr>
+<td><code>cnets1.topK_genrate</code></td>
+<td>log value、k² children、全局 top-k</td>
+<td>默认 total=63、depth=5、top=8 不同于附录</td>
+</tr>
+<tr>
+<td>candidates / parent lookup</td>
+<td>选节点、按原索引排、searchsorted parent</td>
+<td>祖先闭包与 parent 是否存在</td>
+</tr>
+<tr>
+<td>tree mask / positions</td>
+<td>identity + parent ancestors；行和−1 得 depth</td>
+<td>不能把 flat offset 当 position id</td>
+</tr>
+<tr>
+<td><code>evaluate_posterior</code></td>
+<td>greedy 连续匹配 / sampling correction</td>
+<td>proposal 的生成方式、残差更新顺序</td>
+</tr>
+<tr>
+<td><code>update_inference_inputs</code></td>
+<td>路径 KV gather、长度、下一 root/features</td>
+<td>batch=1 假设、同步开销、EOS/max tokens</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>鲁棒性观察 · Interpretation</strong>：当前 <code>torch.topk</code> 未显式规定相等 score 时浅层优先。对 c=1/0 的 tie，数学闭包需要稳定祖先顺序；这是应补充验证的边界，不是在本文复现出一个 runtime bug。深度循环的初始展开与 root 计数还会改变配置口径。</p>
+<p><strong>复现最小记录</strong>：target/draft hash、EAGLE-2 route、Torch/CUDA/kernel、GPU/TP、precision、batch/concurrency、context/output 分布、temperature/seed、m/depth/k、root 计数、warmup、重复次数；测 accepted path 与 KV 内容一致，再测 per-op timing。本文没有执行 GPU benchmark 或新增训练。</p>
+<h2 id="section-11">技术演进：从草稿质量到预算、词表和并行草稿</h2>
+<figure class="generated-figure"><div class="diagram-scroll"><svg aria-label="时间与技术路线" role="img" viewbox="0 0 760 490" xmlns="http://www.w3.org/2000/svg"><style>text{font-family:system-ui,sans-serif;fill:#dce7f6;font-size:16px}.small{fill:#a2b4ce;font-size:13px}rect{fill:#18273b;stroke:#718aaa}path{fill:none;stroke:#98b6dd;stroke-width:1.5}</style><rect height="72" rx="6" width="600" x="80" y="15"></rect><text x="104" y="43">2022–2023 · Speculative sampling</text><text class="small" x="104" y="68">小模型提案 + target verification + residual correction</text><path d="M380 87V112m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="115"></rect><text x="104" y="143">2024-01 · EAGLE → 2024-06 · EAGLE-2</text><text class="small" x="104" y="168">feature draft 质量 → context-aware 候选树调度</text><path d="M380 187V212m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="215"></rect><text x="104" y="243">2025 · EAGLE-3 / FR-Spec</text><text class="small" x="104" y="268">direct token training / multi-layer fusion；优化词表输出头</text><path d="M380 287V312m-5 -7l5 7 5 -7"></path><rect height="72" rx="6" width="600" x="80" y="315"></rect><text x="104" y="343">2026 · 并行草稿与长上下文适配</text><text class="small" x="104" y="368">PEAGLE / DFlash / JetSpec；EAGLE-3.1 attention drift 修正</text><text class="small" x="30" y="470">箭头表示相关问题演进，非统一 benchmark 性能排名；核验 2026-10-27。</text></svg></div><figcaption>Agent-created Simplified Diagram · 时间与技术路线 · <a href="assets/generated/timeline.svg">SVG</a> / <a href="assets/generated/timeline.mmd">Mermaid source</a></figcaption></figure>
+<p><strong>External Source</strong>：2022–2023，speculative sampling 建立“廉价提案 + 正确验证”的基础；2024 年 EAGLE 提高 feature draft 质量，EAGLE-2 加入 context-aware 候选分配；2025 年 EAGLE-3 减少 feature regression 约束并增加训练时多步模拟，FR-Spec 优化巨大词表输出头；2026 年 PEAGLE、DFlash、JetSpec 等向并行/分块草稿推进，EAGLE-3.1 则解决长上下文 draft attention 漂移。</p>
+<p><strong>箭头语义</strong>：问题的延续与相关路线，不表示每项都是 EAGLE-2 的直接后继，也不构成在同一测评条件下的性能排序。</p>
+<h2 id="section-12">截至 2026-10-27：当前强路线与可比性审计</h2>
+<p><strong>External Source · 最新检索</strong>：下面使用论文或官方作者/框架报告。指标、模型、精度、GPU、并发与 baseline 不统一，不能据这些数字给出一个全场景 SOTA 冠军。</p>
+<div aria-label="比较表，横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作 / 来源</th>
+<th>日期与公开性</th>
+<th>公开报告条件与数值</th>
+<th>与 EAGLE-2 的可比性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EAGLE-3</td>
+<td>2025-03；官方开源</td>
+<td>v3 摘要 up to 6.5×、约 1.4× EAGLE-2；多层 feature fusion、直接 token 训练、training-time test</td>
+<td>作者对照比跨论文数字有价值；不等于在本文 v2 全任务同硬件复跑</td>
+</tr>
+<tr>
+<td>FR-Spec</td>
+<td>2025-02/03；公开论文/实现</td>
+<td>128K 词表；报告 LM-head 计算降约 75%、平均比 EAGLE-2 快 1.12×</td>
+<td>说明词表头可限制实际速度；不是新树策略的独立 ablation</td>
+</tr>
+<tr>
+<td>SGLang EAGLE 文档</td>
+<td>2026-10-27 读取；框架开源</td>
+<td>Llama3.1-8B、H100、MT-bench；AR/E2/E3=158.34/244.10/373.25 TPS，对 AR 1.54×/2.36×</td>
+<td>serving 与 v2 图示不同；不可把论文 4× 作为部署保底</td>
+</tr>
+<tr>
+<td>EAGLE-3.1</td>
+<td>2026-05-26；官方博客/实现</td>
+<td>normalization + postnorm feedback；长 context 接受率 up to 2×；Kimi K2.6 NVFP4、TP4、GB200、coding，C1/C4/C16 output TPS 对 AR=2.03/1.71/1.66×</td>
+<td>量化 MoE/并发与 v2 不同；作者自报告，不能归因于树 alone</td>
+</tr>
+<tr>
+<td>PEAGLE</td>
+<td>2026-03-13；vLLM 官方报告</td>
+<td>一次 forward K 位置；4-layer head；GPT-OSS-20B、1 B200；对 EAGLE-3 最好约 1.55× MT /1.55× HumanEval /1.69× SPEED</td>
+<td>扫描 K=3/5/7、C1…64；training/head 优化共同变化</td>
+</tr>
+<tr>
+<td>DFlash / DFlash v2</td>
+<td>2026-02，v2 05-28；06-15 SGLang 报告；开源</td>
+<td>block diffusion + target feature KV injection；Qwen3-8B Transformers 报告 6.1×。Qwen3.5-397B-A17B BF16、8 B200、HumanEval、greedy thinking、max-new=4096、C1，&gt;4.3× AR、约 1.5× MTP</td>
+<td>block=16 调优；跨后端和任务不可对照 v2；低 draft 延迟是重要解释</td>
+</tr>
+<tr>
+<td>JetSpec</td>
+<td>2026-06，v5 10-03；公开论文/官方代码</td>
+<td>Qwen3 dense/MoE、H100、m=256；报告 MATH up to 9.64×、chat 4.58×；representation flow</td>
+<td>大预算/自报告；不能称所有 sampled branches 都由一次 forward 精确条件化</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>EAGLE-3 的机制差异</strong>：移除显式 feature regression，使用多层 target feature 融合并在训练中模拟测试阶段多步草稿，直接优化 token。不要把 EAGLE-3 的 3d 融合与独立 LM head 描写成 EAGLE-2 的结构。<a href="https://arxiv.org/abs/2503.01840v3">论文 v3</a></p>
+<p><strong>一个说明 τ 不够的对照</strong>：DFlash v2 报告在相同 5-layer Qwen3-4B draft 比较中，MT-bench 的 EAGLE-3 τ=3.1/speedup=1.4×，DFlash τ=3.0/speedup=2.2×；GSM8K τ 都约 4.2，speedup 仍是 2.1× vs 3.3×。接受长度接近，草稿执行成本不同，速度可以差很大。<a href="https://arxiv.org/html/2602.06036v2">DFlash v2 原论文</a></p>
+<p><strong>文档快照冲突</strong>：SGLang 的 speculative decoding 文档把 SpecV2 描写为 experimental，而 2026-06 新博客采用默认启用的口径。部署应以实际 release、配置和代码核对；本文记录两个来源的差异，不宣称某默认值普遍成立。</p>
+<p><strong>行业使用判断</strong>：EAGLE-2/EAGLE-3 已进入 SGLang 等主流开源 serving 栈。今天选择路线应同时问 target 是否有匹配 draft、长 context 是否校准、并发下收益如何、head/verify/KV/kernel 能否充分并行。论文单请求加速不是线上多请求吞吐承诺。</p>
+<h2 id="section-13">我的判断、开放问题与可行改进</h2>
+<p><strong>以下全部为 Interpretation，与论文结论分开。</strong></p>
+<p><strong>Strengths</strong>：新增训练成本为零；路径 value 的直觉明确；完整消融说明祖先成功概率的重要性；把 tree shape 从固定结构变成数据依赖调度，让方法容易插入已有 EAGLE 验证系统。</p>
+<p><strong>Weaknesses</strong>：校准证据集中于一个 target/任务；hardware/runtime 披露不足；没有 per-op、内存、高并发或长上下文曲线。Novelty 是相对前作的增量，但调度抽象具有复用价值。</p>
+<p><strong>Correctness</strong>：path value 属于效率估计；无损要依赖条件提案修正、祖先隔离、depth-based position 和 KV 提交。即使 value 全错，正确 verifier 仍可保持分布，但可能失去加速。</p>
+<p><strong>Engineering complexity</strong>：小模型顺序循环、GPU top-k、tree-index 构建、临时 KV 与 path gather 比固定模板更复杂。若在 Native runner 中集成，应收口 <code>draft→select→verify→commit</code> 的状态机；上层只接收最终 token，避免把候选生命周期暴露给业务层。</p>
+<p><strong>Scalability / Generalization</strong>：m 增大使临时 KV、logits、mask 与 verify 上升；D 增大使 draft 序列依赖加深；target 更大或不同 attention/quantization 的收益取决于实际 kernel。MoE target 的逐节点路由/通信也可能改变最佳树，v2 未隔离这一因素。</p>
+<p><strong>Hidden trade-offs</strong>：只追求 ΣVᵢ 会忽略新增一层 draft 与 target 批次形状的成本；固定最终预算下，选更深路径通常提高潜在产出，但 per-layer launch、LM head 和 position/KV 处理也能成为新的瓶颈。</p>
+<p><strong>Possible improvements</strong>：</p>
+<ul>
+<li><strong>成本感知在线停止</strong>：比较新增 frontier 的预计有效 token 收益与实测 marginal draft/verify cost；按 context length、并发和 target kernel 选择 m/D/k。</li>
+<li><strong>按上下文分组校准</strong>：用深度、rank、domain、temperature 的 held-out 数据拟合 c→p，检查是否保持 parent≥child；失配时回退稳定策略。</li>
+<li><strong>词表与 logits 优化</strong>：减少 draft head 的无效 vocabulary 计算，评估频率子词表的 coverage 与精确验证路径；FR-Spec 提供可查的实现方向。</li>
+<li><strong>复用树索引与融合提交</strong>：把 selection、parent remap、mask 与 KV path copy 尽量减少同步，但必须先验证 position/ancestor/cache length 不变量。</li>
+<li><strong>并行草稿与动态树结合</strong>：研究并行表示预测如何保留跨深度依赖，再让 context-aware budget 选择要验证的分支。不能以预测未来 marginal 的方式直接替代 branch-conditioned proposal。</li>
+</ul>
+<p><strong>最想验证的问题</strong>：在相同训练、target、预算和 kernel 下，静态树、EAGLE-2 value 树、成本感知树哪个得到最佳 TPOT？value 信号是否在长 context、量化 target、OCR/VLM 多模态前缀上仍校准？这些都需要独立实验，本精读不声称已证明。</p>
+<h2 id="section-14">相关精读与参考资料</h2>
+<p><a href="https://howieyin.github.io/papers/transformer/">Transformer：注意力与因果位置</a> · <a href="https://howieyin.github.io/papers/sparse-moe/">Sparsely-Gated MoE：路由与执行链路</a></p>
+<p><strong>Original Paper</strong>：</p>
+<ul>
+<li><a href="https://arxiv.org/pdf/2406.16858v2">S1 · arXiv 2406.16858v2 PDF</a>；<a href="https://arxiv.org/html/2406.16858v2">v2 HTML</a>。7 图、3 表、主公式与附录的主依据。</li>
+<li><a href="https://aclanthology.org/2024.emnlp-main.422/">S2 · EMNLP 2024 最终版</a>，用于 venue/DOI 核验。</li>
+</ul>
+<p><strong>Previous / related papers</strong>：</p>
+<ul>
+<li><a href="https://arxiv.org/abs/2401.15077v3">S3 · EAGLE, 2401.15077v3</a>，继承的 feature draft、训练与参数。</li>
+<li><a href="https://arxiv.org/abs/2211.17192v2">S4 · Fast Inference from Transformers via Speculative Decoding, 2211.17192v2</a>，标准采样修正。</li>
+<li><a href="https://arxiv.org/abs/2402.12374">S5 · Sequoia, 2402.12374</a>；<a href="https://arxiv.org/abs/2401.10774">Medusa, 2401.10774</a>；<a href="https://arxiv.org/abs/2402.05109">Hydra, 2402.05109</a>。</li>
+</ul>
+<p><strong>Official implementation</strong>：</p>
+<ul>
+<li><a href="https://github.com/SafeAILab/EAGLE/tree/cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b">S6 · EAGLE repo 固定快照</a>；<a href="https://github.com/SafeAILab/EAGLE/blob/cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b/eagle/model/cnets1.py">cnets1.py</a>；<a href="https://github.com/SafeAILab/EAGLE/blob/cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b/eagle/model/ea_model.py">ea_model.py</a>；<a href="https://github.com/SafeAILab/EAGLE/blob/cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b/eagle/model/utils.py">utils.py</a>。</li>
+</ul>
+<p><strong>Follow-up / current state · accessed 2026-10-27</strong>：</p>
+<ul>
+<li><a href="https://arxiv.org/abs/2503.01840v3">S7 · EAGLE-3, 2503.01840v3</a>。</li>
+<li><a href="https://arxiv.org/abs/2502.14856v2">S8 · FR-Spec, 2502.14856v2</a>。</li>
+<li><a href="https://sgl-project.github.io/advanced_features/speculative_decoding.html">S9 · SGLang speculative decoding docs</a>。</li>
+<li><a href="https://vllm.ai/blog/2026-05-26-eagle-3-1">S10 · EAGLE-3.1 官方博客, 2026-05-26</a>。</li>
+<li><a href="https://vllm.ai/blog/2026-03-13-p-eagle">S11 · PEAGLE 官方博客, 2026-03-13</a>。</li>
+<li><a href="https://arxiv.org/html/2602.06036v2">S12 · DFlash v2, 2602.06036v2</a>；<a href="https://www.lmsys.org/blog/2026-06-15-next-generation-speculative-decoding-dflash-v2">SGLang DFlash v2, 2026-06-15</a>。</li>
+<li><a href="https://arxiv.org/html/2606.18394v5">S13 · JetSpec, 2606.18394v5, 2026-10-03</a>。</li>
+</ul>
+<p><strong>Changelog</strong>：2026-10-27，首次全文精读；以 v2 为准，补充当前官方代码与 2026 技术路线。本文未运行 GPU benchmark、未重新训练 draft。</p><p><strong>Related Reading：</strong><a href="../eagle/">EAGLE：先知道下一个 token，再外推它的特征</a>。对照 shifted-token 特征起草、精确树验证和按有效输出 token 计算的总成本。</p></article></main></div><footer class="site-footer"><span>Howie Yin · Paper Readings · Updated 2026-10-27</span><a href="../">All paper readings →</a></footer></div><dialog id="figure-dialog" aria-label="原始图表放大"><button id="close-dialog">Close / 关闭</button><a id="zoom-source" target="_blank" rel="noopener">原尺寸图 ↗</a><img id="zoom-image" alt="原始图表放大"></dialog><script src="assets/tree-math.js"></script><script src="assets/reading.js"></script></body></html>

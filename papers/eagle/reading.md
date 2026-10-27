@@ -887,6 +887,6 @@ EAGLE 的确提出了低成本、高接受 draft 的有效设计：用下一 tok
 9. [SGLang speculative docs](https://docs.sglang.ai/advanced_features/speculative_decoding.html)；[vLLM speculative docs](https://docs.vllm.ai/en/latest/features/speculative_decoding/)。
 10. [Visual manifest](sources/visual-manifest.json)；[Math verification tests](interactive/math.test.cjs)；[Method audit](notes/research-dossier.md)。
 
-相关精读：[FlashAttention](../flashattention/) · [MQA](../mqa/) · [GQA](../gqa/) · [Sparse MoE](../sparse-moe/) · [AWQ](../awq/)。
+相关精读：[EAGLE-2](../eagle2/) · [Medusa](../medusa/) · [FlashAttention](../flashattention/) · [MQA](../mqa/) · [GQA](../gqa/) · [Sparse MoE](../sparse-moe/) · [AWQ](../awq/)。
 
 阅读完成于 2026-10-27。原论文与外部更新分开标记；本文交互为分析工具，未运行模型性能 benchmark。

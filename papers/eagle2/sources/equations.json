@@ -1,0 +1,194 @@
+[
+  {
+    "tex": "i",
+    "mathml": "<math alttext=\"i\" class=\"ltx_Math\" display=\"inline\" id=\"S1.p2.m1\" intent=\":literal\"><semantics><mi>i</mi><annotation encoding=\"application/x-tex\">i</annotation></semantics></math>"
+  },
+  {
+    "tex": "k",
+    "mathml": "<math alttext=\"k\" class=\"ltx_Math\" display=\"inline\" id=\"S1.p2.m2\" intent=\":literal\"><semantics><mi>k</mi><annotation encoding=\"application/x-tex\">k</annotation></semantics></math>"
+  },
+  {
+    "tex": "k",
+    "mathml": "<math alttext=\"k\" class=\"ltx_Math\" display=\"inline\" id=\"S1.p2.m3\" intent=\":literal\"><semantics><mi>k</mi><annotation encoding=\"application/x-tex\">k</annotation></semantics></math>"
+  },
+  {
+    "tex": "t_{i}",
+    "mathml": "<math alttext=\"t_{i}\" class=\"ltx_Math\" display=\"inline\" id=\"S1.F3.m5\" intent=\":literal\"><semantics><msub><mi>t</mi><mi>i</mi></msub><annotation encoding=\"application/x-tex\">t_{i}</annotation></semantics></math>"
+  },
+  {
+    "tex": "i",
+    "mathml": "<math alttext=\"i\" class=\"ltx_Math\" display=\"inline\" id=\"S1.F3.m6\" intent=\":literal\"><semantics><mi>i</mi><annotation encoding=\"application/x-tex\">i</annotation></semantics></math>"
+  },
+  {
+    "tex": "f_{i}",
+    "mathml": "<math alttext=\"f_{i}\" class=\"ltx_Math\" display=\"inline\" id=\"S1.F3.m7\" intent=\":literal\"><semantics><msub><mi>f</mi><mi>i</mi></msub><annotation encoding=\"application/x-tex\">f_{i}</annotation></semantics></math>"
+  },
+  {
+    "tex": "i",
+    "mathml": "<math alttext=\"i\" class=\"ltx_Math\" display=\"inline\" id=\"S1.F3.m8\" intent=\":literal\"><semantics><mi>i</mi><annotation encoding=\"application/x-tex\">i</annotation></semantics></math>"
+  },
+  {
+    "tex": "t_{i}",
+    "mathml": "<math alttext=\"t_{i}\" class=\"ltx_Math\" display=\"inline\" id=\"S2.SS1.p1.m1\" intent=\":literal\"><semantics><msub><mi>t</mi><mi>i</mi></msub><annotation encoding=\"application/x-tex\">t_{i}</annotation></semantics></math>"
+  },
+  {
+    "tex": "i",
+    "mathml": "<math alttext=\"i\" class=\"ltx_Math\" display=\"inline\" id=\"S2.SS1.p1.m2\" intent=\":literal\"><semantics><mi>i</mi><annotation encoding=\"application/x-tex\">i</annotation></semantics></math>"
+  },
+  {
+    "tex": "T_{a:b}",
+    "mathml": "<math alttext=\"T_{a:b}\" class=\"ltx_math_unparsed\" display=\"inline\" id=\"S2.SS1.p1.m3\" intent=\":literal\"><semantics><mrow><mi>T</mi><msub><mrow></mrow><mrow><mi>a</mi><mo lspace=\"0.278em\" rspace=\"0.278em\">:</mo><mi>b</mi></mrow></msub></mrow><annotation encoding=\"application/x-tex\">T_{a:b}</annotation></semantics></math>"
+  },
+  {
+    "tex": "t_{a},t_{a+1},\\cdots,t_{b}",
+    "mathml": "<math alttext=\"t_{a},t_{a+1},\\cdots,t_{b}\" class=\"ltx_Math\" display=\"inline\" id=\"S2.SS1.p1.m4\" intent=\":literal\"><semantics><mrow><msub><mi>t</mi><mi>a</mi></msub><mo>,</mo><msub><mi>t</mi><mrow><mi>a</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>,</mo><mo lspace=\"0em\" rspace=\"0em\">⋯</mo><mo>,</mo><msub><mi>t</mi><mi>b</mi></msub></mrow><annotation encoding=\"application/x-tex\">t_{a},t_{a+1},\\cdots,t_{b}</annotation></semantics></math>"
+  },
+  {
+    "tex": "T_{1:j}",
+    "mathml": "<math alttext=\"T_{1:j}\" class=\"ltx_math_unparsed\" display=\"inline\" id=\"S2.SS1.p2.m1\" intent=\":literal\"><semantics><mrow><mi>T</mi><msub><mrow></mrow><mrow><mn>1</mn><mo lspace=\"0.278em\" rspace=\"0.278em\">:</mo><mi>j</mi></mrow></msub></mrow><annotation encoding=\"application/x-tex\">T_{1:j}</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\hat{T}_{j+1:j+k}",
+    "mathml": "<math alttext=\"\\hat{T}_{j+1:j+k}\" class=\"ltx_math_unparsed\" display=\"inline\" id=\"S2.SS1.p2.m2\" intent=\":literal\"><semantics><mrow><mover accent=\"true\"><mi>T</mi><mo>^</mo></mover><msub><mrow></mrow><mrow><mrow><mi>j</mi><mo>+</mo><mn>1</mn></mrow><mo lspace=\"0.278em\" rspace=\"0.278em\">:</mo><mrow><mi>j</mi><mo>+</mo><mi>k</mi></mrow></mrow></msub></mrow><annotation encoding=\"application/x-tex\">\\hat{T}_{j+1:j+k}</annotation></semantics></math>"
+  },
+  {
+    "tex": "T_{1:j}",
+    "mathml": "<math alttext=\"T_{1:j}\" class=\"ltx_math_unparsed\" display=\"inline\" id=\"S2.SS1.p2.m3\" intent=\":literal\"><semantics><mrow><mi>T</mi><msub><mrow></mrow><mrow><mn>1</mn><mo lspace=\"0.278em\" rspace=\"0.278em\">:</mo><mi>j</mi></mrow></msub></mrow><annotation encoding=\"application/x-tex\">T_{1:j}</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\hat{p}",
+    "mathml": "<math alttext=\"\\hat{p}\" class=\"ltx_Math\" display=\"inline\" id=\"S2.SS1.p2.m4\" intent=\":literal\"><semantics><mover accent=\"true\"><mi>p</mi><mo>^</mo></mover><annotation encoding=\"application/x-tex\">\\hat{p}</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\hat{T}_{j+1:j+k}",
+    "mathml": "<math alttext=\"\\hat{T}_{j+1:j+k}\" class=\"ltx_math_unparsed\" display=\"inline\" id=\"S2.SS1.p2.m5\" intent=\":literal\"><semantics><mrow><mover accent=\"true\"><mi>T</mi><mo>^</mo></mover><msub><mrow></mrow><mrow><mrow><mi>j</mi><mo>+</mo><mn>1</mn></mrow><mo lspace=\"0.278em\" rspace=\"0.278em\">:</mo><mrow><mi>j</mi><mo>+</mo><mi>k</mi></mrow></mrow></msub></mrow><annotation encoding=\"application/x-tex\">\\hat{T}_{j+1:j+k}</annotation></semantics></math>"
+  },
+  {
+    "tex": "p",
+    "mathml": "<math alttext=\"p\" class=\"ltx_Math\" display=\"inline\" id=\"S2.SS1.p2.m6\" intent=\":literal\"><semantics><mi>p</mi><annotation encoding=\"application/x-tex\">p</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\hat{t}_{j+i}",
+    "mathml": "<math alttext=\"\\hat{t}_{j+i}\" class=\"ltx_Math\" display=\"inline\" id=\"S2.SS1.p2.m7\" intent=\":literal\"><semantics><msub><mover accent=\"true\"><mi>t</mi><mo>^</mo></mover><mrow><mi>j</mi><mo>+</mo><mi>i</mi></mrow></msub><annotation encoding=\"application/x-tex\">\\hat{t}_{j+i}</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\min(1,p_{j+i}(\\hat{t}_{j+i})/\\hat{p}_{j+i}(\\hat{t}_{j+i}))",
+    "mathml": "<math alttext=\"\\min(1,p_{j+i}(\\hat{t}_{j+i})/\\hat{p}_{j+i}(\\hat{t}_{j+i}))\" class=\"ltx_Math\" display=\"inline\" id=\"S2.SS1.p2.m8\" intent=\":literal\"><semantics><mrow><mi>min</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mn>1</mn><mo>,</mo><mrow><mrow><mrow><msub><mi>p</mi><mrow><mi>j</mi><mo>+</mo><mi>i</mi></mrow></msub><mo lspace=\"0em\" rspace=\"0em\">​</mo><mrow><mo stretchy=\"false\">(</mo><msub><mover accent=\"true\"><mi>t</mi><mo>^</mo></mover><mrow><mi>j</mi><mo>+</mo><mi>i</mi></mrow></msub><mo stretchy=\"false\">)</mo></mrow></mrow><mo>/</mo><msub><mover accent=\"true\"><mi>p</mi><mo>^</mo></mover><mrow><mi>j</mi><mo>+</mo><mi>i</mi></mrow></msub></mrow><mo lspace=\"0em\" rspace=\"0em\">​</mo><mrow><mo stretchy=\"false\">(</mo><msub><mover accent=\"true\"><mi>t</mi><mo>^</mo></mover><mrow><mi>j</mi><mo>+</mo><mi>i</mi></mrow></msub><mo stretchy=\"false\">)</mo></mrow></mrow><mo stretchy=\"false\">)</mo></mrow></mrow><annotation encoding=\"application/x-tex\">\\min(1,p_{j+i}(\\hat{t}_{j+i})/\\hat{p}_{j+i}(\\hat{t}_{j+i}))</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\text{norm}(\\max(0,p_{j+i}-\\hat{p}_{j+i}))",
+    "mathml": "<math alttext=\"\\text{norm}(\\max(0,p_{j+i}-\\hat{p}_{j+i}))\" class=\"ltx_Math\" display=\"inline\" id=\"S2.SS1.p2.m9\" intent=\":literal\"><semantics><mrow><mtext>norm</mtext><mo lspace=\"0em\" rspace=\"0em\">​</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mi>max</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mn>0</mn><mo>,</mo><mrow><msub><mi>p</mi><mrow><mi>j</mi><mo>+</mo><mi>i</mi></mrow></msub><mo>−</mo><msub><mover accent=\"true\"><mi>p</mi><mo>^</mo></mover><mrow><mi>j</mi><mo>+</mo><mi>i</mi></mrow></msub></mrow><mo stretchy=\"false\">)</mo></mrow></mrow><mo stretchy=\"false\">)</mo></mrow></mrow><annotation encoding=\"application/x-tex\">\\text{norm}(\\max(0,p_{j+i}-\\hat{p}_{j+i}))</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\hat{t}_{j+i}",
+    "mathml": "<math alttext=\"\\hat{t}_{j+i}\" class=\"ltx_Math\" display=\"inline\" id=\"S2.SS1.p2.m10\" intent=\":literal\"><semantics><msub><mover accent=\"true\"><mi>t</mi><mo>^</mo></mover><mrow><mi>j</mi><mo>+</mo><mi>i</mi></mrow></msub><annotation encoding=\"application/x-tex\">\\hat{t}_{j+i}</annotation></semantics></math>"
+  },
+  {
+    "tex": "k",
+    "mathml": "<math alttext=\"k\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m1\" intent=\":literal\"><semantics><mi>k</mi><annotation encoding=\"application/x-tex\">k</annotation></semantics></math>"
+  },
+  {
+    "tex": "t_{i}",
+    "mathml": "<math alttext=\"t_{i}\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m2\" intent=\":literal\"><semantics><msub><mi>t</mi><mi>i</mi></msub><annotation encoding=\"application/x-tex\">t_{i}</annotation></semantics></math>"
+  },
+  {
+    "tex": "t_{i}",
+    "mathml": "<math alttext=\"t_{i}\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m3\" intent=\":literal\"><semantics><msub><mi>t</mi><mi>i</mi></msub><annotation encoding=\"application/x-tex\">t_{i}</annotation></semantics></math>"
+  },
+  {
+    "tex": "V_{i}",
+    "mathml": "<math alttext=\"V_{i}\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m4\" intent=\":literal\"><semantics><msub><mi>V</mi><mi>i</mi></msub><annotation encoding=\"application/x-tex\">V_{i}</annotation></semantics></math>"
+  },
+  {
+    "tex": "V_{i}=\\prod_{t_{j}\\in\\text{Path}\\left(\\text{root},t_{i}\\right)}p_{j}\\approx\\prod_{t_{j}\\in\\text{Path}\\left(\\text{root},t_{i}\\right)}c_{j},",
+    "mathml": "<math alttext=\"V_{i}=\\prod_{t_{j}\\in\\text{Path}\\left(\\text{root},t_{i}\\right)}p_{j}\\approx\\prod_{t_{j}\\in\\text{Path}\\left(\\text{root},t_{i}\\right)}c_{j},\" class=\"ltx_Math\" display=\"block\" id=\"S4.Ex1.m1\" intent=\":literal\"><semantics><mrow><mrow><msub><mi>V</mi><mi>i</mi></msub><mo rspace=\"0.111em\">=</mo><mrow><munder><mo movablelimits=\"false\">∏</mo><mrow><msub><mi>t</mi><mi>j</mi></msub><mo>∈</mo><mrow><mtext>Path</mtext><mo lspace=\"0em\" rspace=\"0em\">​</mo><mrow><mo>(</mo><mtext>root</mtext><mo>,</mo><msub><mi>t</mi><mi>i</mi></msub><mo>)</mo></mrow></mrow></mrow></munder><msub><mi>p</mi><mi>j</mi></msub></mrow><mo rspace=\"0.111em\">≈</mo><mrow><munder><mo movablelimits=\"false\">∏</mo><mrow><msub><mi>t</mi><mi>j</mi></msub><mo>∈</mo><mrow><mtext>Path</mtext><mo lspace=\"0em\" rspace=\"0em\">​</mo><mrow><mo>(</mo><mtext>root</mtext><mo>,</mo><msub><mi>t</mi><mi>i</mi></msub><mo>)</mo></mrow></mrow></mrow></munder><msub><mi>c</mi><mi>j</mi></msub></mrow></mrow><mo>,</mo></mrow><annotation encoding=\"application/x-tex\">V_{i}=\\prod_{t_{j}\\in\\text{Path}\\left(\\text{root},t_{i}\\right)}p_{j}\\approx\\prod_{t_{j}\\in\\text{Path}\\left(\\text{root},t_{i}\\right)}c_{j},</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\text{Path}\\left(\\text{root},t_{i}\\right)",
+    "mathml": "<math alttext=\"\\text{Path}\\left(\\text{root},t_{i}\\right)\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m5\" intent=\":literal\"><semantics><mrow><mtext>Path</mtext><mo lspace=\"0em\" rspace=\"0em\">​</mo><mrow><mo>(</mo><mtext>root</mtext><mo>,</mo><msub><mi>t</mi><mi>i</mi></msub><mo>)</mo></mrow></mrow><annotation encoding=\"application/x-tex\">\\text{Path}\\left(\\text{root},t_{i}\\right)</annotation></semantics></math>"
+  },
+  {
+    "tex": "t_{i}",
+    "mathml": "<math alttext=\"t_{i}\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m6\" intent=\":literal\"><semantics><msub><mi>t</mi><mi>i</mi></msub><annotation encoding=\"application/x-tex\">t_{i}</annotation></semantics></math>"
+  },
+  {
+    "tex": "p_{j}",
+    "mathml": "<math alttext=\"p_{j}\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m7\" intent=\":literal\"><semantics><msub><mi>p</mi><mi>j</mi></msub><annotation encoding=\"application/x-tex\">p_{j}</annotation></semantics></math>"
+  },
+  {
+    "tex": "t_{j}",
+    "mathml": "<math alttext=\"t_{j}\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m8\" intent=\":literal\"><semantics><msub><mi>t</mi><mi>j</mi></msub><annotation encoding=\"application/x-tex\">t_{j}</annotation></semantics></math>"
+  },
+  {
+    "tex": "c_{j}",
+    "mathml": "<math alttext=\"c_{j}\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m9\" intent=\":literal\"><semantics><msub><mi>c</mi><mi>j</mi></msub><annotation encoding=\"application/x-tex\">c_{j}</annotation></semantics></math>"
+  },
+  {
+    "tex": "t_{j}",
+    "mathml": "<math alttext=\"t_{j}\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p2.m10\" intent=\":literal\"><semantics><msub><mi>t</mi><mi>j</mi></msub><annotation encoding=\"application/x-tex\">t_{j}</annotation></semantics></math>"
+  },
+  {
+    "tex": "k",
+    "mathml": "<math alttext=\"k\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS1.p3.m1\" intent=\":literal\"><semantics><mi>k</mi><annotation encoding=\"application/x-tex\">k</annotation></semantics></math>"
+  },
+  {
+    "tex": "m",
+    "mathml": "<math alttext=\"m\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS2.p1.m1\" intent=\":literal\"><semantics><mi>m</mi><annotation encoding=\"application/x-tex\">m</annotation></semantics></math>"
+  },
+  {
+    "tex": "m",
+    "mathml": "<math alttext=\"m\" class=\"ltx_Math\" display=\"inline\" id=\"S4.SS2.p1.m2\" intent=\":literal\"><semantics><mi>m</mi><annotation encoding=\"application/x-tex\">m</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.I1.i2.p1.m1\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T1.m2\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T1.m3\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T1.m4\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T1.m5\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T1.m6\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T1.m7\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T1.m8\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T1.m9\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T2.m2\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T2.m3\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T3.m1\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  },
+  {
+    "tex": "\\tau",
+    "mathml": "<math alttext=\"\\tau\" class=\"ltx_Math\" display=\"inline\" id=\"S5.T3.m2\" intent=\":literal\"><semantics><mi>τ</mi><annotation encoding=\"application/x-tex\">\\tau</annotation></semantics></math>"
+  }
+]

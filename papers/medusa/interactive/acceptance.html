@@ -1,0 +1,10 @@
+<section class="mechanism" id="acceptance-explorer" aria-labelledby="acceptance-heading">
+<p class="reading-meta">AGENT-CREATED VISUALIZATION · ALGEBRA, NOT QUALITY BENCHMARK</p>
+<h3 id="acceptance-heading">同一分布：三种“接受”意味着什么？</h3>
+<p>设 p=q_D=softmax([2,1,0,−1]/T)，四个抽象 token。调节温度和 typical 阈值；候选条形展示概率，不生成真实文本。</p>
+<div class="controls"><label>Temperature T <output id="temperature-value">0.7</output><input id="temperature" type="range" min="0.1" max="2" step="0.1" value="0.7"></label><label>Hard threshold ε <output id="epsilon-value">0.10</output><input id="epsilon" type="range" min="0" max="0.25" step="0.01" value="0.10"></label><label>Entropy coefficient δ <output id="delta-value">0.30</output><input id="delta" type="range" min="0.05" max="1" step="0.05" value="0.30"></label></div>
+<div id="acceptance-bars" class="prob-bars"><p>p=q_D; strict acceptance is always 100%.</p></div>
+<div class="readout" id="acceptance-readout" role="status" aria-live="polite">Strict rejection acceptance 100% · independent matching Σp² depends on entropy · typical allows tokens above threshold.</div>
+<p class="hint">Typical 的“允许概率质量”仅表示允许集合覆盖了多少 p，不代表最终输出按这些概率采样。T=0 在真实系统应进入 greedy 分支，本实验只取正温度。</p>
+<noscript><p>Static fallback：若 p=q_D 为四类均匀分布，严格 rejection 接受概率=1，独立抽样匹配概率=1/4；H=ln4，typical 阈值为 min(ε,δ/4)。最长前缀选择仍不保证分布相同。</p></noscript>
+</section>

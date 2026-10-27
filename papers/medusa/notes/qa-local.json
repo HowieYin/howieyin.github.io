@@ -1,0 +1,811 @@
+{
+  "url": "http://localhost:8775/papers/medusa/",
+  "widths": [
+    {
+      "width": 375,
+      "client": 375,
+      "scroll": 375,
+      "articleWidth": 343,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 31,
+      "diagrams": 2,
+      "formulas": [
+        {
+          "h": 29.96875,
+          "w": 324.296875
+        },
+        {
+          "h": 50.25,
+          "w": 317
+        },
+        {
+          "h": 49.53125,
+          "w": 317
+        },
+        {
+          "h": 16.59375,
+          "w": 317
+        },
+        {
+          "h": 29.96875,
+          "w": 557.625
+        },
+        {
+          "h": 47.21875,
+          "w": 371.0625
+        },
+        {
+          "h": 29.96875,
+          "w": 317
+        },
+        {
+          "h": 53.203125,
+          "w": 402.859375
+        },
+        {
+          "h": 37.078125,
+          "w": 317
+        },
+        {
+          "h": 18.53125,
+          "w": 424.609375
+        }
+      ],
+      "originalTables": 8,
+      "allTables": 16,
+      "tree": "Proposed · q=9 · 6 leaves · query R sees old prefix + R · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "cost": "Table 6 · S=1024 · q=64 · 54.8 TFLOP/s · 40.96 FLOP/byte · vs q=1: 44.19× FLOP/s · 41.37× intensity · approximate cycle time 1.45×",
+      "acceptance": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.1000 · allowed probability mass 94.57%",
+      "fonts": "loaded",
+      "visible": "Proposed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "states": {
+        "verified": "Verified · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · not yet committed",
+        "committed": "Committed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · logical length S+3",
+        "cache": "Old KV · SRA2B2(A2)",
+        "allowed": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "flat": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 32.16% · H=1.2451 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "mlp": "Table 8 · B=1 · q=64 · 76.57 TFLOP/s · 63.17 FLOP/byte · vs q=1: 60.77× FLOP/s · 63.17× intensity · approximate cycle time 1.05×",
+        "attention": "Table 7 · B=64 · q=1 · 1.48 TFLOP/s · 0.99 FLOP/byte · vs q=1: 1.00× FLOP/s · 1.00× intensity · approximate cycle time 1.00×"
+      }
+    },
+    {
+      "width": 390,
+      "client": 390,
+      "scroll": 390,
+      "articleWidth": 358,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 31,
+      "diagrams": 2,
+      "formulas": [
+        {
+          "h": 29.96875,
+          "w": 332
+        },
+        {
+          "h": 50.25,
+          "w": 332
+        },
+        {
+          "h": 49.53125,
+          "w": 332
+        },
+        {
+          "h": 16.59375,
+          "w": 332
+        },
+        {
+          "h": 29.96875,
+          "w": 557.625
+        },
+        {
+          "h": 47.21875,
+          "w": 371.0625
+        },
+        {
+          "h": 29.96875,
+          "w": 332
+        },
+        {
+          "h": 53.203125,
+          "w": 402.859375
+        },
+        {
+          "h": 37.078125,
+          "w": 332
+        },
+        {
+          "h": 18.53125,
+          "w": 424.609375
+        }
+      ],
+      "originalTables": 8,
+      "allTables": 16,
+      "tree": "Proposed · q=9 · 6 leaves · query R sees old prefix + R · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "cost": "Table 6 · S=1024 · q=64 · 54.8 TFLOP/s · 40.96 FLOP/byte · vs q=1: 44.19× FLOP/s · 41.37× intensity · approximate cycle time 1.45×",
+      "acceptance": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.1000 · allowed probability mass 94.57%",
+      "fonts": "loaded",
+      "visible": "Proposed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "states": {
+        "verified": "Verified · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · not yet committed",
+        "committed": "Committed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · logical length S+3",
+        "cache": "Old KV · SRA2B2(A2)",
+        "allowed": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "flat": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 32.16% · H=1.2451 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "mlp": "Table 8 · B=1 · q=64 · 76.57 TFLOP/s · 63.17 FLOP/byte · vs q=1: 60.77× FLOP/s · 63.17× intensity · approximate cycle time 1.05×",
+        "attention": "Table 7 · B=64 · q=1 · 1.48 TFLOP/s · 0.99 FLOP/byte · vs q=1: 1.00× FLOP/s · 1.00× intensity · approximate cycle time 1.00×"
+      }
+    },
+    {
+      "width": 430,
+      "client": 430,
+      "scroll": 430,
+      "articleWidth": 398,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 31,
+      "diagrams": 2,
+      "formulas": [
+        {
+          "h": 29.96875,
+          "w": 372
+        },
+        {
+          "h": 50.25,
+          "w": 372
+        },
+        {
+          "h": 49.53125,
+          "w": 372
+        },
+        {
+          "h": 16.59375,
+          "w": 372
+        },
+        {
+          "h": 29.96875,
+          "w": 557.625
+        },
+        {
+          "h": 47.21875,
+          "w": 372
+        },
+        {
+          "h": 29.96875,
+          "w": 372
+        },
+        {
+          "h": 53.203125,
+          "w": 402.859375
+        },
+        {
+          "h": 37.078125,
+          "w": 372
+        },
+        {
+          "h": 18.53125,
+          "w": 424.609375
+        }
+      ],
+      "originalTables": 8,
+      "allTables": 16,
+      "tree": "Proposed · q=9 · 6 leaves · query R sees old prefix + R · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "cost": "Table 6 · S=1024 · q=64 · 54.8 TFLOP/s · 40.96 FLOP/byte · vs q=1: 44.19× FLOP/s · 41.37× intensity · approximate cycle time 1.45×",
+      "acceptance": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.1000 · allowed probability mass 94.57%",
+      "fonts": "loaded",
+      "visible": "Proposed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "states": {
+        "verified": "Verified · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · not yet committed",
+        "committed": "Committed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · logical length S+3",
+        "cache": "Old KV · SRA2B2(A2)",
+        "allowed": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "flat": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 32.16% · H=1.2451 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "mlp": "Table 8 · B=1 · q=64 · 76.57 TFLOP/s · 63.17 FLOP/byte · vs q=1: 60.77× FLOP/s · 63.17× intensity · approximate cycle time 1.05×",
+        "attention": "Table 7 · B=64 · q=1 · 1.48 TFLOP/s · 0.99 FLOP/byte · vs q=1: 1.00× FLOP/s · 1.00× intensity · approximate cycle time 1.00×"
+      }
+    },
+    {
+      "width": 1440,
+      "client": 1440,
+      "scroll": 1440,
+      "articleWidth": 880,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 31,
+      "diagrams": 2,
+      "formulas": [
+        {
+          "h": 33.296875,
+          "w": 842
+        },
+        {
+          "h": 55.859375,
+          "w": 842
+        },
+        {
+          "h": 55.0625,
+          "w": 842
+        },
+        {
+          "h": 18.4375,
+          "w": 842
+        },
+        {
+          "h": 33.296875,
+          "w": 842
+        },
+        {
+          "h": 52.453125,
+          "w": 842
+        },
+        {
+          "h": 33.296875,
+          "w": 842
+        },
+        {
+          "h": 59.140625,
+          "w": 842
+        },
+        {
+          "h": 41.21875,
+          "w": 842
+        },
+        {
+          "h": 20.59375,
+          "w": 842
+        }
+      ],
+      "originalTables": 8,
+      "allTables": 16,
+      "tree": "Proposed · q=9 · 6 leaves · query R sees old prefix + R · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "cost": "Table 6 · S=1024 · q=64 · 54.8 TFLOP/s · 40.96 FLOP/byte · vs q=1: 44.19× FLOP/s · 41.37× intensity · approximate cycle time 1.45×",
+      "acceptance": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.1000 · allowed probability mass 94.57%",
+      "fonts": "loaded",
+      "visible": "Proposed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "states": {
+        "verified": "Verified · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · not yet committed",
+        "committed": "Committed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · logical length S+3",
+        "cache": "Old KV · SRA2B2(A2)",
+        "allowed": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "flat": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 32.16% · H=1.2451 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "mlp": "Table 8 · B=1 · q=64 · 76.57 TFLOP/s · 63.17 FLOP/byte · vs q=1: 60.77× FLOP/s · 63.17× intensity · approximate cycle time 1.05×",
+        "attention": "Table 7 · B=64 · q=1 · 1.48 TFLOP/s · 0.99 FLOP/byte · vs q=1: 1.00× FLOP/s · 1.00× intensity · approximate cycle time 1.00×"
+      }
+    },
+    {
+      "width": 1920,
+      "client": 1920,
+      "scroll": 1920,
+      "articleWidth": 880,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 31,
+      "diagrams": 2,
+      "formulas": [
+        {
+          "h": 33.296875,
+          "w": 842
+        },
+        {
+          "h": 55.859375,
+          "w": 842
+        },
+        {
+          "h": 55.0625,
+          "w": 842
+        },
+        {
+          "h": 18.4375,
+          "w": 842
+        },
+        {
+          "h": 33.296875,
+          "w": 842
+        },
+        {
+          "h": 52.453125,
+          "w": 842
+        },
+        {
+          "h": 33.296875,
+          "w": 842
+        },
+        {
+          "h": 59.140625,
+          "w": 842
+        },
+        {
+          "h": 41.21875,
+          "w": 842
+        },
+        {
+          "h": 20.59375,
+          "w": 842
+        }
+      ],
+      "originalTables": 8,
+      "allTables": 16,
+      "tree": "Proposed · q=9 · 6 leaves · query R sees old prefix + R · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "cost": "Table 6 · S=1024 · q=64 · 54.8 TFLOP/s · 40.96 FLOP/byte · vs q=1: 44.19× FLOP/s · 41.37× intensity · approximate cycle time 1.45×",
+      "acceptance": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.1000 · allowed probability mass 94.57%",
+      "fonts": "loaded",
+      "visible": "Proposed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A1 → B1(A1) · not yet committed",
+      "states": {
+        "verified": "Verified · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · not yet committed",
+        "committed": "Committed · q=9 · 6 leaves · query B2(A2) sees old prefix + R → A2 → B2(A2) · accepted prefix R → A2 → B2(A2) · logical length S+3",
+        "cache": "Old KV · SRA2B2(A2)",
+        "allowed": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 61.74% · H=0.7020 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "flat": "p=q_D · strict rejection acceptance 100% · independent matching Σp² 32.16% · H=1.2451 · typical threshold=0.0000 · allowed probability mass 100.00%",
+        "mlp": "Table 8 · B=1 · q=64 · 76.57 TFLOP/s · 63.17 FLOP/byte · vs q=1: 60.77× FLOP/s · 63.17× intensity · approximate cycle time 1.05×",
+        "attention": "Table 7 · B=64 · q=1 · 1.48 TFLOP/s · 0.99 FLOP/byte · vs q=1: 1.00× FLOP/s · 1.00× intensity · approximate cycle time 1.00×"
+      }
+    }
+  ],
+  "assetCheck": [
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/favicon.svg",
+      "status": 200,
+      "type": "image/svg+xml"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/site.css",
+      "status": 200,
+      "type": "text/css"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/reading.css",
+      "status": 200,
+      "type": "text/css"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/article-navigation.css",
+      "status": 200,
+      "type": "text/css"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#main",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/weekly/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/foundations/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/lab/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/#about",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#tldr",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#introduction",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#method",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#experiments",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#discussion",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#appendix-a",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#appendix-b",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#appendix-c",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#appendix-d",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#appendix-e",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#appendix-f",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#appendix-g",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#audit",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#evolution",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#current-state",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#implementation",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#critique",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#related-readings",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#references",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/#takeaways",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/sources/2401.10774v3.pdf",
+      "status": 200,
+      "type": "application/pdf"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-01.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/generated/flow.mmd",
+      "status": 200,
+      "type": "application/vnd.chipnuts.karaoke-mmd"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/generated/flow.svg",
+      "status": 200,
+      "type": "image/svg+xml"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-02.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-03.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/tables/table-01.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-04.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-05.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/tables/table-02.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/tables/table-03.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-06.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-07.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-08.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/tables/table-04.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/tables/table-05.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-09.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-10.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-11.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-12.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-13.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-14.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-15.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-16.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-17.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-18.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/tables/table-06.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-19.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/tables/table-07.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-20.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/tables/table-08.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-21.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-22.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/figures/fig-23.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/generated/evolution.mmd",
+      "status": 200,
+      "type": "application/vnd.chipnuts.karaoke-mmd"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/generated/evolution.svg",
+      "status": 200,
+      "type": "image/svg+xml"
+    },
+    {
+      "url": "http://localhost:8775/papers/flashattention/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/gqa/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/mqa/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/roformer/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/awq/",
+      "status": 200,
+      "type": "text/html"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/sources/visual-manifest.json",
+      "status": 200,
+      "type": "application/json"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/sources/paper-text.txt",
+      "status": 200,
+      "type": "text/plain"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/sources/source-ledger.json",
+      "status": 200,
+      "type": "application/json"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/cost-data.js",
+      "status": 200,
+      "type": "text/javascript"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/reading.js",
+      "status": 200,
+      "type": "text/javascript"
+    },
+    {
+      "url": "http://localhost:8775/papers/medusa/assets/article-navigation.js",
+      "status": 200,
+      "type": "text/javascript"
+    }
+  ],
+  "reduced": "auto",
+  "fallback": {
+    "headings": 20,
+    "noscript": 3,
+    "formulas": 10,
+    "cost": "Table 6 · S=1024 · q=64: 54.8 TFLOP/s · 40.96 FLOP/byte · versus q=1: 44.19× FLOP/s · approximate cycle time 1.45×.",
+    "originals": 31
+  },
+  "integration": [
+    {
+      "url": "http://localhost:8775/",
+      "client": 390,
+      "scroll": 390,
+      "medusaLinks": 1,
+      "entries": []
+    },
+    {
+      "url": "http://localhost:8775/papers/",
+      "client": 390,
+      "scroll": 390,
+      "medusaLinks": 2,
+      "entries": [
+        "/papers/medusa/",
+        "/papers/glu-variants/",
+        "/papers/layer-normalization/",
+        "/papers/scaling-laws/",
+        "/papers/awq/",
+        "/papers/gptq/",
+        "/papers/rmsnorm/",
+        "/papers/sparse-moe/",
+        "/papers/smoothquant/",
+        "/papers/transformer/",
+        "/papers/longformer/",
+        "/papers/gqa/",
+        "/papers/flashattention/",
+        "/papers/mqa/",
+        "/papers/roformer/",
+        "/papers/vrope/"
+      ]
+    },
+    {
+      "url": "http://localhost:8775/",
+      "client": 1440,
+      "scroll": 1440,
+      "medusaLinks": 1,
+      "entries": []
+    },
+    {
+      "url": "http://localhost:8775/papers/",
+      "client": 1440,
+      "scroll": 1440,
+      "medusaLinks": 2,
+      "entries": [
+        "/papers/medusa/",
+        "/papers/glu-variants/",
+        "/papers/layer-normalization/",
+        "/papers/scaling-laws/",
+        "/papers/awq/",
+        "/papers/gptq/",
+        "/papers/rmsnorm/",
+        "/papers/sparse-moe/",
+        "/papers/smoothquant/",
+        "/papers/transformer/",
+        "/papers/longformer/",
+        "/papers/gqa/",
+        "/papers/flashattention/",
+        "/papers/mqa/",
+        "/papers/roformer/",
+        "/papers/vrope/"
+      ]
+    }
+  ],
+  "errors": [],
+  "failed": []
+}
