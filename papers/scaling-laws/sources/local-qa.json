@@ -1,0 +1,151 @@
+{
+  "phase": "local",
+  "url": "http://localhost:8031/papers/scaling-laws/",
+  "widths": [
+    {
+      "width": 375,
+      "scrollWidth": 375,
+      "articleWidth": 343,
+      "math": true
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "articleWidth": 358,
+      "math": true
+    },
+    {
+      "width": 430,
+      "scrollWidth": 430,
+      "articleWidth": 398,
+      "math": true
+    },
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "articleWidth": 880,
+      "math": true
+    },
+    {
+      "width": 1920,
+      "scrollWidth": 1920,
+      "articleWidth": 880,
+      "math": true
+    }
+  ],
+  "interaction": [
+    "Batch range keyboard and reset real mouse; critical batch doubles S and C.",
+    "2.2x preset computes 1.20349x; small model explicitly unreachable.",
+    "Budget invariants, range End and all three strategy changes verified.",
+    "Original figure zoom and Escape close.",
+    "Reduced motion supported; no automatic animation."
+  ],
+  "errors": [],
+  "images": [
+    {
+      "src": "assets/original/fig-01.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-02.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-03.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-04.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-05.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-06.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-07.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-08.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-09.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-10.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-11.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-12.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-13.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-14.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-15.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-16.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-17.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-18.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-19.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-20.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-21.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-22.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-23.png",
+      "ok": true
+    },
+    {
+      "src": "assets/original/fig-24.png",
+      "ok": true
+    }
+  ],
+  "table": {
+    "client": 356,
+    "scroll": 620,
+    "left": 0
+  },
+  "noJS": {
+    "noscripts": 3,
+    "fallback": true
+  }
+}

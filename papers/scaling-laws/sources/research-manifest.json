@@ -1,0 +1,51 @@
+[
+  {
+    "name": "chinchilla",
+    "title": "Training Compute-Optimal Large Language Models",
+    "url": "https://arxiv.org/html/2203.15556v1",
+    "retrieved": "2026-10-27",
+    "sha256": "b943038eaab1c2fa1dd3409e385838526c024fc1396df59d9c480f981c318f16"
+  },
+  {
+    "name": "resolving",
+    "title": "Resolving Discrepancies in Compute-Optimal Scaling of\nLanguage Models",
+    "url": "https://arxiv.org/html/2406.19146v4",
+    "retrieved": "2026-10-27",
+    "sha256": "dac3f5b5298e2911ef0c68b9885bc3b04c9c8aecdde1f9d144cb3f21bf5c5dd6"
+  },
+  {
+    "name": "reconciling",
+    "title": "Reconciling Kaplan and Chinchilla Scaling Laws",
+    "url": "https://arxiv.org/html/2406.12907v3",
+    "retrieved": "2026-10-27",
+    "sha256": "56dda8f6d3b2df9a5387392d3fcc05786f1c98972c63e8de1e0c600f25882dc9"
+  },
+  {
+    "name": "data-constrained",
+    "title": "Scaling Data-Constrained Language Models",
+    "url": "https://arxiv.org/html/2305.16264v5",
+    "retrieved": "2026-10-27",
+    "sha256": "c9c1720ef1573b17d9a4518b3776d4cad177c23001ba6de676463a22e69fa87d"
+  },
+  {
+    "name": "inference",
+    "title": "Beyond Chinchilla-Optimal: Accounting for Inference in Language Model Scaling Laws",
+    "url": "https://arxiv.org/html/2401.00448v3",
+    "retrieved": "2026-10-27",
+    "sha256": "28d7138fac3985310e8887fe036fef3b3c2c01356f13d5bcc68b94360c438ea6"
+  },
+  {
+    "name": "practical",
+    "title": "Practical Scaling Laws: Converting Compute into Performance in a Data-Constrained World",
+    "url": "https://arxiv.org/html/2605.09189v2",
+    "retrieved": "2026-10-27",
+    "sha256": "4132612424fb943a4dc776c8760095b3223b0fec57c0cc2099a31ce0a52e5821"
+  },
+  {
+    "name": "skaling",
+    "title": "Skaling: Chinchilla’s Exponents Meet Kaplan’s Coupling",
+    "url": "https://arxiv.org/html/2608.07222v1",
+    "retrieved": "2026-10-27",
+    "sha256": "4dedf06a91a7884b655f6dbb56a0e2f1a7bc821b1c77836857973c62d14c49e3"
+  }
+]
