@@ -1,0 +1,349 @@
+{
+  "pdf_sha256": "93d98f2e858c87ee04be440ee81ab8ad93700652ed759227d25fcf75cfdd5ef0",
+  "figures": [
+    {
+      "number": 1,
+      "files": [
+        "Medusa.drawio.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-01-1.png"
+      ],
+      "caption": "Figure 1 : Medusa introduces multiple heads on top of the last hidden states of the LLM, enabling the prediction of several subsequent tokens in parallel (Section 2.1.1 ).\nDuring inference, each head generates multiple top predictions for its designated position.\nThese predictions are assembled into candidates, which are processed in parallel using a tree-based attention mechanism (Section 2.1.2 ). The final step is to verify the candidates and accept a continuation. Besides the standard rejection sampling scheme, a typical acceptance scheme (Section 2.3.1 ) can also be used here to select reasonable continuations, and the longest accepted candidate prefix will be used for the next decoding phase."
+    },
+    {
+      "number": 2,
+      "files": [
+        "tree_attention.png"
+      ],
+      "panels": [
+        "assets/figures/fig-02-1.png"
+      ],
+      "caption": "Figure 2 : We demonstrates the use of tree attention to process multiple candidates concurrently. As exemplified, the top-2 predictions from the first Medusa head and the top-3 from the second result in a total of 2 × 3 = 6 2\\times 3=6 candidates. Each of these candidates corresponds to a distinct branch within the tree structure. To guarantee that each token only accesses its predecessors, we devise an attention mask that exclusively permits attention flow from the current token back to its antecedent tokens. The positional indices for positional encoding are adjusted in line with this structure."
+    },
+    {
+      "number": 3,
+      "files": [
+        "speedup_model_sizes_wide.pdf",
+        "speedup_per_class_wide.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-03-1.png",
+        "assets/figures/fig-03-2.png"
+      ],
+      "caption": "Figure 3 : Left: Speed comparison of baseline, Medusa -1 and Medusa -2 on Vicuna-7B/13B. Medusa -1 achieves more than 2 × \\times wall-time speedup compared to the baseline implementation while Medusa -2 further improves the speedup by a significant margin. Right: Detailed speedup performance of Vicuna-7B with Medusa -2 on 8 categories from MT-Bench."
+    },
+    {
+      "number": 4,
+      "files": [
+        "sparse_acc.pdf",
+        "sparse_speed.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-04-1.png",
+        "assets/figures/fig-04-2.png"
+      ],
+      "caption": "Figure 4 : Effectiveness of numbers of candidate tokens for decoding introduced by trees (default number of candidate token for decoding is 1 when using KV cache). Left: The acceleration rate for randomly sampled dense tree settings (blue dots) and optimized sparse tree settings (red stars). Right: The speed (tokens/s) for both settings. The trend lines indicate that while the acceleration rate remains relatively stable for sparse trees, there is a notable decrease in speed as the candidate tokens increases."
+    },
+    {
+      "number": 5,
+      "files": [
+        "threshold_ablation_wide.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-05-1.png"
+      ],
+      "caption": "Figure 5 : Performance comparison of Medusa using proposed typical sampling. The model is fully fine-tuned from Vicuna-7B. The plot illustrates the acceleration rate and average scores on the writing and roleplay (MT-Bench) with a fixed temperature of 0.7 for 3 different settings: greedy sampling and random sampling (RS) plotted as the star and the dot, and typical sampling curves under different thresholds."
+    },
+    {
+      "number": 6,
+      "files": [
+        "sparse_tree.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-06-1.png"
+      ],
+      "caption": "Figure 6 : Visualization of a sparse tree setting for Medusa -2 Vicuna-7B. The tree has 64 nodes representing candidate tokens and a depth of 4 which indicates 4 Medusa heads involved in calculation. Each node indicates a token from a top-k prediction of a Medusa head, and the edges show the connections between them. The red lines highlight the path that correctly predicts the future tokens."
+    },
+    {
+      "number": 7,
+      "files": [
+        "spec_7b.pdf",
+        "spec_13b.pdf",
+        "spec_33b.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-07-1.png",
+        "assets/figures/fig-07-2.png",
+        "assets/figures/fig-07-3.png"
+      ],
+      "caption": "Figure 7 : Inference speed of various models using speculative decoding on MT-Bench. Baseline model speeds are presented by grey dotted lines for comparison. γ \\gamma denotes the draft token number."
+    },
+    {
+      "number": 8,
+      "files": [
+        "speedup_model_wild_wide.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-08-1.png"
+      ],
+      "caption": "Figure 8 : Speedup of various models with Medusa -2. Medusa -2 shows significant speed improvement over all the models, while models trained with self-distillation (Zephyr-7B, Vicuna-13/33B) have weaker speedup due to the trade-off between preserving quality and boosting speed."
+    },
+    {
+      "number": 9,
+      "files": [
+        "llama7b-roofline-a100.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-09-1.png"
+      ],
+      "caption": "Figure 9 : The figure shows the relationship between FLOP/s and Operational Intensity for all benchmarked datapoints of Llama-7B operators on A100-80GB-PCIe. The dashed lines represent the HBM bandwidth limit (1,935GB/s) and the peak performance limit (312 TFLOP/s) ( NVIDIA, ) . ‘ qkv mlp ’ stands for the linear layers projecting hidden features to query/key/value features. ‘ up/gate/down ’ stands for the linear layers following the attention block. ‘ qk/pv ’ stands for the two steps of attention matrix multiplications. ‘ ar ’ stands for the decoding (autoregressive) and ‘ init ’ stands for the prefill phase."
+    },
+    {
+      "number": 10,
+      "files": [
+        "llama13b-roofline-a100.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-10-1.png"
+      ],
+      "caption": "Figure 10 : Llama-13B operators on A100-80GB-PCIe."
+    },
+    {
+      "number": 11,
+      "files": [
+        "llama33b-roofline-a100.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-11-1.png"
+      ],
+      "caption": "Figure 11 : Llama-33B operators on A100-80GB-PCIe."
+    },
+    {
+      "number": 12,
+      "files": [
+        "llama7b-roofline-a40.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-12-1.png"
+      ],
+      "caption": "Figure 12 : Llama-7B operators on A40."
+    },
+    {
+      "number": 13,
+      "files": [
+        "llama13b-roofline-a40.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-13-1.png"
+      ],
+      "caption": "Figure 13 : Llama-13B operators on A40."
+    },
+    {
+      "number": 14,
+      "files": [
+        "llama33b-roofline-a40.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-14-1.png"
+      ],
+      "caption": "Figure 14 : Llama-33B operators on A40."
+    },
+    {
+      "number": 15,
+      "files": [
+        "llama7b-roofline-a6000.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-15-1.png"
+      ],
+      "caption": "Figure 15 : Llama-7B operators on A6000."
+    },
+    {
+      "number": 16,
+      "files": [
+        "llama13b-roofline-a6000.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-16-1.png"
+      ],
+      "caption": "Figure 16 : Llama-13B operators on A6000."
+    },
+    {
+      "number": 17,
+      "files": [
+        "llama33b-roofline-a6000.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-17-1.png"
+      ],
+      "caption": "Figure 17 : Llama-33B operators on A6000."
+    },
+    {
+      "number": 18,
+      "files": [
+        "llama33b-spec-bs16.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-18-1.png"
+      ],
+      "caption": "Figure 18 : FLOP/s vs. Operational Intensity of attention matrix multiplication with batch size 16."
+    },
+    {
+      "number": 19,
+      "files": [
+        "llama33b-spec-seq1024.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-19-1.png"
+      ],
+      "caption": "Figure 19 : FLOP/s vs. Operational Intensity of attention matrix multiplication with sequence length 1024."
+    },
+    {
+      "number": 20,
+      "files": [
+        "llama33b-spec-mlp-bsall.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-20-1.png"
+      ],
+      "caption": "Figure 20 : FLOP/s vs. Operational Intensity of Linear layers."
+    },
+    {
+      "number": 21,
+      "files": [
+        "llama7b-sim-bs1-seq1024.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-21-1.png"
+      ],
+      "caption": "Figure 21 : Simulated acceleration rate, speedup, and normalized latency ablation using different numbers of candidate tokens under the setting of batch size 1 and sequence length 1024 for Llama-7B on an A100 80GB PCIe."
+    },
+    {
+      "number": 22,
+      "files": [
+        "llama7b-sim-allbs.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-22-1.png"
+      ],
+      "caption": "Figure 22 : Simulated speedup with sequence length 1024 for Llama-7B."
+    },
+    {
+      "number": 23,
+      "files": [
+        "llama7b-sim-allseq.pdf"
+      ],
+      "panels": [
+        "assets/figures/fig-23-1.png"
+      ],
+      "caption": "Figure 23 : Simulated speedup with batch size 4 for Llama-7B."
+    }
+  ],
+  "tables": [
+    {
+      "number": 1,
+      "page": 8,
+      "crop": [
+        50,
+        262,
+        295,
+        396
+      ],
+      "image": "assets/tables/table-01.png",
+      "caption": "Table 1 : Comparison of various Medusa -2 models. The first section reports the details of Medusa -2, including accelerate rate, overhead, and quality that denoted the average scores on the MT-Bench compared to the original models. The second section lists the speedup ( S S ) of SpecDecoding and Medusa , respectively.",
+      "rows": 6
+    },
+    {
+      "number": 2,
+      "page": 9,
+      "crop": [
+        50,
+        232,
+        295,
+        315
+      ],
+      "image": "assets/tables/table-02.png",
+      "caption": "Table 2 : Comparison of Different Settings of Vicuna-7B. Quality is obtained by evaluating models on MT-Bench using GPT-4 as the judge (higher the better) .",
+      "rows": 3
+    },
+    {
+      "number": 3,
+      "page": 9,
+      "crop": [
+        65,
+        505,
+        280,
+        600
+      ],
+      "image": "assets/tables/table-03.png",
+      "caption": "Table 3 : Impact of Techniques on Speedup",
+      "rows": 5
+    },
+    {
+      "number": 4,
+      "page": 16,
+      "crop": [
+        115,
+        269,
+        490,
+        366
+      ],
+      "image": "assets/tables/table-04.png",
+      "caption": "Table 4 : Speedup results on AlpacaEval ( Li et al., 2023 ) dataset.",
+      "rows": 5
+    },
+    {
+      "number": 5,
+      "page": 17,
+      "crop": [
+        50,
+        70,
+        545,
+        325
+      ],
+      "image": "assets/tables/table-05.png",
+      "caption": "Table 5 : Computational and space complexity of the main operators in different phases. The table is based on Table 2 in the report ( Chen, 2023 ) .",
+      "rows": 19
+    },
+    {
+      "number": 6,
+      "page": 25,
+      "crop": [
+        50,
+        65,
+        545,
+        180
+      ],
+      "image": "assets/tables/table-06.png",
+      "caption": "Table 6 : TFLOP/s & Operational Intensity of attention matrix multiplication with batch size 16 for Llama 33B on an A100 80GB PCIe.",
+      "rows": 9
+    },
+    {
+      "number": 7,
+      "page": 25,
+      "crop": [
+        50,
+        190,
+        545,
+        316
+      ],
+      "image": "assets/tables/table-07.png",
+      "caption": "Table 7 : TFLOP/s & Operational Intensity of attention matrix multiplication with sequence length 1024 for Llama 33B on an A100 80GB PCIe.",
+      "rows": 9
+    },
+    {
+      "number": 8,
+      "page": 25,
+      "crop": [
+        65,
+        325,
+        535,
+        433
+      ],
+      "image": "assets/tables/table-08.png",
+      "caption": "Table 8 : TFLOP/s & Operational Intensity of linear layers (up/gate/down) for Llama 33B on an A100 80GB PCIe.",
+      "rows": 9
+    }
+  ]
+}

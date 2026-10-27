@@ -1,0 +1,13 @@
+<section class="mechanism" id="tree-explorer" aria-labelledby="tree-heading">
+<p class="reading-meta">AGENT-CREATED VISUALIZATION · DETERMINISTIC TOY TREE</p>
+<h3 id="tree-heading">选择节点，检查祖先；逐步验证与提交</h3>
+<p>s₁=2、s₂=3，根 R 与 8 个 Medusa 节点共 9 个位置。点击节点可查看它的 attention 行；下方选择路径与接受深度，再逐步执行。路径的合格长度由你指定，这里演示状态机制，不模拟模型预测性能。</p>
+<div class="controls"><label>Selected path<select id="tree-path"><option value="0">R → A1 → B1</option><option value="1">R → A1 → B2</option><option value="2">R → A1 → B3</option><option value="3">R → A2 → B1</option><option value="4">R → A2 → B2</option><option value="5">R → A2 → B3</option></select></label><label>Extra accepted depth<select id="tree-depth"><option value="0">0 · root only</option><option value="1">1 · root + A</option><option value="2" selected>2 · root + A + B</option></select></label></div>
+<div class="tree-layout" id="tree-nodes" aria-label="Nine candidate nodes"><p>Root R → {A1,A2} → each has {B1,B2,B3}.</p></div>
+<div class="actions"><button class="control-button" id="tree-step" type="button">Next: verify</button><button class="control-button" id="tree-reset" type="button">Reset</button></div>
+<div class="readout" id="tree-readout" role="status" aria-live="polite">Proposed · q=9 · 6 leaves · selected node R sees committed prefix + R.</div>
+<div class="mask-scroll" tabindex="0" role="region" aria-label="Tree ancestor attention matrix"><table class="mask-table" id="tree-mask"><caption>Self + ancestors visible; other branches masked.</caption></table></div>
+<p class="hint">绿色表示选中节点可见的祖先，蓝色表示当前查询节点。提交后 KV 只保留指定路径的接受前缀。</p>
+<div class="cache-strip" id="tree-cache" aria-label="KV logical cache"><span>Committed prefix S → temporary candidate buffer q=9</span></div>
+<noscript><p>Static fallback：B2(A2) 可以看 R、A2、B2(A2) 和全部旧前缀；不能看 A1 分支。若接受 R→A2→B2，旧 S 后只提交 3 个位置，逻辑长度变为 S+3。</p></noscript>
+</section>

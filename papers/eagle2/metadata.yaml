@@ -1,0 +1,21 @@
+title: "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees"
+slug: eagle2
+authors: [Yuhui Li, Fangyun Wei, Chao Zhang, Hongyang Zhang]
+institutions: [Peking University, Microsoft Research, University of Waterloo, Vector Institute]
+year: 2024
+version: 2406.16858v2
+version_date: 2024-06-30
+venue: EMNLP 2024
+doi: 10.18653/v1/2024.emnlp-main.422
+arxiv: https://arxiv.org/abs/2406.16858v2
+pdf: https://arxiv.org/pdf/2406.16858v2
+code: https://github.com/SafeAILab/EAGLE
+code_snapshot: cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b
+project: https://sites.google.com/view/eagle-llm
+reading_date: 2026-10-27
+last_updated: 2026-10-27
+url: https://howieyin.github.io/papers/eagle2/
+tags: [LLM, Inference, Systems, Speculative Decoding, KV Cache]
+original_figures: 7
+original_tables: 3
+evidence_scope: "Full reading of v2; later versions, related papers and 2026 updates explicitly separated"

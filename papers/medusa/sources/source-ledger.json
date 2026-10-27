@@ -1,0 +1,116 @@
+{
+  "verified_on": "2026-10-27",
+  "evidence": [
+    {
+      "title": "Medusa v3",
+      "url": "https://arxiv.org/abs/2401.10774v3",
+      "version_or_date": "2024-06-14",
+      "verification": "Full PDF/TeX/HTML read; 27 pages; Appendix A–G; 23 figures, 8 tables",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "PMLR",
+      "url": "https://proceedings.mlr.press/v235/cai24b.html",
+      "version_or_date": "2024",
+      "verification": "Venue, author and page metadata verified",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "Official Medusa code",
+      "url": "https://github.com/FasterDecoding/Medusa",
+      "version_or_date": "snapshot 2026-10-27",
+      "verification": "gh source inspection; commit e2a5d20c048a9b0a4092e6933c34313687422518; not a benchmark",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "Medusa project/blog",
+      "url": "https://sites.google.com/view/medusa-llm",
+      "version_or_date": "early project account",
+      "verification": "Official HTML fetched; historical earlier M1 account distinct from v3",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "Blockwise Parallel Decoding",
+      "url": "https://arxiv.org/abs/1811.03115",
+      "version_or_date": "2018-11-07 v1",
+      "verification": "Official abstract, authors, dates and motivation read",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "Exact Speculative Sampling",
+      "url": "https://arxiv.org/html/2211.17192v2",
+      "version_or_date": "v2",
+      "verification": "Algorithm and §2/3 proof checked; p=q acceptance=1",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "EAGLE",
+      "url": "https://arxiv.org/abs/2401.15077",
+      "version_or_date": "v3",
+      "verification": "Official abstract/version checked; mechanisms and self-reported speed only",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "Hydra",
+      "url": "https://arxiv.org/abs/2402.05109",
+      "version_or_date": "v2",
+      "verification": "Official abstract/version checked; own-workload 1.31x Medusa, not universal",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "ReDrafter",
+      "url": "https://arxiv.org/abs/2403.09919",
+      "version_or_date": "v5",
+      "verification": "Official abstract/version checked; separate H100 and Apple results",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "EAGLE-2",
+      "url": "https://arxiv.org/abs/2406.16858",
+      "version_or_date": "v2",
+      "verification": "Official abstract/version checked; own benchmark ranges",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "EAGLE-3",
+      "url": "https://arxiv.org/abs/2503.01840",
+      "version_or_date": "v3",
+      "verification": "Official abstract/version checked; own benchmark maximum",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "DFlash",
+      "url": "https://arxiv.org/abs/2602.06036v2",
+      "version_or_date": "2026-05-28 v2",
+      "verification": "Official abstract/version checked; lossless block drafter; maximum not global rank",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "DFlash / SpecV2",
+      "url": "https://www.lmsys.org/blog/2026-06-15-next-generation-speculative-decoding-dflash-v2",
+      "version_or_date": "2026-06-15",
+      "verification": "Full official joint post fetched; matched Qwen3-4B 5-layer table; separate Qwen3.5-397B 8xB200 case and Qwen3-8B throughput",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "TGI speculation",
+      "url": "https://huggingface.co/docs/text-generation-inference/conceptual/speculation",
+      "version_or_date": "accessed 2026-10-27",
+      "verification": "Official docs fetched; Medusa and n-gram support, no cross-engine speed rank",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    },
+    {
+      "title": "vLLM AMD speculation",
+      "url": "https://vllm.ai/blog/2026-08-23-speculative-decoding-amd-gpus",
+      "version_or_date": "2026-08-23",
+      "verification": "Official post fetched; MI300X/MI355X route/workload discussion",
+      "comparability": "Read in source-specific conditions; not directly ranked against Medusa unless explicitly matched."
+    }
+  ],
+  "excluded": [
+    {
+      "source": "old NVIDIA documentation URL",
+      "reason": "404 / page not found; not cited"
+    }
+  ]
+}

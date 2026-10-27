@@ -1,0 +1,132 @@
+[
+  {
+    "name": "fig-01-temperature-one",
+    "page": 1,
+    "crop": [
+      304,
+      229,
+      545,
+      475
+    ],
+    "caption": "Figure 1 : Speedup ratios of different methods at temperature=1. For speculative sampling, the Vicuna series uses Vicuna-68M as the draft model. LLaMA2-Chat lacks a suitable draft model, and is marked as N/A. Methods like Medusa relax acceptance conditions under non-greedy settings, which do not guarantee lossless acceleration. In this paper, we only compare with speculative sampling based methods ensuring the output text distribution remains constant. In Table 1 , we present comparisons with additional methods, but this figure only showcases a subset, including the fastest among these methods, EAGLE.",
+    "source_id": "S1.F1",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  },
+  {
+    "name": "fig-02-greedy-speedup",
+    "page": 2,
+    "crop": [
+      53,
+      67,
+      545,
+      304
+    ],
+    "caption": "Figure 2 : Speedup ratios of different methods at temperature=0. For speculative sampling, the Vicuna series uses Vicuna-68M as the draft model. LLaMA2-Chat 7B, 13B, and LLaMA3-Instruct 8B lack suitable draft models and are marked as N/A. LLaMA2-Chat 70B and LLaMA3-Instruct 70B use LLaMA2-Chat 7B and LLaMA3-Instruct 8B as draft models, respectively. In Table 1 , we present comparisons with additional methods, but this figure only showcases a subset, including the fastest among these methods, EAGLE.",
+    "source_id": "S1.F2",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  },
+  {
+    "name": "fig-03-feature-draft-verify",
+    "page": 3,
+    "crop": [
+      53,
+      65,
+      543,
+      181
+    ],
+    "caption": "Figure 3 : Comparison of standard speculative sampling and EAGLE. For simplicity, EAGLE’s tree-structured draft is shown only in the verification stage, while the illustration of the drafting stage uses a chain-structured draft. Here, t_i denotes the i-th token embedding, and f_i denotes the i-th feature vector in the second-to-top-layer of LLM before LM head.",
+    "source_id": "S1.F3",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  },
+  {
+    "name": "fig-04-static-dynamic-tree",
+    "page": 3,
+    "crop": [
+      304,
+      193,
+      544,
+      452
+    ],
+    "caption": "Figure 4 : Differences between EAGLE and EAGLE-2. EAGLE always uses a fixed draft shape. When the query is “10+2=”, the next token is very likely to be correctly predicted as “1”. However, with a static draft tree, EAGLE would still add two candidates, even though the probability of the other candidate “3” being correct is very low. EAGLE-2, on the other hand, adjusts the shape of draft tree based on the context. When the query is “10+2”, the next token is difficult to predict, so EAGLE-2 adds two candidates. For the simpler query “10+2=”, EAGLE-2 adds only one candidate “1”.",
+    "source_id": "S2.F4",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  },
+  {
+    "name": "fig-05-context-acceptance",
+    "page": 4,
+    "crop": [
+      53,
+      67,
+      293,
+      270
+    ],
+    "caption": "Figure 5 : Acceptance rates of draft tokens at different positions. In the left figure, P1-P6 indicate positions in the token tree, corresponding to positions 1-6 on the horizontal axis in the right figure. The right figure shows the acceptance rates of draft tokens at positions P1-P6.",
+    "source_id": "S3.F5",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  },
+  {
+    "name": "fig-06-confidence-calibration",
+    "page": 4,
+    "crop": [
+      303,
+      68,
+      545,
+      276
+    ],
+    "caption": "Figure 6 : Average acceptance rates for different confidence score intervals of the draft model. The red dashed line connects (0,0) and (1,1) to aid in visual assessment. The original LLM is Vicuna 7B.",
+    "source_id": "S3.F6",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  },
+  {
+    "name": "fig-07-expansion-rerank-mask",
+    "page": 5,
+    "crop": [
+      304,
+      68,
+      545,
+      726
+    ],
+    "caption": "Figure 7 : Illustration of EAGLE-2. The numbers beside the edges represent the confidence scores of the draft model, and the numbers in brackets within the blocks represent the value of the nodes. During the expansion phase, we select the top 2 nodes with the highest value from the current layer ( orange blocks) as inputs to the draft model and connect the generated tokens ( green blocks) to the draft tree. In the rerank phase, we select the top 8 nodes with the highest value from all nodes ( blue blocks), flatten them into a 1-dimensional sequence to form the final draft. We then construct the attention mask according to the tree structure, ensuring each token can only see its ancestor nodes.",
+    "source_id": "S5.F7",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  },
+  {
+    "name": "table-01-complete-results",
+    "page": 7,
+    "crop": [
+      53,
+      65,
+      545,
+      510
+    ],
+    "caption": "Table 1 : Speedup ratios and average acceptance lengths τ of different methods. V represents Vicuna, L2 represents LLaMA2-Chat. SpS denotes standard speculative sampling, with its draft model being Vicuna-68M. Methods like Medusa relax acceptance conditions under non-greedy settings, which do not guarantee lossless acceleration. Therefore, we do not compare EAGLE-2 with these methods.",
+    "source_id": "S5.T1",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  },
+  {
+    "name": "table-02-large-models",
+    "page": 8,
+    "crop": [
+      53,
+      65,
+      294,
+      256
+    ],
+    "caption": "Table 2 : Speedup ratios and average acceptance lengths τ with LLaMA2-Chat 70B, LLaMA3-Instruct 70B, and LLaMA3-Instruct 8B as the original LLMs, with the temperature set to 0, on the MT-bench dataset.",
+    "source_id": "S5.T2",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  },
+  {
+    "name": "table-03-ablations",
+    "page": 8,
+    "crop": [
+      53,
+      266,
+      294,
+      434
+    ],
+    "caption": "Table 3 : Ablation experiment results with temperature set to 0 on Vicuna 7B. “w/o value” indicates not using value and directly using confidence, “w/o reranking” indicates not performing reranking, and “w/o both” indicates neither value nor reranking is used.",
+    "source_id": "S5.T3",
+    "provenance": "Original PDF v2 page crop; captions and all labels retained"
+  }
+]
