@@ -1,0 +1,659 @@
+{
+  "url": "http://127.0.0.1:8776/papers/dflash/",
+  "reports": [
+    {
+      "width": 375,
+      "client": 375,
+      "scroll": 375,
+      "articleWidth": 327,
+      "duplicates": [],
+      "brokenAnchors": [],
+      "figures": 5,
+      "tables": 13,
+      "diagrams": 2,
+      "math": [
+        {
+          "h": 42.390625,
+          "w": 293
+        },
+        {
+          "h": 20.390625,
+          "w": 293
+        },
+        {
+          "h": 20.390625,
+          "w": 293
+        },
+        {
+          "h": 59.140625,
+          "w": 293
+        },
+        {
+          "h": 47.671875,
+          "w": 293
+        },
+        {
+          "h": 58.34375,
+          "w": 317.4375
+        },
+        {
+          "h": 28.515625,
+          "w": 305.78125
+        },
+        {
+          "h": 110.15625,
+          "w": 293
+        },
+        {
+          "h": 13.640625,
+          "w": 293
+        },
+        {
+          "h": 18.421875,
+          "w": 293
+        }
+      ],
+      "prefix": "Commit: accepted proposals = 2; τ = 3. Keep the prefix and target correction; discard every later proposal.",
+      "cost": "Assumed cycle 14.00 ms / τ 7.0 = 2.00 ms/token; speedup 5.00×.",
+      "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 40.00 MiB / 8.00 MiB.\nPersistent draft KV: 40.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+      "interactions": {
+        "zero": "Commit: accepted proposals = 0; τ = 1. Keep the prefix and target correction; discard every later proposal.",
+        "all": "Commit: accepted proposals = 4; τ = 5. Keep the four proposals and the target bonus.",
+        "serving": "5694 → 16076 tok/s; recalculated speedup 2.823×; +182.3%.\nPaper rounded: 2.8×; average τ 8.01 (not a per-concurrency measurement).",
+        "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 5120.00 MiB / 1024.00 MiB.\nPersistent draft KV: 5120.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+        "slow": "Assumed cycle 14.00 ms / τ 1.0 = 14.00 ms/token; speedup 0.71×. Slower than the assumed AR baseline.",
+        "invalid": "Enter positive latency values to evaluate Equation (1)."
+      }
+    },
+    {
+      "width": 390,
+      "client": 390,
+      "scroll": 390,
+      "articleWidth": 342,
+      "duplicates": [],
+      "brokenAnchors": [],
+      "figures": 5,
+      "tables": 13,
+      "diagrams": 2,
+      "math": [
+        {
+          "h": 42.390625,
+          "w": 308
+        },
+        {
+          "h": 20.390625,
+          "w": 308
+        },
+        {
+          "h": 20.390625,
+          "w": 308
+        },
+        {
+          "h": 59.140625,
+          "w": 308
+        },
+        {
+          "h": 47.671875,
+          "w": 308
+        },
+        {
+          "h": 58.34375,
+          "w": 317.4375
+        },
+        {
+          "h": 28.515625,
+          "w": 308
+        },
+        {
+          "h": 110.15625,
+          "w": 308
+        },
+        {
+          "h": 13.640625,
+          "w": 308
+        },
+        {
+          "h": 18.421875,
+          "w": 308
+        }
+      ],
+      "prefix": "Commit: accepted proposals = 2; τ = 3. Keep the prefix and target correction; discard every later proposal.",
+      "cost": "Assumed cycle 14.00 ms / τ 7.0 = 2.00 ms/token; speedup 5.00×.",
+      "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 40.00 MiB / 8.00 MiB.\nPersistent draft KV: 40.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+      "interactions": {
+        "zero": "Commit: accepted proposals = 0; τ = 1. Keep the prefix and target correction; discard every later proposal.",
+        "all": "Commit: accepted proposals = 4; τ = 5. Keep the four proposals and the target bonus.",
+        "serving": "5694 → 16076 tok/s; recalculated speedup 2.823×; +182.3%.\nPaper rounded: 2.8×; average τ 8.01 (not a per-concurrency measurement).",
+        "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 5120.00 MiB / 1024.00 MiB.\nPersistent draft KV: 5120.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+        "slow": "Assumed cycle 14.00 ms / τ 1.0 = 14.00 ms/token; speedup 0.71×. Slower than the assumed AR baseline.",
+        "invalid": "Enter positive latency values to evaluate Equation (1)."
+      }
+    },
+    {
+      "width": 430,
+      "client": 430,
+      "scroll": 430,
+      "articleWidth": 382,
+      "duplicates": [],
+      "brokenAnchors": [],
+      "figures": 5,
+      "tables": 13,
+      "diagrams": 2,
+      "math": [
+        {
+          "h": 42.390625,
+          "w": 348
+        },
+        {
+          "h": 20.390625,
+          "w": 348
+        },
+        {
+          "h": 20.390625,
+          "w": 348
+        },
+        {
+          "h": 59.140625,
+          "w": 348
+        },
+        {
+          "h": 47.671875,
+          "w": 348
+        },
+        {
+          "h": 58.34375,
+          "w": 348
+        },
+        {
+          "h": 28.515625,
+          "w": 348
+        },
+        {
+          "h": 110.15625,
+          "w": 348
+        },
+        {
+          "h": 13.640625,
+          "w": 348
+        },
+        {
+          "h": 18.421875,
+          "w": 348
+        }
+      ],
+      "prefix": "Commit: accepted proposals = 2; τ = 3. Keep the prefix and target correction; discard every later proposal.",
+      "cost": "Assumed cycle 14.00 ms / τ 7.0 = 2.00 ms/token; speedup 5.00×.",
+      "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 40.00 MiB / 8.00 MiB.\nPersistent draft KV: 40.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+      "interactions": {
+        "zero": "Commit: accepted proposals = 0; τ = 1. Keep the prefix and target correction; discard every later proposal.",
+        "all": "Commit: accepted proposals = 4; τ = 5. Keep the four proposals and the target bonus.",
+        "serving": "5694 → 16076 tok/s; recalculated speedup 2.823×; +182.3%.\nPaper rounded: 2.8×; average τ 8.01 (not a per-concurrency measurement).",
+        "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 5120.00 MiB / 1024.00 MiB.\nPersistent draft KV: 5120.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+        "slow": "Assumed cycle 14.00 ms / τ 1.0 = 14.00 ms/token; speedup 0.71×. Slower than the assumed AR baseline.",
+        "invalid": "Enter positive latency values to evaluate Equation (1)."
+      }
+    },
+    {
+      "width": 1440,
+      "client": 1440,
+      "scroll": 1440,
+      "articleWidth": 860,
+      "duplicates": [],
+      "brokenAnchors": [],
+      "figures": 5,
+      "tables": 13,
+      "diagrams": 2,
+      "math": [
+        {
+          "h": 42.390625,
+          "w": 814
+        },
+        {
+          "h": 20.390625,
+          "w": 814
+        },
+        {
+          "h": 20.390625,
+          "w": 814
+        },
+        {
+          "h": 59.140625,
+          "w": 814
+        },
+        {
+          "h": 47.671875,
+          "w": 814
+        },
+        {
+          "h": 58.34375,
+          "w": 814
+        },
+        {
+          "h": 28.515625,
+          "w": 814
+        },
+        {
+          "h": 110.15625,
+          "w": 814
+        },
+        {
+          "h": 13.640625,
+          "w": 814
+        },
+        {
+          "h": 18.421875,
+          "w": 814
+        }
+      ],
+      "prefix": "Commit: accepted proposals = 2; τ = 3. Keep the prefix and target correction; discard every later proposal.",
+      "cost": "Assumed cycle 14.00 ms / τ 7.0 = 2.00 ms/token; speedup 5.00×.",
+      "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 40.00 MiB / 8.00 MiB.\nPersistent draft KV: 40.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+      "interactions": {
+        "zero": "Commit: accepted proposals = 0; τ = 1. Keep the prefix and target correction; discard every later proposal.",
+        "all": "Commit: accepted proposals = 4; τ = 5. Keep the four proposals and the target bonus.",
+        "serving": "5694 → 16076 tok/s; recalculated speedup 2.823×; +182.3%.\nPaper rounded: 2.8×; average τ 8.01 (not a per-concurrency measurement).",
+        "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 5120.00 MiB / 1024.00 MiB.\nPersistent draft KV: 5120.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+        "slow": "Assumed cycle 14.00 ms / τ 1.0 = 14.00 ms/token; speedup 0.71×. Slower than the assumed AR baseline.",
+        "invalid": "Enter positive latency values to evaluate Equation (1)."
+      }
+    },
+    {
+      "width": 1920,
+      "client": 1920,
+      "scroll": 1920,
+      "articleWidth": 860,
+      "duplicates": [],
+      "brokenAnchors": [],
+      "figures": 5,
+      "tables": 13,
+      "diagrams": 2,
+      "math": [
+        {
+          "h": 42.390625,
+          "w": 814
+        },
+        {
+          "h": 20.390625,
+          "w": 814
+        },
+        {
+          "h": 20.390625,
+          "w": 814
+        },
+        {
+          "h": 59.140625,
+          "w": 814
+        },
+        {
+          "h": 47.671875,
+          "w": 814
+        },
+        {
+          "h": 58.34375,
+          "w": 814
+        },
+        {
+          "h": 28.515625,
+          "w": 814
+        },
+        {
+          "h": 110.15625,
+          "w": 814
+        },
+        {
+          "h": 13.640625,
+          "w": 814
+        },
+        {
+          "h": 18.421875,
+          "w": 814
+        }
+      ],
+      "prefix": "Commit: accepted proposals = 2; τ = 3. Keep the prefix and target correction; discard every later proposal.",
+      "cost": "Assumed cycle 14.00 ms / τ 7.0 = 2.00 ms/token; speedup 5.00×.",
+      "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 40.00 MiB / 8.00 MiB.\nPersistent draft KV: 40.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+      "interactions": {
+        "zero": "Commit: accepted proposals = 0; τ = 1. Keep the prefix and target correction; discard every later proposal.",
+        "all": "Commit: accepted proposals = 4; τ = 5. Keep the four proposals and the target bonus.",
+        "serving": "5694 → 16076 tok/s; recalculated speedup 2.823×; +182.3%.\nPaper rounded: 2.8×; average τ 8.01 (not a per-concurrency measurement).",
+        "memory": "Projection weights: 40.00 MiB.\nInput / output activation: 5120.00 MiB / 1024.00 MiB.\nPersistent draft KV: 5120.00 MiB. Decode B16 projection input + output, per request: 384 KiB.",
+        "slow": "Assumed cycle 14.00 ms / τ 1.0 = 14.00 ms/token; speedup 0.71×. Slower than the assumed AR baseline.",
+        "invalid": "Enter positive latency values to evaluate Equation (1)."
+      }
+    }
+  ],
+  "assets": [
+    {
+      "url": "http://127.0.0.1:8776/assets/favicon.svg",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/styles.css?v=3",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/reading.css",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#main",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/weekly/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/foundations/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/lab/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/#about",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-1",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-2",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-3",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-7",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-11",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-16",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-22",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-35",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-37",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-38",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-39",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-44",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-45",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-48",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-52",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-56",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-57",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/#section-58",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/sources/2602.06036v2.pdf",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-01-dflash_speedup.png",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-01-dflash_speedup.pdf",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-03-draft_latency_bar.png",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-03-draft_latency_bar.pdf",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-02-dflash_inference_design.png",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-02-dflash_inference_design.pdf",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/generated/flow.mmd",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/generated/flow.svg",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-04-dflash_attn.png",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-04-dflash_attn.pdf",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-05-acceptance_length_vs_epoch.png",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/original/fig-05-acceptance_length_vs_epoch.pdf",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/sources/official-model-94e4abc.py",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/generated/evolution.mmd",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/generated/evolution.svg",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/sources/source-v2.tar",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/sources/reference.bib",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/sources/asset-manifest.json",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/notes/related-work.md",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/notes/experiments.md",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/notes/paper.md",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/notes/critique.md",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/notes/reviews.md",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/gqa/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/flashattention/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/rmsnorm/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/transformer/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/interactive/model.js",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/dflash/assets/reading.js",
+      "status": 200
+    }
+  ],
+  "reduced": {
+    "scroll": "auto",
+    "readout": "Commit: accepted proposals = 2; τ = 3. Keep the prefix and target correction; discard every later proposal.",
+    "play": "Play"
+  },
+  "fallback": {
+    "figures": 5,
+    "tables": 13,
+    "math": 10,
+    "noscript": 3,
+    "readout": "Commit: accepted proposals = 2; τ = 3. Position 4 is discarded after the first mismatch.",
+    "cost": "Assumed cycle 14.00 ms / τ 7.0 = 2.00 ms/token; speedup 5.00×."
+  },
+  "integration": [
+    {
+      "name": "homepage",
+      "width": 390,
+      "client": 390,
+      "scroll": 390,
+      "dflash": 1,
+      "archive": []
+    },
+    {
+      "name": "archive",
+      "width": 390,
+      "client": 390,
+      "scroll": 390,
+      "dflash": 2,
+      "archive": [
+        "/papers/dflash/",
+        "/papers/glu-variants/",
+        "/papers/layer-normalization/",
+        "/papers/scaling-laws/",
+        "/papers/awq/",
+        "/papers/gptq/",
+        "/papers/rmsnorm/",
+        "/papers/sparse-moe/",
+        "/papers/smoothquant/",
+        "/papers/transformer/",
+        "/papers/longformer/",
+        "/papers/gqa/",
+        "/papers/flashattention/",
+        "/papers/mqa/",
+        "/papers/roformer/",
+        "/papers/vrope/"
+      ]
+    },
+    {
+      "name": "homepage",
+      "width": 1440,
+      "client": 1440,
+      "scroll": 1440,
+      "dflash": 1,
+      "archive": []
+    },
+    {
+      "name": "archive",
+      "width": 1440,
+      "client": 1440,
+      "scroll": 1440,
+      "dflash": 2,
+      "archive": [
+        "/papers/dflash/",
+        "/papers/glu-variants/",
+        "/papers/layer-normalization/",
+        "/papers/scaling-laws/",
+        "/papers/awq/",
+        "/papers/gptq/",
+        "/papers/rmsnorm/",
+        "/papers/sparse-moe/",
+        "/papers/smoothquant/",
+        "/papers/transformer/",
+        "/papers/longformer/",
+        "/papers/gqa/",
+        "/papers/flashattention/",
+        "/papers/mqa/",
+        "/papers/roformer/",
+        "/papers/vrope/"
+      ]
+    }
+  ],
+  "backlinks": [
+    {
+      "url": "http://127.0.0.1:8776/papers/gqa/",
+      "status": 200,
+      "link": true
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/flashattention/",
+      "status": 200,
+      "link": true
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/rmsnorm/",
+      "status": 200,
+      "link": true
+    }
+  ],
+  "errors": [],
+  "failed": []
+}

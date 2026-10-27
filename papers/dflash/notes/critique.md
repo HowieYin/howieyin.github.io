@@ -1,0 +1,13 @@
+# Critical review
+
+Strength: new useful combination of parallel block draft, persistent per-layer target-featureKV and inference-shaped training;Table9 disentangles mechanisms;same-dataLLaMAcomparison;concurrencyserving evidence.
+
+Limitations: target coupling andcheckpointconfigs;twoKVcaches;memory/accounting only projectioninA.3;no unifieddiffusionbaseline;statisticaluncertainty;precision/trainingbudgetdetail;taskvariability;shortchatprefix;highbatchcost.
+
+Correctness scope: deterministic proposal+targetposterior equality valid delta-proposal exact sampler;general stochasticproposalneeds properp/q;RNGidenticalseednotdistributioncriterion.
+
+Engineering concerns: hidden_statesmaterialization,contextconcat/projection,KVappend/rollback,LMheadcost,schedulercriticalpath,cancellationandpositions,initialdraftprefilltiming.
+
+Possible research: adaptiveBwithsamebudgetbenchmarks;learnedtargetlayerselection;prefixobjective;quantizedhidden/draftKV;fusionandIOmeasurement;loopoverlapasindependentextension.
+
+Reviewer requests:qualitydistributioncheck,fullTPOT/TTFT,p99SLO,peakmemoryandper-optraces,trainingGPUhours,tokens,uniformdiffusionbaseline,errorbars,context/batchPareto.

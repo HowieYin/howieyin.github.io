@@ -1,0 +1,8 @@
+flowchart TD
+  A["Target prefill<br/>Prompt → first anchor + hidden states"] --> B["Fuse 5 target layers<br/>concat → projection → RMSNorm"]
+  B --> C["Draft context KV<br/>each layer has its own K / V projection"]
+  C --> D["One parallel draft pass<br/>anchor + B−1 masks → proposals"]
+  D --> E["Target causal verification<br/>longest accepted prefix + bonus token"]
+  E --> F["Keep verified target KV / hidden<br/>discard temporary bidirectional draft KV"]
+  F --> C
+  E --> D

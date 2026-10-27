@@ -1,0 +1,7 @@
+flowchart TD
+  A["2023 · Speculative sampling<br/>Exact target distribution"] --> B["2025 · EAGLE-3<br/>Target features + autoregressive draft"]
+  C["2025 · Block diffusion / PARD<br/>Parallel masked-block predictions"] --> D["Feb–May 2026 · DFlash<br/>One-pass draft + per-layer context KV"]
+  B --> D
+  D --> E["May–July 2026 · Domino / DSpark<br/>Parallel architecture and load-aware scheduling"]
+  D --> F["August 2026 · DFlash2<br/>Selector + local convolution"]
+  D --> G["October 2026 · DLoop / DHiSparse<br/>Looped drafting and sparse KV hierarchy"]

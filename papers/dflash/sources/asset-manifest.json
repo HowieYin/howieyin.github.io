@@ -1,0 +1,156 @@
+[
+  {
+    "figure": 1,
+    "file": "assets/original/fig-01-dflash_speedup.png",
+    "original": "assets/original/fig-01-dflash_speedup.pdf",
+    "source": "https://arxiv.org/src/2602.06036v2",
+    "sha256_pdf": "9b9fcf0c3d6ba594bd7ef6e29b8c68907f6897ede79e940018dae35a68d2c05e",
+    "crop": false
+  },
+  {
+    "figure": 2,
+    "file": "assets/original/fig-02-dflash_inference_design.png",
+    "original": "assets/original/fig-02-dflash_inference_design.pdf",
+    "source": "https://arxiv.org/src/2602.06036v2",
+    "sha256_pdf": "48a65dbb61c5b6323fab7f699275569aab5f79e4828c816242399a5852c6e745",
+    "crop": false
+  },
+  {
+    "figure": 3,
+    "file": "assets/original/fig-03-draft_latency_bar.png",
+    "original": "assets/original/fig-03-draft_latency_bar.pdf",
+    "source": "https://arxiv.org/src/2602.06036v2",
+    "sha256_pdf": "b8662080edfdbbc92ce8e114bab9225d03dc277414c6ea5493091c64de6bc53f",
+    "crop": false
+  },
+  {
+    "figure": 4,
+    "file": "assets/original/fig-04-dflash_attn.png",
+    "original": "assets/original/fig-04-dflash_attn.pdf",
+    "source": "https://arxiv.org/src/2602.06036v2",
+    "sha256_pdf": "a924f301e5ffe8730f76abc4cf96ec9044c0bc6a0cddbfde6bfed36c64f72f8b",
+    "crop": false
+  },
+  {
+    "figure": 5,
+    "file": "assets/original/fig-05-acceptance_length_vs_epoch.png",
+    "original": "assets/original/fig-05-acceptance_length_vs_epoch.pdf",
+    "source": "https://arxiv.org/src/2602.06036v2",
+    "sha256_pdf": "d62036396517b7b2e3edaa2cda678e7201544a6c5ee084b35f3a5df5f95daa6f",
+    "crop": false
+  },
+  {
+    "table": 1,
+    "file": "sources/table-01.html",
+    "source": "https://arxiv.org/html/2602.06036v2#S4.T1",
+    "rows": 16,
+    "cells": 258,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 2,
+    "file": "sources/table-02.html",
+    "source": "https://arxiv.org/html/2602.06036v2#S5.T2",
+    "rows": 6,
+    "cells": 41,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 3,
+    "file": "sources/table-03.html",
+    "source": "https://arxiv.org/html/2602.06036v2#S5.T3",
+    "rows": 26,
+    "cells": 152,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 4,
+    "file": "sources/table-04.html",
+    "source": "https://arxiv.org/html/2602.06036v2#S5.T4",
+    "rows": 8,
+    "cells": 52,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 5,
+    "file": "sources/table-05.html",
+    "source": "https://arxiv.org/html/2602.06036v2#S5.T5",
+    "rows": 17,
+    "cells": 95,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 6,
+    "file": "sources/table-06.html",
+    "source": "https://arxiv.org/html/2602.06036v2#S5.T6",
+    "rows": 5,
+    "cells": 31,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 7,
+    "file": "sources/table-07.html",
+    "source": "https://arxiv.org/html/2602.06036v2#S5.T7",
+    "rows": 4,
+    "cells": 24,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 8,
+    "file": "sources/table-08.html",
+    "source": "https://arxiv.org/html/2602.06036v2#S5.T8",
+    "rows": 6,
+    "cells": 43,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 9,
+    "file": "sources/table-09.html",
+    "source": "https://arxiv.org/html/2602.06036v2#S5.T9",
+    "rows": 7,
+    "cells": 27,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 10,
+    "file": "sources/table-10.html",
+    "source": "https://arxiv.org/html/2602.06036v2#A1.T10",
+    "rows": 4,
+    "cells": 19,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 11,
+    "file": "sources/table-11.html",
+    "source": "https://arxiv.org/html/2602.06036v2#A1.T11",
+    "rows": 11,
+    "cells": 55,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 12,
+    "file": "sources/table-12.html",
+    "source": "https://arxiv.org/html/2602.06036v2#A1.T12",
+    "rows": 5,
+    "cells": 20,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "table": 13,
+    "file": "sources/table-13.html",
+    "source": "https://arxiv.org/html/2602.06036v2#A1.T13",
+    "rows": 4,
+    "cells": 25,
+    "preservation": "faithful HTML table including caption, spans, MathML and font classes"
+  },
+  {
+    "file": "assets/generated/flow.svg",
+    "source": "Agent-created from assets/generated/flow.mmd",
+    "role": "simplified explanation"
+  },
+  {
+    "file": "assets/generated/evolution.svg",
+    "source": "Agent-created from assets/generated/evolution.mmd",
+    "role": "simplified explanation"
+  }
+]
