@@ -1,0 +1,85 @@
+{
+  "phase": "local",
+  "widths": [
+    {
+      "width": 375,
+      "scrollWidth": 375,
+      "articleWidth": 343,
+      "math": true,
+      "fonts": "loaded"
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "articleWidth": 358,
+      "math": true,
+      "fonts": "loaded"
+    },
+    {
+      "width": 430,
+      "scrollWidth": 430,
+      "articleWidth": 398,
+      "math": true,
+      "fonts": "loaded"
+    },
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "articleWidth": 880,
+      "math": true,
+      "fonts": "loaded"
+    },
+    {
+      "width": 1920,
+      "scrollWidth": 1920,
+      "articleWidth": 880,
+      "math": true,
+      "fonts": "loaded"
+    }
+  ],
+  "interactions": [
+    "Real mouse negative-gate preset and branch-sign flip.",
+    "Range real keyboard Home/ArrowRight updates value.",
+    "Gate select input event updates shared model to ReGLU (synthetic event).",
+    "Width rule input event switches fixed width1.5x; real mouse reset returns matched1x.",
+    "M select input event4096 scales the shared cost model (synthetic event).",
+    "Original-table image zoom opens; Escape closes.",
+    "Mobile contents opens; anchor jump and active marker verified.",
+    "Mobile complete table programmatically scrolled horizontally; no columns removed."
+  ],
+  "errors": [],
+  "failures": [],
+  "images": [
+    {
+      "src": "assets/original/table-01-pretraining.png",
+      "ok": true,
+      "width": 1434
+    },
+    {
+      "src": "assets/original/table-02-glue.png",
+      "ok": true,
+      "width": 1434
+    },
+    {
+      "src": "assets/original/table-03-superglue.png",
+      "ok": true,
+      "width": 1434
+    },
+    {
+      "src": "assets/original/table-04-squad.png",
+      "ok": true,
+      "width": 960
+    }
+  ],
+  "tableScroll": {
+    "client": 356,
+    "scroll": 983,
+    "left": 600
+  },
+  "reducedMotion": true,
+  "noJS": {
+    "count": 2,
+    "gate": true,
+    "budget": true
+  }
+}

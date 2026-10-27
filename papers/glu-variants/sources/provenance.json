@@ -1,0 +1,140 @@
+{
+  "date": "2026-10-27",
+  "primary": "2002.05202v1.pdf",
+  "primary_pdf_sha256": "7398ae8b163722a6b5410fb975722adbe6b5f6f9c7f1efa584f1c6b79eaa93e2",
+  "public_acquisition": [
+    {
+      "name": "paper-page",
+      "url": "https://arxiv.org/abs/2002.05202v1",
+      "status": 200,
+      "bytes": 40773
+    },
+    {
+      "name": "paper-html",
+      "url": "https://arxiv.org/html/2002.05202v1",
+      "status": 200,
+      "bytes": 156960
+    },
+    {
+      "name": "paper-source",
+      "url": "https://arxiv.org/src/2002.05202v1",
+      "status": 200,
+      "bytes": 7168
+    },
+    {
+      "name": "glu-2016",
+      "url": "https://arxiv.org/abs/1612.08083",
+      "status": 200,
+      "bytes": 42247
+    },
+    {
+      "name": "gelu-2016",
+      "url": "https://arxiv.org/abs/1606.08415",
+      "status": 200,
+      "bytes": 41546
+    },
+    {
+      "name": "swish-2017",
+      "url": "https://arxiv.org/abs/1710.05941",
+      "status": 200,
+      "bytes": 43090
+    },
+    {
+      "name": "mt5",
+      "url": "https://arxiv.org/abs/2010.11934",
+      "status": 200,
+      "bytes": 42649
+    },
+    {
+      "name": "palm",
+      "url": "https://arxiv.org/html/2204.02311",
+      "status": 200,
+      "bytes": 1399884
+    },
+    {
+      "name": "llama",
+      "url": "https://arxiv.org/html/2302.13971",
+      "status": 200,
+      "bytes": 420375
+    },
+    {
+      "name": "smooth-swiglu",
+      "url": "https://arxiv.org/html/2409.12517v2",
+      "status": 200,
+      "bytes": 194556
+    },
+    {
+      "name": "fp8-2025",
+      "url": "https://arxiv.org/html/2505.20524v1",
+      "status": 200,
+      "bytes": 207387
+    },
+    {
+      "name": "tile-2026",
+      "url": "https://arxiv.org/html/2607.02521v1",
+      "status": 200,
+      "bytes": 265960
+    },
+    {
+      "name": "prox-2026",
+      "url": "https://arxiv.org/html/2607.27591v1",
+      "status": 200,
+      "bytes": 495964
+    },
+    {
+      "name": "weakening-2026",
+      "url": "https://arxiv.org/html/2609.18612v1",
+      "status": 200,
+      "bytes": 722253
+    },
+    {
+      "name": "torch-silu",
+      "url": "https://docs.pytorch.org/docs/stable/generated/torch.nn.SiLU.html",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "name": "torch-glu",
+      "url": "https://docs.pytorch.org/docs/stable/generated/torch.nn.GLU.html",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "name": "powlu",
+      "url": "https://arxiv.org/html/2605.25704",
+      "status": 200,
+      "bytes": 216020
+    }
+  ],
+  "code_snapshots": [
+    {
+      "file": "t5-v11-base.gin",
+      "sha256": "ea643097bf0e0182669a8f6a92dbc9ce0bea03f609b8550fe1a35147de3cf52b"
+    },
+    {
+      "file": "t5-bi-base.gin",
+      "sha256": "be94454bcded30b85b08c895c216bcac94ddf53c5eda48974aa6ef7d627d20fe"
+    },
+    {
+      "file": "t5-bi-bert-base.gin",
+      "sha256": "1f681dcbd15d38ef648b8a3fd82a5e86c2ccacd5b26e40b034250eddbc37d94b"
+    },
+    {
+      "file": "meta-llama.py",
+      "sha256": "b409ea3db2a4029afd4129246d3b5e76ea95b6503364842545403dbcd7476281",
+      "repository_commit": "689c7f261b9c5514636ecc3c5fefefcbb3e6eed7"
+    },
+    {
+      "file": "hf-t5.py",
+      "sha256": "ec9616ce361a75c7996930989a8ea7a2834d082964031a7996150055011308ce",
+      "repository_commit": "3570d2384e6b07986657b15347f379ac6af56eaa"
+    },
+    {
+      "file": "torch-activation.py",
+      "sha256": "9b1ef5c6daeaf392b9267f82a7212da22233c23b8b344a7494d58426a2bf3679"
+    },
+    {
+      "file": "torch-packed-tutorial.py",
+      "sha256": "c7fa59fc2e1278e92053410541ff8dacc7156c5010b9b4ff94849a6b313276e7"
+    }
+  ],
+  "code_access": "GitHub gh CLI; snapshots from official repositories; saved files hash identifies exact bytes."
+}

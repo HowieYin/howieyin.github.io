@@ -954,6 +954,7 @@ loss = smoothed_cross_entropy(logits, labels)
 </tbody>
 </table></div>
 <p><strong>与站内知识连接</strong>：<a href="../roformer/">RoFormer</a> 展开 additive PE 与 rotary 的区别；<a href="../vrope/">VRoPE</a> 展开多模态位置轴；<a href="../mqa/">MQA</a> 展开共享 KV、增量解码与带宽成本。Transformer 本篇提供这些后续工作的 attention、shape 和因果训练基础。</p>
+<p><a href="../glu-variants/">GLU Variants 精读</a> 接着研究 FFN：两路投影相乘、2/3 隐层宽度的预算匹配，以及 GEGLU / SwiGLU 的实验与执行成本。</p>
 <h2 id="section-13">Current State：截至 2026-10-27 怎样判断“最好”？</h2>
 <p><strong>外部来源 [R16–R17]，本轮检索。</strong> Transformer 是架构族，无法为整族定义一个全球 SOTA 分数。为了与原论文任务关联，这里查看最新 <strong>WMT26 General MT 官方 Findings</strong>，同时保留模型规模、系统形态和评测口径。</p>
 <p><strong>官方跨语言结果，§6.4</strong>：Wayfinder 在与全部系统比较的 <strong>23 个语言方向中 17 个</strong>进入最高统计组，Gemini 3.1 Pro <strong>15/23</strong>，TRIVE <strong>14/23</strong>，Lumen <strong>13/23</strong>。只比较 constrained submissions 时，Lumen 为 <strong>20/23</strong>；该受限赛道要求总参数低于 <strong>20B</strong> 且满足许可条件，Appendix B.13 说明其 Qwen3 <strong>14B</strong> backbone，最终权重发布。这些计数是“在多少方向进入并列最高组”，不是单一准确率。</p>

@@ -1,0 +1,42 @@
+<table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r" scope="col">Training Steps</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column" scope="col">65,536</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column" scope="col">524,288</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t" scope="row">FFN_ReLU (baseline)</th>
+<td class="ltx_td ltx_align_left ltx_border_t">1.997 (0.005)</td>
+<td class="ltx_td ltx_align_left ltx_border_t">1.677</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r" scope="row">FFN_GELU</th>
+<td class="ltx_td ltx_align_left">1.983 (0.005)</td>
+<td class="ltx_td ltx_align_left">1.679</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r" scope="row">FFN_Swish</th>
+<td class="ltx_td ltx_align_left">1.994 (0.003)</td>
+<td class="ltx_td ltx_align_left">1.683</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t" scope="row">FFN_GLU</th>
+<td class="ltx_td ltx_align_left ltx_border_t">1.982 (0.006)</td>
+<td class="ltx_td ltx_align_left ltx_border_t">1.663</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r" scope="row">FFN_Bilinear</th>
+<td class="ltx_td ltx_align_left">1.960 (0.005)</td>
+<td class="ltx_td ltx_align_left">1.648</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r" scope="row">FFN_GEGLU</th>
+<td class="ltx_td ltx_align_left"><span class="ltx_text ltx_font_bold">1.942</span> (0.004)</td>
+<td class="ltx_td ltx_align_left"><span class="ltx_text ltx_font_bold">1.633</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r" scope="row">FFN_SwiGLU</th>
+<td class="ltx_td ltx_align_left"><span class="ltx_text ltx_font_bold">1.944</span> (0.010)</td>
+<td class="ltx_td ltx_align_left"><span class="ltx_text ltx_font_bold">1.636</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r" scope="row">FFN_ReGLU</th>
+<td class="ltx_td ltx_align_left">1.953 (0.003)</td>
+<td class="ltx_td ltx_align_left">1.645</td></tr>
+</tbody>
+</table>

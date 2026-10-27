@@ -1,0 +1,30 @@
+[
+  {
+    "table": 1,
+    "rows": 9,
+    "columns": 3,
+    "exact_values": true,
+    "author_bold_count": 4
+  },
+  {
+    "table": 2,
+    "rows": 12,
+    "columns": 14,
+    "exact_values": true,
+    "author_bold_count": 15
+  },
+  {
+    "table": 3,
+    "rows": 12,
+    "columns": 13,
+    "exact_values": true,
+    "author_bold_count": 13
+  },
+  {
+    "table": 4,
+    "rows": 11,
+    "columns": 3,
+    "exact_values": true,
+    "author_bold_count": 2
+  }
+]

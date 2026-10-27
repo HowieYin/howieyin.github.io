@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant Data as C4 spans
+  participant Encoder
+  participant Decoder
+  participant FFN as Gated FFN
+  participant Loss
+  Data->>Encoder: corrupted input
+  Encoder->>Decoder: encoded states / cross-attention
+  Data->>Decoder: teacher-forced targets
+  Decoder->>FFN: per-position hidden state
+  FFN->>Decoder: f(XW) ⊙ XV then W₂
+  Decoder->>Loss: vocabulary logits / cross-entropy
+  Note over Decoder,FFN: Inference computes current token; Attention reuses KV

@@ -1,0 +1,68 @@
+{
+  "figures": 0,
+  "tables": [
+    {
+      "number": 1,
+      "type": "original-table",
+      "page": 2,
+      "crop_pdf_points": [
+        68,
+        509,
+        546,
+        666
+      ],
+      "asset": "assets/original/table-01-pretraining.png",
+      "caption": "Table 1: Heldout-set log-perplexity for Transformer models on the segment-filling task from [ Raffel et al., 2019 ] . All models are matched for parameters and computation.",
+      "rows": 9,
+      "columns": 3
+    },
+    {
+      "number": 2,
+      "type": "original-table",
+      "page": 3,
+      "crop_pdf_points": [
+        68,
+        410,
+        546,
+        553
+      ],
+      "asset": "assets/original/table-02-glue.png",
+      "caption": "Table 2: GLUE Language-Understanding Benchmark [ Wang et al., 2018 ] (dev).",
+      "rows": 12,
+      "columns": 14
+    },
+    {
+      "number": 3,
+      "type": "original-table",
+      "page": 4,
+      "crop_pdf_points": [
+        68,
+        68,
+        546,
+        212
+      ],
+      "asset": "assets/original/table-03-superglue.png",
+      "caption": "Table 3: SuperGLUE Language-Understanding Benchmark [ Wang et al., 2019 ] (dev).",
+      "rows": 12,
+      "columns": 13
+    },
+    {
+      "number": 4,
+      "type": "original-table",
+      "page": 4,
+      "crop_pdf_points": [
+        150,
+        226,
+        470,
+        361
+      ],
+      "asset": "assets/original/table-04-squad.png",
+      "caption": "Table 4: SQuAD [ Rajpurkar et al., 2016 ] v1.1 (dev).",
+      "rows": 11,
+      "columns": 3
+    }
+  ],
+  "equation_groups": 6,
+  "source": "2002.05202v1.pdf",
+  "note": "No original Figure, appendix or supplementary material in the v1 paper. Original tables retain author-selected bold; no underlines or metric arrows in source tables."
+}

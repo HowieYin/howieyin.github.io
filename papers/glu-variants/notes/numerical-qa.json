@@ -1,0 +1,69 @@
+{
+  "method": "float64 centre difference eps=1e-5; fixed seed52; scalar weighted objective; all entries verified",
+  "gradient_max_absolute_error": {
+    "X": 5.192921648244919e-10,
+    "W": 4.6125414598918724e-10,
+    "V": 3.974354317870521e-10,
+    "W2": 2.2216539719011053e-10
+  },
+  "packed_unpacked_max_absolute_error": 2.220446049250313e-16,
+  "widget_shared_math": {
+    "default": {
+      "D": 768,
+      "H0": 3072,
+      "H": 2048,
+      "ideal": 2048,
+      "M": 1,
+      "bytes": 2,
+      "mode": "matched",
+      "multiple": 0,
+      "baseParams": 4718592,
+      "gateParams": 4718592,
+      "ratio": 1,
+      "baseFlops": 9437184,
+      "gateFlops": 9437184,
+      "baseWeightBytes": 9437184,
+      "gateWeightBytes": 9437184,
+      "baseHidden": 6144,
+      "gatePair": 8192,
+      "gatePairAndProduct": 12288,
+      "baseTraffic": 24576,
+      "baseFusedTraffic": 12288,
+      "gateFusedProductTraffic": 24576,
+      "gateSeparateTraffic": 32768
+    },
+    "negative": {
+      "kind": "SwiGLU",
+      "a": -1,
+      "up": 2,
+      "gate": -0.2689414213699951,
+      "product": -0.5378828427399902
+    },
+    "rounding": {
+      "D": 768,
+      "H0": 4096,
+      "H": 2816,
+      "ideal": 2730.6666666666665,
+      "M": 1,
+      "bytes": 2,
+      "mode": "matched",
+      "multiple": 256,
+      "baseParams": 6291456,
+      "gateParams": 6488064,
+      "ratio": 1.03125,
+      "baseFlops": 12582912,
+      "gateFlops": 12976128,
+      "baseWeightBytes": 12582912,
+      "gateWeightBytes": 12976128,
+      "baseHidden": 8192,
+      "gatePair": 11264,
+      "gatePairAndProduct": 16896,
+      "baseTraffic": 32768,
+      "baseFusedTraffic": 16384,
+      "gateFusedProductTraffic": 33792,
+      "gateSeparateTraffic": 45056
+    },
+    "cdfApproximation": "erf approx max error about 1.5e-7"
+  },
+  "benchmark": false
+}

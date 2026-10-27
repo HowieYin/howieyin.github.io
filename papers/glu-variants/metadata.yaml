@@ -1,0 +1,24 @@
+title: "GLU Variants Improve Transformer"
+authors: [Noam Shazeer]
+institution: Google
+arxiv: "2002.05202v1"
+submission_date: "2020-02-12"
+pdf_title_date: "2020-02-14"
+venue: "Not verified"
+doi: "10.48550/arXiv.2002.05202"
+doi_type: "arXiv repository"
+code: "https://github.com/google-research/text-to-text-transfer-transformer"
+code_scope: "Related T5 codebase; complete eight-variant checkpoint reproduction not verified"
+project_page: null
+reading_date: "2026-10-27"
+last_updated: "2026-10-27"
+research_cutoff: "2026-10-27"
+reading_url: "https://howieyin.github.io/papers/glu-variants/"
+language: zh-CN
+tags: [LLM, Training, Inference, Systems]
+original_figures: 0
+original_tables: 4
+original_equation_groups: 6
+appendix: false
+generated_visualizations: [tensor-flow, training-inference, timeline, scalar-gate, budget-calculator]
+claim_labels: [Paper, External Source, Interpretation]

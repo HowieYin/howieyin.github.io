@@ -385,6 +385,8 @@ loss = smoothed_cross_entropy(logits, labels)
 
 **与站内知识连接**：[RoFormer](../roformer/) 展开 additive PE 与 rotary 的区别；[VRoPE](../vrope/) 展开多模态位置轴；[MQA](../mqa/) 展开共享 KV、增量解码与带宽成本。Transformer 本篇提供这些后续工作的 attention、shape 和因果训练基础。
 
+[GLU Variants 精读](../glu-variants/) 接着研究 FFN：两路投影相乘、2/3 隐层宽度的预算匹配，以及 GEGLU / SwiGLU 的实验与执行成本。
+
 ## Current State：截至 2026-10-27 怎样判断“最好”？
 
 **外部来源 [R16–R17]，本轮检索。** Transformer 是架构族，无法为整族定义一个全球 SOTA 分数。为了与原论文任务关联，这里查看最新 **WMT26 General MT 官方 Findings**，同时保留模型规模、系统形态和评测口径。
