@@ -1,0 +1,1058 @@
+{
+  "url": "http://localhost:8774/papers/rmsnorm/",
+  "widths": [
+    {
+      "width": 375,
+      "client": 375,
+      "scroll": 375,
+      "articleWidth": 343,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 17,
+      "diagrams": 2,
+      "images": [
+        {
+          "w": 1616,
+          "h": 660,
+          "display": 343
+        },
+        {
+          "w": 1616,
+          "h": 364,
+          "display": 343
+        },
+        {
+          "w": 740,
+          "h": 552,
+          "display": 343
+        },
+        {
+          "w": 864,
+          "h": 528,
+          "display": 343
+        },
+        {
+          "w": 664,
+          "h": 584,
+          "display": 343
+        },
+        {
+          "w": 952,
+          "h": 536,
+          "display": 343
+        },
+        {
+          "w": 712,
+          "h": 432,
+          "display": 343
+        },
+        {
+          "w": 896,
+          "h": 492,
+          "display": 343
+        },
+        {
+          "w": 648,
+          "h": 544,
+          "display": 343
+        },
+        {
+          "w": 704,
+          "h": 524,
+          "display": 343
+        },
+        {
+          "w": 892,
+          "h": 408,
+          "display": 343
+        },
+        {
+          "w": 1448,
+          "h": 456,
+          "display": 343
+        },
+        {
+          "w": 1616,
+          "h": 480,
+          "display": 343
+        },
+        {
+          "w": 644,
+          "h": 332,
+          "display": 343
+        },
+        {
+          "w": 712,
+          "h": 500,
+          "display": 343
+        },
+        {
+          "w": 896,
+          "h": 440,
+          "display": 343
+        },
+        {
+          "w": 644,
+          "h": 580,
+          "display": 343
+        }
+      ],
+      "math": [
+        {
+          "h": 26.328125,
+          "w": 317
+        },
+        {
+          "h": 27.296875,
+          "w": 317
+        },
+        {
+          "h": 34.75,
+          "w": 321.609375
+        },
+        {
+          "h": 35.671875,
+          "w": 378.65625
+        },
+        {
+          "h": 38.5625,
+          "w": 317
+        },
+        {
+          "h": 16.75,
+          "w": 317
+        },
+        {
+          "h": 38.5625,
+          "w": 392.328125
+        },
+        {
+          "h": 32.9375,
+          "w": 317
+        },
+        {
+          "h": 39.296875,
+          "w": 613.171875
+        },
+        {
+          "h": 34.28125,
+          "w": 394.5
+        },
+        {
+          "h": 38.5625,
+          "w": 317
+        },
+        {
+          "h": 35.9375,
+          "w": 532.03125
+        }
+      ],
+      "tables": 15,
+      "norm": "mean=0.0000 · full RMS=2.2361 · LN den=2.2361 · RMS den=2.2361 · prefix k=2 · prefix den=2.2361",
+      "cost": "IO lower bound: 24.00 KiB · statistic cache: 4 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×",
+      "interaction": {
+        "prefix": "mean=50.5000 · full RMS=70.7142 · LN den=49.5000 · RMS den=70.7142 · prefix k=2 · prefix den=1.0000",
+        "cells": "11.0000-1.00000.01411.000021.0000-1.00000.01411.00003100.00001.00001.4141100.00004100.00001.00001.4141100.0000",
+        "zero": "mean=0.0000 · full RMS=0.0000 · LN den=0.0000 · RMS den=0.0000 · prefix k=2 · prefix den=0.0000 · Zero denominator: paper algebra undefined; choose epsilon > 0",
+        "eps": "10.00000.00000.00000.000020.00000.00000.00000.000030.00000.00000.00000.000040.00000.00000.00000.0000",
+        "cost": "IO lower bound: 16.01 MiB · statistic cache: 4,096 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×"
+      }
+    },
+    {
+      "width": 390,
+      "client": 390,
+      "scroll": 390,
+      "articleWidth": 358,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 17,
+      "diagrams": 2,
+      "images": [
+        {
+          "w": 1616,
+          "h": 660,
+          "display": 358
+        },
+        {
+          "w": 1616,
+          "h": 364,
+          "display": 358
+        },
+        {
+          "w": 740,
+          "h": 552,
+          "display": 358
+        },
+        {
+          "w": 864,
+          "h": 528,
+          "display": 358
+        },
+        {
+          "w": 664,
+          "h": 584,
+          "display": 358
+        },
+        {
+          "w": 952,
+          "h": 536,
+          "display": 358
+        },
+        {
+          "w": 712,
+          "h": 432,
+          "display": 358
+        },
+        {
+          "w": 896,
+          "h": 492,
+          "display": 358
+        },
+        {
+          "w": 648,
+          "h": 544,
+          "display": 358
+        },
+        {
+          "w": 704,
+          "h": 524,
+          "display": 358
+        },
+        {
+          "w": 892,
+          "h": 408,
+          "display": 358
+        },
+        {
+          "w": 1448,
+          "h": 456,
+          "display": 358
+        },
+        {
+          "w": 1616,
+          "h": 480,
+          "display": 358
+        },
+        {
+          "w": 644,
+          "h": 332,
+          "display": 358
+        },
+        {
+          "w": 712,
+          "h": 500,
+          "display": 358
+        },
+        {
+          "w": 896,
+          "h": 440,
+          "display": 358
+        },
+        {
+          "w": 644,
+          "h": 580,
+          "display": 358
+        }
+      ],
+      "math": [
+        {
+          "h": 26.328125,
+          "w": 332
+        },
+        {
+          "h": 27.296875,
+          "w": 332
+        },
+        {
+          "h": 34.75,
+          "w": 332
+        },
+        {
+          "h": 35.671875,
+          "w": 378.65625
+        },
+        {
+          "h": 38.5625,
+          "w": 332
+        },
+        {
+          "h": 16.75,
+          "w": 332
+        },
+        {
+          "h": 38.5625,
+          "w": 392.328125
+        },
+        {
+          "h": 32.9375,
+          "w": 332
+        },
+        {
+          "h": 39.296875,
+          "w": 613.171875
+        },
+        {
+          "h": 34.28125,
+          "w": 394.5
+        },
+        {
+          "h": 38.5625,
+          "w": 332
+        },
+        {
+          "h": 35.9375,
+          "w": 532.03125
+        }
+      ],
+      "tables": 15,
+      "norm": "mean=0.0000 · full RMS=2.2361 · LN den=2.2361 · RMS den=2.2361 · prefix k=2 · prefix den=2.2361",
+      "cost": "IO lower bound: 24.00 KiB · statistic cache: 4 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×",
+      "interaction": {
+        "prefix": "mean=50.5000 · full RMS=70.7142 · LN den=49.5000 · RMS den=70.7142 · prefix k=2 · prefix den=1.0000",
+        "cells": "11.0000-1.00000.01411.000021.0000-1.00000.01411.00003100.00001.00001.4141100.00004100.00001.00001.4141100.0000",
+        "zero": "mean=0.0000 · full RMS=0.0000 · LN den=0.0000 · RMS den=0.0000 · prefix k=2 · prefix den=0.0000 · Zero denominator: paper algebra undefined; choose epsilon > 0",
+        "eps": "10.00000.00000.00000.000020.00000.00000.00000.000030.00000.00000.00000.000040.00000.00000.00000.0000",
+        "cost": "IO lower bound: 16.01 MiB · statistic cache: 4,096 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×"
+      }
+    },
+    {
+      "width": 430,
+      "client": 430,
+      "scroll": 430,
+      "articleWidth": 398,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 17,
+      "diagrams": 2,
+      "images": [
+        {
+          "w": 1616,
+          "h": 660,
+          "display": 398
+        },
+        {
+          "w": 1616,
+          "h": 364,
+          "display": 398
+        },
+        {
+          "w": 740,
+          "h": 552,
+          "display": 398
+        },
+        {
+          "w": 864,
+          "h": 528,
+          "display": 398
+        },
+        {
+          "w": 664,
+          "h": 584,
+          "display": 398
+        },
+        {
+          "w": 952,
+          "h": 536,
+          "display": 398
+        },
+        {
+          "w": 712,
+          "h": 432,
+          "display": 398
+        },
+        {
+          "w": 896,
+          "h": 492,
+          "display": 398
+        },
+        {
+          "w": 648,
+          "h": 544,
+          "display": 398
+        },
+        {
+          "w": 704,
+          "h": 524,
+          "display": 398
+        },
+        {
+          "w": 892,
+          "h": 408,
+          "display": 398
+        },
+        {
+          "w": 1448,
+          "h": 456,
+          "display": 398
+        },
+        {
+          "w": 1616,
+          "h": 480,
+          "display": 398
+        },
+        {
+          "w": 644,
+          "h": 332,
+          "display": 398
+        },
+        {
+          "w": 712,
+          "h": 500,
+          "display": 398
+        },
+        {
+          "w": 896,
+          "h": 440,
+          "display": 398
+        },
+        {
+          "w": 644,
+          "h": 580,
+          "display": 398
+        }
+      ],
+      "math": [
+        {
+          "h": 26.328125,
+          "w": 372
+        },
+        {
+          "h": 27.296875,
+          "w": 372
+        },
+        {
+          "h": 34.75,
+          "w": 372
+        },
+        {
+          "h": 35.671875,
+          "w": 378.65625
+        },
+        {
+          "h": 38.5625,
+          "w": 372
+        },
+        {
+          "h": 16.75,
+          "w": 372
+        },
+        {
+          "h": 38.5625,
+          "w": 392.328125
+        },
+        {
+          "h": 32.9375,
+          "w": 372
+        },
+        {
+          "h": 39.296875,
+          "w": 613.171875
+        },
+        {
+          "h": 34.28125,
+          "w": 394.5
+        },
+        {
+          "h": 38.5625,
+          "w": 372
+        },
+        {
+          "h": 35.9375,
+          "w": 532.03125
+        }
+      ],
+      "tables": 15,
+      "norm": "mean=0.0000 · full RMS=2.2361 · LN den=2.2361 · RMS den=2.2361 · prefix k=2 · prefix den=2.2361",
+      "cost": "IO lower bound: 24.00 KiB · statistic cache: 4 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×",
+      "interaction": {
+        "prefix": "mean=50.5000 · full RMS=70.7142 · LN den=49.5000 · RMS den=70.7142 · prefix k=2 · prefix den=1.0000",
+        "cells": "11.0000-1.00000.01411.000021.0000-1.00000.01411.00003100.00001.00001.4141100.00004100.00001.00001.4141100.0000",
+        "zero": "mean=0.0000 · full RMS=0.0000 · LN den=0.0000 · RMS den=0.0000 · prefix k=2 · prefix den=0.0000 · Zero denominator: paper algebra undefined; choose epsilon > 0",
+        "eps": "10.00000.00000.00000.000020.00000.00000.00000.000030.00000.00000.00000.000040.00000.00000.00000.0000",
+        "cost": "IO lower bound: 16.01 MiB · statistic cache: 4,096 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×"
+      }
+    },
+    {
+      "width": 1440,
+      "client": 1440,
+      "scroll": 1440,
+      "articleWidth": 880,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 17,
+      "diagrams": 2,
+      "images": [
+        {
+          "w": 1616,
+          "h": 660,
+          "display": 880
+        },
+        {
+          "w": 1616,
+          "h": 364,
+          "display": 880
+        },
+        {
+          "w": 740,
+          "h": 552,
+          "display": 620
+        },
+        {
+          "w": 864,
+          "h": 528,
+          "display": 880
+        },
+        {
+          "w": 664,
+          "h": 584,
+          "display": 620
+        },
+        {
+          "w": 952,
+          "h": 536,
+          "display": 880
+        },
+        {
+          "w": 712,
+          "h": 432,
+          "display": 880
+        },
+        {
+          "w": 896,
+          "h": 492,
+          "display": 880
+        },
+        {
+          "w": 648,
+          "h": 544,
+          "display": 620
+        },
+        {
+          "w": 704,
+          "h": 524,
+          "display": 620
+        },
+        {
+          "w": 892,
+          "h": 408,
+          "display": 880
+        },
+        {
+          "w": 1448,
+          "h": 456,
+          "display": 880
+        },
+        {
+          "w": 1616,
+          "h": 480,
+          "display": 880
+        },
+        {
+          "w": 644,
+          "h": 332,
+          "display": 880
+        },
+        {
+          "w": 712,
+          "h": 500,
+          "display": 620
+        },
+        {
+          "w": 896,
+          "h": 440,
+          "display": 880
+        },
+        {
+          "w": 644,
+          "h": 580,
+          "display": 620
+        }
+      ],
+      "math": [
+        {
+          "h": 29.234375,
+          "w": 842
+        },
+        {
+          "h": 30.328125,
+          "w": 842
+        },
+        {
+          "h": 38.625,
+          "w": 842
+        },
+        {
+          "h": 39.640625,
+          "w": 842
+        },
+        {
+          "h": 42.859375,
+          "w": 842
+        },
+        {
+          "h": 18.625,
+          "w": 842
+        },
+        {
+          "h": 42.859375,
+          "w": 842
+        },
+        {
+          "h": 36.609375,
+          "w": 842
+        },
+        {
+          "h": 46.0625,
+          "w": 842
+        },
+        {
+          "h": 38.109375,
+          "w": 842
+        },
+        {
+          "h": 42.859375,
+          "w": 842
+        },
+        {
+          "h": 39.921875,
+          "w": 842
+        }
+      ],
+      "tables": 15,
+      "norm": "mean=0.0000 · full RMS=2.2361 · LN den=2.2361 · RMS den=2.2361 · prefix k=2 · prefix den=2.2361",
+      "cost": "IO lower bound: 24.00 KiB · statistic cache: 4 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×",
+      "interaction": {
+        "prefix": "mean=50.5000 · full RMS=70.7142 · LN den=49.5000 · RMS den=70.7142 · prefix k=2 · prefix den=1.0000",
+        "cells": "11.0000-1.00000.01411.000021.0000-1.00000.01411.00003100.00001.00001.4141100.00004100.00001.00001.4141100.0000",
+        "zero": "mean=0.0000 · full RMS=0.0000 · LN den=0.0000 · RMS den=0.0000 · prefix k=2 · prefix den=0.0000 · Zero denominator: paper algebra undefined; choose epsilon > 0",
+        "eps": "10.00000.00000.00000.000020.00000.00000.00000.000030.00000.00000.00000.000040.00000.00000.00000.0000",
+        "cost": "IO lower bound: 16.01 MiB · statistic cache: 4,096 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×"
+      }
+    },
+    {
+      "width": 1920,
+      "client": 1920,
+      "scroll": 1920,
+      "articleWidth": 880,
+      "duplicateIds": [],
+      "brokenAnchors": [],
+      "originals": 17,
+      "diagrams": 2,
+      "images": [
+        {
+          "w": 1616,
+          "h": 660,
+          "display": 880
+        },
+        {
+          "w": 1616,
+          "h": 364,
+          "display": 880
+        },
+        {
+          "w": 740,
+          "h": 552,
+          "display": 620
+        },
+        {
+          "w": 864,
+          "h": 528,
+          "display": 880
+        },
+        {
+          "w": 664,
+          "h": 584,
+          "display": 620
+        },
+        {
+          "w": 952,
+          "h": 536,
+          "display": 880
+        },
+        {
+          "w": 712,
+          "h": 432,
+          "display": 880
+        },
+        {
+          "w": 896,
+          "h": 492,
+          "display": 880
+        },
+        {
+          "w": 648,
+          "h": 544,
+          "display": 620
+        },
+        {
+          "w": 704,
+          "h": 524,
+          "display": 620
+        },
+        {
+          "w": 892,
+          "h": 408,
+          "display": 880
+        },
+        {
+          "w": 1448,
+          "h": 456,
+          "display": 880
+        },
+        {
+          "w": 1616,
+          "h": 480,
+          "display": 880
+        },
+        {
+          "w": 644,
+          "h": 332,
+          "display": 880
+        },
+        {
+          "w": 712,
+          "h": 500,
+          "display": 620
+        },
+        {
+          "w": 896,
+          "h": 440,
+          "display": 880
+        },
+        {
+          "w": 644,
+          "h": 580,
+          "display": 620
+        }
+      ],
+      "math": [
+        {
+          "h": 29.234375,
+          "w": 842
+        },
+        {
+          "h": 30.328125,
+          "w": 842
+        },
+        {
+          "h": 38.625,
+          "w": 842
+        },
+        {
+          "h": 39.640625,
+          "w": 842
+        },
+        {
+          "h": 42.859375,
+          "w": 842
+        },
+        {
+          "h": 18.625,
+          "w": 842
+        },
+        {
+          "h": 42.859375,
+          "w": 842
+        },
+        {
+          "h": 36.609375,
+          "w": 842
+        },
+        {
+          "h": 46.0625,
+          "w": 842
+        },
+        {
+          "h": 38.109375,
+          "w": 842
+        },
+        {
+          "h": 42.859375,
+          "w": 842
+        },
+        {
+          "h": 39.921875,
+          "w": 842
+        }
+      ],
+      "tables": 15,
+      "norm": "mean=0.0000 · full RMS=2.2361 · LN den=2.2361 · RMS den=2.2361 · prefix k=2 · prefix den=2.2361",
+      "cost": "IO lower bound: 24.00 KiB · statistic cache: 4 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×",
+      "interaction": {
+        "prefix": "mean=50.5000 · full RMS=70.7142 · LN den=49.5000 · RMS den=70.7142 · prefix k=2 · prefix den=1.0000",
+        "cells": "11.0000-1.00000.01411.000021.0000-1.00000.01411.00003100.00001.00001.4141100.00004100.00001.00001.4141100.0000",
+        "zero": "mean=0.0000 · full RMS=0.0000 · LN den=0.0000 · RMS den=0.0000 · prefix k=2 · prefix den=0.0000 · Zero denominator: paper algebra undefined; choose epsilon > 0",
+        "eps": "10.00000.00000.00000.000020.00000.00000.00000.000030.00000.00000.00000.000040.00000.00000.00000.0000",
+        "cost": "IO lower bound: 16.01 MiB · statistic cache: 4,096 bytes · model speedup: 1.0526× · infinite-k limit: 1.1111×"
+      }
+    }
+  ],
+  "assetCheck": [
+    {
+      "url": "http://localhost:8774/assets/favicon.svg",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/styles.css?v=3",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/reading.css",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/assets/article-navigation.css",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#main",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/weekly/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/foundations/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/lab/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/#about",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-1",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-2",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-3",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-4",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-5",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-9",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-10",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-15",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-16",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-21",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-22",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-24",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-28",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-29",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-32",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-33",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/#section-34",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/1910.07467v1.pdf",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/sources/paper.tex",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/fig-01.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/1910.07467v1.pdf#page=2",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/generated/flow.mmd",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-01.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/1910.07467v1.pdf#page=4",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/fig-02.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/1910.07467v1.pdf#page=6",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-02.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/fig-03.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/1910.07467v1.pdf#page=7",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-03.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-04.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-05.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/fig-04.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/fig-05.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/1910.07467v1.pdf#page=8",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-06.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/fig-06.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-07.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/1910.07467v1.pdf#page=9",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-08.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-09.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/table-10.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/fig-07.png",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/original/1910.07467v1.pdf#page=13",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/generated/evolution.mmd",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/transformer/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/flashattention/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/roformer/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/mqa/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/gqa/",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/model.js",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/papers/rmsnorm/assets/reading.js",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:8774/assets/article-navigation.js",
+      "status": 200
+    }
+  ],
+  "reduced": "auto",
+  "fallback": {
+    "headings": 17,
+    "noscript": 2,
+    "math": 12,
+    "norm": "mean=0 · full RMS=2.2361 · prefix k=2 · prefix RMS=2.2361",
+    "cost": "IO lower bound: 24.00 KiB · statistic cache: 4 bytes · model speedup: 1.0526×"
+  },
+  "errors": [],
+  "failed": []
+}

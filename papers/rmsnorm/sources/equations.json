@@ -1,0 +1,12 @@
+[
+  "a_i = \\sum_{j=1}^m{w_{ij} x_j},\\quad y_i = f\\left(a_i + b_i\\right),",
+  "\\bar{a}_i = \\frac{a_i - \\mu}{\\sigma} g_i, \\quad y_i = f\\left(\\bar{a}_i + b_i\\right),",
+  "\\mu = \\frac{1}{n}\\sum_{i=1}^{n} a_i, \\quad \\sigma = \\sqrt{\\frac{1}{n}\\sum_{i=1}^{n}(a_i - \\mu)^2}.",
+  "\\begin{aligned}& \\bar{a}_i = \\frac{a_i}{\\text{RMS}(\\mathbf{a})} g_i, \\quad \\text{where}~~ \\text{RMS}(\\mathbf{a}) = \\sqrt{\\frac{1}{n} \\sum_{i=1}^{n} a_i^2}.\\end{aligned}",
+  "\\mathbf{y} = f\\left(\\frac{\\mathbf{Wx}}{\\text{RMS}(\\mathbf{a})} \\odot \\mathbf{g} + \\mathbf{b}\\right),",
+  "\\text{RMS}(\\alpha\\mathbf{x}) = \\alpha \\text{RMS}(\\mathbf{x}),",
+  "\\mathbf{y}^\\prime = f\\left(\\frac{\\mathbf{W^{\\prime}x}}{\\text{RMS}(\\mathbf{a}^\\prime)} \\odot \\mathbf{g} + \\mathbf{b}\\right) = f\\left(\\frac{\\delta\\mathbf{Wx}}{\\delta\\text{RMS}(\\mathbf{a})} \\odot \\mathbf{g} + \\mathbf{b}\\right) = \\mathbf{y}.",
+  "\\begin{aligned}& \\frac{\\partial \\mathcal{L}}{\\partial \\mathbf{b}} = \\frac{\\partial \\mathcal{L}}{\\partial \\mathbf{v}},  \\quad \\frac{\\partial \\mathcal{L}}{\\partial \\mathbf{g}} = \\frac{\\partial \\mathcal{L}}{\\partial \\mathbf{v}} \\odot \\frac{\\mathbf{Wx}}{\\text{RMS}(\\mathbf{a})},\\end{aligned}",
+  "\\begin{aligned}& \\frac{\\partial \\mathcal{L}}{\\partial \\mathbf{W}} =\n        \\sum_{i=1}^n \\left[\\mathbf{x}^T \\otimes \\left(\\text{diag}\\left(\\mathbf{g} \\odot \\frac{\\partial \\mathcal{L}}{\\partial \\mathbf{v}} \\right) \\times \\mathbf{R}\\right)\\right]_{i},  \\text{where}~~ \\mathbf{R} = \\frac{1}{{\\text{RMS}(\\mathbf{a})}} \\left(\\mathbf{I}-\\frac{\\left(\\mathbf{Wx}\\right)\\left(\\mathbf{Wx}\\right)^T}{n\\text{RMS}(\\mathbf{a})^2}\\right),\\end{aligned}",
+  "\\begin{aligned}\\mathbf{R}^\\prime & = \\frac{1}{{\\delta \\text{RMS}(\\mathbf{a})}} \\left(\\mathbf{I}-\\frac{\\left(\\mathbf{\\delta Wx}\\right)\\left(\\mathbf{\\delta Wx}\\right)^T}{n\\delta^2 \\text{RMS}(\\mathbf{a})^2}\\right) = \\frac{1}{\\delta}\\mathbf{R}. \\\\\\end{aligned}"
+]

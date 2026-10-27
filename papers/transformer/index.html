@@ -1009,6 +1009,7 @@ loss = smoothed_cross_entropy(logits, labels)
 <p>两轮审校分别检查“读者能否按 Q/K/V、右移和表格复算主结论”与“逐项回到 PDF/官方源核对数字和限定条件”。确认全部 15 页、5 图、4 表；保留 41.8/41.0 冲突，修正解析表 claim 范围，区分 dev/test 和平均 checkpoint，标记 FLOPs/KV 推导与当前评测口径。交互模型还独立验证已知矩阵结果、因果第一行、稳定 softmax、MiB 换算和 per-op FLOPs。</p>
 <p><a href="assets/evidence/research-audit.md">研究与审校记录</a> · <a href="assets/evidence/manifest.json">来源检索清单</a> · <a href="assets/evidence/inventory.json">图表完整性清单</a> · <a href="assets/evidence/model-checks.json">交互模型校验</a> · <a href="assets/evidence/reading-source.md">Markdown 讲解源稿</a> · <a href="assets/evidence/paper.bib">BibTeX</a></p>
 <p><strong>更新记录</strong>：2026-10-27，首次精读发布，按 v7 逐页核对并补充 WMT26 官方评测与工程推导。</p>
+<p><strong>Related Reading：</strong><a href="../rmsnorm/">RMSNorm：保留尺度约束，拿掉均值中心化</a>。原始 Transformer 的 LayerNorm 同时中心化与缩放；这篇精读拆开验证两种作用，并审计归约、融合和端到端耗时。</p>
 <h2 id="section-16">References：原论文、后续论文与官方资料</h2>
 <ul>
 <li><strong>[R1]</strong> Vaswani et al. <em>Attention Is All You Need</em>, NIPS 2017，1706.03762v7。<a href="assets/original/1706.03762v7.pdf">PDF</a>，<a href="https://arxiv.org/abs/1706.03762" rel="noopener noreferrer">https://arxiv.org/abs/1706.03762</a> 。全篇主证据；图 1–5、表 1–4、式 (1)–(3)。</li>

@@ -1,0 +1,8 @@
+flowchart TB
+  L["2016 · LayerNorm<br/>Mean + variance"] --> R["2019 · RMSNorm<br/>Second moment only"]
+  R --> P["2019 · pRMSNorm<br/>Fixed-prefix estimate"]
+  R --> C["2023 · Pre-CRMSNorm<br/>Conditional architecture equivalence"]
+  R --> M["2023 · Llama code<br/>FP32 statistics + epsilon"]
+  M --> F["2024 / v5 2026 · FlashNorm<br/>RMS + linear fusion"]
+  F --> K["2026 · torch.compile / Quack<br/>Shape-aware kernel optimization"]
+  L -. Alternative route .-> D["2025 · Dynamic Tanh<br/>No activation reduction"]
