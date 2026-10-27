@@ -1,0 +1,1 @@
+PASS: 768 exhaustive graph configurations (n=2..64); synchronous relay, dilation, causal mask and LED byte arithmetic.

@@ -1,0 +1,10 @@
+flowchart TD
+  I["Token IDs · padding mask · global mask"] --> E["Embedding + absolute positions: B×n×D"]
+  E --> L["Local Q/K/V: ordinary queries"]
+  E --> G["Global Qg/Kg/Vg: global queries"]
+  L --> S["Local ∪ global keys; one softmax"]
+  G --> A["All keys; global softmax"]
+  S --> M["Merge outputs at token positions"]
+  A --> M
+  M --> F["Residual / Norm / FFN"]
+  F --> T["MLM or task head"]

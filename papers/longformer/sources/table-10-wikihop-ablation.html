@@ -1,0 +1,37 @@
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle" id="S6.T10.2">
+<thead class="ltx_thead">
+<tr class="ltx_tr" id="S6.T10.2.1">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" id="S6.T10.2.1.1" style="padding-left:-2.0pt;padding-right:-2.0pt;">Model</th>
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right ltx_th ltx_th_column ltx_border_tt" id="S6.T10.2.1.2" style="padding-left:-2.0pt;padding-right:-2.0pt;">Accuracy / <math alttext="\Delta" class="ltx_Math" display="inline" id="S6.T10.m1" intent=":literal"><semantics><mi mathvariant="normal">Δ</mi></semantics></math></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr" id="S6.T10.2.2">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row ltx_border_t" id="S6.T10.2.2.1" style="padding-bottom: 2.58334pt;padding-left:-2.0pt;padding-right:-2.0pt;">Longformer (seqlen: 4,096)</th>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right ltx_border_t" id="S6.T10.2.2.2" style="padding-bottom: 2.58334pt;padding-left:-2.0pt;padding-right:-2.0pt;">73.8</td></tr>
+<tr class="ltx_tr" id="S6.T10.2.3">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row ltx_border_t" id="S6.T10.2.3.1" style="padding-left:-2.0pt;padding-right:-2.0pt;">[0.2pt/0.4pt]
+RoBERTa-base (seqlen: 512)</th>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right ltx_border_t" id="S6.T10.2.3.2" style="padding-left:-2.0pt;padding-right:-2.0pt;">72.4 / -1.4</td></tr>
+<tr class="ltx_tr" id="S6.T10.2.4">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row" id="S6.T10.2.4.1" style="padding-left:-2.0pt;padding-right:-2.0pt;">Longformer (seqlen: 4,096, 15 epochs)</th>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right" id="S6.T10.2.4.2" style="padding-left:-2.0pt;padding-right:-2.0pt;">75.0 / +1.2</td></tr>
+<tr class="ltx_tr" id="S6.T10.2.5">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row" id="S6.T10.2.5.1" style="padding-left:-2.0pt;padding-right:-2.0pt;">Longformer (seqlen: 512, attention: <math alttext="n^{2}" class="ltx_Math" display="inline" id="S6.T10.m2" intent=":literal"><semantics><msup><mi>n</mi><mn>2</mn></msup></semantics></math>)</th>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right" id="S6.T10.2.5.2" style="padding-left:-2.0pt;padding-right:-2.0pt;">71.7 / -2.1</td></tr>
+<tr class="ltx_tr" id="S6.T10.2.6">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row" id="S6.T10.2.6.1" style="padding-left:-2.0pt;padding-right:-2.0pt;">Longformer (seqlen: 2,048)</th>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right" id="S6.T10.2.6.2" style="padding-left:-2.0pt;padding-right:-2.0pt;">73.1 / -0.7</td></tr>
+<tr class="ltx_tr" id="S6.T10.2.7">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row" id="S6.T10.2.7.1" style="padding-left:-2.0pt;padding-right:-2.0pt;">Longformer (no MLM pretraining)</th>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right" id="S6.T10.2.7.2" style="padding-left:-2.0pt;padding-right:-2.0pt;">73.2 / -0.6</td></tr>
+<tr class="ltx_tr" id="S6.T10.2.8">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row" id="S6.T10.2.8.1" style="padding-left:-2.0pt;padding-right:-2.0pt;">Longformer (no linear proj.)</th>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right" id="S6.T10.2.8.2" style="padding-left:-2.0pt;padding-right:-2.0pt;">72.2 / -1.6</td></tr>
+<tr class="ltx_tr" id="S6.T10.2.9">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row" id="S6.T10.2.9.1" style="padding-left:-2.0pt;padding-right:-2.0pt;">Longformer (no linear proj. no global atten.)</th>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right" id="S6.T10.2.9.2" style="padding-left:-2.0pt;padding-right:-2.0pt;">65.5 / -8.3</td></tr>
+<tr class="ltx_tr" id="S6.T10.2.10">
+<th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row ltx_border_bb" id="S6.T10.2.10.1" style="padding-left:-2.0pt;padding-right:-2.0pt;">Longformer (pretrain extra position embed. only)</th>
+<td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right ltx_border_bb" id="S6.T10.2.10.2" style="padding-left:-2.0pt;padding-right:-2.0pt;">73.5 / -0.3</td></tr>
+</tbody>
+</table>

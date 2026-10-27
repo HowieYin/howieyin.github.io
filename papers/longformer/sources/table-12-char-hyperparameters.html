@@ -1,0 +1,79 @@
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle" id="A2.T12.2">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr" id="A2.T12.2.1">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_tt" id="A2.T12.2.1.1">Param</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_tt" id="A2.T12.2.1.2">Value</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.2">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" id="A2.T12.2.2.1">Position Embeddings</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t" id="A2.T12.2.2.2">Relative and Sinusoidal as in <cite class="ltx_cite ltx_citemacro_citet"><a class="ltx_ref" href="#bib.bib12" title="">Dai et al. (2019)</a></cite></td></tr>
+<tr class="ltx_tr" id="A2.T12.2.3">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.3.1">Small model config</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.3.2">12 layers, 8 heads, 512 hidden size as in <cite class="ltx_cite ltx_citemacro_citet"><a class="ltx_ref" href="#bib.bib12" title="">Dai et al. (2019)</a></cite></td></tr>
+<tr class="ltx_tr" id="A2.T12.2.4">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.4.1">Large model config</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.4.2">30 layers, 8 heads, 512 hidden size as in <cite class="ltx_cite ltx_citemacro_citet"><a class="ltx_ref" href="#bib.bib7" title="">Child et al. (2019)</a></cite></td></tr>
+<tr class="ltx_tr" id="A2.T12.2.5">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.5.1">Optimizer</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.5.2">AdamW</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.6">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.6.1">Dropout</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.6.2">0.2 (small model), 0.4 (large model)</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.7">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.7.1">Gradient clipping</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.7.2">0.25</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.8">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.8.1">Weight Decay</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.8.2">0.01</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.9">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.9.1">Layernorm Location</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.9.2">pre-layernorm <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="#bib.bib53" title="">Xiong et al. (2020)</a></cite></td></tr>
+<tr class="ltx_tr" id="A2.T12.2.10">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.10.1">Activation</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.10.2">GeLU</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.11">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.11.1">Number of phases</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.11.2">5</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.12">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.12.1">Phase 1 window sizes</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.12.2">32 (bottom layer) - 8,192 (top layer)</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.13">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.13.1">Phase 5 window sizes</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.13.2">512 (bottom layer) - (top layer)</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.14">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.14.1">Phase 1 sequence length</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.14.2">2,048</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.15">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.15.1">Phase 5 sequence length</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.15.2">23,040 (gpu memory limit)</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.16">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.16.1">Phase 1 LR</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.16.2">0.00025</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.17">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.17.1">Phase 5 LR</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.17.2">000015625</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.18">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.18.1">Batch size per phase</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.18.2">32, 32, 16, 16, 16</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.19">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.19.1">#Steps per phase (small)</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.19.2">430K, 50k, 50k, 35k, 5k</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.20">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.20.1">#Steps per phase (large)</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.20.2">350K, 25k, 10k, 5k, 5k</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.21">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.21.1">Warmup</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.21.2">10% of the phase steps with maximum 10K steps</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.22">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.22.1">LR scheduler</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.22.2">constant throughout each phase</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.23">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.23.1">Dilation (small model)</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.23.2">0 (layers 0-5), 1 (layers 6-7), 2 (layers 8-9), 3 (layers 10-11)</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.24">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" id="A2.T12.2.24.1">Dilation (large model)</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left" id="A2.T12.2.24.2">0 (layers 0-14), 1 (layers 15-19), 2 (layers 20-24), 3 (layers 25-29)</td></tr>
+<tr class="ltx_tr" id="A2.T12.2.25">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" id="A2.T12.2.25.1">Dilation heads</th>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb" id="A2.T12.2.25.2">2 heads only</td></tr>
+</tbody>
+</table>

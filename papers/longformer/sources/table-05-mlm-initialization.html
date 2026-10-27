@@ -1,0 +1,34 @@
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle" id="S5.T5.2">
+<thead class="ltx_thead">
+<tr class="ltx_tr" id="S5.T5.2.1">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt" id="S5.T5.2.1.1">Model</th>
+<th class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_tt" id="S5.T5.2.1.2">base</th>
+<th class="ltx_td ltx_nopad_r ltx_align_right ltx_th ltx_th_column ltx_border_tt" id="S5.T5.2.1.3">large</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr" id="S5.T5.2.2">
+<td class="ltx_td ltx_align_left ltx_border_t" id="S5.T5.2.2.1">RoBERTa (seqlen: 512)</td>
+<td class="ltx_td ltx_align_right ltx_border_t" id="S5.T5.2.2.2">1.846</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t" id="S5.T5.2.2.3">1.496</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.3">
+<td class="ltx_td ltx_align_left" id="S5.T5.2.3.1">Longformer (seqlen: 4,096)</td>
+<td class="ltx_td ltx_align_right" id="S5.T5.2.3.2">10.299</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right" id="S5.T5.2.3.3">8.738</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.4">
+<td class="ltx_td ltx_align_left" id="S5.T5.2.4.1">      + copy position embeddings</td>
+<td class="ltx_td ltx_align_right" id="S5.T5.2.4.2">1.957</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right" id="S5.T5.2.4.3">1.597</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.5">
+<td class="ltx_td ltx_align_left" id="S5.T5.2.5.1">         + 2K gradient updates</td>
+<td class="ltx_td ltx_align_right" id="S5.T5.2.5.2">1.753</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right" id="S5.T5.2.5.3">1.414</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.6">
+<td class="ltx_td ltx_align_left" id="S5.T5.2.6.1">         + 65K gradient updates</td>
+<td class="ltx_td ltx_align_right" id="S5.T5.2.6.2">1.705</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right" id="S5.T5.2.6.3">1.358</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.7">
+<td class="ltx_td ltx_align_left ltx_border_bb" id="S5.T5.2.7.1">Longformer (train extra pos. embed. only)</td>
+<td class="ltx_td ltx_align_right ltx_border_bb" id="S5.T5.2.7.2">1.850</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb" id="S5.T5.2.7.3">1.504</td></tr>
+</tbody>
+</table>

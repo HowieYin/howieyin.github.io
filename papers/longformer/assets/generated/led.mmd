@@ -1,0 +1,9 @@
+flowchart TD
+  I["Long source n"] --> E["BART-initialized Longformer encoder"]
+  E --> K["Each decoder layer: encoder cross K/V"]
+  Y["Shifted target / generated tokens"] --> S["Causal decoder self-attention + self KV"]
+  K --> C["Dense cross-attention: m×n"]
+  S --> C
+  C --> F["FFN + vocabulary logits"]
+  F --> N["Next token / beam"]
+  N --> S

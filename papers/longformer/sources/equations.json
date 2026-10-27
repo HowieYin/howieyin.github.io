@@ -1,0 +1,11 @@
+[
+  {
+    "number": 1,
+    "tex": [
+      "\\displaystyle\\text{Attention}(Q,K,V)=\\operatorname{softmax}\\left(\\frac{QK^{T}}{\\sqrt{d_{k}}}\\right)V"
+    ],
+    "mathml": [
+      "<math alttext=\"\\displaystyle\\text{Attention}(Q,K,V)=\\operatorname{softmax}\\left(\\frac{QK^{T}}{\\sqrt{d_{k}}}\\right)V\" class=\"ltx_Math\" display=\"inline\" id=\"S3.E1.m1\" intent=\":literal\"><semantics><mrow><mrow><mtext>Attention</mtext><mo lspace=\"0em\" rspace=\"0em\">​</mo><mrow><mo stretchy=\"false\">(</mo><mi>Q</mi><mo>,</mo><mi>K</mi><mo>,</mo><mi>V</mi><mo stretchy=\"false\">)</mo></mrow></mrow><mo>=</mo><mrow><mrow><mi>softmax</mi><mo>⁡</mo><mrow><mo>(</mo><mstyle displaystyle=\"true\"><mfrac><mrow><mi>Q</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>K</mi><mi>T</mi></msup></mrow><msqrt><msub><mi>d</mi><mi>k</mi></msub></msqrt></mfrac></mstyle><mo>)</mo></mrow></mrow><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>V</mi></mrow></mrow><annotation encoding=\"application/x-tex\">\\displaystyle\\text{Attention}(Q,K,V)=\\operatorname{softmax}\\left(\\frac{QK^{T}}{\\sqrt{d_{k}}}\\right)V</annotation></semantics></math>"
+    ]
+  }
+]

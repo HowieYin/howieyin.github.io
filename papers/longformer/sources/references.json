@@ -1,0 +1,178 @@
+[
+  {
+    "id": "primary-paper",
+    "url": "https://arxiv.org/abs/2004.05150v2",
+    "local_pdf": "assets/original/2004.05150v2.pdf",
+    "version_date": "2020-12-02",
+    "pages": 17,
+    "read": "complete including references and Appendices A-D"
+  },
+  {
+    "id": "sparse-transformer",
+    "url": "https://arxiv.org/html/1904.10509",
+    "retrieved_utc": "2026-10-27T04:18:34.805696+00:00",
+    "status": 200,
+    "final_url": "https://arxiv.org/html/1904.10509",
+    "sha256": "408a44b38b5acc85e1c02bb7b87704237b1cb65279f551a1f70884e664172743",
+    "bytes": 163078
+  },
+  {
+    "id": "transformer-xl",
+    "url": "https://arxiv.org/abs/1901.02860",
+    "retrieved_utc": "2026-10-27T04:18:36.964321+00:00",
+    "status": 200,
+    "final_url": "https://arxiv.org/abs/1901.02860",
+    "sha256": "1d3b91cadc834eb68d5ea82720022c8a7280f0eec079ad8d78095102a4193739",
+    "bytes": 45339
+  },
+  {
+    "id": "etc",
+    "url": "https://aclanthology.org/2020.emnlp-main.19/",
+    "retrieved_utc": "2026-10-27T04:18:38.851224+00:00",
+    "status": 200,
+    "final_url": "https://aclanthology.org/2020.emnlp-main.19/",
+    "sha256": "322c6502d23e4dcfafeb3f0e031191d9e985c1dc43a8828b95861c27906fc79a",
+    "bytes": 44519
+  },
+  {
+    "id": "bigbird",
+    "url": "https://arxiv.org/html/2007.14062",
+    "retrieved_utc": "2026-10-27T04:18:40.102617+00:00",
+    "status": 200,
+    "final_url": "https://arxiv.org/html/2007.14062",
+    "sha256": "17c6e2ea863de44aa7bf8106ee620b4ec898a6256289fca2c16c0e90d9bb297c",
+    "bytes": 987263
+  },
+  {
+    "id": "flashattention",
+    "url": "https://arxiv.org/html/2205.14135",
+    "retrieved_utc": "2026-10-27T04:18:42.218677+00:00",
+    "status": 200,
+    "final_url": "https://arxiv.org/html/2205.14135",
+    "sha256": "702e33952c037462551e0f8f7ae15292f024ec194e449d4f7f40c8b95a646a85",
+    "bytes": 923037
+  },
+  {
+    "id": "mistral",
+    "url": "https://arxiv.org/html/2310.06825",
+    "retrieved_utc": "2026-10-27T04:18:43.095098+00:00",
+    "status": 200,
+    "final_url": "https://arxiv.org/html/2310.06825",
+    "sha256": "f5a7fbb0154e82bfc6a72a7df1486193d98484c6cf1a589f102772e677bbda82",
+    "bytes": 114829
+  },
+  {
+    "id": "longt5",
+    "url": "https://arxiv.org/html/2112.07916",
+    "retrieved_utc": "2026-10-27T04:18:44.570682+00:00",
+    "status": 200,
+    "final_url": "https://arxiv.org/html/2112.07916",
+    "sha256": "8346b58cf131a27aec1cb8aede7c6ad7d3e53aa4098fb1dcf183d8d3479d376a",
+    "bytes": 214860
+  },
+  {
+    "id": "longbench2",
+    "url": "https://arxiv.org/html/2412.15204",
+    "retrieved_utc": "2026-10-27T04:18:45.351219+00:00",
+    "status": 200,
+    "final_url": "https://arxiv.org/html/2412.15204",
+    "sha256": "3da2fda9d96df720ce63c7b503ae935ea625bbe892f9595a382b59f8ec0afc25",
+    "bytes": 370520
+  },
+  {
+    "id": "ruler",
+    "url": "https://arxiv.org/html/2404.06654",
+    "retrieved_utc": "2026-10-27T04:18:47.175436+00:00",
+    "status": 200,
+    "final_url": "https://arxiv.org/html/2404.06654",
+    "sha256": "2609e116ffbe746d7d9b6a834b6aa778f529bf0e0e7afabd91c70e68d6040784",
+    "bytes": 598023
+  },
+  {
+    "id": "flexattention",
+    "url": "https://pytorch.org/blog/flexattention/",
+    "retrieved_utc": "2026-10-27T04:18:48.303924+00:00",
+    "status": 200,
+    "final_url": "https://pytorch.org/blog/flexattention/",
+    "sha256": "1597f3c386e7628a673cc4778fa25133f0aaeb7d8e5da149be14ff259a673d5e",
+    "bytes": 232658
+  },
+  {
+    "id": "fluxattention",
+    "url": "https://arxiv.org/html/2604.07394v2",
+    "retrieved_utc": "2026-10-27T04:18:50.284946+00:00",
+    "status": 200,
+    "final_url": "https://arxiv.org/html/2604.07394v2",
+    "sha256": "8b3f2222b90b8756509dab9cf222009fa5740ada6f48a64b228fb2f172c682b0",
+    "bytes": 884296
+  },
+  {
+    "id": "skip-softmax",
+    "url": "https://nvidia.github.io/TensorRT-LLM/1.3.0rc21/blogs/tech_blog/blog16_Accelerating_Long_Context_Inference_with_Skip_Softmax_Attention.html",
+    "retrieved_utc": "2026-10-27T04:18:52.694087+00:00",
+    "status": 200,
+    "final_url": "https://nvidia.github.io/TensorRT-LLM/1.3.0rc21/blogs/tech_blog/blog16_Accelerating_Long_Context_Inference_with_Skip_Softmax_Attention.html",
+    "sha256": "768555bc51632e648d4602d3a44d4a8537c8e00c9c68b7686b46d49866012bbc",
+    "bytes": 81372
+  },
+  {
+    "id": "hf-docs",
+    "url": "https://huggingface.co/docs/transformers/model_doc/longformer",
+    "retrieved_utc": "2026-10-27T04:18:53.335990+00:00",
+    "status": 200,
+    "final_url": "https://huggingface.co/docs/transformers/model_doc/longformer",
+    "sha256": "bfa77d2d57321cb2a99269fa7469ba95d073570a997351e8ca340adebef8ce00",
+    "bytes": 724613
+  },
+  {
+    "id": "hf-base-config",
+    "url": "https://huggingface.co/allenai/longformer-base-4096/raw/main/config.json",
+    "retrieved_utc": "2026-10-27T04:18:55.405637+00:00",
+    "status": 200,
+    "final_url": "https://huggingface.co/allenai/longformer-base-4096/raw/main/config.json",
+    "sha256": "d0a64aa58d1b43c0d38000fa3083c142533c59fa151043e5c8113bcbee106d82",
+    "bytes": 694
+  },
+  {
+    "id": "hf-large-config",
+    "url": "https://huggingface.co/allenai/longformer-large-4096/raw/main/config.json",
+    "retrieved_utc": "2026-10-27T04:18:55.907269+00:00",
+    "status": 200,
+    "final_url": "https://huggingface.co/allenai/longformer-large-4096/raw/main/config.json",
+    "sha256": "43868659490a91c0be4ad5e93cb39e9819e6f7c2a2dc996f5f5d2c1ae73b0f77",
+    "bytes": 803
+  },
+  {
+    "id": "hf-led-config",
+    "url": "https://huggingface.co/allenai/led-large-16384/raw/main/config.json",
+    "retrieved_utc": "2026-10-27T04:18:56.410068+00:00",
+    "status": 200,
+    "final_url": "https://huggingface.co/allenai/led-large-16384/raw/main/config.json",
+    "sha256": "9c338bcc94425a5448deb896910f900228d3145ae8f688af8ab0cf20ca20a707",
+    "bytes": 1217
+  },
+  {
+    "id": "original-code",
+    "url": "https://raw.githubusercontent.com/allenai/longformer/master/longformer/longformer.py",
+    "retrieved_utc": "2026-10-27T04:18:57.629240+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/allenai/longformer/master/longformer/longformer.py",
+    "sha256": "8e9e76b4dbae20cc97f726fdc112491db0e4a214146933f7303e8aa676f35282",
+    "bytes": 16469
+  },
+  {
+    "id": "sliding-chunks",
+    "url": "https://raw.githubusercontent.com/allenai/longformer/master/longformer/sliding_chunks.py",
+    "retrieved_utc": "2026-10-27T04:18:58.605537+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/allenai/longformer/master/longformer/sliding_chunks.py",
+    "sha256": "9cf13638a7b0eabd3e12ea502132342e12d590ff8097d5d21836aeeaab45cd87",
+    "bytes": 8234
+  },
+  {
+    "id": "author-blog",
+    "url": "https://allenai.org/blog/longformer",
+    "retrieved_utc": "2026-10-27T04:18:59.789438+00:00",
+    "error": "HTTP Error 403: Forbidden"
+  }
+]

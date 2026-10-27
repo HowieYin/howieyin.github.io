@@ -1,0 +1,240 @@
+[
+  {
+    "name": "fig-01-runtime-memory",
+    "id": "S1.F1",
+    "page": 1,
+    "clip_pdf_points": [
+      305,
+      220,
+      530,
+      474
+    ],
+    "caption": "Figure 1: Runtime and memory of full self-attention\nand different implementations of Longformer’s self-attention; Longformer-loop is non-vectorized, Longformer-chunk is vectorized, and Longformer-cuda is a custom cuda kernel implementations.\nLongformer’s memory usage scales linearly with the sequence length, unlike the full self-attention mechanism that runs out of memory for long sequences on current GPUs. Different implementations vary in speed,\nwith the vectorized Longformer-chunk being the fastest. More details are in section 3.2 .",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "e387ae536158494319e301a1152208c9f05c158bfe889453eec8c707f5d2d8eb"
+  },
+  {
+    "name": "fig-02-attention-pattern",
+    "id": "S1.F2",
+    "page": 3,
+    "clip_pdf_points": [
+      70,
+      60,
+      530,
+      178
+    ],
+    "caption": "Figure 2: Comparing the full self-attention pattern and the configuration of attention patterns in our Longformer.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "bb0973bad7c1574dbc3137c25a6daa156fb9de44722a3c4ebb3459ba9a209701"
+  },
+  {
+    "name": "fig-03-led-input-length",
+    "id": "S7.F3",
+    "page": 10,
+    "clip_pdf_points": [
+      70,
+      224,
+      294,
+      378
+    ],
+    "caption": "Figure 3: ROUGE-1 and ROUGE-2 of LED when varying the input size (arXiv validation set).",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "017741d92ba45bb9461925afa534aefc96720ee0f38da00fe882572acd7a2a03"
+  },
+  {
+    "name": "table-01-prior-work",
+    "id": "S1.T1",
+    "page": 2,
+    "clip_pdf_points": [
+      304,
+      63,
+      531,
+      223
+    ],
+    "caption": "Table 1: Summary of prior work on adapting Transformers for long documents. ltr: left-to-right.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "4cb8eac1de49040e1ef390e6587a351e6f01ed58bc361dd7c006c7c1341e8b35"
+  },
+  {
+    "name": "table-02-small-char-lm",
+    "id": "S4.T2",
+    "page": 5,
+    "clip_pdf_points": [
+      304,
+      63,
+      530,
+      235
+    ],
+    "caption": "Table 2: Small model BPC on text8 & enwik8",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "e1bb832ac2afc479049e6507fdd29969da53e6228292c98528a1a0490f7c56f0"
+  },
+  {
+    "name": "table-03-large-char-lm",
+    "id": "S4.T3",
+    "page": 5,
+    "clip_pdf_points": [
+      304,
+      252,
+      529,
+      368
+    ],
+    "caption": "Table 3: Performance of large models on enwik8",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "ff1fb9b92e9d099eb569ea5337837847c2917090d048bf3ddc5f3694522564ff"
+  },
+  {
+    "name": "table-04-char-ablation",
+    "id": "S4.T4",
+    "page": 6,
+    "clip_pdf_points": [
+      69,
+      63,
+      296,
+      178
+    ],
+    "caption": "Table 4: Top: changing window size\nacross layers. Bottom: with/without dilation (@ 150K steps on phase1)",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "024db5ce45af4c667d5968b8561b1596cdf216b32d5f385aabf4c6bcddcc34f1"
+  },
+  {
+    "name": "table-05-mlm-initialization",
+    "id": "S5.T5",
+    "page": 6,
+    "clip_pdf_points": [
+      304,
+      63,
+      532,
+      182
+    ],
+    "caption": "Table 5: MLM BPC for RoBERTa and various pretrained Longformer configurations.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "66b410d0fb8e508b5ebcca5359f99b95f68bc3c035b6f58891e20dad092b66b6"
+  },
+  {
+    "name": "table-06-dataset-lengths",
+    "id": "S5.T6",
+    "page": 7,
+    "clip_pdf_points": [
+      69,
+      63,
+      296,
+      166
+    ],
+    "caption": "Table 6: Average and 95th percentile of context length of datasets in wordpieces. WH: WikiHop, TQA: TriviaQA, HQA: HotpotQA, ON: OntoNotes, HY: Hyperpartisan news",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "7e7cfa252310e5c94111d9b9c1fa43bec9267af8a8d0bc3a17f3caca1a448b09"
+  },
+  {
+    "name": "table-07-downstream-base",
+    "id": "S5.T7",
+    "page": 8,
+    "clip_pdf_points": [
+      69,
+      63,
+      530,
+      170
+    ],
+    "caption": "Table 7: Summary of finetuning results on QA,\ncoreference resolution, and document classification.\nResults are on the development sets comparing our\nLongformer-base with RoBERTa-base.\nTriviaQA, Hyperpartisan metrics are F1, WikiHop and IMDB use accuracy, HotpotQA is joint F1, OntoNotes is average F1.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "f89c4eb459727d1677df3684a391e16de055879db05387c7679572f6c2e510ca"
+  },
+  {
+    "name": "table-08-qa-leaderboards",
+    "id": "S6.T8",
+    "page": 8,
+    "clip_pdf_points": [
+      304,
+      186,
+      531,
+      277
+    ],
+    "caption": "Table 8: Leaderboard results of Longformer-large at time of submission (May 2020). All numbers are F1 scores.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "f2a64fea46f0fc8e471df1a731308114eee1756217d88d851d4eebc3729329af"
+  },
+  {
+    "name": "table-09-hotpotqa",
+    "id": "S6.T9",
+    "page": 9,
+    "clip_pdf_points": [
+      69,
+      63,
+      296,
+      237
+    ],
+    "caption": "Table 9: HotpotQA results in distractor setting test set. Quark’s test results are not available. All numbers are F1 scores. † shows contemporaneous leaderboard submissions.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "91c9d4dec3357ba9092dedca72f494a9c4f9efb7e0a195954c3afff70f6d7d44"
+  },
+  {
+    "name": "table-10-wikihop-ablation",
+    "id": "S6.T10",
+    "page": 9,
+    "clip_pdf_points": [
+      68,
+      256,
+      297,
+      399
+    ],
+    "caption": "Table 10: WikiHop development set ablations",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "6b9aa2ed2b1a790af50d16dfa49d08288c4de25206baf121d992849f365e76cf"
+  },
+  {
+    "name": "table-11-led-summarization",
+    "id": "S7.T11",
+    "page": 10,
+    "clip_pdf_points": [
+      69,
+      63,
+      296,
+      216
+    ],
+    "caption": "Table 11: Summarization results of Longformer-Encoder-Decoder (LED) on the arXiv dataset. Metrics from left to right are ROUGE-1, ROUGE-2 and ROUGE-L.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "3fdc97621d4793ba87932c221c07315ec3fd9f4c1e0218df437acc19c2855e76"
+  },
+  {
+    "name": "table-12-char-hyperparameters",
+    "id": "A2.T12",
+    "page": 15,
+    "clip_pdf_points": [
+      103,
+      61,
+      493,
+      350
+    ],
+    "caption": "Table 12: Hyperparameters for the best performing model for character-level language modeling",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "1c1cd2ac8c76aade9834cd6ba44be5e3153f50fb725a84c97acd6875a873af6a"
+  },
+  {
+    "name": "table-13-pretraining-corpus",
+    "id": "A3.T13",
+    "page": 15,
+    "clip_pdf_points": [
+      77,
+      365,
+      286,
+      453
+    ],
+    "caption": "Table 13: Pretraining data",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "e60fb5091e1bfc01edac825c7d9d77c172f306dd320a59041a2b77e33a2577ed"
+  },
+  {
+    "name": "table-14-qa-hyperparameters",
+    "id": "A4.T14",
+    "page": 16,
+    "clip_pdf_points": [
+      304,
+      62,
+      531,
+      185
+    ],
+    "caption": "Table 14: Hyperparameters of the QA models. All models use a similar scheduler with linear warmup and decay.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
+    "sha256": "b928ef8c7928e681c2f6908ab0ab8b3aa8cd2670601b1825fa8374f58a58497b"
+  }
+]
