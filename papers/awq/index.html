@@ -1,0 +1,1243 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>AWQ：重要通道、量化误差与端侧执行 — Paper Readings · Howie Yin</title><meta name="description" content="AWQ v6 全文精读：10张原图、10张完整表、5组公式、scale/clip与源码重建、NEON打包及权重/KV交互、实验审计与2026量化更新。"><link rel="canonical" href="https://howieyin.github.io/papers/awq/"><meta property="og:title" content="AWQ：重要通道、量化误差与端侧执行"><meta property="og:description" content="Activation-aware scaling 怎样保护精度，TinyChat 怎样把 W4 存储落实为速度。"><meta property="og:type" content="article"><meta property="og:image" content="https://howieyin.github.io/papers/awq/assets/original/fig-02.svg"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../">howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents / 目录</summary><ol><li><a href="#section-1">TL;DR：先建立全局模型</a></li><li><a href="#section-2">1. Introduction：为什么这篇论文值得读</a></li><li><a href="#section-3">2. Related Work：先把三种问题分开</a></li><li><a href="#section-4">3. AWQ：从 1% 观察到全整数权重格式</a></li><li><a href="#section-5">4. TinyChat：为什么 W4 存储不自动产生 4× 加速</a></li><li><a href="#section-6">5. Experiments：把每组 claim 放回实验条件</a></li><li><a href="#section-7">6. Conclusion：原文留下的结论</a></li><li><a href="#section-8">7. Experiment Audit：如果我是 Reviewer 还会要求什么</a></li><li><a href="#section-9">8. External Research：相关工作矩阵与技术演进</a></li><li><a href="#section-10">9. Current State：截至 2026-10-27，SOTA 应怎样判断</a></li><li><a href="#section-11">10. Critique：新意、优势与隐藏成本</a></li><li><a href="#section-12">11. My Insights：面向端侧 VLM/OCR 的执行建议</a></li><li><a href="#section-13">12. Implementation Notes：可追踪的量化与推理流程</a></li><li><a href="#section-14">13. References、关联精读与审阅记录</a></li></ol></details></aside><main id="main"><article class="article"><h1>AWQ：把重要通道的精度，变成端侧真正能用的速度</h1>
+<p class="reading-meta">MLSys 2024 · BEST PAPER · arXiv 2306.00978v6 · 阅读 / 更新 2026-10-27<br/>LLM · VLM · Quantization · Inference · Systems · Edge AI</p>
+<p><strong>AWQ: Activation-aware Weight Quantization for On-Device LLM Compression and Acceleration</strong></p>
+<details class="paper-metadata"><summary>作者、机构与版本信息</summary><p>Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang, Guangxuan Xiao, Xingyu Dang, Chuang Gan, Song Han。机构包括 MIT、Shanghai Jiao Tong University、NVIDIA、Tsinghua University、MIT-IBM Watson AI Lab、UMass Amherst。</p><p>初稿发布于 2023-06-01，MLSys 2024 发表；本次精读的是 <strong>2026-04-25 的 v6，15 页、10 张 Figure、10 张 Table、公式组 (1)–(5)，无 Appendix</strong>。arXiv 页面标题省略了 PDF 标题里的 “On-Device”；这里按 PDF 标题记录。DOI 是 arXiv 标识，不把它当作另一个出版社 DOI。</p></details>
+<p><a href="assets/original/2306.00978v6.pdf">版本锁定 PDF</a> · <a href="https://arxiv.org/abs/2306.00978v6" rel="noopener">arXiv v6</a> · <a href="https://github.com/mit-han-lab/llm-awq" rel="noopener">官方代码</a> · <a href="https://hanlab.mit.edu/projects/awq" rel="noopener">项目页</a> · <a href="https://www.dropbox.com/scl/fi/dtnp6h6y1mnp7g036axu6/AWQ-slide.pdf?rlkey=ffgh50hxhx8dmsnjiu8kef0ou&amp;dl=0" rel="noopener">作者 Slides</a> · <a href="https://doi.org/10.48550/arXiv.2306.00978" rel="noopener">DOI</a></p>
+
+<details><summary>来源标记、固定代码版本与复现范围</summary><blockquote>
+<p><strong>来源约定。</strong> “Paper” 指 v6 原文和原图表；“Code” 指固定提交 <code>d6e797a42b9ef7778de8ee2352116e0f48a78d61</code>；“External” 指注明日期的一手后续资料；“Interpretation” 是本文推导和审计。交互读数是可检查的小模型计算，没有在本地复现原论文的大模型精度或 GPU/ARM 吞吐。</p>
+</blockquote></details>
+<h2 id="section-1">TL;DR：先建立全局模型</h2>
+<p><strong>一句话：</strong> AWQ 用激活统计识别重要的输入通道，通过等价缩放重新分配权重量化误差，再由 TinyChat 把统一低比特权重的容量优势落实到端侧生成速度。</p>
+<p><strong>一段话：</strong> 单 token 解码通常反复读模型权重，4-bit 存储很有价值，但直接四舍五入会破坏重要通道。AWQ 先发现：按激活幅度挑选约 1% 通道、保留其权重为 FP16，可以挽救精度；最终算法随后放弃这个不规则混合格式，改为放大重要权重列、反向缩小对应激活，以较小校准集搜索缩放和裁剪。TinyChat 在 kernel 内解包和反量化，并优化 packing、Norm、QKV、KV 更新与调度，才得到论文里的实测加速。AWQ 是 weight-only PTQ，不是 INT4 全模型计算，也不量化 KV cache。</p>
+<p>五个关键点：</p>
+<ol>
+<li><strong>重要性来自激活，而非权重绝对值。</strong> 同样的权重误差，乘上较大的输入激活会带来更大的输出误差。</li>
+<li><strong>“保留 1% FP16”是观察实验。</strong> 最终 AWQ 通过通道缩放保护精度，目标是硬件友好的统一 INT3/INT4 权重。</li>
+<li><strong>等价变换精确，量化后不精确。</strong> <code>WS · S⁻¹X = WX</code>；<code>Q(WS) · S⁻¹X</code> 的误差由缩放、group 步长、舍入和裁剪共同决定。</li>
+<li><strong>存储 4-bit 不等于执行 INT4×FP16。</strong> TinyChat 在计算循环中解包、转换和缩放，再执行浮点矩阵计算；这些 per-op 成本不能省略。</li>
+<li><strong>精度和速度是两条证据链。</strong> PPL、VQA、CIDEr、pass@k 说明任务退化；tok/s 说明特定硬件和协议下的性能。两者都不自动推广到长 prompt、多图 OCR、大 batch 或另一种导出格式。</li>
+</ol>
+<h2 id="section-2">1. Introduction：为什么这篇论文值得读</h2>
+<p><strong>What / Why。</strong> 2023 年端侧 LLM 部署首先受模型容量约束。7B 参数只按 FP16 权重计算就约 14 GB，尚未计入 KV、激活和运行时。权重量化有两个目标：装得下，以及生成时读得少。前者可以靠文件格式实现，后者必须依赖真实 kernel。</p>
+<p><strong>How。</strong> 论文提出 AWQ 量化方法与 TinyChat 执行系统：前者针对精度，后者针对异构设备上的解包、访存和启动开销。这种方法与系统的组合是主要贡献；只拿一个 AWQ checkpoint 交给通用 PyTorch，并不能重现全部加速。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 1" data-zoom="assets/original/fig-01.png" type="button"><img alt="Figure 1: We introduce AWQ , a versatile weight quantization method for LLM. To implement AWQ, we developed TinyChat to deploy 4-bit quantized LLMs into various edge platforms, achieving a 3-4 × \times performance boost compared to FP16. Notably, we’ve also manufactured a TinyChat computer , powered by TinyChat, which contains an NVIDIA Jetson Orin Nano with only 8GB of memory and 15W power consumption. Demo: https://youtu.be/z91a8DrfgEw ." loading="lazy" src="assets/original/fig-01.png"/></button><figcaption>Figure 1 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 1: We introduce AWQ , a versatile weight quantization method for LLM. To implement AWQ, we developed TinyChat to deploy 4-bit quantized LLMs into various edge platforms, achieving a 3-4 × \times performance boost compared to FP16. Notably, we’ve also manufactured a TinyChat computer , powered by TinyChat, which contains an NVIDIA Jetson Orin Nano with only 8GB of memory and 15W power consumption. Demo: https://youtu.be/z91a8DrfgEw .</p></details></figure>
+<p><strong>Figure 1 怎样读。</strong> 从左侧应用和模型能力，读到多种端侧平台，再看 TinyChat 小电脑实例。它解决的是“量化后是否可部署”的问题，而不是给出 controlled benchmark。8 GB、15 W 的 Orin Nano 展示与 Figure 10 的 64 GB Jetson Orin 测试属于不同设备配置，不能把后者的吞吐贴到前者。</p>
+<p><strong>Interpretation。</strong> 对端侧工程而言，这篇论文连接了三个层面：误差如何分配、权重如何排列、每次生成如何执行。量化校准成功只是第一步，export 和 runner 是同一条验收链路。</p>
+<p><strong>Caveat。</strong> 权重约 4× 压缩不是进程峰值内存约 4×。视觉编码器、未量化层、metadata、padding、KV、workspace 和 runtime 都可能成为剩余大头。</p>
+<h2 id="section-3">2. Related Work：先把三种问题分开</h2>
+<p>原文按模型量化、混合精度、系统部署等方向建立背景。其重要性是避免把不同精度目标的方法混作同一个 baseline。</p>
+<div aria-label="完整对比表；可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>路线</th>
+<th>处理对象与核心动作</th>
+<th>本文为什么需要它</th>
+<th>比较边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RTN</td>
+<td>每个 group 直接舍入权重</td>
+<td>显示低比特最简单基线的退化</td>
+<td>没有 activation-aware scale 或二阶补偿</td>
+</tr>
+<tr>
+<td>GPTQ，2022 / ICLR 2023</td>
+<td>用二阶近似与逐列误差补偿做 weight-only PTQ</td>
+<td>AWQ 的主要精度对手，也可组合</td>
+<td>应包含 reordering 版本；不能只选最弱 GPTQ</td>
+</tr>
+<tr>
+<td>LLM.int8() 等混合精度</td>
+<td>把异常部分交给高精度路径</td>
+<td>解释“保留少数重要权重”为何有效</td>
+<td>不规则索引、高精度旁路和融合成本影响部署</td>
+</tr>
+<tr>
+<td>SmoothQuant，2022 / ICML 2023</td>
+<td>等价缩放平滑激活，支持 W8A8</td>
+<td>与 AWQ 共享数学重参数化思路</td>
+<td>AWQ 保护 W4 权重误差；SmoothQuant 降低激活量化难度</td>
+</tr>
+<tr>
+<td>系统 kernel / runtime</td>
+<td>packing、反量化、融合、调度</td>
+<td>容量改善能否变成速度取决于此</td>
+<td>比较应同硬件、同 batch、同缓存策略、同优化水平</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Interpretation。</strong> “Activation-aware” 不表示量化 activation。AWQ 使用 activation 来选 weight 的量化坐标；在 W4A16 配置里，activation 保持 16-bit 浮点。也不要把 AWQ 的均值幅度搜索，解释成 GPTQ Hessian 重建的简化名称。</p>
+<h2 id="section-4">3. AWQ：从 1% 观察到全整数权重格式</h2>
+<h3>3.1 观察实验：重要的是输入列</h3>
+<p>设 <code>W ∈ R^(d_out×d_in)</code>，校准激活 <code>X ∈ R^(d_in×T)</code>，输出 <code>Y=WX ∈ R^(d_out×T)</code>。第 j 个输入通道对应 <strong>W 的第 j 列</strong>，而非一行，也不是任意散落的最大元素。PyTorch 使用 <code>X ∈ R^(B×T×d_in)</code> 与 <code>Y=XWᵀ</code>，讨论通道时必须先确认这个转置约定。</p>
+<p>输入通道的平均绝对激活 <code>s_X,j = mean_t |X_j,t|</code> 是重要性代理。权重误差 <code>δW_ij</code> 对输出的贡献是 <code>δW_ij X_j,t</code>：大激活通道更值得保护。但最终误差还依赖相关性、抵消和后续非线性，均值不是每个样本的完备敏感度。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 2" data-zoom="assets/original/fig-02.svg" type="button"><img alt="Figure 2: We observe that we can find 1% of the salient weights in LLMs based on the activation distribution (middle). Keeping the salient weights in FP16 can significantly improve the quantized performance (PPL from 43.2 (left) to 13.0 (middle)), but the mixed-precision format is not hardware-efficient. We follow the activation-awareness principle and propose AWQ (right). AWQ performs per-channel scaling to protect the salient weights and reduce quantization error. We measure the perplexity of OPT-6.7B under INT3-g128 quantization." loading="lazy" src="assets/original/fig-02.svg"/></button><figcaption>Figure 2 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 2: We observe that we can find 1% of the salient weights in LLMs based on the activation distribution (middle). Keeping the salient weights in FP16 can significantly improve the quantized performance (PPL from 43.2 (left) to 13.0 (middle)), but the mixed-precision format is not hardware-efficient. We follow the activation-awareness principle and propose AWQ (right). AWQ performs per-channel scaling to protect the salient weights and reduce quantization error. We measure the perplexity of OPT-6.7B under INT3-g128 quantization.</p></details></figure>
+<p><strong>Figure 2 解决的问题。</strong> 从左到右读 RTN、按激活选择的少量 FP16 通道、最终 AWQ。图中的突出条带表示通道级保护；最后一栏用缩放取代混合精度旁路。因此“AWQ 把 1% 权重保留为 FP16”读错了方法阶段。</p>
+<p><strong>来源异常。</strong> 该原图保留 OPT-6.7B、INT3-g128 的 <code>43.2 → 13.0</code> 标签；同版本 Table 1/3 的相近名义设置却是 <code>23.54 → 11.39</code>。原文未提供足够 provenance 来统一这组数值。本文保留原图，量化比较以明确表格为准，不拼接出一个不存在的实验。</p>
+<div aria-label="原论文 Table 1 完整表格" class="table-scroll original-table" id="table-1" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" rowspan="2" style="padding:0.25pt 4.5pt;"><span class="ltx_text ltx_font_bold">PPL <math alttext="\downarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">↓</mo><annotation encoding="application/x-tex">\downarrow</annotation></semantics></math></span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" rowspan="2" style="padding:0.25pt 4.5pt;"><span class="ltx_text">FP16</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 4.5pt;"><span class="ltx_text">RTN</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3" style="padding:0.25pt 4.5pt;">FP16% (based on act.)</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3" style="padding:0.25pt 4.5pt;">FP16% (based on W)</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3" style="padding:0.25pt 4.5pt;">FP16% (random)</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column" style="padding:0.25pt 4.5pt;">(w3-g128)</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 4.5pt;">0.1%</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 4.5pt;">1%</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 4.5pt;">3%</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 4.5pt;">0.1%</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 4.5pt;">1%</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 4.5pt;">3%</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 4.5pt;">0.1%</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 4.5pt;">1%</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 4.5pt;">3%</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 4.5pt;">OPT-1.3B</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;">14.62</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;">119.00</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;">25.03</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;"><span class="ltx_text" style="--ltx-fg-color:#009900;">16.91</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;"><span class="ltx_text" style="--ltx-fg-color:#009900;">16.68</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;">108.71</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;">98.55</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;">98.08</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;">119.76</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;">109.38</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 4.5pt;">61.49</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 4.5pt;">OPT-6.7B</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;">10.86</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;">23.54</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;"><span class="ltx_text" style="--ltx-fg-color:#009900;">11.58</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;"><span class="ltx_text" style="--ltx-fg-color:#009900;">11.39</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;"><span class="ltx_text" style="--ltx-fg-color:#009900;">11.36</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;">23.41</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;">22.37</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;">22.45</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;">23.54</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;">24.23</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 4.5pt;">24.22</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 4.5pt;">OPT-13B</th>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;">10.13</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;">46.04</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;"><span class="ltx_text" style="--ltx-fg-color:#009900;">10.51</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;"><span class="ltx_text" style="--ltx-fg-color:#009900;">10.43</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;"><span class="ltx_text" style="--ltx-fg-color:#009900;">10.42</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;">46.07</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;">48.96</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;">54.49</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;">44.87</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;">42.00</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 4.5pt;">39.71</td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Keeping a small fraction of weights (0.1%-1%) in FP16 significantly improves the performance of the quantized models over round-to-nearest (RTN). It is only effective when we select the important weights in FP16 by looking at <em class="ltx_emph ltx_font_italic">activation</em> distribution instead of <em class="ltx_emph ltx_font_italic">weight</em> distribution. We highlight results with a decent perplexity in <span class="ltx_text" style="--ltx-fg-color:#009900;">green</span>.
+We used INT3 quantization with a group size of 128 and measured the WikiText perplexity (<math alttext="\downarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">↓</mo><annotation encoding="application/x-tex">\downarrow</annotation></semantics></math>).
+</figcaption>
+</figure></div>
+<details><summary>Table 1 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 1 所在 PDF 全页" data-zoom="assets/tables/table-01.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-01.png"/></button><figcaption>Table 1 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 1 怎样读。</strong> 固定 INT3、group=128，WikiText PPL ↓。列分别保留按 activation、按 W、随机选出的 0.1%/1%/3% 通道。OPT-6.7B 从 RTN 23.54 降到 activation 1% 的 11.39，FP16 为 10.86；单按 W 选 1% 得到 22.37，几乎没有恢复。OPT-1.3B 的 RTN=119.00，按 activation 1% 后 16.91，仍高于 FP16 14.62。</p>
+<p><strong>证据支持什么。</strong> 低比特失真很不均匀，且 activation 统计能比权重幅度或随机选择更好地分配高精度预算。</p>
+<p><strong>成本与边界。</strong> 这里真实增加 FP16 旁路存储及调度成本，是“方法动机”，不是最终格式。选择更高比例不保证线性收益；PPL 改善也不能换算成准确率恢复百分比。</p>
+<h3>3.2 核心变换：扩大重要权重，抵消输入缩放</h3>
+<p>令 <code>s ∈ R^(d_in)</code> 为正数，<code>S=diag(s) ∈ R^(d_in×d_in)</code>：</p>
+<div class="formula" data-latex="W'=WS,\quad X'=S^{-1}X,\quad W'X'=WSS^{-1}X=WX"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msup><mi>W</mi><mi>′</mi></msup><mo>=</mo><mi>W</mi><mi>S</mi><mo>,</mo><mspace width="1em"></mspace><msup><mi>X</mi><mi>′</mi></msup><mo>=</mo><msup><mi>S</mi><mrow><mo>−</mo><mn>1</mn></mrow></msup><mi>X</mi><mo>,</mo><mspace width="1em"></mspace><msup><mi>W</mi><mi>′</mi></msup><msup><mi>X</mi><mi>′</mi></msup><mo>=</mo><mi>W</mi><mi>S</mi><msup><mi>S</mi><mrow><mo>−</mo><mn>1</mn></mrow></msup><mi>X</mi><mo>=</mo><mi>W</mi><mi>X</mi></mrow></math><span class="equation-number">Interpretation · exact reparameterization</span><details><summary>复制 LaTeX 原公式</summary><code>W'=WS,\quad X'=S^{-1}X,\quad W'X'=WSS^{-1}X=WX</code></details></div>
+<p>每一列权重乘 <code>s_j</code>，每一个输入通道除以相同 <code>s_j</code>。乘法前后一致，但 group 量化的格点随后发生变化。AWQ 争取让重要通道在原坐标里的量化间隔变小。</p>
+<h4>公式 (1)：先读清简化量化模型</h4>
+<div class="formula" data-latex="Q(w)=\Delta\cdot\operatorname{Round}\left(\frac{w}{\Delta}\right),\quad\Delta=\frac{\max(|w|)}{2^{N-1}}"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Q</mi><mo stretchy="false">(</mo><mi>w</mi><mo stretchy="false">)</mo><mo>=</mo><mi>Δ</mi><mo>·</mo><mo>Round</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mfrac><mrow><mi>w</mi></mrow><mrow><mi>Δ</mi></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>,</mo><mspace width="1em"></mspace><mi>Δ</mi><mo>=</mo><mfrac><mrow><mo>max</mo><mo stretchy="false">(</mo><mo stretchy="false">|</mo><mi>w</mi><mo stretchy="false">|</mo><mo stretchy="false">)</mo></mrow><mrow><msup><mn>2</mn><mrow><mi>N</mi><mo>−</mo><mn>1</mn></mrow></msup></mrow></mfrac></mrow></math><span class="equation-number">Original Paper · Eq. (1)</span><details><summary>复制 LaTeX 原公式</summary><code>Q(w)=\Delta\cdot\operatorname{Round}\left(\frac{w}{\Delta}\right),\quad\Delta=\frac{\max(|w|)}{2^{N-1}}</code></details></div>
+<p><code>w</code> 表示 group 中的权重，N 是 bit 数，Δ 是该 group 的步长，<code>Round</code> 取最近整数。<code>max(|w|)</code> 对 group 求最大值；在 4-bit 示例中分母为 8。</p>
+<p><strong>数学直觉。</strong> 舍入误差约在 ±Δ/2 内；乘以 x 后，输出误差幅度按 |x| 放大。若假设格点残差均匀分布，绝对残差均值约 0.25，带符号均值为 0、平方均值为 1/12。原文的 0.25 不能当作“每次误差都是正的 0.25”。</p>
+<p><strong>工程含义。</strong> 这是解释公式，并不是完整导出规范：没有写明整数饱和、signed range、zero-point 和 padding。实际官方 quantizer 使用 affine min/max，后文单独解析。用解释公式生成文件却交给另一种 affine kernel 会造成系统性精度损失。</p>
+<h4>公式 (2)–(3)：缩放在哪个条件下减少误差</h4>
+<div class="formula" data-latex="Q(w\cdot s)\cdot\frac{x}{s}=\Delta'\cdot\operatorname{Round}\left(\frac{ws}{\Delta'}\right)\cdot x\cdot\frac{1}{s}"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Q</mi><mo stretchy="false">(</mo><mi>w</mi><mo>·</mo><mi>s</mi><mo stretchy="false">)</mo><mo>·</mo><mfrac><mrow><mi>x</mi></mrow><mrow><mi>s</mi></mrow></mfrac><mo>=</mo><msup><mi>Δ</mi><mi>′</mi></msup><mo>·</mo><mo>Round</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mfrac><mrow><mi>w</mi><mi>s</mi></mrow><mrow><msup><mi>Δ</mi><mi>′</mi></msup></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>·</mo><mi>x</mi><mo>·</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>s</mi></mrow></mfrac></mrow></math><span class="equation-number">Original Paper · Eq. (2)</span><details><summary>复制 LaTeX 原公式</summary><code>Q(w\cdot s)\cdot\frac{x}{s}=\Delta'\cdot\operatorname{Round}\left(\frac{ws}{\Delta'}\right)\cdot x\cdot\frac{1}{s}</code></details></div>
+<div class="formula" data-latex="\begin{aligned}\operatorname{Err}(Q(w)x)&amp;=\Delta\cdot\operatorname{RoundErr}\left(\frac{w}{\Delta}\right)\cdot x\\ \operatorname{Err}(Q(ws)(x/s))&amp;=\Delta'\cdot\operatorname{RoundErr}\left(\frac{ws}{\Delta'}\right)\cdot x\cdot\frac{1}{s}\end{aligned}"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>Err</mo><mo stretchy="false">(</mo><mi>Q</mi><mo stretchy="false">(</mo><mi>w</mi><mo stretchy="false">)</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>Δ</mi><mo>·</mo><mo>RoundErr</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mfrac><mrow><mi>w</mi></mrow><mrow><mi>Δ</mi></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>·</mo><mi>x</mi></mrow></math><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>Err</mo><mo stretchy="false">(</mo><mi>Q</mi><mo stretchy="false">(</mo><mi>w</mi><mi>s</mi><mo stretchy="false">)</mo><mo stretchy="false">(</mo><mi>x</mi><mo>/</mo><mi>s</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mo>=</mo><msup><mi>Δ</mi><mi>′</mi></msup><mo>·</mo><mo>RoundErr</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mfrac><mrow><mi>w</mi><mi>s</mi></mrow><mrow><msup><mi>Δ</mi><mi>′</mi></msup></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>·</mo><mi>x</mi><mo>·</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>s</mi></mrow></mfrac></mrow></math><span class="equation-number">Original Paper · Eq. (3)</span><details><summary>复制 LaTeX 原公式</summary><code>\begin{aligned}\operatorname{Err}(Q(w)x)&amp;=\Delta\cdot\operatorname{RoundErr}\left(\frac{w}{\Delta}\right)\cdot x\\ \operatorname{Err}(Q(ws)(x/s))&amp;=\Delta'\cdot\operatorname{RoundErr}\left(\frac{ws}{\Delta'}\right)\cdot x\cdot\frac{1}{s}\end{aligned}</code></details></div>
+<p><code>Δ′</code> 是缩放后的 group 步长。重要通道在原坐标的步长是 <code>Δ′/s</code>；在舍入残差统计相近时，其误差比例约为 <code>Δ′/(Δs)</code>。这依赖 <strong>Δ′ 没有随 s 大幅增大</strong>。如果被放大的权重成为新的 group 最大值，它会拖动所有通道格点，其他通道可能更差。</p>
+<p><strong>Shape 与复杂度。</strong> <code>WS</code> 和 <code>S⁻¹X</code> 不需要真的构造 <code>d_in²</code> 对角矩阵：广播列缩放花 <code>O(d_out d_in)</code>，激活缩放花 <code>O(T d_in)</code>。其后仍是 <code>O(T d_out d_in)</code> 的 dense linear。</p>
+<section class="mechanism" id="scale-widget"><p class="reading-meta">AGENT-CREATED VISUALIZATION · ERROR, NOT MODEL ACCURACY</p><h3>同一个 group，误差预算怎样重新分配？</h3><p class="hint">W=[0.13, 0.7, 1.2, −m]，X=[x, 0.2, 0.1, 0.1]。仅第 0 列乘 s，输入 x 除 s。</p><div class="controls"><label>重要通道 scale s<input id="scale-s" max="16" min="1" step="0.25" type="range" value="4"/><output id="scale-s-out"></output></label><label>重要通道 activation x<input id="scale-x" max="16" min="1" step="0.5" type="range" value="8"/><output id="scale-x-out"></output></label><label>另一通道最大权重 m<input id="scale-max" max="8" min="1" step="0.1" type="range" value="3.8"/><output id="scale-max-out"></output></label></div><div aria-label="交互图示；可横向滚动" class="svg-scroll" role="region" tabindex="0"><svg aria-label="各输入通道量化输出误差的带符号贡献" id="scale-svg" role="img" viewbox="0 0 580 265"></svg></div><div aria-live="polite" class="readout" id="scale-readout"></div><p class="hint">按论文简化公式 (1)，round-to-nearest-even；无整数饱和和 clip。上界是三角不等式，不是概率或 PPL。舍入格点会跳变。</p><noscript><p>静态示例：s=4、x=8、m=3.8，参考输出 0.92、量化输出 0.8075、绝对误差 0.1125；下文保留推导。</p></noscript></section>
+<p><strong>交互怎样读。</strong> 四个权重共享一个 group；可调重要通道的 s、x 和另一通道的最大权重。图展示量化重建权重的误差与激活相乘后的输出误差。固定 x=8、末项权重 −3.8 时，s=1 的输出为 −0.1425、参考为 0.92，绝对误差 1.0625；s=4 后输出 0.8075、误差 0.1125。舍入有跳变，曲线不必单调。组件遵循公式 (1) 的简化格点，无裁剪和整数饱和，不宣称复现官方 exporter。</p>
+<div aria-label="原论文 Table 2 完整表格" class="table-scroll original-table" id="table-2" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">OPT-6.7B</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;"><math alttext="s=1" class="ltx_Math" intent=":literal"><semantics><mrow><mi>s</mi><mo>=</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">s=1</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;"><math alttext="s=1.25" class="ltx_Math" intent=":literal"><semantics><mrow><mi>s</mi><mo>=</mo><mn>1.25</mn></mrow><annotation encoding="application/x-tex">s=1.25</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;"><math alttext="s=1.5" class="ltx_Math" intent=":literal"><semantics><mrow><mi>s</mi><mo>=</mo><mn>1.5</mn></mrow><annotation encoding="application/x-tex">s=1.5</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;"><math alttext="s=2" class="ltx_Math" intent=":literal"><semantics><mrow><mi>s</mi><mo>=</mo><mn>2</mn></mrow><annotation encoding="application/x-tex">s=2</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;"><math alttext="s=4" class="ltx_Math" intent=":literal"><semantics><mrow><mi>s</mi><mo>=</mo><mn>4</mn></mrow><annotation encoding="application/x-tex">s=4</annotation></semantics></math></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 2.0pt;">proportion of <math alttext="\Delta^{{}^{\prime}}\neq\Delta" class="ltx_math_unparsed" intent=":literal"><semantics><mrow><mi mathvariant="normal">Δ</mi><msup><mrow></mrow><msup><mrow></mrow><mo>′</mo></msup></msup><mo>≠</mo><mi mathvariant="normal">Δ</mi></mrow><annotation encoding="application/x-tex">\Delta^{{}^{\prime}}\neq\Delta</annotation></semantics></math></th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 2.0pt;">0%</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 2.0pt;">2.8%</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 2.0pt;">4.4%</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 2.0pt;">8.2%</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 2.0pt;">21.2%</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 2.0pt;">average <math alttext="\Delta^{{}^{\prime}}/\Delta" class="ltx_math_unparsed" intent=":literal"><semantics><mrow><mi mathvariant="normal">Δ</mi><msup><mrow></mrow><msup><mrow></mrow><mo>′</mo></msup></msup><mo>/</mo><mi mathvariant="normal">Δ</mi></mrow><annotation encoding="application/x-tex">\Delta^{{}^{\prime}}/\Delta</annotation></semantics></math></th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">1</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">1.005</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">1.013</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">1.038</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">1.213</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 2.0pt;">average <math alttext="\frac{\Delta^{{}^{\prime}}}{\Delta}\cdot\frac{1}{s}" class="ltx_Math" intent=":literal"><semantics><mrow><mfrac><mrow><mi mathvariant="normal">Δ</mi><msup><mrow></mrow><msup><mrow></mrow><mo>′</mo></msup></msup></mrow><mi mathvariant="normal">Δ</mi></mfrac><mo lspace="0.222em" rspace="0.222em">⋅</mo><mfrac><mn>1</mn><mi>s</mi></mfrac></mrow><annotation encoding="application/x-tex">\frac{\Delta^{{}^{\prime}}}{\Delta}\cdot\frac{1}{s}</annotation></semantics></math></th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">1</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">0.804</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">0.676</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">0.519</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">0.303</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_t" style="padding:0.25pt 2.0pt;">Wiki-2 PPL</th>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding:0.25pt 2.0pt;">23.54</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding:0.25pt 2.0pt;">12.87</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding:0.25pt 2.0pt;">12.48</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">11.92</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding:0.25pt 2.0pt;">12.36</td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Statistics when multiplying the 1% salient channels by <math alttext="s&gt;1" class="ltx_Math" intent=":literal"><semantics><mrow><mi>s</mi><mo>&gt;</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">s&gt;1</annotation></semantics></math>. Scaling up the salient channels significantly improves the perplexity (23.54 to 11.92). As <math alttext="s" class="ltx_Math" intent=":literal"><semantics><mi>s</mi><annotation encoding="application/x-tex">s</annotation></semantics></math> goes larger, the percentage of changed <math alttext="\Delta" class="ltx_Math" intent=":literal"><semantics><mi mathvariant="normal">Δ</mi><annotation encoding="application/x-tex">\Delta</annotation></semantics></math> increases, and the error reduction rate for salient channels also increases. However, the best perplexity is achieved at <math alttext="s=2" class="ltx_Math" intent=":literal"><semantics><mrow><mi>s</mi><mo>=</mo><mn>2</mn></mrow><annotation encoding="application/x-tex">s=2</annotation></semantics></math>, since further increasing <math alttext="s" class="ltx_Math" intent=":literal"><semantics><mi>s</mi><annotation encoding="application/x-tex">s</annotation></semantics></math> will increase the quantization error for <em class="ltx_emph ltx_font_italic">non-salient</em> channels.
+</figcaption>
+</figure></div>
+<details><summary>Table 2 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 2 所在 PDF 全页" data-zoom="assets/tables/table-02.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-02.png"/></button><figcaption>Table 2 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 2 是关键 trade-off。</strong> OPT-6.7B 中，将 1% salient channels 的 s 从 1 提到 2，PPL 从 23.54 到 11.92；s=4 却退回 12.36。与此同时，salient error proxy <code>Δ′/(Δs)</code> 仍从 0.519 降到 0.303。不是“保护得越强越好”，而是其他通道的步长被牵连。</p>
+<p><strong>数值核对。</strong> s=2 时 8.2% 的 group 步长改变，平均 Δ′/Δ=1.038；s=4 时改变比例升为 21.2%，平均比率=1.213。最优 PPL 与最小 salient proxy 不一致，正好解释下一步为什么要搜索整层输出误差。</p>
+<h4>公式 (4)–(5)：用小校准集搜索，不能说完全不比较输出</h4>
+<div class="formula" data-latex="\begin{aligned}\mathbf{s}^{*}&amp;=\arg\min_{\mathbf{s}}\mathcal{L}(\mathbf{s})\\ \mathcal{L}(\mathbf{s})&amp;=\left\|Q(\mathbf{W}\operatorname{diag}(\mathbf{s}))\left(\operatorname{diag}(\mathbf{s})^{-1}\mathbf{X}\right)-\mathbf{WX}\right\|\end{aligned}"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msup><mi>𝐬</mi><mrow><mo>*</mo></mrow></msup><mo>=</mo><mo></mo><msub><mrow><mi>a</mi><mi>r</mi><mi>g</mi><mspace width="0.167em"></mspace><mi>m</mi><mi>i</mi><mi>n</mi></mrow><mrow><mi>𝐬</mi></mrow></msub><mi>ℒ</mi><mo stretchy="false">(</mo><mi>𝐬</mi><mo stretchy="false">)</mo></mrow></math><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>ℒ</mi><mo stretchy="false">(</mo><mi>𝐬</mi><mo stretchy="false">)</mo><mo>=</mo><mrow><mo fence="true" form="prefix" stretchy="true">‖</mo><mi>Q</mi><mo stretchy="false">(</mo><mi>𝐖</mi><mo>diag</mo><mo stretchy="false">(</mo><mi>𝐬</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mo>diag</mo><mo stretchy="false">(</mo><mi>𝐬</mi><msup><mo stretchy="false">)</mo><mrow><mo>−</mo><mn>1</mn></mrow></msup><mi>𝐗</mi><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>−</mo><mrow><mi mathvariant="bold">W</mi><mi mathvariant="bold">X</mi></mrow><mo fence="true" form="postfix" stretchy="true">‖</mo></mrow></mrow></math><span class="equation-number">Original Paper · Eq. (4) · corrected from PDF</span><details><summary>复制 LaTeX 原公式</summary><code>\begin{aligned}\mathbf{s}^{*}&amp;=\arg\min_{\mathbf{s}}\mathcal{L}(\mathbf{s})\\ \mathcal{L}(\mathbf{s})&amp;=\left\|Q(\mathbf{W}\operatorname{diag}(\mathbf{s}))\left(\operatorname{diag}(\mathbf{s})^{-1}\mathbf{X}\right)-\mathbf{WX}\right\|\end{aligned}</code></details></div>
+<div class="formula" data-latex="\mathbf{s}=\mathbf{s}_{X}^{\alpha},\quad\alpha^{*}=\arg\min_{\alpha}\mathcal{L}(\mathbf{s}_{X}^{\alpha})"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>𝐬</mi><mo>=</mo><msubsup><mi>𝐬</mi><mrow><mi>X</mi></mrow><mrow><mi>α</mi></mrow></msubsup><mo>,</mo><mspace width="1em"></mspace><msup><mi>α</mi><mrow><mo>*</mo></mrow></msup><mo>=</mo><mo></mo><msub><mrow><mi>a</mi><mi>r</mi><mi>g</mi><mspace width="0.167em"></mspace><mi>m</mi><mi>i</mi><mi>n</mi></mrow><mrow><mi>α</mi></mrow></msub><mi>ℒ</mi><mo stretchy="false">(</mo><msubsup><mi>𝐬</mi><mrow><mi>X</mi></mrow><mrow><mi>α</mi></mrow></msubsup><mo stretchy="false">)</mo></mrow></math><span class="equation-number">Original Paper · Eq. (5)</span><details><summary>复制 LaTeX 原公式</summary><code>\mathbf{s}=\mathbf{s}_{X}^{\alpha},\quad\alpha^{*}=\arg\min_{\alpha}\mathcal{L}(\mathbf{s}_{X}^{\alpha})</code></details></div>
+<p><code>s_X ∈ R^(d_in)</code> 是平均绝对输入激活，α 是一个 scalar。将高维通道尺度约束在 <code>s=s_X^α</code> 曲线上，α=0 对应不做通道差异缩放，较大的 α 更积极地保护激活大的通道。<code>L(s)</code> 比较量化后输出与原 <code>WX</code>；它是局部代理，不是训练任务损失。</p>
+<p><strong>Code。</strong> 当前 <code>auto_scale.py</code> 实际试验 <code>α=0, 0.05, …, 0.95</code> 共 20 个点，未包含 1.0；对 s 做 <code>clamp(min=1e−4)</code>，再除以 <code>sqrt(max(s)min(s))</code>。每个候选会 fake quantize 并 forward，使用 FP32 mean squared output difference 评分。原文所说“不依赖 reconstruction / 只需要平均激活”应理解为没有回归拟合权重或反向传播训练；<strong>不等于没有校准输入、没有 trial forward 或输出 MSE</strong>。</p>
+<p><strong>Clipping。</strong> 当前 <code>auto_clip.py</code> 按 group 搜索 <code>1,0.95,…,0.55</code> 倍 absmax，按采样激活的 group 输出 MSE 选择阈值。默认最多采样 512 tokens；对 Q/K/Wqkv 名称跳过裁剪，原因是 QK 交互不能被孤立 linear 的局部 MSE 充分描述。不能对所有层机械套一个最优 clip 值。</p>
+<div aria-label="原论文 Table 3 完整表格" class="table-scroll original-table" id="table-3" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">OPT (PPL<math alttext="\downarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">↓</mo><annotation encoding="application/x-tex">\downarrow</annotation></semantics></math></span>)</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding:0.25pt 5.0pt;">1.3B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">2.7B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">6.7B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">13B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">30B</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding:0.25pt 5.0pt;">FP16</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding:0.25pt 5.0pt;">14.62</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 5.0pt;">12.47</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 5.0pt;">10.86</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 5.0pt;">10.13</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 5.0pt;">9.56</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 5.0pt;">RTN</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 5.0pt;">119.47</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">298.00</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">23.54</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">46.04</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">18.80</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 5.0pt;">1% FP16</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 5.0pt;">16.91</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">13.69</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">11.39</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">10.43</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">9.85</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 5.0pt;"><math alttext="s=2" class="ltx_Math" intent=":literal"><semantics><mrow><mi>s</mi><mo>=</mo><mn>2</mn></mrow><annotation encoding="application/x-tex">s=2</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 5.0pt;">18.63</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">14.94</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">11.92</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">10.80</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">10.32</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 5.0pt;">AWQ</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">16.32</span></th>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">13.58</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">11.39</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">10.56</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">9.77</span></td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>AWQ protects salient weights and reduces quantization error by using a scaling-based method. It consistently outperforms Round-to-nearest quantization (RTN) and achieves comparable performance as mixed-precision (1% FP16) while being more hardware-friendly. We use 3-bit quantization with group size 128.</figcaption>
+</figure></div>
+<details><summary>Table 3 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 3 所在 PDF 全页" data-zoom="assets/tables/table-03.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-03.png"/></button><figcaption>Table 3 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 3：最终 AWQ 和 1% FP16 分开比较。</strong> INT3-g128 中，OPT-6.7B 的 RTN 23.54 → AWQ 11.39，绝对减少 12.15、相对减少 51.61%；FP16 10.86，仍有 0.53 PPL gap。OPT-13B 的 1% FP16 是 10.43，AWQ 为 10.56，说明 comparable 并不等于每行更优。</p>
+<p><strong>消融审计。</strong> Table 2 拆出了一个固定 salient scaling 的效果，Table 3 比较了固定 s、mixed precision 与完整 AWQ。但原文未给出严格控制相同设置的 scale-only / clip-only / both 分解。v6 §3.2 末尾把消融指向 “Table 5”，而 Table 5 已是 Mistral/Mixtral 结果；本文不把这个编号错误当作缺失消融的证据。</p>
+<h3>方法重建：校准、折叠、导出三步各做了什么</h3>
+<figure class="generated-figure"><svg aria-label="校准与导出数据流" role="img" viewbox="0 0 780 473" xmlns="http://www.w3.org/2000/svg"><title>校准与导出数据流</title><rect fill="#101823" height="473" rx="8" width="780"></rect><text fill="#d5e1f3" font-family="sans-serif" font-size="15" x="28" y="30">校准与导出数据流</text><circle cx="40" cy="85" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="90">1</text><path d="M40 100v57m-5 -6l5 6 5 -6" fill="none" stroke="#85aad8"></path><text fill="#e2bc7c" font-size="12" x="68" y="70">输入证据</text><text fill="#d5e1f3" font-size="15" x="68" y="95">X：d_in × T</text><text fill="#a6b8d0" font-size="13" x="68" y="119">W：d_out × d_in</text><line stroke="#2a3a50" x1="68" x2="752" y1="138" y2="138"></line><circle cx="40" cy="187" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="192">2</text><path d="M40 202v57m-5 -6l5 6 5 -6" fill="none" stroke="#85aad8"></path><text fill="#e2bc7c" font-size="12" x="68" y="172">搜索</text><text fill="#d5e1f3" font-size="15" x="68" y="197">s_X = mean |X|</text><text fill="#a6b8d0" font-size="13" x="68" y="221">20 个 α → fake quant → output MSE</text><line stroke="#2a3a50" x1="68" x2="752" y1="240" y2="240"></line><circle cx="40" cy="289" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="294">3</text><path d="M40 304v57m-5 -6l5 6 5 -6" fill="none" stroke="#85aad8"></path><text fill="#e2bc7c" font-size="12" x="68" y="274">图上折叠</text><text fill="#d5e1f3" font-size="15" x="68" y="299">相邻 Norm / linear</text><text fill="#a6b8d0" font-size="13" x="68" y="323">WS 与 S⁻¹X；处理所有 consumers</text><line stroke="#2a3a50" x1="68" x2="752" y1="342" y2="342"></line><circle cx="40" cy="391" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="396">4</text><text fill="#e2bc7c" font-size="12" x="68" y="376">裁剪与导出</text><text fill="#d5e1f3" font-size="15" x="68" y="401">eligible group clip</text><text fill="#a6b8d0" font-size="13" x="68" y="425">packed qweight + scale + zero → roundtrip</text><line stroke="#2a3a50" x1="68" x2="752" y1="444" y2="444"></line></svg><figcaption>校准与导出数据流 · Agent-created Simplified Diagram · <a href="assets/generated/pipeline.mmd">Mermaid source</a> · <a href="assets/generated/pipeline.svg">SVG</a></figcaption></figure>
+<div aria-label="完整对比表；可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>Input → Output</th>
+<th>估计 / 更新的量</th>
+<th>必须检查的边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>校准捕获</td>
+<td>浮点模型、token sequences → 每层 linear 输入与原输出</td>
+<td><code>s_X</code>、trial MSE、group clip</td>
+<td>数据应代表实际分布；hook 与缓存非零成本</td>
+</tr>
+<tr>
+<td>搜索</td>
+<td>W、X → s、clip thresholds</td>
+<td>α grid 与裁剪阈值</td>
+<td>不更新训练 optimizer，没有新训练 loss</td>
+</tr>
+<tr>
+<td>等价折叠</td>
+<td>相邻浮点算子 → 重参数化模型</td>
+<td><code>WS</code> 与对应逆变换</td>
+<td>Norm、bias、残差与非线性必须同步处理</td>
+</tr>
+<tr>
+<td>Fake quant</td>
+<td>浮点 W → 落在量化格点的浮点 Ŵ</td>
+<td>重建权重</td>
+<td>仍是 float tensor，容量并未按 4-bit 降低</td>
+</tr>
+<tr>
+<td>Real export</td>
+<td>Ŵ / s / clip → packed integer、scale、zero metadata</td>
+<td>确定 signedness、layout、group</td>
+<td>不能跨格式直接复用 qweight</td>
+</tr>
+<tr>
+<td>Runtime</td>
+<td>输入 / cache → 输出 / 更新 cache</td>
+<td>解包与 fused dequant、浮点 matmul</td>
+<td>选择 GEMV/GEMM、padding、累加精度、kernel</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>校准不是训练。</strong> 当前 <code>pre_quant.run_awq</code> 用 hook 把 linear 输入缓存到 CPU，一次将一个 decoder block 搬到 GPU。默认 calibration 为 512 段、每段 512 tokens；Figure 8 的实验 sequence length 是 2048，不能用当前代码默认值反推所有论文实验。下一层的 <code>inps</code> 在本层施加 scale/clip <strong>之前</strong> forward 得到，属于按原模型轨迹逐层校准，并不保证完全匹配量化后上游分布。</p>
+<p><strong>折叠必须尊重计算图。</strong> Norm 的 gamma/bias 除以 s，Q/K/V 输入列乘 s，可以吸收额外激活除法。SwiGLU 下通常在 <strong>up projection</strong> 输出行和 bias 除以 s，再让 down projection 的输入列乘 s；不能把缩放随意穿过 SiLU/GELU，也不能漏掉共享残差路径。</p>
+<p><strong>GQA 细节。</strong> 当前实现仅在 v_proj 和 o_proj 权重 shape 匹配时尝试 V→O 折叠，否则跳过。GQA 的 KV heads 少于 query heads，V 的通道不能按 MHA 同尺寸假设映射；需要广播关系与 scale 一致。这里与 <a href="../gqa/">GQA 精读</a> 和 <a href="../mqa/">MQA 精读</a> 的 tensor / KV 账本直接衔接。</p>
+<p><strong>计算与内存。</strong> 一层 20 次 scale 试验大约要 <code>20×O(T d_in d_out)</code> 输出评估与 <code>20×O(d_in d_out)</code> 量化遍历；如果评分模块包含 attention，还会多出其成本。Clipping 另有约 10 轮 group 部分 dot product。它不构造 GPTQ 的 dense <code>d_in×d_in</code> Hessian，但缓存 <code>T×d_in</code> 激活、权重副本和 CPU↔GPU 搬运仍可能显著。参数规模大不代表校准峰值自动等于最终 INT4 模型大小。</p>
+<h2 id="section-5">4. TinyChat：为什么 W4 存储不自动产生 4× 加速</h2>
+<h3>4.1 端侧解码的瓶颈：权重流量</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 3" data-zoom="assets/original/fig-03.svg" type="button"><img alt="Figure 3: Bottleneck analysis for Llama-2-7B on NVIDIA RTX 4090. Left : In on-device LLM applications, generation stage is much slower than the context stage. Middle : The generation stage is memory bound and has low arithmetic intensity. W4A16 quantization can effectively improve the arithmetic intensity by 4 × \times . Right : The amount of weight access is orders of magnitude larger than the amount of activation access. Thus, weight-only quantization is more effective for on-device LLMs." loading="lazy" src="assets/original/fig-03.svg"/></button><figcaption>Figure 3 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 3: Bottleneck analysis for Llama-2-7B on NVIDIA RTX 4090. Left : In on-device LLM applications, generation stage is much slower than the context stage. Middle : The generation stage is memory bound and has low arithmetic intensity. W4A16 quantization can effectively improve the arithmetic intensity by 4 × \times . Right : The amount of weight access is orders of magnitude larger than the amount of activation access. Thus, weight-only quantization is more effective for on-device LLMs.</p></details></figure>
+<p><strong>Figure 3 读图顺序。</strong> 左图比较一个 200-token prompt 的 context 阶段与生成 20 tokens 的总耗时；中图放到 RTX 4090 roofline；右图分解 attention 和 FFN 的权重/激活访问。左图 10 ms 和 310 ms 对应不同 token 数，不能直接解释为“每个 decode token 慢 31 倍”。</p>
+<p><strong>Roofline 重建。</strong> 论文采用约 165 TFLOPS 与 1 TB/s，拐点是 165 FLOPs/byte。batch=1 GEMV 的理想权重算术强度近似 <code>2 FLOPs / 2 bytes = 1</code>；若用 INT4 读权重、忽略 metadata/KV/反量化，则约为 <code>2 / 0.5 = 4</code>。两个值仍远低于拐点，因此减少权重读取有意义。</p>
+<p><strong>流量不等于峰值占用。</strong> 右图 attention 的 134 MB weight vs 1.7 MB activation、FFN 的 271 MB vs 0.2 MB 是该分析设置的访问量；不能把它当成整个进程、长上下文 KV 或 VLM 图像预填充的内存图。</p>
+<p><strong>Interpretation。</strong> 更大 batch 会复用同一份权重，多 token prefill 则从 GEMV 转为更高算术强度的 GEMM。AWQ 的收益可能随之受计算效率、反量化和激活流量限制。长上下文还会让 KV 成为 decode 的另一条流量路径。</p>
+<h3>4.2 On-the-fly dequantization、SIMD packing 与融合</h3>
+<p>在论文测试的硬件路径上，没有可直接利用的 INT4×FP16 指令：packed qweight 被读入，在寄存器中解包、转换到 FP16、乘 scale / 处理 zero，再参与矩阵计算。融合避免将完整反量化权重写回 DRAM，也避免随后再次读取。</p>
+<figure class="generated-figure"><svg aria-label="单层运行时的数据与成本" role="img" viewbox="0 0 780 473" xmlns="http://www.w3.org/2000/svg"><title>单层运行时的数据与成本</title><rect fill="#101823" height="473" rx="8" width="780"></rect><text fill="#d5e1f3" font-family="sans-serif" font-size="15" x="28" y="30">单层运行时的数据与成本</text><circle cx="40" cy="85" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="90">1</text><path d="M40 100v57m-5 -6l5 6 5 -6" fill="none" stroke="#85aad8"></path><text fill="#e2bc7c" font-size="12" x="68" y="70">从内存读</text><text fill="#d5e1f3" font-size="15" x="68" y="95">packed INT4 tile</text><text fill="#a6b8d0" font-size="13" x="68" y="119">scale / scaled zero metadata</text><line stroke="#2a3a50" x1="68" x2="752" y1="138" y2="138"></line><circle cx="40" cy="187" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="192">2</text><path d="M40 202v57m-5 -6l5 6 5 -6" fill="none" stroke="#85aad8"></path><text fill="#e2bc7c" font-size="12" x="68" y="172">寄存器中还原</text><text fill="#d5e1f3" font-size="15" x="68" y="197">AND / SHIFT → convert</text><text fill="#a6b8d0" font-size="13" x="68" y="221">scale / zero；不写完整 FP16 W 回 DRAM</text><line stroke="#2a3a50" x1="68" x2="752" y1="240" y2="240"></line><circle cx="40" cy="289" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="294">3</text><path d="M40 304v57m-5 -6l5 6 5 -6" fill="none" stroke="#85aad8"></path><text fill="#e2bc7c" font-size="12" x="68" y="274">计算与输出</text><text fill="#d5e1f3" font-size="15" x="68" y="299">FP16/BF16 activation</text><text fill="#a6b8d0" font-size="13" x="68" y="323">FMA/MMA → output；累加精度另定</text><line stroke="#2a3a50" x1="68" x2="752" y1="342" y2="342"></line><circle cx="40" cy="391" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="396">4</text><text fill="#e2bc7c" font-size="12" x="68" y="376">系统路径</text><text fill="#d5e1f3" font-size="15" x="68" y="401">Norm / QKV / position fusion</text><text fill="#a6b8d0" font-size="13" x="68" y="425">attention + KV update → next layer</text><line stroke="#2a3a50" x1="68" x2="752" y1="444" y2="444"></line></svg><figcaption>单层运行时的数据与成本 · Agent-created Simplified Diagram · <a href="assets/generated/runtime.mmd">Mermaid source</a> · <a href="assets/generated/runtime.svg">SVG</a></figcaption></figure>
+<p><strong>per-op 账本。</strong> 一次反量化至少涉及 shift/AND、整数到浮点转换、scale/zero 运算，之后才是 FMA/MMA。要同时看 load、位运算、convert、寄存器占用、spill、启动次数与访存。论文的“三条 SIMD 指令”是解包 32 个 nibble，不能理解成“三条指令完成整个 32-weight matmul”。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 4" data-zoom="assets/original/fig-04.svg" type="button"><img alt="Figure 4: SIMD-aware weight packing for ARM NEON with 128-bit SIMD units. Original weights are reordered and packed to align with the bit width so that the weights can be unpacked into bytes at runtime using AND and shift bitwise operations with a 128-bit mask." loading="lazy" src="assets/original/fig-04.svg"/></button><figcaption>Figure 4 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 4: SIMD-aware weight packing for ARM NEON with 128-bit SIMD units. Original weights are reordered and packed to align with the bit width so that the weights can be unpacked into bytes at runtime using AND and shift bitwise operations with a 128-bit mask.</p></details></figure>
+<p><strong>Figure 4 逐模块解析。</strong> 一个 128-bit NEON register 有 16 个 byte，容纳 32 个 INT4。离线将 <code>w_i</code> 放低 nibble、<code>w_(i+16)</code> 放同一 byte 的高 nibble。运行时低半用 <code>Pw &amp; 0x0f</code>，高半用 <code>(Pw &gt;&gt; 4) &amp; 0x0f</code>，一次得到两组连续权重，省去更复杂的 scalar 交错。</p>
+<p>右图四种矩阵 shape 的 <strong>Original weights → Packed weights</strong> latency 为 <code>248→215</code>、<code>472→399</code>、<code>489→400</code>、<code>1172→954 μs</code>，对应约 <code>1.153×、1.183×、1.223×、1.229×</code>。packing 帮助消除解包成本，却不是额外降低量化 bit 数。这些是原图内的局部实测，不是任意 ARM 设备的速度保证。</p>
+<section class="mechanism" id="packing-widget"><p class="reading-meta">AGENT-CREATED VISUALIZATION · ARM NEON LAYOUT</p><h3>32 个 nibble，16 个 byte，三步还原</h3><div class="controls"><label>调整 32 个 codes 的起始值<input id="pack-offset" max="15" min="0" step="1" type="range" value="0"/><output id="pack-offset-out"></output></label></div><div aria-label="交互图示；可横向滚动" class="svg-scroll" role="region" tabindex="0"><svg aria-label="相隔16的INT4 codes配对并通过AND及SHIFT还原" id="packing-svg" role="img" viewbox="0 0 580 300"></svg></div><div aria-live="polite" class="readout" id="packing-readout"></div><div class="actions"><button id="pack-step" type="button">下一步 / Step</button><button id="pack-reset" type="button">重置 / Reset</button></div><p class="hint">无自动播放；键盘可操作。unsigned codes 属于存储层，浮点重建还需 zero、scale 和 convert；不展示未经测量的速度。</p><noscript><p>byte_i = w_i | (w_(i+16) &lt;&lt; 4)；low=byte_i &amp; 15，high=(byte_i &gt;&gt; 4) &amp; 15。先 low 后 high 拼接即可还原。</p></noscript></section>
+<p><strong>GPU layout 另有约定。</strong> 原文 GPU 采用每 8 个权重按 <code>[0,2,4,6,1,3,5,7]</code> 的布局，ARM NEON 示意不能直接当作 CUDA exporter 的排列。组件只演示原图 ARM unsigned nibble 的打包/还原，zero-point 与 FP16 重建另行处理。</p>
+<p><strong>融合还做了什么。</strong> Norm 的多个算子收口为一条 kernel；QKV projection 合并，并结合位置编码；预分配 KV 并在 attention kernel 内更新。对 Falcon 等原 HF 路径，cache 行为与 launch overhead 会影响 baseline。论文指出某些 FP16 kernel 计算约 0.01 ms，与 launch overhead 同量级，所以“减少 kernel 数量”本身就能提高速度。</p>
+<p><strong>Code 的运行分支。</strong> 检查的 <code>WQLinear.forward</code> 按 flattened input token count <code>&lt;8</code> 走 GEMV，否则走 GEMM。它是该提交的调度规则，不是算法定理，也不代表所有版本在 M=8 一定出现相同性能拐点。</p>
+<h3>存储规格：4.125、4.15625 与 4.25 bit/weight 为什么同时成立</h3>
+<p>官方 affine quantizer 采用 <code>Δ=(w_max−w_min)/(2^N−1)</code>、clamp 后的 <code>z=−round(w_min/Δ)</code>，随后 <code>q=clamp(round(w/Δ)+z)</code>，重建 <code>ŵ=Δ(q−z)</code>。Δ 下限、q/z 的整数范围和排列必须与 kernel 同步。</p>
+<div aria-label="完整对比表；可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>INT4 group metadata 方案</th>
+<th style="text-align: right;">每 group 附加 bits</th>
+<th style="text-align: right;">group=128 的理想 bpw</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>对称：一个 FP16 scale</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">4.125</td>
+<td>不含零点</td>
+</tr>
+<tr>
+<td>常见 affine：FP16 scale + packed INT4 zero</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">4.15625</td>
+<td>zero 也按 nibble 存</td>
+</tr>
+<tr>
+<td>本次官方 WQLinear：FP16 scale + FP16 scaled_zeros</td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">4.25</td>
+<td>zero 已折算为浮点项；不等同 packed zero</td>
+</tr>
+</tbody>
+</table></div>
+<p>当前官方 <code>qweight</code> 使用 INT16 容器、shape <code>[d_out/4,d_in]</code>，scale / scaled_zeros 是 <code>[padded_groups,d_out]</code> 的 FP16/BF16；容器 16-bit 不表示每个原权重用了 16-bit。<code>calculate_zeros_width</code> 会对 group 数做对齐，较小 group 还有额外规则，因此以上值未计 padding、embedding、head 或 FP16 层。</p>
+<section class="mechanism" id="capacity-widget"><p class="reading-meta">AGENT-CREATED CALCULATOR · IDEAL CAPACITY, NOT PROCESS PEAK</p><h3>权重省了多少，KV 又占多少？</h3><div class="controls"><label>假设全部量化参数量<select id="memory-params"><option value="0.5">0.5B</option><option value="3">3B</option><option selected="" value="7">7B</option><option value="13">13B</option><option value="70">70B</option></select></label><label>Group size<select id="memory-group"><option value="32">32</option><option value="64">64</option><option selected="" value="128">128</option></select></label><label>Metadata layout<select id="memory-format"><option selected="" value="official">官方：FP16 scale + scaled_zeros</option><option value="packed">Affine：FP16 scale + INT4 zero</option><option value="symmetric">Symmetric：FP16 scale</option></select></label><label>Layers L<select id="memory-layers"><option value="24">24</option><option selected="" value="32">32</option><option value="40">40</option><option value="80">80</option></select></label><label>Context tokens T<select id="memory-context"><option value="1024">1K</option><option selected="" value="4096">4K</option><option value="8192">8K</option><option value="32768">32K（容量假设）</option></select></label><label>KV heads H_kv<select id="memory-heads"><option value="1">1 · MQA</option><option selected="" value="8">8 · GQA</option><option value="32">32 · MHA</option></select></label><label>Batch B<select id="memory-batch"><option selected="" value="1">1</option><option value="4">4</option><option value="16">16</option></select></label></div><div aria-label="交互图示；可横向滚动" class="svg-scroll" role="region" tabindex="0"><svg aria-label="FP16与INT4权重容量及FP16 KV容量对比" id="capacity-svg" role="img" viewbox="0 0 630 210"></svg></div><div aria-live="polite" class="readout" id="capacity-readout"></div><p class="hint">KV 固定 FP16、head_dim=128；参数量可独立调节，不是某 checkpoint 的精确架构。GB=10⁹ bytes，GiB=2³⁰ bytes。权重与 metadata 未计对齐和未量化层。</p><noscript><p>7B/g128 官方格式权重=3.71875 GB；32 层/4K/8 KV heads/FP16 cache=0.5 GiB。所有公式和边界见正文。</p></noscript></section>
+<p><strong>默认容量示例。</strong> 假设 7.0B 个权重全量量化，group=128、官方双 FP16 metadata，理想权重 3.71875 GB，即约 3.463 GiB；FP16 权重是 14 GB，即 13.039 GiB。32 层、4096 context、8 个 KV heads、head_dim=128、FP16 KV、batch=1 时 cache 是 0.5 GiB；若改成 32 个 KV heads 则为 2 GiB。AWQ 降权重，GQA/MQA 降 KV，两者互补。</p>
+<p><strong>KV 公式。</strong> 逻辑 cache bytes=<code>2 L B T H_kv d_h b_cache</code>，2 对应 K 和 V，<code>b_cache</code> 是每 scalar 的 bytes。不包括 block padding、beam copy、paged allocator、临时工作区和视觉激活。NVFP4/INT8 cache 支持不能由这个容量计算器推断，组件固定 FP16 KV；没有把容量估算变成 latency 预测。</p>
+<h2 id="section-6">5. Experiments：把每组 claim 放回实验条件</h2>
+<h3>5.1 设置与评价指标</h3>
+<div aria-label="完整对比表；可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>原文提供的设置</th>
+<th>审计意义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型</td>
+<td>OPT、LLaMA / Llama-2、Mistral/Mixtral、Vicuna、CodeLlama、OpenFlamingo、LLaVA、VILA</td>
+<td>跨架构和任务，但不是每个模型都有同样 baseline</td>
+</tr>
+<tr>
+<td>权重精度</td>
+<td>主要 INT3/INT4，group=128；极低比特组合 INT2-g64</td>
+<td>不能跨 group 和 bit 直接拼结论</td>
+</tr>
+<tr>
+<td>校准</td>
+<td>小规模通用文本；Figure 8 的 sequences 长度 2048</td>
+<td>默认代码样本数与图中试验不同</td>
+</tr>
+<tr>
+<td>PPL</td>
+<td>WikiText / WikiText-2，↓</td>
+<td>衡量语言建模负对数似然；不是 classification accuracy</td>
+</tr>
+<tr>
+<td>指令评估</td>
+<td>80 个问题，GPT-4；交换回答顺序合计 160 次评审</td>
+<td>不能把 160 视作独立问题样本</td>
+</tr>
+<tr>
+<td>VLM</td>
+<td>COCO 5k 的 CIDEr ↑，11 项 VILA benchmark</td>
+<td>CIDEr、MME 与百分比准确率不可统一求平均</td>
+</tr>
+<tr>
+<td>编程 / 数学</td>
+<td>MBPP pass@1、pass@10；GSM8K ↑</td>
+<td>需要采样设置和置信区间理解小幅变化</td>
+</tr>
+<tr>
+<td>速度</td>
+<td>batch=1，prompt=4，generate=200，median latency</td>
+<td>主要覆盖 warm 短 prompt 生成；不覆盖完整冷启动 / TTFT 分位数</td>
+</tr>
+<tr>
+<td>硬件</td>
+<td>RTX 4090、laptop 4070 8 GB、Jetson Orin、Raspberry Pi 4；VILA 另有 A100</td>
+<td>设备、内存容量和 kernel 都要匹配</td>
+</tr>
+<tr>
+<td>训练项</td>
+<td>本方法是 PTQ，没有新 optimizer / LR / training tokens</td>
+<td>不能编造一个 AWQ training recipe</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Baseline fairness。</strong> GPTQ 必须区分是否 reordering；系统速度必须同时看 HF FP16 与作者优化的 FP16。只报低优化 baseline 会混入融合收益；只报 OOM 模型则无法计算有限倍率。论文未提供多次独立量化、完整置信区间或跨所有任务统一资源预算。</p>
+<h3>5.2 精度：语言、指令、视觉、代码与极低比特</h3>
+<div aria-label="原论文 Table 4 完整表格" class="table-scroll original-table" id="table-4" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" rowspan="2" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">PPL<math alttext="\downarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">↓</mo><annotation encoding="application/x-tex">\downarrow</annotation></semantics></math></span></th>
+<th class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding:0.25pt 12.0pt;"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">Llama-2</span>  </th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="4" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">LLaMA</span>  </th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_column ltx_th_row" style="padding:0.25pt 12.0pt;"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">7B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">13B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">70B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">7B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">13B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">30B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">65B</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding:0.25pt 12.0pt;">FP16</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding:0.25pt 12.0pt;">-</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">5.47</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">4.88</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">3.32</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">5.68</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">5.09</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">4.10</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 12.0pt;">3.53</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" rowspan="4" style="padding:0.25pt 12.0pt;"><span class="ltx_text">
+<span class="ltx_inline-block">
+<span class="ltx_p">INT3</span>
+<span class="ltx_p">g128</span>
+</span></span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 12.0pt;">RTN</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">6.66</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">5.52</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">3.98</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">7.01</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">5.88</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">4.88</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">4.24</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 12.0pt;">GPTQ</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">6.43</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">5.48</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">3.88</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">8.81</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">5.66</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">4.88</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">4.17</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 12.0pt;">GPTQ-R</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">6.42</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">5.41</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">3.86</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">6.53</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">5.64</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">4.74</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">4.21</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 12.0pt;">AWQ</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">6.24</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">5.32</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">3.74</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">6.35</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">5.52</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">4.61</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">3.95</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_t" rowspan="4" style="padding:0.25pt 12.0pt;"><span class="ltx_text">
+<span class="ltx_inline-block">
+<span class="ltx_p">INT4</span>
+<span class="ltx_p">g128</span>
+</span></span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 12.0pt;">RTN</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">5.73</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">4.98</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">3.46</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">5.96</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">5.25</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">4.23</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 12.0pt;">3.67</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 12.0pt;">GPTQ</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">5.69</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">4.98</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">3.42</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">6.22</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">5.23</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">4.24</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">3.66</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 12.0pt;">GPTQ-R</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">5.63</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">4.99</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">3.43</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">5.83</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">5.20</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">4.22</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 12.0pt;">3.66</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 12.0pt;">AWQ</th>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">5.60</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">4.97</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">3.41</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">5.78</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">5.19</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">4.21</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 12.0pt;"><span class="ltx_text ltx_font_bold">3.62</span></td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 4: </span>AWQ improves over round-to-nearest quantization (RTN) for different model sizes and different bit-precisions. It consistently achieves better perplexity than GPTQ (w/ and w/o reordering) on LLaMA &amp; Llama-2 models.
+</figcaption>
+</figure></div>
+<details><summary>Table 4 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 4 所在 PDF 全页" data-zoom="assets/tables/table-04.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-04.png"/></button><figcaption>Table 4 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 4：不要跳过最强 GPTQ。</strong> Llama-2-7B INT4 的 FP16=5.47，RTN=5.73，GPTQ=5.69，GPTQ with reordering=5.63，AWQ=5.60。AWQ 相对 RTN 改善 0.13 PPL，相对最强 GPTQ 只有 0.03，距 FP16 仍 0.13。INT3 的 LLaMA-7B 则从 GPTQ 8.81 → reordered GPTQ 6.53 → AWQ 6.35。AWQ 的作用明显，但不能把 reorder 带来的改善记到 AWQ。</p>
+<p><strong>成本。</strong> 完整 AWQ 搜索与直接 RTN 的校准成本不同；GPTQ 的 Hessian/补偿也不同。此表给出精度，不直接证明相同量化耗时下的最优 Pareto 点。</p>
+<div aria-label="原论文 Table 5 完整表格" class="table-scroll original-table" id="table-5" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">Wikitext2 PPL<math alttext="\downarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">↓</mo><annotation encoding="application/x-tex">\downarrow</annotation></semantics></math></span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">Mixtral-8x7B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">Mistral-7B</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding:0.25pt 5.0pt;">FP16</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 5.0pt;">5.94</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 5.0pt;">4.14</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 5.0pt;">INT4-g128</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">6.05</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">4.30</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 5.0pt;">INT3-g128</th>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">6.52</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">4.83</td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 5: </span>AWQ quantization results on Mistral-7B-Instruct-v0.2<cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib29" rel="noopener" title="">Jiang et al. (2023)</a></cite> and Mixtral-8x7B-Instruct-v0.1 model  <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib30" rel="noopener" title="">Jiang et al. (2024)</a></cite>. The PPL result on wikitext shows that AWQ can achieve superior quantization performance on different model architectures including LLMs with GQA and Mixture-of-Experts (MoE) models.</figcaption>
+</figure></div>
+<details><summary>Table 5 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 5 所在 PDF 全页" data-zoom="assets/tables/table-05.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-05.png"/></button><figcaption>Table 5 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 5：架构可迁移，竞争排名证据不足。</strong> Mistral-7B FP16 4.14 → INT4 4.30 / INT3 4.83；Mixtral FP16 5.94 → INT4 6.05 / INT3 6.52。这支持在 GQA/MoE 上获得可用结果，但该表没有 RTN、GPTQ 或旋转量化对手，不能独立支持 “superior to competing quantizers”。Mixtral 的所有 expert 常驻权重影响容量，active parameters 不能代替总存储。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 5" data-zoom="assets/original/fig-05.svg" type="button"><img alt="Figure 5: Comparing INT3-g128 quantized Vicuna models with FP16 counterparts under GPT-4 evaluation protocol Chiang et al. (2023) . More winning cases (in blue ) indicate better performance. AWQ consistently improves the quantized performance compared to RTN and GPTQ Frantar et al. (2022) , showing generalization to instruction-tuned models." loading="lazy" src="assets/original/fig-05.svg"/></button><figcaption>Figure 5 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 5: Comparing INT3-g128 quantized Vicuna models with FP16 counterparts under GPT-4 evaluation protocol Chiang et al. (2023) . More winning cases (in blue ) indicate better performance. AWQ consistently improves the quantized performance compared to RTN and GPTQ Frantar et al. (2022) , showing generalization to instruction-tuned models.</p></details></figure>
+<p><strong>Figure 5：蓝色是胜出，灰色是持平，红色是失败。</strong> 各行与同一模型 FP16 回答比较，7B 的 RTN <code>(6,3,71)</code>、GPTQ <code>(4,1,75)</code>、AWQ <code>(23,5,52)</code>；13B 分别 <code>(14,9,57)</code>、<code>(17,6,57)</code>、<code>(22,11,47)</code>，每行合计 80。7B 相对 RTN 多 17 个胜出，13B 多 8 个；AWQ 仍有大量输给 FP16 的案例。</p>
+<p><strong>边界。</strong> 文本报告双顺序 160 次评审，图中合并到 80；具体聚合规则没有充分展开。GPT-4 evaluator、prompt 和顺序偏差影响结果；它是 instruction generalization 的证据，不是精确人工偏好胜率。</p>
+<div aria-label="原论文 Table 6 完整表格" class="table-scroll original-table" id="table-6" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" colspan="2" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">COCO (CIDEr <math alttext="\uparrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">↑</mo><annotation encoding="application/x-tex">\uparrow</annotation></semantics></math>)</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 11.0pt;">0-shot</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 11.0pt;">4-shot</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 11.0pt;">8-shot</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 11.0pt;">16-shot</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 11.0pt;">32-shot</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 11.0pt;"><em class="ltx_emph ltx_font_italic"><math alttext="\Delta" class="ltx_Math" intent=":literal"><semantics><mi mathvariant="normal">Δ</mi><annotation encoding="application/x-tex">\Delta</annotation></semantics></math>(32-shot)</em></th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding:0.25pt 11.0pt;">FP16</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding:0.25pt 11.0pt;">-</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 11.0pt;">63.73</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 11.0pt;">72.18</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 11.0pt;">76.95</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 11.0pt;">79.74</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 11.0pt;">81.70</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 11.0pt;">-</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" rowspan="3" style="padding:0.25pt 11.0pt;"><span class="ltx_text">
+<span class="ltx_inline-block">
+<span class="ltx_p">INT4</span>
+<span class="ltx_p">g128</span>
+</span></span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 11.0pt;">RTN</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">60.24</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">68.07</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">72.46</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">74.09</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">77.13</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">-4.57</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 11.0pt;">GPTQ</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">59.72</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">67.68</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">72.53</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">74.98</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">74.98</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">-6.72</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 11.0pt;">AWQ</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">62.57</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">71.02</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">74.75</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">78.23</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">80.53</span></td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">-1.17</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_t" rowspan="3" style="padding:0.25pt 11.0pt;"><span class="ltx_text">
+<span class="ltx_inline-block">
+<span class="ltx_p">INT3</span>
+<span class="ltx_p">g128</span>
+</span></span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 11.0pt;">RTN</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">46.07</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">55.13</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">60.46</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">63.21</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">64.79</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 11.0pt;">-16.91</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 11.0pt;">GPTQ</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">29.84</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">50.77</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">56.55</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">60.54</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">64.77</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 11.0pt;">-16.93</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 11.0pt;">AWQ</th>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">56.33</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">64.73</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">68.79</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">72.86</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">74.47</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 11.0pt;"><span class="ltx_text ltx_font_bold">-7.23</span></td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 6: </span>Quantization results of a visual language model OpenFlamingo-9B <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib3" rel="noopener" title="">Awadalla et al. (2023)</a></cite> on COCO Captioning datasets. Activation-aware Weight Quantization outperforms existing methods under zero-shot and various few-shot settings, demonstrating the generability to different modalities and in-context learning workloads. Activation-aware Weight Quantization reduces the quantization degradation (32-shot) from 4.57 to 1.17 under INT4-g128, providing 4<math alttext="\times" class="ltx_Math" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math> model size reduction with negligible performance loss.
+</figcaption>
+</figure></div>
+<details><summary>Table 6 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 6 所在 PDF 全页" data-zoom="assets/tables/table-06.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-06.png"/></button><figcaption>Table 6 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 6：OpenFlamingo 的 in-context captioning。</strong> COCO CIDEr ↑，保留 0/4/8/16/32-shot 所有列、INT3/INT4 所有 baseline。在 32-shot INT4 下，FP16 81.70，RTN 77.13，GPTQ 74.98，AWQ 80.53。相对 RTN 提升 3.40 CIDEr；距 FP16 的 gap 从 4.57 缩为 1.17，即恢复约 74.40% 的 RTN gap。</p>
+<p><strong>不是所有 3-bit 配置都近乎无损。</strong> INT3 32-shot 的 AWQ 是 74.47，距 FP16 7.23。这里仅量化语言部分，vision 保持高精度；caption 的“4× model size reduction”不能未经参数分解就套到整个 VLM。</p>
+<div aria-label="原论文 Table 7 完整表格" class="table-scroll original-table" id="table-7" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">Model (Accuracy<math alttext="\uparrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">↑</mo><annotation encoding="application/x-tex">\uparrow</annotation></semantics></math>)</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">VQAv2</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">GQA</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">VizWiz</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">SQA-I</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">VQA-T</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">POPE</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">MME</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">MMB</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">SEED</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">llava-bench</th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">MM-Vet</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 5.0pt;">VILA-7B</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">80.3</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">63.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">59.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">68.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">62.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">86.3</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">1489.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">69.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">61.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">75.2</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">35.1</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 5.0pt;">VILA-7B-AWQ</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">80.1</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">63.0</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">57.8</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">68.0</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">61.9</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">85.3</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">1486.3</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">68.8</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">61.3</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">75.8</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center" style="padding:0.25pt 5.0pt;">35.9</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 5.0pt;">VILA-13B</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">80.5</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">63.6</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">63.1</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">70.5</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">64.0</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">86.3</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">1553.6</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">73.8</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">62.8</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">78.3</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center" style="padding:0.25pt 5.0pt;">42.6</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 5.0pt;">VILA-13B-AWQ</th>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">80.4</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">63.6</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">63.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">71.2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">63.5</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">87.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">1552.9</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">73.6</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">62.2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">77.6</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">42.0</td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 7: </span>INT4-g128 results of VILA-7B and VILA-13B <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib40" rel="noopener" title="">Lin et al. (2024)</a></cite> on 11 visual-language benchmarks. AWQ consistently shows lossless performance on all benchmarks. Benchmark names are abbreviated due to space limits. VQA-v2 <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib23" rel="noopener" title="">Goyal et al. (2017)</a></cite>; GQA <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib27" rel="noopener" title="">Hudson &amp; Manning (2019)</a></cite>; VisWiz <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib24" rel="noopener" title="">Gurari et al. (2018)</a></cite>; SQA<math alttext="{}^{\text{I}}" class="ltx_Math" intent=":literal"><semantics><msup><mrow></mrow><mtext>I</mtext></msup><annotation encoding="application/x-tex">{}^{\text{I}}</annotation></semantics></math>: ScienceQA-IMG <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib43" rel="noopener" title="">Lu et al. (2022)</a></cite>; VQA<math alttext="{}^{\text{T}}" class="ltx_Math" intent=":literal"><semantics><msup><mrow></mrow><mtext>T</mtext></msup><annotation encoding="application/x-tex">{}^{\text{T}}</annotation></semantics></math>: TextVQA <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib55" rel="noopener" title="">Singh et al. (2019)</a></cite>; POPE <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib38" rel="noopener" title="">Li et al. (2023d)</a></cite>; MME <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib20" rel="noopener" title="">Fu et al. (2023)</a></cite>; MMB: MMBench <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib42" rel="noopener" title="">Liu et al. (2023b)</a></cite>; MMB<math alttext="{}^{\text{CN}}" class="ltx_Math" intent=":literal"><semantics><msup><mrow></mrow><mtext>CN</mtext></msup><annotation encoding="application/x-tex">{}^{\text{CN}}</annotation></semantics></math>: MMBench-Chinese <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib42" rel="noopener" title="">Liu et al. (2023b)</a></cite>; SEED: SEED-Bench <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib34" rel="noopener" title="">Li et al. (2023a)</a></cite>; LLaVA<math alttext="{}^{\text{W}}" class="ltx_Math" intent=":literal"><semantics><msup><mrow></mrow><mtext>W</mtext></msup><annotation encoding="application/x-tex">{}^{\text{W}}</annotation></semantics></math>: LLaVA-Bench (In-the-Wild) <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib41" rel="noopener" title="">Liu et al. (2023a)</a></cite>; MM-Vet <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib69" rel="noopener" title="">Yu et al. (2023)</a></cite>.</figcaption>
+</figure></div>
+<details><summary>Table 7 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 7 所在 PDF 全页" data-zoom="assets/tables/table-07.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-07.png"/></button><figcaption>Table 7 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 7：逐项看，不替作者放大 “lossless”。</strong> VILA-7B 的 VizWiz 59.6 → 57.8，降 1.8 points；TextVQA 62.6 → 61.9，降 0.7；POPE 86.3 → 85.3，降 1.0。若应用是 OCR，TextVQA 的下降比某个通用指标的小幅增加更值得跟踪。MME 是 score，不是百分比 accuracy，不能和其他列直接平均。</p>
+<p><strong>表格完整性问题。</strong> caption 罗列 MMBench-CN，但表体没有对应列；本文保留原 caption 与实际 11 列，不补造一个 MMB-CN 数字。部分指标上升与下降并存，未给置信区间，支持“多数指标接近 FP16”，不支持所有 benchmark 的统计无损。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 6" data-zoom="assets/original/fig-06.png" type="button"><img alt="Figure 6: Visual reasoning examples from LLaVA-13B model Liu et al. (2023a) . AWQ improves over the round-to-nearest (RTN) baseline, providing more reasonable answers. We color the text to show the correct or wrong responses." loading="lazy" src="assets/original/fig-06.png"/></button><figcaption>Figure 6 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 6: Visual reasoning examples from LLaVA-13B model Liu et al. (2023a) . AWQ improves over the round-to-nearest (RTN) baseline, providing more reasonable answers. We color the text to show the correct or wrong responses.</p></details></figure>
+<p><strong>Figure 6：LLaVA-13B 的 meme 理解。</strong> 左图是食物摆出的世界地图，右侧红字指出 RTN 将它误读成“食物上有小地球图片”，AWQ 更接近图文语义。顺序是先看图，再读 prompt，最后比较原文着色回答。它显示一次量化可能扭曲视觉概念，却不构成整个 OCR / visual reasoning 集的错误率。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 7" data-zoom="assets/original/fig-07.png" type="button"><img alt="Figure 7: Qualitative results of quantized OpenFlamingo-9B Awadalla et al. (2023) on COCO captioning dataset (4-shot, INT4-g128 quantization). Our method significantly improves the captioning quality compared to the round-to-nearest (RTN) baseline. We color the text to show the correct or wrong captions." loading="lazy" src="assets/original/fig-07.png"/></button><figcaption>Figure 7 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 7: Qualitative results of quantized OpenFlamingo-9B Awadalla et al. (2023) on COCO captioning dataset (4-shot, INT4-g128 quantization). Our method significantly improves the captioning quality compared to the round-to-nearest (RTN) baseline. We color the text to show the correct or wrong captions.</p></details></figure>
+<p><strong>Figure 7：OpenFlamingo 三个 caption 案例。</strong> 依次辨别玩具飞机停在草地、人物和大象、两条狗，再比较 RTN/AWQ。错误对象、动作和数量用颜色标出。与 Table 6 的 COCO 定量结果互相补充，展示失真形式；案例数量少且可能经过选择，不能推断全部实体、计数和关系都可靠。</p>
+<div aria-label="原论文 Table 8 完整表格" class="table-scroll original-table" id="table-8" role="region" tabindex="0"><figure class="ltx_table">
+<div class="ltx_flex_figure ltx_flex_table">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<table class="ltx_tabular ltx_centering ltx_figure_panel ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">MBPP (7B)</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;">pass@1</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;">pass@10</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 2.0pt;">FP16</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 2.0pt;">38.53</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 2.0pt;">49.77</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:0.25pt 2.0pt;">RTN</td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:0.25pt 2.0pt;">37.51</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 2.0pt;">48.49</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:0.25pt 2.0pt;">GPTQ</td>
+<td class="ltx_td ltx_align_left" style="padding:0.25pt 2.0pt;">31.97</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">44.75</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding:0.25pt 2.0pt;">AWQ</td>
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">40.64</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">49.25</span></td></tr>
+</tbody>
+</table></div><div class="ltx_flex_cell ltx_flex_size_2">
+<table class="ltx_tabular ltx_centering ltx_figure_panel ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">GSM8K</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding:0.25pt 2.0pt;">7B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;">13B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 2.0pt;">70B</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding:0.25pt 2.0pt;">FP16</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding:0.25pt 2.0pt;">13.87</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 2.0pt;">26.16</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding:0.25pt 2.0pt;">56.41</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 2.0pt;">RTN</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 2.0pt;">11.07</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 2.0pt;">21.23</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 2.0pt;">53.98</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 2.0pt;">GPTQ</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 2.0pt;">12.13</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">24.26</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 2.0pt;">56.03</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 2.0pt;">AWQ</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">13.57</span></th>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">25.25</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 2.0pt;"><span class="ltx_text ltx_font_bold">56.40</span></td></tr>
+</tbody>
+</table></div></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 8: </span>INT4-g128 quantization results of CodeLlama-7b-Instruct-hf on MBPP dataset and Llama-2 (7B/13B/70B) on GSM8K dataset. AWQ outperforms existing methods on programming and math datasets, demonstrating the generability to different scenarios and evaluation settings. Notably, AWQ under the INT4-g128 configuration demonstrates comparable performance to the original FP16 model across both datasets.</figcaption>
+</figure></div>
+<details><summary>Table 8 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 8 所在 PDF 全页" data-zoom="assets/tables/table-08.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-08.png"/></button><figcaption>Table 8 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 8：编程和数学需要读到第二个指标。</strong> MBPP pass@1 FP16 38.53 → AWQ 40.64，但 pass@10 是 49.77 → 49.25；GPTQ 的 pass@1 31.97，RTN 37.51。没有重复采样、seed/CI 时，“INT4 更聪明”不是可支持结论。GSM8K 的 70B 56.41 → 56.40，13B 26.16 → 25.25，7B 13.87 → 13.57，各规模退化不同。</p>
+<p><strong>Interpretation。</strong> PPL 的微小变化和 pass@k 的随机性都可能放大或掩盖真实应用错误。部署验收应固定 decoding、prompt 和题集，按任务逐项报告，而非挑一个上涨指标。</p>
+<div aria-label="原论文 Table 9 完整表格" class="table-scroll original-table" id="table-9" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_tt" style="padding:0.25pt 3.0pt;"><span class="ltx_text ltx_font_bold">OPT (Wiki PPL<math alttext="\downarrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">↓</mo><annotation encoding="application/x-tex">\downarrow</annotation></semantics></math>)</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_tt" style="padding:0.25pt 3.0pt;">1.3B</th>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:0.25pt 3.0pt;">2.7B</td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:0.25pt 3.0pt;">6.7B</td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:0.25pt 3.0pt;">13B</td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:0.25pt 3.0pt;">30B</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 3.0pt;">FP16</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 3.0pt;">14.62</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 3.0pt;">12.47</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 3.0pt;">10.86</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 3.0pt;">10.13</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 3.0pt;">9.56</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 3.0pt;">RTN</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 3.0pt;">10476</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 3.0pt;">193210</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 3.0pt;">7622</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 3.0pt;">17564</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 3.0pt;">8170</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 3.0pt;">GPTQ</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 3.0pt;">46.67</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 3.0pt;">28.15</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 3.0pt;">16.65</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 3.0pt;">16.74</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 3.0pt;">11.75</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 3.0pt;">AWQ +GPTQ</th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_t" style="padding:0.25pt 3.0pt;"><span class="ltx_text ltx_font_bold">35.71</span></th>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding:0.25pt 3.0pt;"><span class="ltx_text ltx_font_bold">25.70</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding:0.25pt 3.0pt;"><span class="ltx_text ltx_font_bold">15.71</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding:0.25pt 3.0pt;"><span class="ltx_text ltx_font_bold">13.25</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding:0.25pt 3.0pt;"><span class="ltx_text ltx_font_bold">11.38</span></td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 9: </span>Our method is orthogonal to GPTQ: it further closes the performance gap under extreme low-bit quantization (INT2-g64) when combined with GPTQ. Results are WikiText-2 perplexity of OPT models. </figcaption>
+</figure></div>
+<details><summary>Table 9 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 9 所在 PDF 全页" data-zoom="assets/tables/table-09.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-09.png"/></button><figcaption>Table 9 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 9：这是 AWQ+GPTQ 的 INT2-g64 结果。</strong> OPT-6.7B 的 GPTQ 16.65 → 组合 15.71，改进 0.94；仍明显差于 FP16 10.86，RTN 高达 7622 已崩溃。AWQ 调整坐标、GPTQ 在新坐标内补偿误差，存在互补性。不能把这张表写成 standalone AWQ 的 2-bit 无损能力，也不能拿 g64 对 g128 当成同条件优胜。</p>
+<h3>5.3 数据效率与分布迁移</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 8" data-zoom="assets/original/fig-08.svg" type="button"><img alt="Figure 8: Left: AWQ needs a much smaller calibration set to reach a good quantized performance. It can achieve better perplexity using 10 × \times smaller calibration set compared to GPTQ. Right: Our method is more robust to the calibration set distribution. Overall, using the same calibration and evaluation distribution works the best (PubMed-PubMed, Enron-Enron). But when using a different calibration distribution (PubMed-Enron, Enron-PubMed), AWQ only increases the perplexity by 0.5-0.6, while GPTQ has 2.3-4.9 worse perplexity. All experiments are done with the OPT-6.7B model under INT3-g128 quantization." loading="lazy" src="assets/original/fig-08.svg"/></button><figcaption>Figure 8 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 8: Left: AWQ needs a much smaller calibration set to reach a good quantized performance. It can achieve better perplexity using 10 × \times smaller calibration set compared to GPTQ. Right: Our method is more robust to the calibration set distribution. Overall, using the same calibration and evaluation distribution works the best (PubMed-PubMed, Enron-Enron). But when using a different calibration distribution (PubMed-Enron, Enron-PubMed), AWQ only increases the perplexity by 0.5-0.6, while GPTQ has 2.3-4.9 worse perplexity. All experiments are done with the OPT-6.7B model under INT3-g128 quantization.</p></details></figure>
+<p><strong>Figure 8 左图。</strong> 横轴是 calibration sequences，纵轴 PPL ↓，固定 OPT-6.7B INT3-g128。AWQ 用 16 段达到好的结果，GPTQ 需要约 192 段；这个对照是 12×，原文“10×”是概括，不能将它变成所有模型固定 10×。</p>
+<p><strong>右图容易读错方向。</strong> 行是校准集 PubMed / Enron，列是评估集 PubMed / Enron。应固定评估列，比较校准分布改变造成的 PPL 增量；两个评估集本身的 PPL 基数不能当分布迁移惩罚。</p>
+<div aria-label="完整对比表；可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>方法</th>
+<th style="text-align: right;">校准 PubMed → 评估 PubMed</th>
+<th style="text-align: right;">校准 Enron → 评估 PubMed</th>
+<th style="text-align: right;">PubMed 列的迁移惩罚</th>
+<th style="text-align: right;">校准 Enron → 评估 Enron</th>
+<th style="text-align: right;">校准 PubMed → 评估 Enron</th>
+<th style="text-align: right;">Enron 列的迁移惩罚</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GPTQ</td>
+<td style="text-align: right;">32.48</td>
+<td style="text-align: right;">34.81</td>
+<td style="text-align: right;">+2.33</td>
+<td style="text-align: right;">45.52</td>
+<td style="text-align: right;">50.41</td>
+<td style="text-align: right;">+4.89</td>
+</tr>
+<tr>
+<td>AWQ</td>
+<td style="text-align: right;">32.56</td>
+<td style="text-align: right;">33.16</td>
+<td style="text-align: right;">+0.60</td>
+<td style="text-align: right;">44.57</td>
+<td style="text-align: right;">45.07</td>
+<td style="text-align: right;">+0.50</td>
+</tr>
+</tbody>
+</table></div>
+<p>这是本文根据原图重排的方向审计表。它支持在一模型、两分布的试验中 AWQ 更稳健。不能从这里证明任意 calibration set 都不会过拟合，尤其不能推导“纯文本校准保证多图 OCR 没有退化”。</p>
+<p><strong>机制解释。</strong> 简化的平均幅度 scale search 减少了需要拟合的自由度，可能弱化特定校准样本的过度依赖；但它仍用校准输出 MSE，也仍可能遗漏罕见视觉 token、代码和数值场景。原文的强泛化叙述应与这份有限实验对应。</p>
+<h3>5.4 速度：量化与系统优化分别贡献了多少</h3>
+<figure class="original-figure"><button aria-label="放大 Figure 9" data-zoom="assets/original/fig-09.png" type="button"><img alt="Figure 9: TinyChat provides a turn-key solution to transform the theoretical memory footprint reduction into a quantifiable speedup. As a result, TinyChat is up to 3.9 × \times and 3.5 × \times faster than the FP16 implementation from Huggingface on 4090 (desktop GPU) and Orin (mobile GPU), respectively. AWQ also democratizes Llama-2-13B deployment on laptop GPUs (4070) with merely 8GB memory." loading="lazy" src="assets/original/fig-09.png"/></button><figcaption>Figure 9 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 9: TinyChat provides a turn-key solution to transform the theoretical memory footprint reduction into a quantifiable speedup. As a result, TinyChat is up to 3.9 × \times and 3.5 × \times faster than the FP16 implementation from Huggingface on 4090 (desktop GPU) and Orin (mobile GPU), respectively. AWQ also democratizes Llama-2-13B deployment on laptop GPUs (4070) with merely 8GB memory.</p></details></figure>
+<p><strong>Figure 9：先看硬件栏，再看 baseline。</strong> 4090 左栏、Orin 中栏、4070 laptop 右栏。蓝色 HF FP16、灰色作者优化 FP16、红色 AWQ；OOM 是容量失败，不是低速点。各栏模型顺序不同，应按标签逐项读。</p>
+<p>RTX 4090、Llama-2-7B：HF 52 tok/s → 优化 FP16 62 tok/s → AWQ 194 tok/s。整体 3.731×；相对优化 FP16 是 3.129×。因此不是把所有 3.7× 记给量化：baseline 改善也有贡献。Orin 同模型 11 → 12 → 39 tok/s，整体 3.545×。4070 8 GB 的 Llama-2-13B 能跑到 33 tok/s，而 FP16 OOM，属于使部署可行。</p>
+<p><strong>TTFT / TPOT。</strong> <code>1000/194≈5.15 ms/token</code>、<code>1000/52≈19.23 ms/token</code> 可以作为 steady throughput 的平均间隔换算，不能叫实测 P50/P95 TPOT，更不是 TTFT。prompt=4 的测试没有展开 image encoder、长文 prefill、历史重用和 cold model load。</p>
+<div aria-label="原论文 Table 10 完整表格" class="table-scroll original-table" id="table-10" role="region" tabindex="0"><figure class="ltx_table">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold">Model (Throughput<math alttext="\uparrow" class="ltx_Math" intent=":literal"><semantics><mo stretchy="false">↑</mo><annotation encoding="application/x-tex">\uparrow</annotation></semantics></math>)</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">Precision</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">A100</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">4090</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding:0.25pt 5.0pt;">Orin</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 5.0pt;">VILA-7B</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">FP16</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">81.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">58.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">11.5</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding:0.25pt 5.0pt;">VILA-7B-AWQ</th>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">W4A16</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">155.3</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">168.1</td>
+<td class="ltx_td ltx_align_center" style="padding:0.25pt 5.0pt;">35.6</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding:0.25pt 5.0pt;">VILA-13B</th>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">FP16</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">48.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">OOM</td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:0.25pt 5.0pt;">6.1</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding:0.25pt 5.0pt;">VILA-13B-AWQ</th>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">W4A16</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">102.1</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">99.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:0.25pt 5.0pt;">17.5</td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 10: </span>TinyChat also enables seamless deployment of VILA <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="https://arxiv.org/html/2306.00978v6#bib.bib40" rel="noopener" title="">Lin et al. (2024)</a></cite>, a state-of-the-art visual-language model, on multiple GPU platforms. Leveraging our 4-bit AWQ quantization, TinyChat accelerates VILA-7B by up to <span class="ltx_text ltx_font_bold">3.1<math alttext="\times" class="ltx_Math" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span> and VILA-13B by up to <span class="ltx_text ltx_font_bold">2.9<math alttext="\times" class="ltx_Math" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span>.</figcaption>
+</figure></div>
+<details><summary>Table 10 原 PDF 全页证据：完整 caption / 脚注 / 排版</summary><figure class="original-figure"><button aria-label="放大 Table 10 所在 PDF 全页" data-zoom="assets/tables/table-10.png" type="button"><img alt="Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。" loading="lazy" src="assets/tables/table-10.png"/></button><figcaption>Table 10 所在 PDF 全页 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Original PDF page evidence · 原页所有信息完整保留；同页可能包含其他 Table 或 Figure。</p></details></figure></details>
+<p><strong>Table 10：VILA 的输出速度。</strong> 7B 的 A100 81.6 → 155.3 tok/s，1.903×；4090 58.5 → 168.1，2.873×；Orin 11.5 → 35.6，3.096×。13B 在 A100 48.5 → 102.1，2.105×；Orin 6.1 → 17.5，2.869×；4090 FP16 OOM、AWQ 99 tok/s，无法定义有限倍率。表中的 tok/s 不独立测量视觉 tower 和首 token 时延。</p>
+<figure class="original-figure"><button aria-label="放大 Figure 10" data-zoom="assets/original/fig-10.png" type="button"><img alt="Figure 10: TinyChat offers 1.2-3.0 × \times speedup over existing systems when running 4-bit quantized Llama models on NVIDIA Jetson Orin. It also supports a diverse range of general-purpose and coding-specific LLMs with at least 2.6 × \times speedup over AutoGPTQ, which also supports all these workloads. Moreover, TinyChat seamlessly operates on Raspberry Pi and enables the deployment of LLMs with up to 7 billion parameters on extremely resource-constrained IoT devices." loading="lazy" src="assets/original/fig-10.png"/></button><figcaption>Figure 10 · Original Paper v6 · <a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">原文</a>。点击放大。</figcaption><details><summary>Original caption（完整保留）</summary><p>Figure 10: TinyChat offers 1.2-3.0 × \times speedup over existing systems when running 4-bit quantized Llama models on NVIDIA Jetson Orin. It also supports a diverse range of general-purpose and coding-specific LLMs with at least 2.6 × \times speedup over AutoGPTQ, which also supports all these workloads. Moreover, TinyChat seamlessly operates on Raspberry Pi and enables the deployment of LLMs with up to 7 billion parameters on extremely resource-constrained IoT devices.</p></details></figure>
+<p><strong>Figure 10：与其他 4-bit 系统比较。</strong> 左图是 Jetson Orin 64 GB，单位 tok/s；标题说 latency comparison，但柱子越高代表越快。Llama-2-7B 的 AutoGPTQ 13.4、llama.cpp 22.5、exllama 15.9、TinyChat 39.1；TinyChat / llama.cpp=1.738×。13B 是 8.0 / 13.3 / 9.1 / 21.2；70B 是 1.3 / 3.0 / 1.4 / 3.5，TinyChat 对最快 baseline 仅 1.167×。不能把上界 3× 套到所有模型。</p>
+<p>StarCoder-15.5B、StableCode-3B、Mistral-7B、Falcon-7B 中 AutoGPTQ / TinyChat 分别约 <code>6/17、10/32、14/37、3/22</code>。这是当时系统支持范围和 kernel 效率的比较，不描述 2026 年 llama.cpp 的支持能力。右图 Raspberry Pi 4 上 Llama-2-7B 两个可运行系统都约 0.7 tok/s；OPT 的 NS / Not Supported 是支持缺失，不能计算无限加速。</p>
+<p><strong>系统实验未覆盖的关键条件。</strong> 更长 prompt、更大 batch、context 增长、KV 量化、vision tower、持续功耗/温控和不同格式的 exporter。TinyChat 的“把容量收益变成速度”得到了特定协议支持；性能数字需要随设备和任务重新测量。</p>
+<h2 id="section-7">6. Conclusion：原文留下的结论</h2>
+<p>论文把 activation-aware scaling、统一低比特权重和硬件执行组合起来，证明不依赖大规模重训练也可以让多个 LLM/VLM 在端侧可部署。核心观察是权重误差不等价，保护重要输入通道能够有效改善量化；系统核心是让反量化留在计算 kernel 内，减少 DRAM 和 launch。</p>
+<p>结论中“does not over-fit”“lossless”等语言比全部表格能直接支持的范围更强。较准确的阅读是：AWQ 在论文覆盖的多个模型和任务上接近高精度，并在一个分布迁移实验里更稳健；TinyChat 在 batch=1 的指定硬件上实现了明显速度收益。</p>
+<p>致谢和参考文献是 v6 最后的内容，没有遗漏的 Appendix、补充训练算法或可借来填补消融的独立附录。</p>
+<h2 id="section-8">7. Experiment Audit：如果我是 Reviewer 还会要求什么</h2>
+<div aria-label="完整对比表；可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>待审查问题</th>
+<th>当前证据</th>
+<th>还缺的实验</th>
+<th>对部署的影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>scale 与 clip 谁贡献更多</td>
+<td>Table 2/3 解释 scale</td>
+<td>同校准集、同 bit/group 的 scale-only、clip-only、both</td>
+<td>选择校准复杂度与敏感层策略</td>
+</tr>
+<tr>
+<td>泛化是否覆盖视觉异常输入</td>
+<td>VLM benchmark 与两个文本分布</td>
+<td>OCR、多图、长图片 token、罕见语言校准/测试拆分</td>
+<td>TextVQA 退化不能被通用 PPL 替代</td>
+</tr>
+<tr>
+<td>“lossless”是否统计成立</td>
+<td>单次表格，少数指标下降</td>
+<td>多 seeds、配对置信区间与失败类别</td>
+<td>小改进与小退化可能是采样波动</td>
+</tr>
+<tr>
+<td>量化搜索资源是否更少</td>
+<td>无 Hessian，较少序列</td>
+<td>同机器 full-model walltime、CPU/GPU peak、IO</td>
+<td>layerwise 搜索和 CPU 缓存仍有实际成本</td>
+</tr>
+<tr>
+<td>加速主要来自何处</td>
+<td>优化 FP16 和 AWQ 两个系统层次</td>
+<td>unpack/convert/scale/FMA/launch 分解</td>
+<td>选择 runtime 比只选 quant_method 更重要</td>
+</tr>
+<tr>
+<td>cache 与上下文是否公平</td>
+<td>短 prompt、固定生成量</td>
+<td>相同 prefix cache、相同 KV 精度、多 T/B 网格</td>
+<td>长上下文 decode 可能改由 KV 流量限制</td>
+</tr>
+<tr>
+<td>OOM 后是否仍可用于产品</td>
+<td>能跑的大模型与 tok/s</td>
+<td>冷启动、TTFT/TPOT 分位数、功耗和热稳态</td>
+<td>装得下是必要条件，体验需单独验收</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>复现性审计。</strong> 原 PDF、原图表、固定代码提交、设置和 checkpoint 名称提供了可追踪起点；但论文与当前实现、图表版本和 evaluator 并非自动完全一致。Figure 2 / Table 1 数字不一致、Table 1 / 3 的 OPT-1.3B RTN 119.00 / 119.47、Table 7 caption/列差异以及旧 Table 编号均已明确保留，不通过“清理排版”隐藏。</p>
+<h2 id="section-9">8. External Research：相关工作矩阵与技术演进</h2>
+<p>以下是后续一手资料，不能回写成 2023/2024 年 AWQ 原论文贡献。</p>
+<div aria-label="完整对比表；可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作</th>
+<th style="text-align: right;">年份</th>
+<th>Core idea</th>
+<th>优点</th>
+<th>限制 / 与 AWQ 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://arxiv.org/abs/2210.17323v2" rel="noopener">GPTQ</a></td>
+<td style="text-align: right;">2022 / 2023</td>
+<td>二阶代理和逐列误差补偿</td>
+<td>低 bit weight-only 精度强</td>
+<td>额外校准/Hessian 成本；可在 AWQ 坐标中继续做</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2211.10438v7" rel="noopener">SmoothQuant</a></td>
+<td style="text-align: right;">2022 / 2023</td>
+<td>缩放把激活异常迁到权重</td>
+<td>对 W8A8 高效 kernel 友好</td>
+<td>目标不同；缩放不等于相同量化精度路线</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2306.00978v6" rel="noopener">AWQ</a></td>
+<td style="text-align: right;">2023 / 2024</td>
+<td>激活感知 scale + group clip</td>
+<td>无反向训练，W4A16 易部署</td>
+<td>不降 activation/KV bit，依赖 exporter 与 kernel</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2404.00456v2" rel="noopener">QuaRot</a></td>
+<td style="text-align: right;">2024</td>
+<td>正交旋转分散 outliers</td>
+<td>W4A4KV4 路线</td>
+<td>与 weight-only 的容量/算子不同，不能只比 PPL</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2405.04532v3" rel="noopener">QServe</a></td>
+<td style="text-align: right;">2024 / 2025</td>
+<td>W4A8KV4 + progressive quant + serving</td>
+<td>优化大 batch 吞吐与反量化开销</td>
+<td>服务场景、设备和精度不同于原 TinyChat</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2405.16406v4" rel="noopener">SpinQuant</a></td>
+<td style="text-align: right;">2024 / 2025</td>
+<td>学习旋转矩阵</td>
+<td>降 W4A4KV4 的精度损失</td>
+<td>有旋转优化成本，不能继承 AWQ 的无训练叙述</td>
+</tr>
+<tr>
+<td><a href="https://github.com/IST-DASLab/marlin" rel="noopener">Marlin</a></td>
+<td style="text-align: right;">2024</td>
+<td>高效 INT4×FP16 kernel、调度和复用</td>
+<td>小到中 batch 仍有较高速度收益</td>
+<td>kernel 非量化搜索算法，硬件和格式有限定</td>
+</tr>
+<tr>
+<td><a href="https://hanlab.mit.edu/blog/tinychat20" rel="noopener">TinyChat 2.0</a></td>
+<td style="text-align: right;">2024-12</td>
+<td>prefill / FlashAttention / 历史复用</td>
+<td>进一步改善 TTFT，VLM 异构精度</td>
+<td>历史重算 baseline 与现代 prefix-cache 系统不可直接比</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/html/2605.08692v1" rel="noopener">AAAC</a></td>
+<td style="text-align: right;">2026-05</td>
+<td>activation-weighted 的 affine codebooks</td>
+<td>可作为 AWQ 的后续编码调整</td>
+<td>preprint，额外编码/metadata；没有端到端速度证明</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/html/2609.36654v1" rel="noopener">Schur Replay</a></td>
+<td style="text-align: right;">2026-09</td>
+<td>Schur 代理与 sequential replay</td>
+<td>NVFP4 W4A4 的硬件可导出搜索</td>
+<td>不同精度/模型；量化求解速度不是推理速度</td>
+</tr>
+<tr>
+<td><a href="https://vllm.ai/blog/2026-10-21-humming" rel="noopener">Humming</a></td>
+<td style="text-align: right;">2026-10</td>
+<td>统一 quant 描述、repacking、JIT dispatch</td>
+<td>改善不同量化格式的 kernel 支持</td>
+<td>当前官方 microbenchmark，不能统一宣称全场景第一</td>
+</tr>
+</tbody>
+</table></div>
+<figure class="generated-figure"><svg aria-label="量化技术的多条演进路线" role="img" viewbox="0 0 780 371" xmlns="http://www.w3.org/2000/svg"><title>量化技术的多条演进路线</title><rect fill="#101823" height="371" rx="8" width="780"></rect><text fill="#d5e1f3" font-family="sans-serif" font-size="15" x="28" y="30">量化技术的多条演进路线</text><circle cx="40" cy="85" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="90">1</text><path d="M40 100v57m-5 -6l5 6 5 -6" fill="none" stroke="#85aad8"></path><text fill="#e2bc7c" font-size="12" x="68" y="70">2022 → 2024</text><text fill="#d5e1f3" font-size="15" x="68" y="95">GPTQ / SmoothQuant</text><text fill="#a6b8d0" font-size="13" x="68" y="119">AWQ：activation-aware W4 + TinyChat</text><line stroke="#2a3a50" x1="68" x2="752" y1="138" y2="138"></line><circle cx="40" cy="187" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="192">2</text><path d="M40 202v57m-5 -6l5 6 5 -6" fill="none" stroke="#85aad8"></path><text fill="#e2bc7c" font-size="12" x="68" y="172">2024 → 2025</text><text fill="#d5e1f3" font-size="15" x="68" y="197">三条并行路线</text><text fill="#a6b8d0" font-size="13" x="68" y="221">Marlin kernels · rotated W4A4KV4 · serving/prefill</text><line stroke="#2a3a50" x1="68" x2="752" y1="240" y2="240"></line><circle cx="40" cy="289" fill="#244262" r="14" stroke="#85aad8"></circle><text fill="#d4e6ff" font-size="13" text-anchor="middle" x="40" y="294">3</text><text fill="#e2bc7c" font-size="12" x="68" y="274">2026-05 / 09 / 10</text><text fill="#d5e1f3" font-size="15" x="68" y="299">误差 / 编码 / 执行分别改进</text><text fill="#a6b8d0" font-size="13" x="68" y="323">AAAC codebooks · Schur Replay · Humming dispatch</text><line stroke="#2a3a50" x1="68" x2="752" y1="342" y2="342"></line></svg><figcaption>量化技术的多条演进路线 · Agent-created Simplified Diagram · <a href="assets/generated/timeline.mmd">Mermaid source</a> · <a href="assets/generated/timeline.svg">SVG</a></figcaption></figure>
+<p><strong>Before。</strong> RTN、混合精度、GPTQ 与 SmoothQuant 分别解决简单量化、异常通道、二阶误差和 activation 量化。</p>
+<p><strong>This paper。</strong> AWQ 把 activation 统计用于 weight-only 误差分配，并让规则化存储布局与端侧 kernel 协同。</p>
+<p><strong>After。</strong> 旋转路线开始把 W/A/KV 都压到低比特；Marlin 等系统改进扩大 W4A16 kernel 的有效 batch 范围；QServe 针对 serving；TinyChat 2.0 处理更完整的 prefill/历史链路。</p>
+<p><strong>Current state。</strong> 2026 年的竞争不只是“AWQ 还是 GPTQ”：量化误差模型、编码表示和 kernel dispatch 都在变化。它们是可组合但受格式约束的不同层，不是一条所有节点都全面取代前一个的线性排行榜。</p>
+<h2 id="section-10">9. Current State：截至 2026-10-27，SOTA 应怎样判断</h2>
+<p>本节资料检索截至 <strong>2026-10-27</strong>。结果为作者/项目方报告，本文未独立复现；不把不同 checkpoint、校准集、bit/group 和硬件混作严格排名。</p>
+<h3>精度路线：W4A16 仍在进化，但没有跨任务唯一赢家</h3>
+<p><strong>External · AAAC，2026-05。</strong> 该预印本用 activation-weighted codebooks 改造 affine quantization，H100 上校准 4 段 C4×2048，覆盖至 32B 模型。其 Table 2、group=128 下，Llama-3.1-8B C4 PPL：FP16 6.24、RTN 6.82、AWQ 6.65、AAAC S=128 6.68、S=16 6.56。S=128 的零额外选择位方案并不胜过 AWQ；S=16 变好但引入约 0.0625 bpw 选择 metadata。Qwen2.5-7B 同样 AWQ 7.09 优于 S=128 7.13。</p>
+<p>其 AWQ+AAAC 表报告平均恢复 70.5% 的 gap，但混有不同 group/model；个别 Qwen3.5-9B 组合 PPL 从 AAAC 8.56 变为 8.67。它支持编码与 scale 可组合，不支持每个模型的组合都更优，也没有表中可验证的推理吞吐。</p>
+<p><strong>External · Schur Replay，2026-09。</strong> 对 NVFP4 W4A4 的 Qwen3.5-397B-A17B、Llama3.3-70B，七项 benchmark 的 question-weighted recovery 分别报告 99.35% / 100.84%，对比 AWQ+GPTQ 的 97.69% / 98.85%。100.84% 是相对 baseline 的加权恢复，不是“准确率超过 100%”，也不证明统计优越。</p>
+<p>其 15.17× / 23.14× 是对 ModelOpt / LLM Compressor 的 <strong>每层量化求解</strong>速度，full-model 时间部分是推算，不是推理加速。这种 W4A4、group=16、硬件 scale 格式与 AWQ W4A16-g128 无法直接作精度榜单。</p>
+<h3>Kernel 路线：原 AWQ 速度图已不能代表今天</h3>
+<p><strong>External · Marlin。</strong> 官方 README 在 A10、group=128 的 W4A16 条件下讨论接近理想上限的 linear kernel 收益：对称格式 4.125 bpw 对 FP16 的容量比约 3.879×；在 M≈16–32 仍保持较好收益。原仓库面向 Ampere/Ada，Hopper 优化和当前 vLLM 变体需单独核验。一个 linear microbenchmark 不等于整个生成 pipeline 的 3.87×。</p>
+<p><strong>External · Humming，2026-10-21。</strong> Ant Group/vLLM 的官方更新在 Hopper/Blackwell、M=1…8192 的 2 次幂网格、cold L2 / warm kernels、dense 与 MoE 上比较 kernel。其描述是 W4A16 在多数测试 case 匹配或超过 vLLM Marlin；没有足够一致的原始端到端数据可以给出“所有模型、所有 batch 的新第一”。项目开源，核心意义是把格式描述、离线 repacking 与硬件 dispatch 收口。</p>
+<p><strong>External · QServe。</strong> W4A8KV4 面向 serving，其 Llama3-8B 在 A100/L40S 相对 TensorRT-LLM 约 1.2×/1.4×，Qwen1.5-72B 约 2.4×/3.5×，属于不同 batch/精度/系统基线，不能作为原 AWQ Figure 9 的直接更新数值。</p>
+<h3>VLM 和工具生态：TTFT 与格式维护必须另查</h3>
+<p><strong>TinyChat 2.0 官方博客，2024-12-12。</strong> 报告相对旧版 1.5–1.7× TTFT 改善，涉及 FP16 accumulation、FlashAttention 和 chunk history reuse。其多轮对照包含历史重算，不能用于击败已开启 prefix cache 的现代系统。描述中的 NVILA 工作负载 vision tower 可占 prefill 的 90% 以上；该比例依赖 token 压缩和模型配置，不能泛化到所有 VLM。W8A8 vision + W4A16 language 是异构选择。</p>
+<p><strong>维护状态。</strong> <a href="https://huggingface.co/docs/transformers/quantization/awq" rel="noopener">Transformers AWQ 文档</a> 中的 bits/group/zero_point/version 必须与 checkpoint 匹配；<a href="https://github.com/casper-hansen/AutoAWQ" rel="noopener">AutoAWQ</a> 已明确 deprecated，最后测试版本是 Torch 2.6 / Transformers 4.51.3。当前 vLLM 文档推荐迁移到 <a href="https://github.com/vllm-project/llm-compressor/tree/main/examples/awq" rel="noopener">LLM Compressor AWQ 示例</a>。安装旧 AutoAWQ 不应作为 2026 年无条件推荐的默认步骤。</p>
+<div aria-label="完整对比表；可横向滚动" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>想判定的 “最好”</th>
+<th>Benchmark / metric</th>
+<th>必须固定的比较条件</th>
+<th>当前证据的可比性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>W4A16 精度</td>
+<td>同 checkpoint 的 PPL 与真实任务退化</td>
+<td>calibration、group、zero、excluded layers</td>
+<td>AAAC/AWQ 局部表可比，跨表不可统一</td>
+</tr>
+<tr>
+<td>W4A4 精度</td>
+<td>七项 task 的 recovery / 原 accuracy</td>
+<td>FP4 format、activation/KV、group、规模</td>
+<td>Schur Replay 与自己的 baselines 可比，非 AWQ 原配置</td>
+</tr>
+<tr>
+<td>小 batch kernel</td>
+<td>μs、带宽、M/N/K</td>
+<td>同 GPU、同 cold/warm、相同 metadata</td>
+<td>Humming/Marlin microbench，非全链路性能榜</td>
+</tr>
+<tr>
+<td>Serving</td>
+<td>requests/s、output tok/s、SLO</td>
+<td>batch、并发、context、cache、KV bit</td>
+<td>QServe 自己的部署对照，不可借给端侧 batch=1</td>
+</tr>
+<tr>
+<td>VLM 体验</td>
+<td>cold/warm TTFT、TPOT P50/P95</td>
+<td>image encoder、图数、分辨率、prefix reuse</td>
+<td>TinyChat 2.0 部分链路，产品仍须端到端实测</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="section-11">10. Critique：新意、优势与隐藏成本</h2>
+<p><strong>Novelty。</strong> 等价 scaling 不是 AWQ 首创；重要贡献是将 activation-aware saliency 用于低比特权重误差分配，避免不规则 mixed precision，并配合 TinyChat 落地。这个描述比“首次使用 activation 做量化”更准确。</p>
+<p><strong>Correctness。</strong> 重参数化在浮点实数代数中成立，误差降低依赖 group 步长变化和舍入；不能推广成逐通道无条件定理。α grid、裁剪和计算图折叠负责把直觉落实为可用模型。</p>
+<p><strong>Experiment quality / Generalization。</strong> 模型和任务覆盖广，包含 instruction、VLM、代码和数学，值得肯定。缺少严格 scale/clip 分解、置信区间、多种视觉校准对照以及统一耗时/峰值测量；Figure 8 证明的是有限分布更稳健。</p>
+<p><strong>Engineering complexity。</strong> 数学很小，导出/执行细节很多：输入列方向、Norm/bias、GQA、SwiGLU、group zero、container packing、layout、GEMV/GEMM dispatch 和 accumulator。错误通常沿转换链路产生，不能仅凭最终回答差就归咎于小模型能力。</p>
+<p><strong>Scalability / Compute cost。</strong> 不使用 Hessian 与训练 optimizer 降低搜索复杂度；但大模型仍需要逐层 trial forward 和 activation 缓存。MoE 的存储按所有 expert 计，不按 top-k active parameters 计。</p>
+<p><strong>Memory cost。</strong> 4-bit 权重省容量和带宽；scale/zero/padding、FP16 层、KV 和 vision 成为剩余成本。weight-only 不压缩 KV，也不压缩 activation 的 peak。</p>
+<p><strong>Hardware dependency。</strong> SIMD/GPU 布局需匹配实际指令、cache、寄存器与 warp/thread 调度。仅做“文件缩小”不能保证 TPOT 降低；大 batch 可能让混合反量化成本更突出。</p>
+<p><strong>Reproducibility。</strong> 公开代码、slides 和原图表是优势；固定代码版本及不同证据数值是必要条件。原论文的系统支持范围不能当作今天生态状态。</p>
+<p><strong>Hidden trade-offs。</strong> s 大会保护重要列但牵动非重要列；g 小通常降低 group 误差但增加 metadata；高压缩率可使大模型装入设备却留下很低 tok/s；clip 降局部 MSE 可能裁掉少量任务关键 outliers。</p>
+<p><strong>Unanswered questions。</strong> 动态多模态分布是否需要分场景 scale？按 layer/通道预算的保护能否同时约束输出误差与寄存器成本？怎样在校准阶段把 TTFT/TPOT 的真实 kernel代价纳入选择？这些是后续研究方向，不是 v6 已给出的答案。</p>
+<h2 id="section-12">11. My Insights：面向端侧 VLM/OCR 的执行建议</h2>
+<p>以下是 <strong>Interpretation / proposed work</strong>，与论文结果分开。</p>
+<h3>先证明转换链路正确，再决定敏感层</h3>
+<p>为每个 linear 比较四个节点：原 FP16、scale-fold 后 FP16、fake quant、真实 export→kernel 解包重建。第一步应近似等价；第二步引入预期量化误差；若第三步显著多损失，优先排查 zero_point、signedness、pack order、transpose、group 和 bias。</p>
+<p>再捕获逐层输出的 max/mean absolute error、relative error、MSE 和 logits 差异；将第一次异常对齐到具体 op。不要在导出还有问题时讨论“模型本身太小”。Prefill/decode 应使用一致的首 token logits 路径，避免不同 kernel 或累加方式引入难以解释的漂移。</p>
+<h3>校准集覆盖真实图像输入</h3>
+<p>论文的文本校准在部分 VLM 上有效，是存在性证据。对于多图理解与 OCR，应包含真实 vision encoder 输出、不同分辨率、图数、文字密度、语言、数字、长文和难例；calibration 与 evaluation 隔离。</p>
+<p>评估按业务输出拆解：OCR 可以用 exact match、CER/WER、数字/字段正确率；结构化抽取可报告 TP、FP、TN、FN、Accuracy、Precision、Recall、F1，并说明 TN 的样本空间；开放式 caption 则采用合适指标，不能伪造一个可直接计算的 confusion matrix。每项都对齐 FP16 和量化版本的相同输入、prompt、seed、decoding。</p>
+<h3>把 per-op 与整机体验同时记录</h3>
+<p>用原生常驻 runner 将模型加载与业务推理分开，避免测试工具的冷启动/RPC 成本覆盖 kernel 效果。记录 load、vision encode、prefill、first logits、decode，以及 unpack/convert/scale/matmul/cache 更新的耗时与流量；观察 launch、register pressure 和 spill。</p>
+<p>完整指标包括 cold/warm TTFT、TPOT P50/P95、持续 tok/s、上下文增长、图像数量、功耗与温控。端侧异构部署若使用 HTP/dma-buf，可结合 <code>dmabuf_dump</code> 与 CPU <code>VmHWM</code> 检查物理峰值，不能只拿模型文件或逻辑 KV 当内存峰值。</p>
+<h3>选择方案时同时验收格式和 kernel</h3>
+<p>对本设备分别测试 AWQ/GPTQ/FP4 的可用 exporter 与 runner，固定 metadata、group 和未量化层。可尝试保留敏感层、调整 group/clip 或 activation-weighted codebook；每次只改一个因素。W4A16、W4A8KV4、W4A4KV4 的选择还要结合 prefill 与 decode 比例，不能只按“4-bit”命名。</p>
+<h2 id="section-13">12. Implementation Notes：可追踪的量化与推理流程</h2>
+<p>下面伪代码采用论文的列向量约定。它用于重建机制，不是可以跨模型直接执行的替代官方脚本。</p>
+<div class="highlight"><pre><span></span><span class="c1"># W: [d_out, d_in]; X: [d_in, T]; Y_ref: [d_out, T]</span>
+<span class="n">Y_ref</span> <span class="o">=</span> <span class="n">W</span> <span class="o">@</span> <span class="n">X</span>
+<span class="n">s_x</span> <span class="o">=</span> <span class="n">mean</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">X</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">best</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">20</span><span class="p">):</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="n">k</span> <span class="o">/</span> <span class="mi">20</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">maximum</span><span class="p">(</span><span class="n">s_x</span> <span class="o">**</span> <span class="n">alpha</span><span class="p">,</span> <span class="mf">1e-4</span><span class="p">)</span>
+    <span class="n">s</span> <span class="o">/=</span> <span class="n">sqrt</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">*</span> <span class="nb">min</span><span class="p">(</span><span class="n">s</span><span class="p">))</span>
+    <span class="n">W_scaled</span> <span class="o">=</span> <span class="n">W</span> <span class="o">*</span> <span class="n">s</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">W_fake</span> <span class="o">=</span> <span class="n">group_affine_fake_quant</span><span class="p">(</span><span class="n">W_scaled</span><span class="p">,</span> <span class="n">bits</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">group</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+    <span class="n">Y_trial</span> <span class="o">=</span> <span class="n">W_fake</span> <span class="o">@</span> <span class="p">(</span><span class="n">X</span> <span class="o">/</span> <span class="n">s</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span>
+    <span class="n">score</span> <span class="o">=</span> <span class="n">mean</span><span class="p">((</span><span class="n">Y_trial</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">fp32</span><span class="p">)</span> <span class="o">-</span> <span class="n">Y_ref</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">fp32</span><span class="p">))</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="n">choose_lower_mse</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">score</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+
+<span class="c1"># Fold only along supported graph patterns; include bias and all consumers.</span>
+<span class="n">fold_inverse_scale_into_previous_op</span><span class="p">(</span><span class="n">best</span><span class="o">.</span><span class="n">s</span><span class="p">)</span>
+<span class="n">W</span> <span class="o">*=</span> <span class="n">best</span><span class="o">.</span><span class="n">s</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+<span class="n">W</span> <span class="o">=</span> <span class="n">activation_weighted_group_clip</span><span class="p">(</span><span class="n">W</span><span class="p">,</span> <span class="n">cached_X</span><span class="p">)</span>  <span class="c1"># eligible layers only</span>
+<span class="n">qweight</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">zero_metadata</span> <span class="o">=</span> <span class="n">real_export</span><span class="p">(</span><span class="n">W</span><span class="p">,</span> <span class="n">target_kernel_format</span><span class="p">)</span>
+<span class="n">verify_export_unpack_roundtrip</span><span class="p">(</span><span class="n">qweight</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">zero_metadata</span><span class="p">)</span>
+</pre></div>
+
+<p><strong>输入/输出。</strong> 搜索得到每输入通道 scale，clip 得到每 group 阈值，export 才得到压缩 tensor；runtime 接收 packed layout 与 metadata。实际模块评分、clip 输入与 fold 模式比此 linear 示例复杂，应以固定源码为准。</p>
+<p><strong>固定源码入口。</strong></p>
+<ul>
+<li><a href="https://github.com/mit-han-lab/llm-awq/blob/d6e797a42b9ef7778de8ee2352116e0f48a78d61/awq/quantize/pre_quant.py" rel="noopener">pre_quant.py</a>：逐层 hook、输入缓存与校准顺序。</li>
+<li><a href="https://github.com/mit-han-lab/llm-awq/blob/d6e797a42b9ef7778de8ee2352116e0f48a78d61/awq/quantize/auto_scale.py" rel="noopener">auto_scale.py</a>：α 搜索、输出 MSE、Norm/linear/activation 折叠和 shape guards。</li>
+<li><a href="https://github.com/mit-han-lab/llm-awq/blob/d6e797a42b9ef7778de8ee2352116e0f48a78d61/awq/quantize/auto_clip.py" rel="noopener">auto_clip.py</a>：group clip 搜索与 Q/K 例外。</li>
+<li><a href="https://github.com/mit-han-lab/llm-awq/blob/d6e797a42b9ef7778de8ee2352116e0f48a78d61/awq/quantize/quantizer.py" rel="noopener">quantizer.py</a>：affine quantize、fake / real 的分界。</li>
+<li><a href="https://github.com/mit-han-lab/llm-awq/blob/d6e797a42b9ef7778de8ee2352116e0f48a78d61/awq/quantize/qmodule.py" rel="noopener">qmodule.py</a>：qweight/scale/scaled_zeros、padding 与 forward dispatch。</li>
+<li><a href="https://github.com/mit-han-lab/llm-awq/tree/d6e797a42b9ef7778de8ee2352116e0f48a78d61/tinychat" rel="noopener">TinyChat</a>：执行与硬件 kernel，不把其格式默认为所有 AWQ 工具通用。</li>
+</ul>
+<p><strong>验收顺序。</strong> 先检查 checkpoint quantization_config 与实际 tensor，再跑一层 export/unpack，随后 whole-model logits，再做真实任务精度，最后测常驻 warm/cold 性能。某种格式“加载成功”不是数学重建正确的证明。</p>
+<h2 id="section-14">13. References、关联精读与审阅记录</h2>
+<p><strong>Original paper。</strong> <a href="https://arxiv.org/abs/2306.00978v6" rel="noopener">AWQ v6 abstract</a>、<a href="https://arxiv.org/pdf/2306.00978v6" rel="noopener">PDF</a>、<a href="https://arxiv.org/html/2306.00978v6" rel="noopener">原始 HTML</a>。全部 10 Figures 与 10 Tables 按原编号保留，表格可选择文字、横向滚动，并附完整原 PDF 页面证据。</p>
+<p><strong>Official resources。</strong> <a href="https://hanlab.mit.edu/projects/awq" rel="noopener">AWQ project</a>、<a href="https://github.com/mit-han-lab/llm-awq" rel="noopener">llm-awq</a>、<a href="https://www.dropbox.com/scl/fi/dtnp6h6y1mnp7g036axu6/AWQ-slide.pdf?rlkey=ffgh50hxhx8dmsnjiu8kef0ou&amp;dl=0" rel="noopener">author slides</a>、<a href="https://hanlab.mit.edu/blog/tinychat20" rel="noopener">TinyChat 2.0</a>。</p>
+<p><strong>Related papers。</strong> <a href="https://arxiv.org/abs/2210.17323v2" rel="noopener">GPTQ</a>、<a href="https://arxiv.org/abs/2211.10438v7" rel="noopener">SmoothQuant</a>、<a href="https://arxiv.org/abs/2404.00456v2" rel="noopener">QuaRot</a>、<a href="https://arxiv.org/abs/2405.16406v4" rel="noopener">SpinQuant</a>、<a href="https://arxiv.org/abs/2405.04532v3" rel="noopener">QServe</a>、<a href="https://arxiv.org/abs/2408.11743" rel="noopener">Marlin paper</a>、<a href="https://arxiv.org/html/2605.08692v1" rel="noopener">AAAC</a>、<a href="https://arxiv.org/html/2609.36654v1" rel="noopener">Schur Replay</a>。</p>
+<p><strong>Current implementation sources。</strong> <a href="https://github.com/IST-DASLab/marlin" rel="noopener">Marlin code</a>、<a href="https://github.com/mit-han-lab/omniserve" rel="noopener">QServe code</a>、<a href="https://vllm.ai/blog/2026-10-21-humming" rel="noopener">Humming announcement</a>、<a href="https://github.com/vllm-project/humming" rel="noopener">Humming code</a>、<a href="https://huggingface.co/docs/transformers/quantization/awq" rel="noopener">Transformers AWQ</a>、<a href="https://github.com/casper-hansen/AutoAWQ" rel="noopener">AutoAWQ deprecation</a>、<a href="https://github.com/vllm-project/llm-compressor/tree/main/examples/awq" rel="noopener">LLM Compressor AWQ</a>。完整资料/证据映射见 <a href="sources/source-register.md">source register</a>。</p>
+<p><strong>Related Readings。</strong> <a href="../mqa/">MQA：多个读头，共用一份历史</a> · <a href="../gqa/">GQA：让 Query 保留多样性，让 KV 共享历史</a> · <a href="../flashattention/">FlashAttention：算得更多，为什么反而更快？</a>。AWQ 处理权重，MQA/GQA 处理 KV，FlashAttention 处理 attention IO；三者解决同一推理链路上的不同成本。</p>
+<p><strong>Review / changelog · 2026-10-27。</strong> 完成第一轮来源准确性审阅：章节、所有原图表、5 组公式、数值方向、bit/group、源码格式、后续资料日期与 claim 边界；完成第二轮可读性/渲染审阅：原图 caption/放大、表格完整性、公式原生 MathML、交互与桌面/移动端。详见 <a href="notes/review.md">review record</a>。初次发布；后续研究数值均是引用的一手报告，未声称本地重现实验。</p></article></main></div><footer class="site-footer"><span>Howie Yin · Paper Readings</span><a href="../">All paper readings →</a></footer></div><dialog id="figure-dialog" aria-label="原始图表放大"><button id="close-dialog" type="button">Close / 关闭</button><img id="zoom-image" alt="原始图表放大"></dialog><script src="assets/math.js"></script><script src="assets/reading.js"></script></body></html>

@@ -1,0 +1,142 @@
+[
+  {
+    "kind": "figure",
+    "number": 1,
+    "path": "assets/original/fig-01.png",
+    "source": "https://arxiv.org/html/2306.00978v6/teaser.png",
+    "caption": "Figure 1: We introduce AWQ , a versatile weight quantization method for LLM. To implement AWQ, we developed TinyChat to deploy 4-bit quantized LLMs into various edge platforms, achieving a 3-4 × \\times performance boost compared to FP16. Notably, we’ve also manufactured a TinyChat computer , powered by TinyChat, which contains an NVIDIA Jetson Orin Nano with only 8GB of memory and 15W power consumption. Demo: https://youtu.be/z91a8DrfgEw ."
+  },
+  {
+    "kind": "figure",
+    "number": 2,
+    "path": "assets/original/fig-02.svg",
+    "source": "https://arxiv.org/html/2306.00978v6/method.svg",
+    "caption": "Figure 2: We observe that we can find 1% of the salient weights in LLMs based on the activation distribution (middle). Keeping the salient weights in FP16 can significantly improve the quantized performance (PPL from 43.2 (left) to 13.0 (middle)), but the mixed-precision format is not hardware-efficient. We follow the activation-awareness principle and propose AWQ (right). AWQ performs per-channel scaling to protect the salient weights and reduce quantization error. We measure the perplexity of OPT-6.7B under INT3-g128 quantization."
+  },
+  {
+    "kind": "figure",
+    "number": 3,
+    "path": "assets/original/fig-03.svg",
+    "source": "https://arxiv.org/html/2306.00978v6/memory_bound_analysis.svg",
+    "caption": "Figure 3: Bottleneck analysis for Llama-2-7B on NVIDIA RTX 4090. Left : In on-device LLM applications, generation stage is much slower than the context stage. Middle : The generation stage is memory bound and has low arithmetic intensity. W4A16 quantization can effectively improve the arithmetic intensity by 4 × \\times . Right : The amount of weight access is orders of magnitude larger than the amount of activation access. Thus, weight-only quantization is more effective for on-device LLMs."
+  },
+  {
+    "kind": "figure",
+    "number": 4,
+    "path": "assets/original/fig-04.svg",
+    "source": "https://arxiv.org/html/2306.00978v6/weight_packing.svg",
+    "caption": "Figure 4: SIMD-aware weight packing for ARM NEON with 128-bit SIMD units. Original weights are reordered and packed to align with the bit width so that the weights can be unpacked into bytes at runtime using AND and shift bitwise operations with a 128-bit mask."
+  },
+  {
+    "kind": "figure",
+    "number": 5,
+    "path": "assets/original/fig-05.svg",
+    "source": "https://arxiv.org/html/2306.00978v6/vicuna_gpt4_eval_small.svg",
+    "caption": "Figure 5: Comparing INT3-g128 quantized Vicuna models with FP16 counterparts under GPT-4 evaluation protocol Chiang et al. (2023) . More winning cases (in blue ) indicate better performance. AWQ consistently improves the quantized performance compared to RTN and GPTQ Frantar et al. (2022) , showing generalization to instruction-tuned models."
+  },
+  {
+    "kind": "figure",
+    "number": 6,
+    "path": "assets/original/fig-06.png",
+    "source": "https://arxiv.org/html/2306.00978v6/visual_reasoning.png",
+    "caption": "Figure 6: Visual reasoning examples from LLaVA-13B model Liu et al. (2023a) . AWQ improves over the round-to-nearest (RTN) baseline, providing more reasonable answers. We color the text to show the correct or wrong responses."
+  },
+  {
+    "kind": "figure",
+    "number": 7,
+    "path": "assets/original/fig-07.png",
+    "source": "https://arxiv.org/html/2306.00978v6/coco_caption_samples_w4.png",
+    "caption": "Figure 7: Qualitative results of quantized OpenFlamingo-9B Awadalla et al. (2023) on COCO captioning dataset (4-shot, INT4-g128 quantization). Our method significantly improves the captioning quality compared to the round-to-nearest (RTN) baseline. We color the text to show the correct or wrong captions."
+  },
+  {
+    "kind": "figure",
+    "number": 8,
+    "path": "assets/original/fig-08.svg",
+    "source": "https://arxiv.org/html/2306.00978v6/calib_set_ablation_small.svg",
+    "caption": "Figure 8: Left: AWQ needs a much smaller calibration set to reach a good quantized performance. It can achieve better perplexity using 10 × \\times smaller calibration set compared to GPTQ. Right: Our method is more robust to the calibration set distribution. Overall, using the same calibration and evaluation distribution works the best (PubMed-PubMed, Enron-Enron). But when using a different calibration distribution (PubMed-Enron, Enron-PubMed), AWQ only increases the perplexity by 0.5-0.6, while GPTQ has 2.3-4.9 worse perplexity. All experiments are done with the OPT-6.7B model under INT3-g128 quantization."
+  },
+  {
+    "kind": "figure",
+    "number": 9,
+    "path": "assets/original/fig-09.png",
+    "source": "https://arxiv.org/html/2306.00978v6/speedup.png",
+    "caption": "Figure 9: TinyChat provides a turn-key solution to transform the theoretical memory footprint reduction into a quantifiable speedup. As a result, TinyChat is up to 3.9 × \\times and 3.5 × \\times faster than the FP16 implementation from Huggingface on 4090 (desktop GPU) and Orin (mobile GPU), respectively. AWQ also democratizes Llama-2-13B deployment on laptop GPUs (4070) with merely 8GB memory."
+  },
+  {
+    "kind": "figure",
+    "number": 10,
+    "path": "assets/original/fig-10.png",
+    "source": "https://arxiv.org/html/2306.00978v6/speedup_comparisons.png",
+    "caption": "Figure 10: TinyChat offers 1.2-3.0 × \\times speedup over existing systems when running 4-bit quantized Llama models on NVIDIA Jetson Orin. It also supports a diverse range of general-purpose and coding-specific LLMs with at least 2.6 × \\times speedup over AutoGPTQ, which also supports all these workloads. Moreover, TinyChat seamlessly operates on Raspberry Pi and enables the deployment of LLMs with up to 7 billion parameters on extremely resource-constrained IoT devices."
+  },
+  {
+    "kind": "table",
+    "number": 1,
+    "path": "sources/table-01.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S3.T1",
+    "caption": "Table 1: Keeping a small fraction of weights (0.1%-1%) in FP16 significantly improves the performance of the quantized models over round-to-nearest (RTN). It is only effective when we select the important weights in FP16 by looking at activation distribution instead of weight distribution. We highlight results with a decent perplexity in green .\nWe used INT3 quantization with a group size of 128 and measured the WikiText perplexity ( ↓ \\downarrow )."
+  },
+  {
+    "kind": "table",
+    "number": 2,
+    "path": "sources/table-02.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S3.T2",
+    "caption": "Table 2: Statistics when multiplying the 1% salient channels by s > 1 s>1 . Scaling up the salient channels significantly improves the perplexity (23.54 to 11.92). As s s goes larger, the percentage of changed Δ \\Delta increases, and the error reduction rate for salient channels also increases. However, the best perplexity is achieved at s = 2 s=2 , since further increasing s s will increase the quantization error for non-salient channels."
+  },
+  {
+    "kind": "table",
+    "number": 3,
+    "path": "sources/table-03.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S3.T3",
+    "caption": "Table 3: AWQ protects salient weights and reduces quantization error by using a scaling-based method. It consistently outperforms Round-to-nearest quantization (RTN) and achieves comparable performance as mixed-precision (1% FP16) while being more hardware-friendly. We use 3-bit quantization with group size 128."
+  },
+  {
+    "kind": "table",
+    "number": 4,
+    "path": "sources/table-04.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S5.T4",
+    "caption": "Table 4: AWQ improves over round-to-nearest quantization (RTN) for different model sizes and different bit-precisions. It consistently achieves better perplexity than GPTQ (w/ and w/o reordering) on LLaMA & Llama-2 models."
+  },
+  {
+    "kind": "table",
+    "number": 5,
+    "path": "sources/table-05.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S5.T5",
+    "caption": "Table 5: AWQ quantization results on Mistral-7B-Instruct-v0.2 Jiang et al. (2023) and Mixtral-8x7B-Instruct-v0.1 model Jiang et al. (2024) . The PPL result on wikitext shows that AWQ can achieve superior quantization performance on different model architectures including LLMs with GQA and Mixture-of-Experts (MoE) models."
+  },
+  {
+    "kind": "table",
+    "number": 6,
+    "path": "sources/table-06.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S5.T6",
+    "caption": "Table 6: Quantization results of a visual language model OpenFlamingo-9B Awadalla et al. (2023) on COCO Captioning datasets. Activation-aware Weight Quantization outperforms existing methods under zero-shot and various few-shot settings, demonstrating the generability to different modalities and in-context learning workloads. Activation-aware Weight Quantization reduces the quantization degradation (32-shot) from 4.57 to 1.17 under INT4-g128, providing 4 × \\times model size reduction with negligible performance loss."
+  },
+  {
+    "kind": "table",
+    "number": 7,
+    "path": "sources/table-07.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S5.T7",
+    "caption": "Table 7: INT4-g128 results of VILA-7B and VILA-13B Lin et al. (2024) on 11 visual-language benchmarks. AWQ consistently shows lossless performance on all benchmarks. Benchmark names are abbreviated due to space limits. VQA-v2 Goyal et al. (2017) ; GQA Hudson & Manning (2019) ; VisWiz Gurari et al. (2018) ; SQA I {}^{\\text{I}} : ScienceQA-IMG Lu et al. (2022) ; VQA T {}^{\\text{T}} : TextVQA Singh et al. (2019) ; POPE Li et al. (2023d) ; MME Fu et al. (2023) ; MMB: MMBench Liu et al. (2023b) ; MMB CN {}^{\\text{CN}} : MMBench-Chinese Liu et al. (2023b) ; SEED: SEED-Bench Li et al. (2023a) ; LLaVA W {}^{\\text{W}} : LLaVA-Bench (In-the-Wild) Liu et al. (2023a) ; MM-Vet Yu et al. (2023) ."
+  },
+  {
+    "kind": "table",
+    "number": 8,
+    "path": "sources/table-08.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S5.T8",
+    "caption": "Table 8: INT4-g128 quantization results of CodeLlama-7b-Instruct-hf on MBPP dataset and Llama-2 (7B/13B/70B) on GSM8K dataset. AWQ outperforms existing methods on programming and math datasets, demonstrating the generability to different scenarios and evaluation settings. Notably, AWQ under the INT4-g128 configuration demonstrates comparable performance to the original FP16 model across both datasets."
+  },
+  {
+    "kind": "table",
+    "number": 9,
+    "path": "sources/table-09.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S5.T9",
+    "caption": "Table 9: Our method is orthogonal to GPTQ: it further closes the performance gap under extreme low-bit quantization (INT2-g64) when combined with GPTQ. Results are WikiText-2 perplexity of OPT models."
+  },
+  {
+    "kind": "table",
+    "number": 10,
+    "path": "sources/table-10.html",
+    "source": "https://arxiv.org/html/2306.00978v6#S5.T10",
+    "caption": "Table 10: TinyChat also enables seamless deployment of VILA Lin et al. (2024) , a state-of-the-art visual-language model, on multiple GPU platforms. Leveraging our 4-bit AWQ quantization, TinyChat accelerates VILA-7B by up to 3.1 × \\times and VILA-13B by up to 2.9 × \\times ."
+  }
+]

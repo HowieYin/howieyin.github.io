@@ -1,0 +1,25 @@
+<figure class="ltx_table" id="S5.T5">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle" id="S5.T5.2">
+<thead class="ltx_thead">
+<tr class="ltx_tr" id="S5.T5.2.1">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt" id="S5.T5.2.1.1" style="padding:0.25pt 5.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T5.2.1.1.1">Wikitext2 PPL<math alttext="\downarrow" class="ltx_Math" display="inline" id="S5.T5.m1" intent=":literal"><semantics><mo stretchy="false">↓</mo><annotation encoding="application/x-tex">\downarrow</annotation></semantics></math></span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" id="S5.T5.2.1.2" style="padding:0.25pt 5.0pt;">Mixtral-8x7B</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" id="S5.T5.2.1.3" style="padding:0.25pt 5.0pt;">Mistral-7B</th></tr>
+<tr class="ltx_tr" id="S5.T5.2.2">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_t" id="S5.T5.2.2.1" style="padding:0.25pt 5.0pt;">FP16</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" id="S5.T5.2.2.2" style="padding:0.25pt 5.0pt;">5.94</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" id="S5.T5.2.2.3" style="padding:0.25pt 5.0pt;">4.14</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr" id="S5.T5.2.3">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" id="S5.T5.2.3.1" style="padding:0.25pt 5.0pt;">INT4-g128</th>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T5.2.3.2" style="padding:0.25pt 5.0pt;">6.05</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T5.2.3.3" style="padding:0.25pt 5.0pt;">4.30</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.4">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb" id="S5.T5.2.4.1" style="padding:0.25pt 5.0pt;">INT3-g128</th>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T5.2.4.2" style="padding:0.25pt 5.0pt;">6.52</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T5.2.4.3" style="padding:0.25pt 5.0pt;">4.83</td></tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 5: </span>AWQ quantization results on Mistral-7B-Instruct-v0.2<cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="#bib.bib29" title="">Jiang et al. (2023)</a></cite> and Mixtral-8x7B-Instruct-v0.1 model  <cite class="ltx_cite ltx_citemacro_cite"><a class="ltx_ref" href="#bib.bib30" title="">Jiang et al. (2024)</a></cite>. The PPL result on wikitext shows that AWQ can achieve superior quantization performance on different model architectures including LLMs with GQA and Mixture-of-Experts (MoE) models.</figcaption>
+</figure>
