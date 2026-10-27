@@ -532,6 +532,14 @@
       "status": 200
     },
     {
+      "url": "http://127.0.0.1:8776/papers/eagle2/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/medusa/",
+      "status": 200
+    },
+    {
       "url": "http://127.0.0.1:8776/papers/gqa/",
       "status": 200
     },
@@ -586,6 +594,8 @@
       "dflash": 2,
       "archive": [
         "/papers/dflash/",
+        "/papers/eagle2/",
+        "/papers/medusa/",
         "/papers/glu-variants/",
         "/papers/layer-normalization/",
         "/papers/scaling-laws/",
@@ -619,6 +629,8 @@
       "dflash": 2,
       "archive": [
         "/papers/dflash/",
+        "/papers/eagle2/",
+        "/papers/medusa/",
         "/papers/glu-variants/",
         "/papers/layer-normalization/",
         "/papers/scaling-laws/",
@@ -650,6 +662,16 @@
     },
     {
       "url": "http://127.0.0.1:8776/papers/rmsnorm/",
+      "status": 200,
+      "link": true
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/eagle2/",
+      "status": 200,
+      "link": true
+    },
+    {
+      "url": "http://127.0.0.1:8776/papers/medusa/",
       "status": 200,
       "link": true
     }

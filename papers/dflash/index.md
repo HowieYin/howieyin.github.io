@@ -483,6 +483,12 @@ DLoop v2的同条件Table1，Qwen3-8B的DFlash **τ6.08 /4.15×**，加loop **τ
 
 vLLM项目2026-08-23的AMD官方技术blog记录AMD GPU上的speculative实现与评测，含DFlash相关路线。[15] 它提供了跨供应商工程证据，但不能直接替代本论文B200/H200数据；模型、精度、并发与kernel不同。作者SGLang集成、附录vLLM结果则是论文内的系统证据，二者来源分开。
 
+**SGLang / Modal / Z Lab 官方集成说明，2026-06-15。** 文章进一步解释调用链：scheduler 调用 draft worker，draft worker 包装 target worker，准备好草稿后发起验证。为支持共享前缀 radix cache 并避免长期保存 target latents，系统提前执行 draft KV projection，即 **immediate materialization**；采用 layer-batched linear projection，并融合 norm + RoPE 的 Triton 后处理。[16]
+
+**Spec V2 的收益在哪里？** Host 对 batch N−1 的停止检测、metadata 更新可与 batch N 的 GPU 工作重叠；batch N 的 `prepare_for_decode` / KV allocation 可与 batch N−1 的 GPU 工作重叠。官方报告 Qwen3-8B、单 B200、并发32从约11.4→15.3 ktok/s，增加约 **34.2%**（原文称 over33%）。这是近似吞吐的工程增量，不是重新测得 Table3 的某个精确数。
+
+该文章还报告 Qwen3.5-397B-A17B、BF16、8×B200、HumanEval、greedy / thinking、max new4096、并发1下，DFlash相对AR吞吐 &gt;4.3×、相对MTP1.5×。DFlash benchmark B16，MTP7steps，各自预算为最大吞吐选择；文中示例启动命令却使用B8，因此不能把示例命令直接当作上述benchmark配置。[16] 原论文v2、引擎Spec V2、后续DFlash2是三个不同的版本概念。
+
 ## Current State / SOTA：截至 2026-10-27，应比较条件化的前沿
 
 | 问题 | 可核验结果 | 能得出的结论 |
@@ -548,11 +554,12 @@ vLLM项目2026-08-23的AMD官方技术blog记录AMD GPU上的speculative实现�
 13. *DLoop: Looped Speculative Decoding*，arXivv2，2026-10-21. [2610.07659](https://arxiv.org/abs/2610.07659)。
 14. *Adaptive DHiSparse: Speculative Decoding over a Load-Adaptive KV Hierarchy*，arXivv1，2026-10-09. [2610.13708](https://arxiv.org/abs/2610.13708)。
 15. vLLM Project. *Exploring Speculative Decoding in vLLM on AMD GPUs*，2026-08-23. [Official technical blog](https://vllm-project.github.io/2026/08/23/speculative-decoding-amd-gpus.html)。
+16. Z Lab, Modal, SGLang Teams. *The next generation of speculative decoding: DFlash and Spec V2*. 2026-06-15. [Official integration article](https://www.lmsys.org/blog/2026-06-15-next-generation-speculative-decoding-dflash-v2/)。
 
 **Local review / generated assets**
 
 [资产来源与校验和](sources/asset-manifest.json) · [研究与相关工作笔记](notes/related-work.md) · [实验审计](notes/experiments.md) · [方法重构](notes/paper.md) · [评审与限制](notes/critique.md) · [两轮内容复核](notes/reviews.md)。数学推导、机制计算和页面QA均不等于在GPU上复现模型speedup。
 
-<div class="related-readings"><p class="component-label">RELATED READINGS</p><a href="../gqa/">GQA — draft KV 的共享粒度与容量</a><a href="../flashattention/">FlashAttention — 把 attention 的数学计算变成更少 IO</a><a href="../rmsnorm/">RMSNorm — 上下文融合后的尺度控制</a><a href="../transformer/">Transformer — 因果 attention 与并行位置计算</a><a href="../">All Paper Readings →</a></div>
+<div class="related-readings"><p class="component-label">RELATED READINGS</p><a href="../eagle2/">EAGLE-2 — 将验证预算分给更可能走通的草稿路径</a><a href="../medusa/">Medusa — 多候选验证与每轮有效推进</a><a href="../gqa/">GQA — draft KV 的共享粒度与容量</a><a href="../flashattention/">FlashAttention — 把 attention 的数学计算变成更少 IO</a><a href="../rmsnorm/">RMSNorm — 上下文融合后的尺度控制</a><a href="../transformer/">Transformer — 因果 attention 与并行位置计算</a><a href="../">All Paper Readings →</a></div>
 
 **Changelog。** 2026-10-27：初次发布，完整v2图表、方法与附录，扩展资料截至当日。
