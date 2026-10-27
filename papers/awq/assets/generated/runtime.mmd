@@ -1,0 +1,9 @@
+flowchart TD
+ P["离线 packed INT4 + metadata"] --> L["Load tile"]
+ L --> U["AND / SHIFT：unpack"]
+ U --> C["convert + scale / zero"]
+ X["FP16 输入 activation"] --> F["浮点 FMA / MMA"]
+ C --> F
+ F --> Y["输出 activation"]
+ Y --> K["Attention / KV 更新 / 下一层"]
+ N["Norm / QKV / position fusion"] --> K
