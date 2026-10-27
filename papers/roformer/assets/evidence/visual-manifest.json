@@ -1,0 +1,98 @@
+[
+  {
+    "name": "fig-01-rotation",
+    "page": 5,
+    "clip_pdf_points": [
+      138,
+      400,
+      480,
+      590
+    ],
+    "caption": "Figure 1: Implementation of Rotary Position Embedding(RoPE).",
+    "source": "Local arXiv 2104.09864v5 PDF; 4x lossless PNG; full page retained separately"
+  },
+  {
+    "name": "fig-02-decay",
+    "page": 8,
+    "clip_pdf_points": [
+      136,
+      66,
+      483,
+      245
+    ],
+    "caption": "Figure 2: Long-term decay of RoPE.",
+    "source": "Local arXiv 2104.09864v5 PDF; 4x lossless PNG; full page retained separately"
+  },
+  {
+    "name": "fig-03-training",
+    "page": 10,
+    "clip_pdf_points": [
+      82,
+      82,
+      528,
+      225
+    ],
+    "caption": "Figure 3: Evaluation of RoPE in language modeling pre-training. Left : training loss for BERT and RoFormer. Right : training loss for PerFormer with and without RoPE.",
+    "source": "Local arXiv 2104.09864v5 PDF; 4x lossless PNG; full page retained separately"
+  },
+  {
+    "name": "table-01-translation",
+    "page": 9,
+    "clip_pdf_points": [
+      202,
+      100,
+      410,
+      146
+    ],
+    "caption": "Table 1: The proposed RoFormer gives better BLEU scores compared to its baseline alternative Vaswani et al. (2017) on the WMT 2014 English-to-German translation task Bojar et al. (2014) .",
+    "source": "Local arXiv 2104.09864v5 PDF; 4x lossless PNG; full page retained separately"
+  },
+  {
+    "name": "table-02-glue",
+    "page": 10,
+    "clip_pdf_points": [
+      120,
+      505,
+      493,
+      555
+    ],
+    "caption": "Table 2: Comparing RoFormer and BERT by fine tuning on downstream GLEU tasks.",
+    "source": "Local arXiv 2104.09864v5 PDF; 4x lossless PNG; full page retained separately"
+  },
+  {
+    "name": "table-03-models",
+    "page": 11,
+    "clip_pdf_points": [
+      76,
+      379,
+      537,
+      427
+    ],
+    "caption": "Table 3: Cross-comparison between our RoFormer and other pre-trained models on Chinese data. ’abs’ and ’rel’ annotates absolute position embedding and relative position embedding, respectively.",
+    "source": "Local arXiv 2104.09864v5 PDF; 4x lossless PNG; full page retained separately"
+  },
+  {
+    "name": "table-04-curriculum",
+    "page": 11,
+    "clip_pdf_points": [
+      149,
+      555,
+      463,
+      647
+    ],
+    "caption": "Table 4: Pre-training strategy of RoFormer on Chinese dataset. The training procedure is divided into various consecutive stages. In each stage, we train the model with a specific combination of maximum sequence length and batch size.",
+    "source": "Local arXiv 2104.09864v5 PDF; 4x lossless PNG; full page retained separately"
+  },
+  {
+    "name": "table-05-cail",
+    "page": 12,
+    "clip_pdf_points": [
+      217,
+      251,
+      396,
+      323
+    ],
+    "caption": "Table 5: Experiment results on CAIL2019-SCM task. Numbers in the first column denote the maximum cut-off sequence length. The results are presented in terms of percent accuracy.",
+    "source": "Local arXiv 2104.09864v5 PDF; 4x lossless PNG; full page retained separately"
+  }
+]

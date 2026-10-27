@@ -1,0 +1,18 @@
+{
+  "float64_reference_max_errors": {
+    "norm": 1.7763568394002505e-15,
+    "relative_identity": 3.5225156125306967e-12,
+    "shared_shift": 6.590283874174929e-12,
+    "prefill_decode": 0.0,
+    "complex": 3.518962898851896e-12
+  },
+  "random_cases": 400,
+  "single_frequency_scores": {
+    "3": -0.9899924966004454,
+    "6": 0.960170286650366
+  },
+  "curriculum_steps": 452500,
+  "max_position_slots": 56033280000,
+  "kv_bytes_example": 536870912,
+  "scope": "Mechanism tests only; not paper training reproduction"
+}

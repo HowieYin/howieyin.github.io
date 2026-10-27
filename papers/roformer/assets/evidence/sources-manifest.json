@@ -1,0 +1,37 @@
+[
+  {
+    "file": "arxiv.html",
+    "url": "https://arxiv.org/abs/2104.09864",
+    "sha256": "05f358917fc49cfe74bea6da957e548f7b6d63b871fa21add387e20a7c2ba314"
+  },
+  {
+    "file": "paper.html",
+    "url": "https://arxiv.org/html/2104.09864v5",
+    "sha256": "5461d89e25e4657305358635434028174f8a27574822951febbd579fc4f33f0b"
+  },
+  {
+    "file": "official-readme.md",
+    "url": "https://raw.githubusercontent.com/ZhuiyiTechnology/roformer/main/README.md",
+    "sha256": "60db852bc4032879791090c20f6bca31759fc6f60b434beb543d3242804f7133"
+  },
+  {
+    "file": "hf-roformer.html",
+    "url": "https://huggingface.co/docs/transformers/model_doc/roformer",
+    "sha256": "5ae2968724770fc22abe15adc771728d5e31d390a2fb90e9ba9e174305ba1301"
+  },
+  {
+    "file": "hf-roformer-model.py",
+    "url": "https://raw.githubusercontent.com/huggingface/transformers/main/src/transformers/models/roformer/modeling_roformer.py",
+    "sha256": "eb5398c10c7abdded171ab7fa9cc0c6573f7110e1422f5a669f97631c921d329"
+  },
+  {
+    "file": "hf-rope-utils.py",
+    "url": "https://raw.githubusercontent.com/huggingface/transformers/main/src/transformers/modeling_rope_utils.py",
+    "sha256": "ddec71d6c9343af437f656812177fe5c98f6057fd5240c5cbf208520c2872745"
+  },
+  {
+    "file": "2104.09864v5.pdf",
+    "sha256": "e9a481fbe1c8a20b7b1fa566b13102a1896c7829fa9a8b4c80528452a5ddaf79",
+    "pages": 14
+  }
+]
