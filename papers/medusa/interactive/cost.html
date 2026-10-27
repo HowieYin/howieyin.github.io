@@ -1,0 +1,10 @@
+<section class="mechanism" id="cost-explorer" aria-labelledby="cost-heading">
+<p class="reading-meta">AGENT-CREATED VISUALIZATION · ORIGINAL TABLES 6–8 DATA</p>
+<h3 id="cost-heading">查询原始 per-op 数据，拆开 FLOP/s 与时间</h3>
+<p>选择原表、固定行和 q。读数直接来自原论文；只在原表离散测量点间选择，不做插值。</p>
+<div class="controls"><label>Original table<select id="cost-table"><option value="6">Table 6 · attention / B=16 / vary S</option><option value="7">Table 7 · attention / S=1024 / vary B</option><option value="8">Table 8 · MLP / vary B</option></select></label><label id="cost-row-label">Fixed row<select id="cost-row"><option value="1024" selected>S=1024</option></select></label><label>Candidate count q<select id="cost-q"><option>1</option><option>16</option><option>32</option><option>48</option><option selected>64</option><option>80</option><option>96</option><option>112</option></select></label></div>
+<div class="readout" id="cost-readout" role="status" aria-live="polite">Table 6 · S=1024 · q=64: 54.8 TFLOP/s · 40.96 FLOP/byte · versus q=1: 44.19× FLOP/s · approximate cycle time 1.45×.</div>
+<div class="cost-compare" id="cost-compare"><p>More compute throughput does not mean a faster iteration; useful throughput also depends on accepted tokens.</p></div>
+<p class="hint">固定同一行，按矩阵主工作量约 ∝q，推导 time(q)/time(1)≈q/(FLOP/s ratio)。这是所测算子的主项比例；不是完整模型 latency，也不包含 heads、sampling、KV copy 或同步。</p>
+<noscript><p>Static fallback：Table 6 S=1024，q=1 为 1.24 TFLOP/s、0.99 FLOP/byte；q=64 为 54.8、40.96。吞吐提高 44.19×，工作量约 64×，所以单轮算子时间约 1.45×。</p></noscript>
+</section>
