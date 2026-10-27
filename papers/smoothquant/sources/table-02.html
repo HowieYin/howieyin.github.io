@@ -1,0 +1,38 @@
+<figure class="ltx_table" id="S5.T2">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 2: </span>Quantization setting of the baselines and SmoothQuant. All weight and activations use INT8 representations unless specified. For SmoothQuant, the efficiency <span class="ltx_text ltx_font_bold">improves</span> from O1 to O3 (i.e.<span class="ltx_text"></span>, lower latency).
+</figcaption>
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">Method</span></td>
+<td class="ltx_td ltx_align_left ltx_border_tt" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">Weight</span></td>
+<td class="ltx_td ltx_align_left ltx_border_tt" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">Activation</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">W8A8</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-tensor</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-tensor dynamic</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">ZeroQuant</span></td>
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">group-wise</span></td>
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-token dynamic</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text ltx_font_typewriter" style="font-size:90%;">LLM.int8()</span></td>
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-channel</span></td>
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-token dynamic+FP16</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">Outlier Suppression</span></td>
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-tensor</span></td>
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-tensor static</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O1</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-tensor</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-token dynamic</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O2</span></td>
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-tensor</span></td>
+<td class="ltx_td ltx_align_left" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-tensor dynamic</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O3</span></td>
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-tensor</span></td>
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding-left:2.5pt;padding-right:2.5pt;"><span class="ltx_text" style="font-size:90%;">per-tensor static</span></td></tr>
+</table>
+</figure>

@@ -1,0 +1,579 @@
+{
+  "phase": "local",
+  "widths": [
+    {
+      "width": 375,
+      "scroll": 375,
+      "article": 343,
+      "figures": 13,
+      "tables": 9,
+      "equations": [
+        {
+          "id": "1",
+          "height": 47.375
+        },
+        {
+          "id": "2",
+          "height": 19.953125
+        },
+        {
+          "id": "3",
+          "height": 17.1875
+        },
+        {
+          "id": "4",
+          "height": 22.828125
+        },
+        {
+          "id": "5",
+          "height": 47.234375
+        },
+        {
+          "id": "6",
+          "height": 36.1875
+        },
+        {
+          "id": "7",
+          "height": 23.75
+        },
+        {
+          "id": "8",
+          "height": 29.96875
+        },
+        {
+          "id": "9",
+          "height": 49.421875
+        },
+        {
+          "id": "10",
+          "height": 36.1875
+        },
+        {
+          "id": "11",
+          "height": 21.109375
+        },
+        {
+          "id": "12",
+          "height": 53.109375
+        },
+        {
+          "id": "13",
+          "height": 36.1875
+        },
+        {
+          "id": "14",
+          "height": 53.796875
+        },
+        {
+          "id": "15",
+          "height": 19.953125
+        },
+        {
+          "id": "16",
+          "height": 52.953125
+        },
+        {
+          "id": "17",
+          "height": 47.234375
+        },
+        {
+          "id": "18",
+          "height": 51.546875
+        },
+        {
+          "id": "19",
+          "height": 47.234375
+        },
+        {
+          "id": "20",
+          "height": 53.109375
+        },
+        {
+          "id": "21",
+          "height": 47.46875
+        },
+        {
+          "id": "22",
+          "height": 47.46875
+        }
+      ],
+      "anchors": true,
+      "diagramCount": 3
+    },
+    {
+      "width": 390,
+      "scroll": 390,
+      "article": 358,
+      "figures": 13,
+      "tables": 9,
+      "equations": [
+        {
+          "id": "1",
+          "height": 47.375
+        },
+        {
+          "id": "2",
+          "height": 19.953125
+        },
+        {
+          "id": "3",
+          "height": 17.1875
+        },
+        {
+          "id": "4",
+          "height": 22.828125
+        },
+        {
+          "id": "5",
+          "height": 47.234375
+        },
+        {
+          "id": "6",
+          "height": 36.1875
+        },
+        {
+          "id": "7",
+          "height": 23.75
+        },
+        {
+          "id": "8",
+          "height": 29.96875
+        },
+        {
+          "id": "9",
+          "height": 49.421875
+        },
+        {
+          "id": "10",
+          "height": 36.1875
+        },
+        {
+          "id": "11",
+          "height": 21.109375
+        },
+        {
+          "id": "12",
+          "height": 53.109375
+        },
+        {
+          "id": "13",
+          "height": 36.1875
+        },
+        {
+          "id": "14",
+          "height": 53.796875
+        },
+        {
+          "id": "15",
+          "height": 19.953125
+        },
+        {
+          "id": "16",
+          "height": 52.953125
+        },
+        {
+          "id": "17",
+          "height": 47.234375
+        },
+        {
+          "id": "18",
+          "height": 51.546875
+        },
+        {
+          "id": "19",
+          "height": 47.234375
+        },
+        {
+          "id": "20",
+          "height": 53.109375
+        },
+        {
+          "id": "21",
+          "height": 47.46875
+        },
+        {
+          "id": "22",
+          "height": 47.46875
+        }
+      ],
+      "anchors": true,
+      "diagramCount": 3
+    },
+    {
+      "width": 430,
+      "scroll": 430,
+      "article": 398,
+      "figures": 13,
+      "tables": 9,
+      "equations": [
+        {
+          "id": "1",
+          "height": 47.375
+        },
+        {
+          "id": "2",
+          "height": 19.953125
+        },
+        {
+          "id": "3",
+          "height": 17.1875
+        },
+        {
+          "id": "4",
+          "height": 22.828125
+        },
+        {
+          "id": "5",
+          "height": 47.234375
+        },
+        {
+          "id": "6",
+          "height": 36.1875
+        },
+        {
+          "id": "7",
+          "height": 23.75
+        },
+        {
+          "id": "8",
+          "height": 29.96875
+        },
+        {
+          "id": "9",
+          "height": 49.421875
+        },
+        {
+          "id": "10",
+          "height": 36.1875
+        },
+        {
+          "id": "11",
+          "height": 21.109375
+        },
+        {
+          "id": "12",
+          "height": 53.109375
+        },
+        {
+          "id": "13",
+          "height": 36.1875
+        },
+        {
+          "id": "14",
+          "height": 53.796875
+        },
+        {
+          "id": "15",
+          "height": 19.953125
+        },
+        {
+          "id": "16",
+          "height": 52.953125
+        },
+        {
+          "id": "17",
+          "height": 47.234375
+        },
+        {
+          "id": "18",
+          "height": 51.546875
+        },
+        {
+          "id": "19",
+          "height": 47.234375
+        },
+        {
+          "id": "20",
+          "height": 53.109375
+        },
+        {
+          "id": "21",
+          "height": 47.46875
+        },
+        {
+          "id": "22",
+          "height": 47.46875
+        }
+      ],
+      "anchors": true,
+      "diagramCount": 3
+    },
+    {
+      "width": 1440,
+      "scroll": 1440,
+      "article": 880,
+      "figures": 13,
+      "tables": 9,
+      "equations": [
+        {
+          "id": "1",
+          "height": 52.65625
+        },
+        {
+          "id": "2",
+          "height": 22.1875
+        },
+        {
+          "id": "3",
+          "height": 19.109375
+        },
+        {
+          "id": "4",
+          "height": 25.375
+        },
+        {
+          "id": "5",
+          "height": 52.484375
+        },
+        {
+          "id": "6",
+          "height": 40.234375
+        },
+        {
+          "id": "7",
+          "height": 26.40625
+        },
+        {
+          "id": "8",
+          "height": 33.296875
+        },
+        {
+          "id": "9",
+          "height": 54.953125
+        },
+        {
+          "id": "10",
+          "height": 40.234375
+        },
+        {
+          "id": "11",
+          "height": 23.453125
+        },
+        {
+          "id": "12",
+          "height": 59.03125
+        },
+        {
+          "id": "13",
+          "height": 40.234375
+        },
+        {
+          "id": "14",
+          "height": 59.765625
+        },
+        {
+          "id": "15",
+          "height": 22.1875
+        },
+        {
+          "id": "16",
+          "height": 58.84375
+        },
+        {
+          "id": "17",
+          "height": 52.484375
+        },
+        {
+          "id": "18",
+          "height": 57.28125
+        },
+        {
+          "id": "19",
+          "height": 52.484375
+        },
+        {
+          "id": "20",
+          "height": 59.03125
+        },
+        {
+          "id": "21",
+          "height": 52.765625
+        },
+        {
+          "id": "22",
+          "height": 52.765625
+        }
+      ],
+      "anchors": true,
+      "diagramCount": 3
+    },
+    {
+      "width": 1920,
+      "scroll": 1920,
+      "article": 880,
+      "figures": 13,
+      "tables": 9,
+      "equations": [
+        {
+          "id": "1",
+          "height": 52.65625
+        },
+        {
+          "id": "2",
+          "height": 22.1875
+        },
+        {
+          "id": "3",
+          "height": 19.109375
+        },
+        {
+          "id": "4",
+          "height": 25.375
+        },
+        {
+          "id": "5",
+          "height": 52.484375
+        },
+        {
+          "id": "6",
+          "height": 40.234375
+        },
+        {
+          "id": "7",
+          "height": 26.40625
+        },
+        {
+          "id": "8",
+          "height": 33.296875
+        },
+        {
+          "id": "9",
+          "height": 54.953125
+        },
+        {
+          "id": "10",
+          "height": 40.234375
+        },
+        {
+          "id": "11",
+          "height": 23.453125
+        },
+        {
+          "id": "12",
+          "height": 59.03125
+        },
+        {
+          "id": "13",
+          "height": 40.234375
+        },
+        {
+          "id": "14",
+          "height": 59.765625
+        },
+        {
+          "id": "15",
+          "height": 22.1875
+        },
+        {
+          "id": "16",
+          "height": 58.84375
+        },
+        {
+          "id": "17",
+          "height": 52.484375
+        },
+        {
+          "id": "18",
+          "height": 57.28125
+        },
+        {
+          "id": "19",
+          "height": 52.484375
+        },
+        {
+          "id": "20",
+          "height": 59.03125
+        },
+        {
+          "id": "21",
+          "height": 52.765625
+        },
+        {
+          "id": "22",
+          "height": 52.765625
+        }
+      ],
+      "anchors": true,
+      "diagramCount": 3
+    }
+  ],
+  "interaction": [
+    "Real keyboard range, select change/focus, noise resample/reset, 65K/131K cost presets",
+    "Real mouse figure zoom + Escape + source link"
+  ],
+  "errors": [],
+  "failed": [],
+  "images": [
+    {
+      "src": "assets/original/fig-01-architecture.png",
+      "width": 1616,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/fig-02-capacity-compute.png",
+      "width": 1616,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/table-01-high-capacity-lm.png",
+      "width": 1628,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/fig-03-news-scaling.png",
+      "width": 1616,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/table-02-wmt-en-fr.png",
+      "width": 1616,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/table-03-wmt-en-de.png",
+      "width": 1616,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/table-04-production-en-fr.png",
+      "width": 1616,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/table-05-multilingual.png",
+      "width": 1616,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/table-06-balancing-ablation.png",
+      "width": 1624,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/table-07-complete-lm.png",
+      "width": 1624,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/table-08-complete-news.png",
+      "width": 1624,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/fig-04-translation-learning.png",
+      "width": 1616,
+      "loaded": true
+    },
+    {
+      "src": "assets/original/table-09-specialization.png",
+      "width": 1616,
+      "loaded": true
+    }
+  ],
+  "tableScroll": {
+    "client": 356,
+    "scroll": 720,
+    "left": 300
+  },
+  "noJS": true
+}

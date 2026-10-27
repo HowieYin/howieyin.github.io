@@ -1,0 +1,94 @@
+<figure class="ltx_table" id="S5.T8">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 8: </span>SmoothQuant ’s performance in the decoding stage.
+</figcaption>
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_tt" rowspan="2" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">BS</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" rowspan="2" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">SeqLen</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="3" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">Latency (ms)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="3" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">Memory (GB)</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">Ours</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">Speedup (<math alttext="\uparrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↑</mo><annotation encoding="application/x-tex">\uparrow</annotation></semantics></math>)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">Ours</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">Saving (<math alttext="\uparrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↑</mo><annotation encoding="application/x-tex">\uparrow</annotation></semantics></math>)</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" colspan="8" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">OPT-30B (1 GPU)</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">512</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">422</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">314</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.35<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">57</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">30</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.91<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1024</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">559</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">440</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.27<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">58</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">31</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.87<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">16</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">512</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">2488</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1753</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.42<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">69</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">44</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.59<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">16</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1024</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">OOM</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">3947</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">-</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">OOM</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">61</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">-</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" colspan="8" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">OPT-175B (8 GPUs)</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">512</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">426</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">359</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.19<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">44</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">23</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.87<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1024</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">571</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">475</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.20<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">44</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">24</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.85<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">16</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">512</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">2212</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1628</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.36<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">50</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">30</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.67<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1024</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">4133</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">3231</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.28<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">56</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">37</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">1.52<math alttext="\times" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math></span></td></tr>
+</table>
+</figure>
