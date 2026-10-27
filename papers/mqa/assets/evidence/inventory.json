@@ -1,0 +1,651 @@
+{
+  "title": "Fast Transformer Decoding: One Write-Head is All You Need",
+  "pages": 9,
+  "figures": [],
+  "appendices": [],
+  "numbered_equations": 0,
+  "code_listings": 6,
+  "headings": [
+    "1 Introduction",
+    "2 Background: Neural Attention",
+    "2.1 Dot-Product Attention",
+    "2.2 Multi-head Attention",
+    "2.3 Multi-head Attention (Batched)",
+    "2.3.1 Performance Analysis of Batched Multi-head Attention",
+    "2.4 Multihead Attention (Incremental)",
+    "2.4.1 Performance Analysis",
+    "3 Multi-Query Attention",
+    "3.1 Performance Analysis for Incremental Multi-Query Attention",
+    "4 Experiments and Results",
+    "4.1 Experimental Setup",
+    "4.2 Model Quality",
+    "4.3 Speed",
+    "5 Conclusion",
+    "References"
+  ],
+  "tables": [
+    {
+      "number": 1,
+      "file": "table-01-wmt-quality.png",
+      "page": 8,
+      "caption": "Table 1: WMT14 EN-DE Results.",
+      "html": "<table class=\"original-table\">\n<thead class=\"ltx_thead\">\n<tr class=\"ltx_tr\">\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\">\nAttention</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\"><math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math></th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\"><math alttext=\"d_{k},d_{v}\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><msub><mi>d</mi><mi>k</mi></msub><mo>,</mo><msub><mi>d</mi><mi>v</mi></msub></mrow></semantics></math></th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t\" scope=\"col\"><math alttext=\"d_{ff}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>d</mi><mrow><mi>f</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>f</mi></mrow></msub></semantics></math></th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\">ln(PPL)</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t\" scope=\"col\">BLEU</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\">BLEU (test)</th></tr>\n<tr class=\"ltx_tr\">\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column\" scope=\"col\">Type</th>\n<th class=\"ltx_td ltx_th ltx_th_column\" scope=\"col\"></th>\n<th class=\"ltx_td ltx_th ltx_th_column\" scope=\"col\"></th>\n<th class=\"ltx_td ltx_th ltx_th_column ltx_border_r\" scope=\"col\"></th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column\" scope=\"col\">(dev)</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r\" scope=\"col\">(dev)</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column\" scope=\"col\">beam 1 / 4</th></tr>\n</thead>\n<tbody class=\"ltx_tbody\">\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center ltx_border_t\">multi-head</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">8</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">128</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r ltx_border_t\">4096</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\"><span class=\"ltx_text ltx_font_bold\">1.424</span></td>\n<td class=\"ltx_td ltx_align_center ltx_border_r ltx_border_t\"><span class=\"ltx_text ltx_font_bold\">26.7</span></td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">27.7 / 28.4</td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center\">multi-query</td>\n<td class=\"ltx_td ltx_align_center\">8</td>\n<td class=\"ltx_td ltx_align_center\">128</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">5440</td>\n<td class=\"ltx_td ltx_align_center\">1.439</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">26.5</td>\n<td class=\"ltx_td ltx_align_center\">27.5 / <span class=\"ltx_text ltx_font_bold\">28.5</span></td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center\">multi-head local</td>\n<td class=\"ltx_td ltx_align_center\">8</td>\n<td class=\"ltx_td ltx_align_center\">128</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">4096</td>\n<td class=\"ltx_td ltx_align_center\">1.427</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">26.6</td>\n<td class=\"ltx_td ltx_align_center\">27.5 / 28.3</td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center\">multi-query local</td>\n<td class=\"ltx_td ltx_align_center\">8</td>\n<td class=\"ltx_td ltx_align_center\">128</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">5440</td>\n<td class=\"ltx_td ltx_align_center\">1.437</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">26.5</td>\n<td class=\"ltx_td ltx_align_center\">27.6 / 28.2</td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center ltx_border_t\">multi-head</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">1</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">128</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r ltx_border_t\">6784</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">1.518</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r ltx_border_t\">25.8</td>\n<td class=\"ltx_td ltx_border_t\"></td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center\">multi-head</td>\n<td class=\"ltx_td ltx_align_center\">2</td>\n<td class=\"ltx_td ltx_align_center\">64</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">6784</td>\n<td class=\"ltx_td ltx_align_center\">1.480</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">26.2</td>\n<td class=\"ltx_td ltx_align_center\">26.8 / 27.9</td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center\">multi-head</td>\n<td class=\"ltx_td ltx_align_center\">4</td>\n<td class=\"ltx_td ltx_align_center\">32</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">6784</td>\n<td class=\"ltx_td ltx_align_center\">1.488</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">26.1</td>\n<td class=\"ltx_td\"></td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center ltx_border_b\">multi-head</td>\n<td class=\"ltx_td ltx_align_center ltx_border_b\">8</td>\n<td class=\"ltx_td ltx_align_center ltx_border_b\">16</td>\n<td class=\"ltx_td ltx_align_center ltx_border_b ltx_border_r\">6784</td>\n<td class=\"ltx_td ltx_align_center ltx_border_b\">1.513</td>\n<td class=\"ltx_td ltx_align_center ltx_border_b ltx_border_r\">25.8</td>\n<td class=\"ltx_td ltx_border_b\"></td></tr>\n</tbody>\n</table>",
+      "rows": [
+        [
+          "multi-head",
+          "8",
+          "128",
+          "4096",
+          "1.424",
+          "26.7",
+          "27.7 / 28.4"
+        ],
+        [
+          "multi-query",
+          "8",
+          "128",
+          "5440",
+          "1.439",
+          "26.5",
+          "27.5 / 28.5"
+        ],
+        [
+          "multi-head local",
+          "8",
+          "128",
+          "4096",
+          "1.427",
+          "26.6",
+          "27.5 / 28.3"
+        ],
+        [
+          "multi-query local",
+          "8",
+          "128",
+          "5440",
+          "1.437",
+          "26.5",
+          "27.6 / 28.2"
+        ],
+        [
+          "multi-head",
+          "1",
+          "128",
+          "6784",
+          "1.518",
+          "25.8",
+          ""
+        ],
+        [
+          "multi-head",
+          "2",
+          "64",
+          "6784",
+          "1.480",
+          "26.2",
+          "26.8 / 27.9"
+        ],
+        [
+          "multi-head",
+          "4",
+          "32",
+          "6784",
+          "1.488",
+          "26.1",
+          ""
+        ],
+        [
+          "multi-head",
+          "8",
+          "16",
+          "6784",
+          "1.513",
+          "25.8",
+          ""
+        ]
+      ],
+      "crop": [
+        65.0,
+        67.92804718017578,
+        547.0,
+        234.00799560546875
+      ]
+    },
+    {
+      "number": 2,
+      "file": "table-02-wmt-speed.png",
+      "page": 8,
+      "caption": "Table 2: Amortized training and inference costs for WMT14 EN-DE Translation Task with sequence length 128. Values listed are in TPUv2-microseconds per output token.",
+      "html": "<table class=\"original-table\">\n<thead class=\"ltx_thead\">\n<tr class=\"ltx_tr\">\n<th class=\"ltx_td ltx_align_right ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t\" scope=\"col\">\nAttention</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t\" scope=\"col\">Training</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t\" scope=\"col\">Inference</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\">Beam-4 Search</th></tr>\n<tr class=\"ltx_tr\">\n<th class=\"ltx_td ltx_align_right ltx_th ltx_th_column ltx_th_row ltx_border_r\" scope=\"col\">Type</th>\n<th class=\"ltx_td ltx_th ltx_th_column ltx_border_r\" scope=\"col\"></th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r\" scope=\"col\">enc. + dec.</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column\" scope=\"col\">enc. + dec.</th></tr>\n</thead>\n<tbody class=\"ltx_tbody\">\n<tr class=\"ltx_tr\">\n<th class=\"ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t\">multi-head</th>\n<td class=\"ltx_td ltx_align_center ltx_border_r ltx_border_t\">13.2</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r ltx_border_t\">1.7 + 46</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">2.0 + 203</td></tr>\n<tr class=\"ltx_tr\">\n<th class=\"ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r\">multi-query</th>\n<td class=\"ltx_td ltx_align_center ltx_border_r\"><span class=\"ltx_text ltx_font_bold\">13.0</span></td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">1.5 + 3.8</td>\n<td class=\"ltx_td ltx_align_center\">1.6 + 32</td></tr>\n<tr class=\"ltx_tr\">\n<th class=\"ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r\">multi-head local</th>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">13.2</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">1.7 + 23</td>\n<td class=\"ltx_td ltx_align_center\">1.9 + 47</td></tr>\n<tr class=\"ltx_tr\">\n<th class=\"ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_b ltx_border_r\">multi-query local</th>\n<td class=\"ltx_td ltx_align_center ltx_border_b ltx_border_r\"><span class=\"ltx_text ltx_font_bold\">13.0</span></td>\n<td class=\"ltx_td ltx_align_center ltx_border_b ltx_border_r\"><span class=\"ltx_text ltx_font_bold\">1.5 + 3.3</span></td>\n<td class=\"ltx_td ltx_align_center ltx_border_b\"><span class=\"ltx_text ltx_font_bold\">1.6 + 16</span></td></tr>\n</tbody>\n</table>",
+      "rows": [
+        [
+          "13.2",
+          "1.7 + 46",
+          "2.0 + 203"
+        ],
+        [
+          "13.0",
+          "1.5 + 3.8",
+          "1.6 + 32"
+        ],
+        [
+          "13.2",
+          "1.7 + 23",
+          "1.9 + 47"
+        ],
+        [
+          "13.0",
+          "1.5 + 3.3",
+          "1.6 + 16"
+        ]
+      ],
+      "crop": [
+        65.0,
+        243.00799560546875,
+        547.0,
+        372.968017578125
+      ]
+    },
+    {
+      "number": 3,
+      "file": "table-03-lm-quality.png",
+      "page": 8,
+      "caption": "Table 3: Billion-Word LM Benchmark Results.",
+      "html": "<table class=\"original-table\">\n<thead class=\"ltx_thead\">\n<tr class=\"ltx_tr\">\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\">\nAttention</th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\"><math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math></th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\"><math alttext=\"d_{k},d_{v}\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><msub><mi>d</mi><mi>k</mi></msub><mo>,</mo><msub><mi>d</mi><mi>v</mi></msub></mrow></semantics></math></th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t\" scope=\"col\"><math alttext=\"d_{ff}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>d</mi><mrow><mi>f</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>f</mi></mrow></msub></semantics></math></th>\n<th class=\"ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t\" scope=\"col\">dev-PPL</th></tr>\n</thead>\n<tbody class=\"ltx_tbody\">\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center ltx_border_t\">multi-head</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">8</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">128</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r ltx_border_t\">8192</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\"><span class=\"ltx_text ltx_font_bold\">29.9</span></td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center\">multi-query</td>\n<td class=\"ltx_td ltx_align_center\">8</td>\n<td class=\"ltx_td ltx_align_center\">128</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">9088</td>\n<td class=\"ltx_td ltx_align_center\">30.2</td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center ltx_border_t\">multi-head</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">1</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">128</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r ltx_border_t\">9984</td>\n<td class=\"ltx_td ltx_align_center ltx_border_t\">31.2</td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center\">multi-head</td>\n<td class=\"ltx_td ltx_align_center\">2</td>\n<td class=\"ltx_td ltx_align_center\">64</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">9984</td>\n<td class=\"ltx_td ltx_align_center\">31.1</td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center\">multi-head</td>\n<td class=\"ltx_td ltx_align_center\">4</td>\n<td class=\"ltx_td ltx_align_center\">32</td>\n<td class=\"ltx_td ltx_align_center ltx_border_r\">9984</td>\n<td class=\"ltx_td ltx_align_center\">31.0</td></tr>\n<tr class=\"ltx_tr\">\n<td class=\"ltx_td ltx_align_center ltx_border_b\">multi-head</td>\n<td class=\"ltx_td ltx_align_center ltx_border_b\">8</td>\n<td class=\"ltx_td ltx_align_center ltx_border_b\">16</td>\n<td class=\"ltx_td ltx_align_center ltx_border_b ltx_border_r\">9984</td>\n<td class=\"ltx_td ltx_align_center ltx_border_b\">30.9</td></tr>\n</tbody>\n</table>",
+      "rows": [
+        [
+          "multi-head",
+          "8",
+          "128",
+          "8192",
+          "29.9"
+        ],
+        [
+          "multi-query",
+          "8",
+          "128",
+          "9088",
+          "30.2"
+        ],
+        [
+          "multi-head",
+          "1",
+          "128",
+          "9984",
+          "31.2"
+        ],
+        [
+          "multi-head",
+          "2",
+          "64",
+          "9984",
+          "31.1"
+        ],
+        [
+          "multi-head",
+          "4",
+          "32",
+          "9984",
+          "31.0"
+        ],
+        [
+          "multi-head",
+          "8",
+          "16",
+          "9984",
+          "30.9"
+        ]
+      ],
+      "crop": [
+        65.0,
+        381.968017578125,
+        547.0,
+        520.4803466796875
+      ]
+    }
+  ],
+  "inline_mathematics": [
+    {
+      "latex": "q",
+      "mathml": "<math alttext=\"q\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>q</mi></semantics></math>"
+    },
+    {
+      "latex": "m",
+      "mathml": "<math alttext=\"m\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>m</mi></semantics></math>"
+    },
+    {
+      "latex": "K",
+      "mathml": "<math alttext=\"K\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>K</mi></semantics></math>"
+    },
+    {
+      "latex": "V",
+      "mathml": "<math alttext=\"V\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>V</mi></semantics></math>"
+    },
+    {
+      "latex": "y",
+      "mathml": "<math alttext=\"y\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>y</mi></semantics></math>"
+    },
+    {
+      "latex": "y",
+      "mathml": "<math alttext=\"y\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>y</mi></semantics></math>"
+    },
+    {
+      "latex": "h",
+      "mathml": "<math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math>"
+    },
+    {
+      "latex": "h",
+      "mathml": "<math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math>"
+    },
+    {
+      "latex": "h",
+      "mathml": "<math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math>"
+    },
+    {
+      "latex": "P_{q}",
+      "mathml": "<math alttext=\"P_{q}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>q</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "x",
+      "mathml": "<math alttext=\"x\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>x</mi></semantics></math>"
+    },
+    {
+      "latex": "h",
+      "mathml": "<math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math>"
+    },
+    {
+      "latex": "P_{k},P_{v}",
+      "mathml": "<math alttext=\"P_{k},P_{v}\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><msub><mi>P</mi><mi>k</mi></msub><mo>,</mo><msub><mi>P</mi><mi>v</mi></msub></mrow></semantics></math>"
+    },
+    {
+      "latex": "M",
+      "mathml": "<math alttext=\"M\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>M</mi></semantics></math>"
+    },
+    {
+      "latex": "m",
+      "mathml": "<math alttext=\"m\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>m</mi></semantics></math>"
+    },
+    {
+      "latex": "h",
+      "mathml": "<math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math>"
+    },
+    {
+      "latex": "P_{o}",
+      "mathml": "<math alttext=\"P_{o}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>o</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "d",
+      "mathml": "<math alttext=\"d\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>d</mi></semantics></math>"
+    },
+    {
+      "latex": "P_{q}",
+      "mathml": "<math alttext=\"P_{q}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>q</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{k}",
+      "mathml": "<math alttext=\"P_{k}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>k</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "n",
+      "mathml": "<math alttext=\"n\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>n</mi></semantics></math>"
+    },
+    {
+      "latex": "b",
+      "mathml": "<math alttext=\"b\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>b</mi></semantics></math>"
+    },
+    {
+      "latex": "-\\infty",
+      "mathml": "<math alttext=\"-\\infty\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mo>−</mo><mi mathvariant=\"normal\">∞</mi></mrow></semantics></math>"
+    },
+    {
+      "latex": "m=n",
+      "mathml": "<math alttext=\"m=n\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>m</mi><mo>=</mo><mi>n</mi></mrow></semantics></math>"
+    },
+    {
+      "latex": "k=v=\\frac{d}{h}",
+      "mathml": "<math alttext=\"k=v=\\frac{d}{h}\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>k</mi><mo>=</mo><mi>v</mi><mo>=</mo><mfrac><mi>d</mi><mi>h</mi></mfrac></mrow></semantics></math>"
+    },
+    {
+      "latex": "n\\leq d",
+      "mathml": "<math alttext=\"n\\leq d\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>n</mi><mo>≤</mo><mi>d</mi></mrow></semantics></math>"
+    },
+    {
+      "latex": "\\Theta(bnd^{2})",
+      "mathml": "<math alttext=\"\\Theta(bnd^{2})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi mathvariant=\"normal\">Θ</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>n</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>d</mi><mn>2</mn></msup></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "O(bnd^{2})",
+      "mathml": "<math alttext=\"O(bnd^{2})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>n</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>d</mi><mn>2</mn></msup></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "O(bnd+bhn^{2}+d^{2})",
+      "mathml": "<math alttext=\"O(bnd+bhn^{2}+d^{2})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>n</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>d</mi></mrow><mo>+</mo><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>h</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>n</mi><mn>2</mn></msup></mrow><mo>+</mo><msup><mi>d</mi><mn>2</mn></msup></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "X",
+      "mathml": "<math alttext=\"X\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>X</mi></semantics></math>"
+    },
+    {
+      "latex": "M",
+      "mathml": "<math alttext=\"M\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>M</mi></semantics></math>"
+    },
+    {
+      "latex": "Q",
+      "mathml": "<math alttext=\"Q\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>Q</mi></semantics></math>"
+    },
+    {
+      "latex": "K",
+      "mathml": "<math alttext=\"K\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>K</mi></semantics></math>"
+    },
+    {
+      "latex": "V",
+      "mathml": "<math alttext=\"V\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>V</mi></semantics></math>"
+    },
+    {
+      "latex": "O",
+      "mathml": "<math alttext=\"O\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>O</mi></semantics></math>"
+    },
+    {
+      "latex": "Y",
+      "mathml": "<math alttext=\"Y\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>Y</mi></semantics></math>"
+    },
+    {
+      "latex": "P_{q}",
+      "mathml": "<math alttext=\"P_{q}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>q</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{k}",
+      "mathml": "<math alttext=\"P_{k}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>k</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{v}",
+      "mathml": "<math alttext=\"P_{v}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>v</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{o}",
+      "mathml": "<math alttext=\"P_{o}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>o</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "O(\\frac{1}{k}+\\frac{1}{bn})",
+      "mathml": "<math alttext=\"O(\\frac{1}{k}+\\frac{1}{bn})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>O</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mfrac><mn>1</mn><mi>k</mi></mfrac><mo>+</mo><mfrac><mn>1</mn><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>n</mi></mrow></mfrac></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "n",
+      "mathml": "<math alttext=\"n\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>n</mi></semantics></math>"
+    },
+    {
+      "latex": "\\Theta(bnd^{2})",
+      "mathml": "<math alttext=\"\\Theta(bnd^{2})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi mathvariant=\"normal\">Θ</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>n</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>d</mi><mn>2</mn></msup></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "n",
+      "mathml": "<math alttext=\"n\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>n</mi></semantics></math>"
+    },
+    {
+      "latex": "\\Theta(bn^{2}d+nd^{2})",
+      "mathml": "<math alttext=\"\\Theta(bn^{2}d+nd^{2})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi mathvariant=\"normal\">Θ</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>n</mi><mn>2</mn></msup><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>d</mi></mrow><mo>+</mo><mrow><mi>n</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>d</mi><mn>2</mn></msup></mrow></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "K",
+      "mathml": "<math alttext=\"K\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>K</mi></semantics></math>"
+    },
+    {
+      "latex": "V",
+      "mathml": "<math alttext=\"V\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>V</mi></semantics></math>"
+    },
+    {
+      "latex": "P_{q}",
+      "mathml": "<math alttext=\"P_{q}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>q</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{k}",
+      "mathml": "<math alttext=\"P_{k}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>k</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{v}",
+      "mathml": "<math alttext=\"P_{v}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>v</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{o}",
+      "mathml": "<math alttext=\"P_{o}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>o</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "\\Theta(\\frac{n}{d}+\\frac{1}{b})",
+      "mathml": "<math alttext=\"\\Theta(\\frac{n}{d}+\\frac{1}{b})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi mathvariant=\"normal\">Θ</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mfrac><mi>n</mi><mi>d</mi></mfrac><mo>+</mo><mfrac><mn>1</mn><mi>b</mi></mfrac></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "n\\approx d",
+      "mathml": "<math alttext=\"n\\approx d\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>n</mi><mo>≈</mo><mi>d</mi></mrow></semantics></math>"
+    },
+    {
+      "latex": "b\\approx 1",
+      "mathml": "<math alttext=\"b\\approx 1\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>b</mi><mo>≈</mo><mn>1</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "\\ll 1",
+      "mathml": "<math alttext=\"\\ll 1\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mphantom></mphantom><mo>≪</mo><mn>1</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "\\frac{1}{b}",
+      "mathml": "<math alttext=\"\\frac{1}{b}\" class=\"ltx_Math\" display=\"inline\"><semantics><mfrac><mn>1</mn><mi>b</mi></mfrac></semantics></math>"
+    },
+    {
+      "latex": "\\frac{n}{d}",
+      "mathml": "<math alttext=\"\\frac{n}{d}\" class=\"ltx_Math\" display=\"inline\"><semantics><mfrac><mi>n</mi><mi>d</mi></mfrac></semantics></math>"
+    },
+    {
+      "latex": "K",
+      "mathml": "<math alttext=\"K\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>K</mi></semantics></math>"
+    },
+    {
+      "latex": "V",
+      "mathml": "<math alttext=\"V\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>V</mi></semantics></math>"
+    },
+    {
+      "latex": "bhmk=bn^{2}",
+      "mathml": "<math alttext=\"bhmk=bn^{2}\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>h</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>m</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>k</mi></mrow><mo>=</mo><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>n</mi><mn>2</mn></msup></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "n",
+      "mathml": "<math alttext=\"n\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>n</mi></semantics></math>"
+    },
+    {
+      "latex": "K",
+      "mathml": "<math alttext=\"K\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>K</mi></semantics></math>"
+    },
+    {
+      "latex": "V",
+      "mathml": "<math alttext=\"V\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>V</mi></semantics></math>"
+    },
+    {
+      "latex": "K",
+      "mathml": "<math alttext=\"K\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>K</mi></semantics></math>"
+    },
+    {
+      "latex": "V",
+      "mathml": "<math alttext=\"V\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>V</mi></semantics></math>"
+    },
+    {
+      "latex": "P_{k}",
+      "mathml": "<math alttext=\"P_{k}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>k</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{v}",
+      "mathml": "<math alttext=\"P_{v}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>v</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "n",
+      "mathml": "<math alttext=\"n\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>n</mi></semantics></math>"
+    },
+    {
+      "latex": "\\Theta(bnd^{2})",
+      "mathml": "<math alttext=\"\\Theta(bnd^{2})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi mathvariant=\"normal\">Θ</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>n</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>d</mi><mn>2</mn></msup></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "n",
+      "mathml": "<math alttext=\"n\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>n</mi></semantics></math>"
+    },
+    {
+      "latex": "\\Theta(bnd+bn^{2}k+nd^{2})",
+      "mathml": "<math alttext=\"\\Theta(bnd+bn^{2}k+nd^{2})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi mathvariant=\"normal\">Θ</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>n</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>d</mi></mrow><mo>+</mo><mrow><mi>b</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>n</mi><mn>2</mn></msup><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>k</mi></mrow><mo>+</mo><mrow><mi>n</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><msup><mi>d</mi><mn>2</mn></msup></mrow></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "x",
+      "mathml": "<math alttext=\"x\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>x</mi></semantics></math>"
+    },
+    {
+      "latex": "q",
+      "mathml": "<math alttext=\"q\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>q</mi></semantics></math>"
+    },
+    {
+      "latex": "o",
+      "mathml": "<math alttext=\"o\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>o</mi></semantics></math>"
+    },
+    {
+      "latex": "y",
+      "mathml": "<math alttext=\"y\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>y</mi></semantics></math>"
+    },
+    {
+      "latex": "K",
+      "mathml": "<math alttext=\"K\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>K</mi></semantics></math>"
+    },
+    {
+      "latex": "V",
+      "mathml": "<math alttext=\"V\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>V</mi></semantics></math>"
+    },
+    {
+      "latex": "P_{q}",
+      "mathml": "<math alttext=\"P_{q}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>q</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{k}",
+      "mathml": "<math alttext=\"P_{k}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>k</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{v}",
+      "mathml": "<math alttext=\"P_{v}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>v</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "P_{o}",
+      "mathml": "<math alttext=\"P_{o}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>P</mi><mi>o</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "\\Theta(\\frac{1}{d}+\\frac{n}{dh}+\\frac{1}{b})",
+      "mathml": "<math alttext=\"\\Theta(\\frac{1}{d}+\\frac{n}{dh}+\\frac{1}{b})\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi mathvariant=\"normal\">Θ</mi><mo>⁡</mo><mrow><mo stretchy=\"false\">(</mo><mrow><mfrac><mn>1</mn><mi>d</mi></mfrac><mo>+</mo><mfrac><mi>n</mi><mrow><mi>d</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>h</mi></mrow></mfrac><mo>+</mo><mfrac><mn>1</mn><mi>b</mi></mfrac></mrow><mo stretchy=\"false\">)</mo></mrow></mrow></semantics></math>"
+    },
+    {
+      "latex": "\\frac{n}{d}",
+      "mathml": "<math alttext=\"\\frac{n}{d}\" class=\"ltx_Math\" display=\"inline\"><semantics><mfrac><mi>n</mi><mi>d</mi></mfrac></semantics></math>"
+    },
+    {
+      "latex": "h",
+      "mathml": "<math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math>"
+    },
+    {
+      "latex": "b",
+      "mathml": "<math alttext=\"b\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>b</mi></semantics></math>"
+    },
+    {
+      "latex": "d_{model}=1024",
+      "mathml": "<math alttext=\"d_{model}=1024\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><msub><mi>d</mi><mrow><mi>m</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>o</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>d</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>e</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>l</mi></mrow></msub><mo>=</mo><mn>1024</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "d_{ff}=4096",
+      "mathml": "<math alttext=\"d_{ff}=4096\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><msub><mi>d</mi><mrow><mi>f</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>f</mi></mrow></msub><mo>=</mo><mn>4096</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "h=8",
+      "mathml": "<math alttext=\"h=8\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>h</mi><mo>=</mo><mn>8</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "d_{k}=d_{v}=128",
+      "mathml": "<math alttext=\"d_{k}=d_{v}=128\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><msub><mi>d</mi><mi>k</mi></msub><mo>=</mo><msub><mi>d</mi><mi>v</mi></msub><mo>=</mo><mn>128</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "K",
+      "mathml": "<math alttext=\"K\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>K</mi></semantics></math>"
+    },
+    {
+      "latex": "V",
+      "mathml": "<math alttext=\"V\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>V</mi></semantics></math>"
+    },
+    {
+      "latex": "h",
+      "mathml": "<math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math>"
+    },
+    {
+      "latex": "k",
+      "mathml": "<math alttext=\"k\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>k</mi></semantics></math>"
+    },
+    {
+      "latex": "v",
+      "mathml": "<math alttext=\"v\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>v</mi></semantics></math>"
+    },
+    {
+      "latex": "d_{model}=1024",
+      "mathml": "<math alttext=\"d_{model}=1024\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><msub><mi>d</mi><mrow><mi>m</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>o</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>d</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>e</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>l</mi></mrow></msub><mo>=</mo><mn>1024</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "d_{ff}=8192",
+      "mathml": "<math alttext=\"d_{ff}=8192\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><msub><mi>d</mi><mrow><mi>f</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>f</mi></mrow></msub><mo>=</mo><mn>8192</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "h=8",
+      "mathml": "<math alttext=\"h=8\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>h</mi><mo>=</mo><mn>8</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "d_{k}=d_{v}=128",
+      "mathml": "<math alttext=\"d_{k}=d_{v}=128\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><msub><mi>d</mi><mi>k</mi></msub><mo>=</mo><msub><mi>d</mi><mi>v</mi></msub><mo>=</mo><mn>128</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "h",
+      "mathml": "<math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math>"
+    },
+    {
+      "latex": "d_{k}",
+      "mathml": "<math alttext=\"d_{k}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>d</mi><mi>k</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "d_{v}",
+      "mathml": "<math alttext=\"d_{v}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>d</mi><mi>v</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "\\alpha=0.6",
+      "mathml": "<math alttext=\"\\alpha=0.6\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>α</mi><mo>=</mo><mn>0.6</mn></mrow></semantics></math>"
+    },
+    {
+      "latex": "h",
+      "mathml": "<math alttext=\"h\" class=\"ltx_Math\" display=\"inline\"><semantics><mi>h</mi></semantics></math>"
+    },
+    {
+      "latex": "d_{k}",
+      "mathml": "<math alttext=\"d_{k}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>d</mi><mi>k</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "d_{v}",
+      "mathml": "<math alttext=\"d_{v}\" class=\"ltx_Math\" display=\"inline\"><semantics><msub><mi>d</mi><mi>v</mi></msub></semantics></math>"
+    },
+    {
+      "latex": "\\mu s",
+      "mathml": "<math alttext=\"\\mu s\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mi>μ</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>s</mi></mrow></semantics></math>"
+    },
+    {
+      "latex": "1.7\\mu s",
+      "mathml": "<math alttext=\"1.7\\mu s\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mn>1.7</mn><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>μ</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>s</mi></mrow></semantics></math>"
+    },
+    {
+      "latex": "46\\mu s",
+      "mathml": "<math alttext=\"46\\mu s\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mn>46</mn><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>μ</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>s</mi></mrow></semantics></math>"
+    },
+    {
+      "latex": "1.5\\mu s",
+      "mathml": "<math alttext=\"1.5\\mu s\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mn>1.5</mn><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>μ</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>s</mi></mrow></semantics></math>"
+    },
+    {
+      "latex": "3.8\\mu s",
+      "mathml": "<math alttext=\"3.8\\mu s\" class=\"ltx_Math\" display=\"inline\"><semantics><mrow><mn>3.8</mn><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>μ</mi><mo lspace=\"0em\" rspace=\"0em\">​</mo><mi>s</mi></mrow></semantics></math>"
+    }
+  ],
+  "pdf_sha256": "3250947d7be32f1a15531ab3062134edd431b9cf79e669d324ab5cbddd9a2094",
+  "source_sha256": "fe0ad48dc5fe7feebf123a4d075c83274f9d46c8525f8fa59cab710602c8e028"
+}

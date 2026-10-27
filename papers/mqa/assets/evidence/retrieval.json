@@ -1,0 +1,99 @@
+{
+  "retrieved": "2026-10-27",
+  "primary_paper": {
+    "arxiv": "1911.02150v1",
+    "title": "Fast Transformer Decoding: One Write-Head is All You Need",
+    "author": "Noam Shazeer",
+    "venue": "arXiv preprint",
+    "pdf_pages": 9,
+    "figures": 0,
+    "tables": 3,
+    "listings": 6,
+    "appendix": "none",
+    "project_page": "No separate project page verified",
+    "experiment_config": "Original v1 still says [to be added before publication]",
+    "supplement": "Original TeX obtained; no separate supplementary PDF identified"
+  },
+  "references": [
+    "https://arxiv.org/abs/1911.02150",
+    "https://doi.org/10.48550/arXiv.1911.02150",
+    "https://github.com/tensorflow/mesh/blob/e6798a2610a2c2f4c4cd236d8214422cb1ecc00a/mesh_tensorflow/transformer/attention.py",
+    "https://arxiv.org/abs/1911.02150v1",
+    "https://arxiv.org/abs/1706.03762",
+    "https://arxiv.org/html/2204.02311v5",
+    "https://arxiv.org/html/2305.13245v3",
+    "https://arxiv.org/abs/2205.14135",
+    "https://arxiv.org/html/2407.21783v3",
+    "https://arxiv.org/abs/2309.06180",
+    "https://github.com/vllm-project/vllm",
+    "https://arxiv.org/html/2405.04434v5",
+    "https://arxiv.org/html/2505.21487v1",
+    "https://github.com/Dao-AILab/grouped-latent-attention/tree/17889dbb4612182a4b7b92315ca11bf76ddaadef",
+    "https://arxiv.org/html/2605.15250v1",
+    "https://arxiv.org/html/2609.13285v1"
+  ],
+  "retrieved_source_sha256": [
+    {
+      "url": "https://arxiv.org/html/1911.02150v1",
+      "source": "paper.html",
+      "sha256": "fc79ca72c64720a21d2d37d67f198288d7381458f715ce59a106a1f88d9b5823"
+    },
+    {
+      "url": "https://arxiv.org/src/1911.02150v1",
+      "source": "main.tex",
+      "sha256": "a6b185cce00c45e0bfe90bcd517717afe03fc9e000c88491b1807a1f0db603a7"
+    },
+    {
+      "url": "https://arxiv.org/src/1911.02150v1",
+      "source": "source.tar",
+      "sha256": "fe0ad48dc5fe7feebf123a4d075c83274f9d46c8525f8fa59cab710602c8e028"
+    },
+    {
+      "url": "https://arxiv.org/html/2204.02311v5",
+      "source": "palm.html",
+      "sha256": "f6cedc10e18b656b4bce9daeedc276d832f0c94f216d2abd1978f05321821b2b"
+    },
+    {
+      "url": "https://arxiv.org/html/2305.13245v3",
+      "source": "gqa.html",
+      "sha256": "a2f67d048b753d117a14f43cbe2c0c86d05254bcce039878aafc329ae72e2768"
+    },
+    {
+      "url": "https://arxiv.org/html/2407.21783v3",
+      "source": "llama3.html",
+      "sha256": "089f2657a67c2e558b1338f203606ffb323a2ecebc021e170c0475e1f3bc8e46"
+    },
+    {
+      "url": "https://arxiv.org/html/2405.04434v5",
+      "source": "deepseek-v2.html",
+      "sha256": "fcaa6742195da31af8114fc9ca17f7d975fba893739e021ca30a73a3697fcc4e"
+    },
+    {
+      "url": "https://arxiv.org/html/2505.21487v1",
+      "source": "gla.html",
+      "sha256": "9dcca7c221897f23cd34cb216d8d3045cade9fa37bc54fab3406d65d03a6aafc"
+    },
+    {
+      "url": "https://arxiv.org/html/2605.15250v1",
+      "source": "gqla.html",
+      "sha256": "6f3ade779f7e8d855c1ad84e26e86617e28602728e3139aabc7b8a04bd716767"
+    },
+    {
+      "url": "https://arxiv.org/html/2609.13285v1",
+      "source": "gva.html",
+      "sha256": "1a40229658585b254fa933a18463c9db50770310cda16d1dff352ff0ab2bf831"
+    },
+    {
+      "url": "https://github.com/Dao-AILab/grouped-latent-attention/tree/17889dbb4612182a4b7b92315ca11bf76ddaadef",
+      "source": "gla-readme.md",
+      "sha256": "ff77fabdbf81d8488dc1a50e7b56502e051c5e5e6540e2adc62a174d60280797"
+    },
+    {
+      "url": "https://github.com/tensorflow/mesh/blob/e6798a2610a2c2f4c4cd236d8214422cb1ecc00a/mesh_tensorflow/transformer/attention.py",
+      "source": "mesh-attention.py",
+      "sha256": "b96f01076e410191e7908b3860fd6db97c78fe5fa921331d201c1c5e6dc0e39e"
+    }
+  ],
+  "local_pdf_sha256": "3250947d7be32f1a15531ab3062134edd431b9cf79e669d324ab5cbddd9a2094",
+  "notes": "Latest-methods evidence checked in original v1 HTML, including Limitations; pinned repositories are implementation references, not a recovered 2019 experiment release."
+}

@@ -508,6 +508,7 @@ L --&gt; E[2026 EndPrompt sparse supervision]</code></pre></details></figure>
 <h3 id="section-38">7.3 Multimodal branch：位置不是只剩一条序号轴</h3>
 <p>2024 <a href="https://arxiv.org/abs/2409.12191">Qwen2-VL</a> 的 M-RoPE 为 temporal/height/width 分配通道；2025 <a href="https://arxiv.org/abs/2502.11664">VRoPE</a> 将视频空间组织成四个对称方向并衔接文本。它们复用“每对子相位”接口，但解决视觉坐标组织，而不是直接提升语言 context scaling。[15][16]</p>
 <p>对应本站 <a href="../vrope/">VRoPE 精读</a>：先读本文理解一对通道为什么旋转，再看视频 (t,h,w) 如何变成各对子 position。不要混淆 M-RoPE、VRoPE 和 VideoRoPE，不要把“位置跨度缩小”当成 tokens/KV 压缩。</p>
+<p>可继续阅读 <a href="../mqa/">MQA：多个读头，共用一份历史</a>：共享 K 仍可按位置旋转；KV head 数决定缓存表示的份数，位置编码决定检索的相对位置语义。</p>
 <h3 id="section-39">7.4 Related Work Matrix：比较改动层，而非只列名字</h3>
 <div class="table-scroll"><table>
 <thead>

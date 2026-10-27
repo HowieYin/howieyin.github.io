@@ -1,0 +1,11 @@
+flowchart TD
+    A["2017: Transformer MHA"] --> M["2019: MQA - separate readers, shared history"]
+    M --> P["2022: PaLM adopts MQA"]
+    M --> G["2023: GQA - tunable KV groups + uptraining"]
+    G --> L["2024: Llama 3 adopts 8 KV heads"]
+    M --> D["2024: MLA - joint latent + decoupled RoPE"]
+    G --> H["2025: GTA / GLA - grouped states + hardware-aware kernels"]
+    D --> H
+    H --> Q["2026: GQLA - multiple execution paths"]
+    G --> V["2026: GVA - reconstruct content keys from values"]
+    D --> V

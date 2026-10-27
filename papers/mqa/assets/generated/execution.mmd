@@ -1,0 +1,12 @@
+flowchart TD
+    X["Current token x: B x D"] --> Q["Q projection: B x Hq x K"]
+    X --> K["Shared K: B x 1 x K"]
+    X --> V["Shared V: B x 1 x V"]
+    K --> C["Append one position to shared KV cache"]
+    V --> C
+    Q --> S["Every query head scores the same history"]
+    C --> S
+    S --> W["Separate softmax for each query head"]
+    W --> O["Distinct weighted values per query head"]
+    C --> O
+    O --> Y["Output projection: B x D"]

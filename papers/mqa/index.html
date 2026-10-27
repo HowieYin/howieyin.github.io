@@ -1,0 +1,1009 @@
+<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="theme-color" content="#0c1016">
+<title>MQA：多个读头，共用一份历史 — Paper Readings · Howie Yin</title>
+<meta name="description" content="Fast Transformer Decoding / MQA 全文精读：3张完整原表、6段原代码、KV与复杂度推导、参数守恒、摊销速度审计、交互共享KV和2026技术演进。">
+<link rel="canonical" href="https://howieyin.github.io/papers/mqa/">
+<meta property="og:title" content="MQA：多个读头，共用一份历史">
+<meta property="og:type" content="article"><meta property="og:url" content="https://howieyin.github.io/papers/mqa/">
+<meta property="og:description" content="为什么多个query仍然需要独立softmax？为什么省8倍KV能测出12倍decode，却不能当作单请求TPOT？">
+<meta property="og:image" content="https://howieyin.github.io/papers/mqa/assets/original/table-02-wmt-speed.png">
+<link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3">
+<link rel="stylesheet" href="assets/reading.css"><link rel="stylesheet" href="../../assets/article-navigation.css">
+</head><body><a class="skip-link" href="#main">Skip to content</a><div class="page">
+<header class="site-header"><a class="wordmark" href="../../" aria-label="Howie Yin home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><main id="main" class="report article"><details class="toc"><summary>Contents</summary><ul><li><a href="#section-1">TL;DR：把写入历史的表示与读取历史的视角分开</a></li><li><a href="#section-2">1. Introduction：缓存解决了重算，却留下反复读取</a></li><li><a href="#section-3">2. Background: Neural Attention：先把运算和字节对应起来</a></li><li><a href="#section-10">3. Multi-Query Attention：只删除写入端的 h</a></li><li><a href="#section-17">4. Experiments and Results：质量、参数和速度分开验</a></li><li><a href="#section-22">5. Conclusion：证据支持的是一个有效的架构取舍</a></li><li><a href="#section-23">6. Experiment Audit：哪些结论足够，哪些仍缺证据</a></li><li><a href="#section-24">7. Related Work：从共享写头到不同的持久状态</a></li><li><a href="#section-30">8. Current State / SOTA：截止 2026-10-27 的证据地图</a></li><li><a href="#section-31">9. Implementation Notes：从公式走到 runner</a></li><li><a href="#section-35">10. My Takeaways / Open Questions</a></li><li><a href="#section-36">11. References &amp; Source Record</a></li></ul></details><p class="eyebrow">PAPER READINGS / ATTENTION · INFERENCE · SYSTEMS</p><p class="reading-meta">2019 · arXiv v1 · Read / Updated 2026-10-27 · 3 tables / 6 code listings · ~45 min</p><article><h1>MQA：多个读头，共用一份历史</h1>
+<p><strong>Fast Transformer Decoding: One Write-Head is All You Need</strong></p>
+<p>Noam Shazeer · Google · 2019 · arXiv preprint<br/>
+原文：1911.02150v1，9 页。arXiv 提交于 2019-11-06，PDF 首页日期为 2019-11-07；线上记录仅有 v1。精读与扩展调研：2026-10-27。</p>
+<p><a href="assets/original/1911.02150v1.pdf">Paper PDF</a> · <a href="https://arxiv.org/abs/1911.02150">arXiv</a> · <a href="https://doi.org/10.48550/arXiv.1911.02150">DOI</a> · <a href="assets/evidence/main.tex">Original TeX</a> · <a href="https://github.com/tensorflow/mesh/blob/e6798a2610a2c2f4c4cd236d8214422cb1ecc00a/mesh_tensorflow/transformer/attention.py">Implementation reference</a></p>
+<h2 id="section-1">TL;DR：把写入历史的表示与读取历史的视角分开</h2>
+<div class="callout"><strong>一句话：</strong>MQA 保留多个 query head，却只产生一组共享 K/V；减少解码时反复读取历史状态的字节数，以小幅质量代价换取更快的增量推理。</div>
+<p>一段话理解：训练时，整段目标序列已知，许多 query 能在同一次矩阵运算中复用 K/V。逐 token 生成时，当前 token 决定下一个 token，时间维度的并行消失；每一步都要读取历史 K/V。MHA 为每个 head 保存一份历史，MQA 则让所有 query head 读同一份历史。它改变的是模型的 K/V 参数化和持久状态，保留了多个 query 及各自的 attention 分布。论文在等总参数量的翻译和语言建模实验中验证质量，在大 batch TPUv2 解码实验中验证速度。</p>
+<p>五个关键点：</p>
+<ol>
+<li><strong>删掉 K/V 的 head 维，保留 Q 的 head 维。</strong> 历史 token 数量、因果关系、全局可见范围均未因此减少。</li>
+<li><strong>KV 容量缩小 h 倍，不等于整层 FLOPs 或整模型耗时缩小 h 倍。</strong> QK、softmax、加权 V 仍要为每个 query head 执行。</li>
+<li><strong>等参数比较包含 FFN 扩宽。</strong> 翻译模型把 dff 从 4096 调至 5440；这会影响质量和计算，不能忽略。</li>
+<li><strong>约 12 倍是特定 decoder 速度结果。</strong> Table 2 的 46 → 3.8 μs 是 batch=1024 时的摊销成本；实际 greedy step 为 47 → 3.9 ms。</li>
+<li><strong>GQA 把二选一变成连续设计空间。</strong> 后续工作用若干 KV group 平衡质量、cache 和并行；MLA 则进一步改变持久状态的表示。</li>
+</ol>
+<p>本文主线严格按原论文 §1 → §2 → §3 → §4 → §5 展开；之后单独讨论实验审计、相关工作、当前状态和个人判断。原文没有 Figure、没有附录、没有编号公式，包含 <strong>3 张原始表、6 段代码</strong>。所有表均保留 PDF 原貌与可选择的完整行列；下面新增示意图均标为 Agent-created。</p>
+<h2 id="section-2">1. Introduction：缓存解决了重算，却留下反复读取</h2>
+<p><strong>原文 §1，PDF p.1。</strong> Transformer 用 attention 传递序列内及序列间的信息。相比 RNN，它在训练中容易沿序列长度并行；但这种优势不能直接搬到 autoregressive inference。</p>
+<p>先区分两类成本。没有 KV cache 时，每个新 token 都重算历史 token 的 K/V。加入 cache 后，这些投影只计算一次并保存；然而当前 query 仍要和历史 key 比较、按权重聚合历史 value。缓存降低重算，历史状态的读取仍随长度增长。</p>
+<p>作者的观察是：现代计算硬件的算力相对于带宽很高。decode 只产生一个新 query，却搬运大量 K/V，算术密度不够高。这里的核心问题是 <strong>每搬一个字节能完成多少有效计算</strong>，不能只看模型 FLOPs。</p>
+<p>此前可以缩短序列、使用 local attention 或压缩 memory positions。MQA 从另一个轴切入：不减少历史位置，而减少每个位置保存的表示份数。这是本文新颖性所在。</p>
+<div class="callout interpretation"><strong>阅读解释：</strong>标题里的 “write-head” 指把当前 token 投影成 K/V 并写入历史的表示通路；多个 query 是读取视角。这是模型机制的比喻，并非硬件只有一次内存 store，也不表示 K 和 V 是同一个 tensor。</div>
+<h2 id="section-3">2. Background: Neural Attention：先把运算和字节对应起来</h2>
+<p><strong>原文 §2，PDF pp.1–4。</strong> 作者用 einsum 给出方法，因此理解字母如何消失，比记住函数名更重要。左侧所有轴的并集定义乘法，右侧没有出现的轴被求和；广播是数学语义，不要求实际生成一个巨大的广播 tensor。</p>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>符号</th>
+<th>原论文含义</th>
+<th>本文使用边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>b</td>
+<td>不相互交互的序列 batch</td>
+<td>与同一序列中的 h 个 query head 不同</td>
+</tr>
+<tr>
+<td>n</td>
+<td>一次处理的 query 位置数，或生成总长度</td>
+<td>decode 单步只有一个新位置</td>
+</tr>
+<tr>
+<td>m</td>
+<td>memory / KV 位置数</td>
+<td>自注意力单步为可见历史长度</td>
+</tr>
+<tr>
+<td>d</td>
+<td>输入与输出 hidden dimension</td>
+<td>原论文简化令二者相同</td>
+</tr>
+<tr>
+<td>h</td>
+<td>query head 数</td>
+<td>MQA 中仍然保留</td>
+</tr>
+<tr>
+<td>k、v</td>
+<td>每个 key、value 的维度</td>
+<td>复杂度简化时 k=v=d/h</td>
+</tr>
+<tr>
+<td>X、M</td>
+<td>query 来源和 memory 来源</td>
+<td>self-attention 中通常来自同一序列；cross-attention 来源不同</td>
+</tr>
+<tr>
+<td>Pq、Pk、Pv、Po</td>
+<td>可学习投影</td>
+<td>本文矩阵方向遵循原论文 einsum</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="section-4">2.1 Dot-Product Attention：一个 query 如何读历史</h3>
+<p><strong>原文 §2.1，PDF pp.1–2。</strong> q 的 shape 为 [k]，K 为 [m,k]，V 为 [m,v]。</p>
+<div class="formula" data-latex="\ell_j=\sum_{a=1}^{k}q_aK_{ja},\qquad
+w_j=\frac{\exp(\ell_j)}{\sum_{r=1}^{m}\exp(\ell_r)},\qquad
+y_c=\sum_{j=1}^{m}w_jV_{jc}." id="formula-10"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>ℓ</mi><mi>j</mi></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>a</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>k</mi></mrow></munderover><msub><mi>q</mi><mi>a</mi></msub><msub><mi>K</mi><mrow><mi>j</mi><mi>a</mi></mrow></msub><mo>,</mo><mspace width="2em"></mspace><msub><mi>w</mi><mi>j</mi></msub><mo>=</mo><mfrac><mrow><mi>exp</mi><mo stretchy="false">(</mo><msub><mi>ℓ</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow><mrow><msubsup><mo>∑</mo><mrow><mi>r</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>m</mi></mrow></msubsup><mi>exp</mi><mo stretchy="false">(</mo><msub><mi>ℓ</mi><mi>r</mi></msub><mo stretchy="false">)</mo></mrow></mfrac><mo>,</mo><mspace width="2em"></mspace><msub><mi>y</mi><mi>c</mi></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>m</mi></mrow></munderover><msub><mi>w</mi><mi>j</mi></msub><msub><mi>V</mi><mrow><mi>j</mi><mi>c</mi></mrow></msub><mo>.</mo></mrow></math><span class="formula-label">Agent-created · 原代码/shape 的数学重构 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\ell_j=\sum_{a=1}^{k}q_aK_{ja},\qquad
+w_j=\frac{\exp(\ell_j)}{\sum_{r=1}^{m}\exp(\ell_r)},\qquad
+y_c=\sum_{j=1}^{m}w_jV_{jc}.</code></pre></details></div>
+<p>上式是对原代码的数学重写，非原论文编号公式。第一次 contraction 消掉 k，得到每个历史位置的 logit；softmax 沿 m 归一化；第二次消掉 m，得到 [v] 的输出。单 query 的 QK 与加权 V 分别是 Θ(mk) 与 Θ(mv)，而 K/V 都必须提供给计算。</p>
+<details class="original-listing" id="listing-1"><summary>Original Paper · Listing 1 · 完整原文代码（含原始笔误）</summary><div class="listing-head"><span>PYTHON / TENSORFLOW · UNMODIFIED SOURCE</span><button class="copy-code" data-copy="listing-code-1" type="button">Copy</button></div><pre class="syntax"><code class="language-python" id="listing-code-1"><span class="k">def</span><span class="w"> </span><span class="nf">DotProductAttention</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">V</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">"""Dot-Product Attention on one query.</span>
+<span class="sd">  Args:</span>
+<span class="sd">    q: a vector with shape [k]</span>
+<span class="sd">    K: a matrix with shape [m, k]</span>
+<span class="sd">    V: a matrix with shape [m, v]</span>
+<span class="sd">  Returns:</span>
+<span class="sd">    y: a vector with shape [v]</span>
+<span class="sd">  """</span>
+  <span class="n">logits</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"k,mk-&gt;m"</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">K</span><span class="p">)</span>
+  <span class="n">weights</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"m,mv-&gt;v"</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+</code></pre></details>
+<p>作者省略常见的 1/√k scaling，并在 §2.2 说明可把常数折入 Pq 或 Pk。解释论文时应保留这一约定；迁移一个已有 checkpoint 时，不能随意删掉其 scaling。工程里 softmax 还应先减去最大 logit，避免指数溢出。</p>
+<h3 id="section-5">2.2 Multi-head Attention：读视角和写表示原本一一配对</h3>
+<p><strong>原文 §2.2，PDF p.2。</strong> MHA 的每个 head 都有独立 query、key、value 和输出投影。</p>
+<div class="formula" data-latex="q_i=xP_{q,i},\quad K_i=MP_{k,i},\quad V_i=MP_{v,i},
+\quad o_i=\operatorname{softmax}(q_iK_i^\top)V_i,\quad
+y=\sum_{i=1}^{h}o_iP_{o,i}^\top." id="formula-11"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>q</mi><mi>i</mi></msub><mo>=</mo><mi>x</mi><msub><mi>P</mi><mrow><mi>q</mi><mo>,</mo><mi>i</mi></mrow></msub><mo>,</mo><mspace width="1em"></mspace><msub><mi>K</mi><mi>i</mi></msub><mo>=</mo><mi>M</mi><msub><mi>P</mi><mrow><mi>k</mi><mo>,</mo><mi>i</mi></mrow></msub><mo>,</mo><mspace width="1em"></mspace><msub><mi>V</mi><mi>i</mi></msub><mo>=</mo><mi>M</mi><msub><mi>P</mi><mrow><mi>v</mi><mo>,</mo><mi>i</mi></mrow></msub><mo>,</mo><mspace width="1em"></mspace><msub><mi>o</mi><mi>i</mi></msub><mo>=</mo><mo>softmax</mo><mo stretchy="false">(</mo><msub><mi>q</mi><mi>i</mi></msub><msubsup><mi>K</mi><mi>i</mi><mo>⊤</mo></msubsup><mo stretchy="false">)</mo><msub><mi>V</mi><mi>i</mi></msub><mo>,</mo><mspace width="1em"></mspace><mi>y</mi><mo>=</mo><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>h</mi></mrow></munderover><msub><mi>o</mi><mi>i</mi></msub><msubsup><mi>P</mi><mrow><mi>o</mi><mo>,</mo><mi>i</mi></mrow><mo>⊤</mo></msubsup><mo>.</mo></mrow></math><span class="formula-label">Agent-created · 原代码/shape 的数学重构 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>q_i=xP_{q,i},\quad K_i=MP_{k,i},\quad V_i=MP_{v,i},
+\quad o_i=\operatorname{softmax}(q_iK_i^\top)V_i,\quad
+y=\sum_{i=1}^{h}o_iP_{o,i}^\top.</code></pre></details></div>
+<p>这里 q=[h,k]，K=[h,m,k]，V=[h,m,v]，o=[h,v]，y=[d]。原代码的 Po=[h,d,v]，所以每个 head 输出右乘 Po 的转置。它与常见的 concat(heads) 后乘一个 Wᴼ 是等价的分块写法。</p>
+<details class="original-listing" id="listing-2"><summary>Original Paper · Listing 2 · 完整原文代码（含原始笔误）</summary><div class="listing-head"><span>PYTHON / TENSORFLOW · UNMODIFIED SOURCE</span><button class="copy-code" data-copy="listing-code-2" type="button">Copy</button></div><pre class="syntax"><code class="language-python" id="listing-code-2"><span class="k">def</span><span class="w"> </span><span class="nf">MultiheadAttention</span><span class="p">(</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_q</span><span class="p">,</span> <span class="n">P_k</span><span class="p">,</span> <span class="n">P_v</span><span class="p">,</span> <span class="n">P_o</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">"""Multi-head Attention on one query.</span>
+<span class="sd">  Args:</span>
+<span class="sd">    x: a vector with shape [d]</span>
+<span class="sd">    M: a matrix with shape [m, d]</span>
+<span class="sd">    P_q: a tensor with shape [h, d, k]</span>
+<span class="sd">    P_k: a tensor with shape [h, d, k]</span>
+<span class="sd">    P_v: a tensor with shape [h, d, v]</span>
+<span class="sd">    P_o: a tensor with shape [h, d, v]</span>
+<span class="sd">  Returns:</span>
+<span class="sd">    y: a vector with shape [d]</span>
+<span class="sd">  """</span>
+  <span class="n">q</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"d,hdk-&gt;hk"</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">P_q</span><span class="p">)</span>
+  <span class="n">K</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"md,hdk-&gt;hmk"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_k</span><span class="p">)</span>
+  <span class="n">V</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"md,hdv-&gt;hmv"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_v</span><span class="p">)</span>
+  <span class="n">logits</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"hk,hmk-&gt;hm"</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">K</span><span class="p">)</span>
+  <span class="n">weights</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
+  <span class="n">o</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"hm,hmv-&gt;hv"</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+  <span class="n">y</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"hv,hdv-&gt;d"</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">P_o</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">y</span>
+</code></pre></details>
+<p>保留 h 个 query head 的作用，是允许同一个 token 以多个方向提问。保留 h 组 K/V 的作用，是允许历史 token 为每个 head 写入不同的索引特征和被取回的内容。MQA 后面要放弃的是后一种自由度，而不是前一种。</p>
+<h3 id="section-6">2.3 Batched MHA：训练与 prefill 为什么更容易复用</h3>
+<p><strong>原文 §2.3，PDF p.3。</strong> 同时加入 batch b 和 query 长度 n。</p>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>运算</th>
+<th>einsum</th>
+<th>输出 shape</th>
+<th>工程含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Query projection</td>
+<td>bnd,hdk→bhnk</td>
+<td>[b,h,n,k]</td>
+<td>每个 query 位置各自产生 h 个读头</td>
+</tr>
+<tr>
+<td>Key projection</td>
+<td>bmd,hdk→bhmk</td>
+<td>[b,h,m,k]</td>
+<td>一段 memory 一次写完各 head 的 K</td>
+</tr>
+<tr>
+<td>Value projection</td>
+<td>bmd,hdv→bhmv</td>
+<td>[b,h,m,v]</td>
+<td>与 K 配对的历史内容</td>
+</tr>
+<tr>
+<td>QK scores</td>
+<td>bhnk,bhmk→bhnm</td>
+<td>[b,h,n,m]</td>
+<td>同一 K 可被 n 个 query 复用</td>
+</tr>
+<tr>
+<td>Weighted values</td>
+<td>bhnm,bhmv→bhnv</td>
+<td>[b,h,n,v]</td>
+<td>每个 query/head 仍有独立结果</td>
+</tr>
+<tr>
+<td>Output projection</td>
+<td>bhnv,hdv→bnd</td>
+<td>[b,n,d]</td>
+<td>合并各 head</td>
+</tr>
+</tbody>
+</table></div>
+<details class="original-listing" id="listing-3"><summary>Original Paper · Listing 3 · 完整原文代码（含原始笔误）</summary><div class="listing-head"><span>PYTHON / TENSORFLOW · UNMODIFIED SOURCE</span><button class="copy-code" data-copy="listing-code-3" type="button">Copy</button></div><pre class="syntax"><code class="language-python" id="listing-code-3"><span class="k">def</span><span class="w"> </span><span class="nf">MultiheadAttentionBatched</span><span class="p">(</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">P_q</span><span class="p">,</span> <span class="n">P_k</span><span class="p">,</span> <span class="n">P_v</span><span class="p">,</span> <span class="n">P_o</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">"""Multi-head Attention.</span>
+<span class="sd">  Args:</span>
+<span class="sd">    X: a tensor with shape [b, n, d]</span>
+<span class="sd">    M: a tensor with shape [b, m, d]</span>
+<span class="sd">    mask: a tensor with shape [b, h, n, m]</span>
+<span class="sd">    P_q: a tensor with shape [h, d, k]</span>
+<span class="sd">    P_k: a tensor with shape [h, d, k]</span>
+<span class="sd">    P_v: a tensor with shape [h, d, v]</span>
+<span class="sd">    P_o: a tensor with shape [h, d, v]</span>
+<span class="sd">  Returns:</span>
+<span class="sd">    Y: a tensor with shape [b, n, d]</span>
+<span class="sd">  """</span>
+  <span class="n">Q</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bnd,hdk-&gt;bhnk"</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">P_q</span><span class="p">)</span>
+  <span class="n">K</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bmd,hdk-&gt;bhmk"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_k</span><span class="p">)</span>
+  <span class="n">V</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bmd,hdv-&gt;bhmv"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_v</span><span class="p">)</span>
+  <span class="n">logits</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhnk,bhmk-&gt;bhnm"</span><span class="p">,</span> <span class="n">Q</span><span class="p">,</span> <span class="n">K</span><span class="p">)</span>
+  <span class="n">weights</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">logits</span> <span class="o">+</span> <span class="n">mask</span><span class="p">)</span>
+  <span class="n">O</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhnm,bhmv-&gt;bhnv"</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+  <span class="n">Y</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhnv,hdv-&gt;bnd"</span><span class="p">,</span> <span class="n">O</span><span class="p">,</span> <span class="n">P_o</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">Y</span>
+</code></pre></details>
+<p>mask 的 shape 可写为 [b,h,n,m]；实现可用可广播形式，不必存满。因果 self-attention 让未来位置为 −∞；packed 训练样本还应阻止不同句子/文档间错误交互。论文提到句子拼接，但没有完整公开其 packing mask 配置，不能替作者补出具体实现。</p>
+<h3 id="section-7">2.3.1 Batched 性能分析：每个权重跨 bn 个 token 摊销</h3>
+<p><strong>原文 §2.3.1，PDF p.3。</strong> 作者限定 m=n、k=v=d/h、n≤d，并计入中间 tensors 的大小。</p>
+<div class="formula" data-latex="\Theta(bnd^{2})" id="formula-1"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Θ</mi><mo stretchy="false">(</mo><mi>b</mi><mi>n</mi><msup><mi>d</mi><mrow><mn>2</mn></mrow></msup><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Original Paper · batched-compute · 原文无编号 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\Theta(bnd^{2})</code></pre></details></div>
+<div class="formula" data-latex="O(bnd+bhn^{2}+d^{2})" id="formula-2"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>O</mi><mo stretchy="false">(</mo><mi>b</mi><mi>n</mi><mi>d</mi><mo>+</mo><mi>b</mi><mi>h</mi><msup><mi>n</mi><mrow><mn>2</mn></mrow></msup><mo>+</mo><msup><mi>d</mi><mrow><mn>2</mn></mrow></msup><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Original Paper · batched-memory · 原文无编号 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>O(bnd+bhn^{2}+d^{2})</code></pre></details></div>
+<div class="formula" data-latex="O(\frac{1}{k}+\frac{1}{bn})" id="formula-3"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>O</mi><mo stretchy="false">(</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>k</mi></mrow></mfrac><mo>+</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>b</mi><mi>n</mi></mrow></mfrac><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Original Paper · batched-ratio · 原文无编号 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>O(\frac{1}{k}+\frac{1}{bn})</code></pre></details></div>
+<p>这里 memory 是访问元素规模的估计，并非带 bytes、读写次数和 cache 层级的完整 DRAM trace。bnd 来自输入、投影及输出；bhn² 来自 logits/weights；d² 来自投影参数。</p>
+<p>把分式展开可得 O(1/d + n/(dk) + 1/(bn))。因为 n≤d、k≤d，作者把前两项粗略上界为 O(1/k)。<strong>大 bn 能摊薄投影权重的读取，多个 query 能复用同一历史状态。</strong></p>
+<p>这是未融合实现的分析。FlashAttention 后来通过分块与在线 softmax 避免把完整 score/weight 矩阵写回 HBM；这会改变 IO 账，但不会把 MQA 的持久 KV sharing 自动替代掉。[R5]</p>
+<h3 id="section-8">2.4 Incremental MHA：一步只添一项，却重新读很多项</h3>
+<p><strong>原文 §2.4，PDF pp.3–4。</strong> 已知目标序列的训练可以用 teacher forcing 并行。生成时，位置 t 的输出决定 token t+1，后者决定下一层输入，因而普通 autoregressive decoding 不能把所有未来 query 提前算出来。</p>
+<p>单步 x=[b,d]，q=[b,h,k]；旧 cache 为 K=[b,h,m,k]、V=[b,h,m,v]。写入本步投影后长度为 m+1，对全部可见历史算 attention，得到 [b,d]。</p>
+<details class="original-listing" id="listing-4"><summary>Original Paper · Listing 4 · 完整原文代码（含原始笔误）</summary><div class="listing-head"><span>PYTHON / TENSORFLOW · UNMODIFIED SOURCE</span><button class="copy-code" data-copy="listing-code-4" type="button">Copy</button></div><pre class="syntax"><code class="language-python" id="listing-code-4"><span class="k">def</span><span class="w"> </span><span class="nf">MultiheadSelfAttentionIncremental</span><span class="p">(</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">prev_K</span><span class="p">,</span> <span class="n">prev_V</span><span class="p">,</span> <span class="n">P_q</span><span class="p">,</span> <span class="n">P_k</span><span class="p">,</span> <span class="n">P_v</span><span class="p">,</span> <span class="n">P_o</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">"""Multi-head Self-Attention (one step).</span>
+<span class="sd">  Args:</span>
+<span class="sd">    x: a tensor with shape [b, d]</span>
+<span class="sd">    prev_K: tensor with shape [b, h, m, k]</span>
+<span class="sd">    prev_V: tensor with shape [b, h, m, v]</span>
+<span class="sd">    P_q: a tensor with shape [h, d, k]</span>
+<span class="sd">    P_k: a tensor with shape [h, d, k]</span>
+<span class="sd">    P_v: a tensor with shape [h, d, v]</span>
+<span class="sd">    P_o: a tensor with shape [h, d, v]</span>
+<span class="sd">  Returns:</span>
+<span class="sd">    y: a tensor with shape [b, d]</span>
+<span class="sd">    new_K: tensor with shape [b, h, m+1, k]</span>
+<span class="sd">    new_V: tensor with shape [b, h, m+1, v]</span>
+<span class="sd">  """</span>
+  <span class="n">q</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bd,hdk-&gt;bhk"</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">P_q</span><span class="p">)</span>
+  <span class="n">new_K</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">prev_K</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bd,hdk-&gt;bhk"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_k</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)],</span>
+    <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+  <span class="n">new_V</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">prev_V</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bd,hdv-&gt;bhv"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_v</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)],</span>
+    <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+  <span class="n">logits</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhk,bhmk-&gt;bhm"</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">new_K</span><span class="p">)</span>
+  <span class="n">weights</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
+  <span class="n">o</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhm,bhmv-&gt;bhv"</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">new_V</span><span class="p">)</span>
+  <span class="n">y</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhv,hdv-&gt;bd"</span><span class="p">,</span> <span class="n">O</span><span class="p">,</span> <span class="n">P_o</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">y</span><span class="p">,</span> <span class="n">new_K</span><span class="p">,</span> <span class="n">new_V</span>
+</code></pre></details>
+<p>原样保留的代码有两个实质笔误：投影当前 token 时使用未定义的 <code>M</code>，应该使用参数 <code>x</code>；最后输出投影使用 <code>O</code>，此前变量是小写 <code>o</code>。这里直接运行会失败，不能当作可执行参考。</p>
+<p>原文用 <code>concat</code> 描述增长。真实 runner 通常预分配 cache 或使用 page/block allocator，按 token index 写新槽位。每步复制全部旧 cache 会额外产生 Θ(m) 的读写；这并非 attention 机制必需的成本。</p>
+<h3 id="section-9">2.4.1 Incremental 性能分析：batch 只能解决其中一项</h3>
+<p><strong>原文 §2.4.1，PDF p.4。</strong> 生成 n 步，在相同简化假设下：</p>
+<div class="formula" data-latex="\Theta(bnd^{2})" id="formula-4"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Θ</mi><mo stretchy="false">(</mo><mi>b</mi><mi>n</mi><msup><mi>d</mi><mrow><mn>2</mn></mrow></msup><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Original Paper · incremental-compute · 原文无编号 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\Theta(bnd^{2})</code></pre></details></div>
+<div class="formula" data-latex="\Theta(bn^{2}d+nd^{2})" id="formula-5"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Θ</mi><mo stretchy="false">(</mo><mi>b</mi><msup><mi>n</mi><mrow><mn>2</mn></mrow></msup><mi>d</mi><mo>+</mo><mi>n</mi><msup><mi>d</mi><mrow><mn>2</mn></mrow></msup><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Original Paper · incremental-memory · 原文无编号 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\Theta(bn^{2}d+nd^{2})</code></pre></details></div>
+<div class="formula" data-latex="\Theta(\frac{n}{d}+\frac{1}{b})" id="formula-6"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Θ</mi><mo stretchy="false">(</mo><mfrac><mrow><mi>n</mi></mrow><mrow><mi>d</mi></mrow></mfrac><mo>+</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>b</mi></mrow></mfrac><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Original Paper · incremental-ratio · 原文无编号 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\Theta(\frac{n}{d}+\frac{1}{b})</code></pre></details></div>
+<p>第一项 bn²d 来自 ∑ₜ btd：cache 随历史增长，每一步再次被读。第二项 nd² 来自每步重读投影权重。除以计算量后得到 n/d 和 1/b。</p>
+<p>增大 batch b 能让更多序列共享参数读取，降低 1/b；不同序列的 KV 通常仍不同，增大 batch 不会消掉 n/d。而 cache 越大，又越限制可容纳的 batch，形成容量与带宽的耦合。</p>
+<div class="callout warning"><strong>适用范围：</strong>这里 Θ(bnd²) 依赖 n≤d。一般情况下应保留 attention 项 Θ(bn²d)，总量为 Θ(bnd²+bn²d)。长上下文 n≫d 时，不能继续宣称计算随 n 线性增长。</div>
+<p>原文此处写 “bhmk=bn²”，在给定假设下并不普遍成立：因为 hk=d，单个 K 的规模应为 bmd，最终 m=n 时为 bnd；累积读取才是 Θ(bn²d)。本文使用前后性能分析一致的 bmd / bn²d，不传播这个维度笔误。</p>
+<h2 id="section-10">3. Multi-Query Attention：只删除写入端的 h</h2>
+<p><strong>原文 §3，PDF pp.5–6。</strong> MQA 把 Pk 从 [h,d,k] 改为 [d,k]，Pv 从 [h,d,v] 改为 [d,v]。Q 和 Po 都保留 h。</p>
+<div class="formula" data-latex="Q=\operatorname{einsum}(\text{bnd,hdk}\rightarrow\text{bhnk}),\quad
+K=\operatorname{einsum}(\text{bmd,dk}\rightarrow\text{bmk}),\quad
+V=\operatorname{einsum}(\text{bmd,dv}\rightarrow\text{bmv})." id="formula-12"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Q</mi><mo>=</mo><mo>einsum</mo><mo stretchy="false">(</mo><mtext>bnd,hdk</mtext><mo>→</mo><mtext>bhnk</mtext><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><mi>K</mi><mo>=</mo><mo>einsum</mo><mo stretchy="false">(</mo><mtext>bmd,dk</mtext><mo>→</mo><mtext>bmk</mtext><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><mi>V</mi><mo>=</mo><mo>einsum</mo><mo stretchy="false">(</mo><mtext>bmd,dv</mtext><mo>→</mo><mtext>bmv</mtext><mo stretchy="false">)</mo><mo>.</mo></mrow></math><span class="formula-label">Agent-created · 原代码/shape 的数学重构 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>Q=\operatorname{einsum}(\text{bnd,hdk}\rightarrow\text{bhnk}),\quad
+K=\operatorname{einsum}(\text{bmd,dk}\rightarrow\text{bmk}),\quad
+V=\operatorname{einsum}(\text{bmd,dv}\rightarrow\text{bmv}).</code></pre></details></div>
+<p>这是原代码的 shape 重构。随后：</p>
+<div class="formula" data-latex="\ell_{binj}=\sum_a Q_{bina}K_{bja},\quad
+W=\operatorname{softmax}_j(\ell+\mathrm{mask}),\quad
+O_{binc}=\sum_j W_{binj}V_{bjc}." id="formula-13"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>ℓ</mi><mrow><mi>b</mi><mi>i</mi><mi>n</mi><mi>j</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>a</mi></munder><msub><mi>Q</mi><mrow><mi>b</mi><mi>i</mi><mi>n</mi><mi>a</mi></mrow></msub><msub><mi>K</mi><mrow><mi>b</mi><mi>j</mi><mi>a</mi></mrow></msub><mo>,</mo><mspace width="1em"></mspace><mi>W</mi><mo>=</mo><msub><mo>softmax</mo><mi>j</mi></msub><mo stretchy="false">(</mo><mi>ℓ</mi><mo>+</mo><mrow><mi mathvariant="normal">m</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">k</mi></mrow><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><msub><mi>O</mi><mrow><mi>b</mi><mi>i</mi><mi>n</mi><mi>c</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>j</mi></munder><msub><mi>W</mi><mrow><mi>b</mi><mi>i</mi><mi>n</mi><mi>j</mi></mrow></msub><msub><mi>V</mi><mrow><mi>b</mi><mi>j</mi><mi>c</mi></mrow></msub><mo>.</mo></mrow></math><span class="formula-label">Agent-created · 原代码/shape 的数学重构 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\ell_{binj}=\sum_a Q_{bina}K_{bja},\quad
+W=\operatorname{softmax}_j(\ell+\mathrm{mask}),\quad
+O_{binc}=\sum_j W_{binj}V_{bjc}.</code></pre></details></div>
+<p>不要把 h 从 scores 或 weights 中删除。即便所有 head 读取相同 K/V，不同 Q 也能给历史位置分配不同权重，得到不同输出。<strong>共享历史表示 ≠ 共享 attention 分布。</strong></p>
+<figure class="generated-figure"><div aria-label="Horizontally scrollable explanatory diagram" class="diagram-scroll" role="region" tabindex="0"><svg aria-roledescription="flowchart-v2" class="flowchart" id="mqa-execution" role="graphics-document document" style="max-width: 718.55859375px;" viewbox="0 0 718.55859375 806.5" width="100%" xmlns="http://www.w3.org/2000/svg"><style>#mqa-execution{font-family:Arial,sans-serif;font-size:17px;fill:#dce8fc;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#mqa-execution .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#mqa-execution .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#mqa-execution .error-icon{fill:#1c2738;}#mqa-execution .error-text{fill:#e3d8c7;stroke:#e3d8c7;}#mqa-execution .edge-thickness-normal{stroke-width:1px;}#mqa-execution .edge-thickness-thick{stroke-width:3.5px;}#mqa-execution .edge-pattern-solid{stroke-dasharray:0;}#mqa-execution .edge-thickness-invisible{stroke-width:0;fill:none;}#mqa-execution .edge-pattern-dashed{stroke-dasharray:3;}#mqa-execution .edge-pattern-dotted{stroke-dasharray:2;}#mqa-execution .marker{fill:#a1badb;stroke:#a1badb;}#mqa-execution .marker.cross{stroke:#a1badb;}#mqa-execution svg{font-family:Arial,sans-serif;font-size:17px;}#mqa-execution p{margin:0;}#mqa-execution .label{font-family:Arial,sans-serif;color:#dce8fc;}#mqa-execution .cluster-label text{fill:#e3d8c7;}#mqa-execution .cluster-label span{color:#e3d8c7;}#mqa-execution .cluster-label span p{background-color:transparent;}#mqa-execution .label text,#mqa-execution span{fill:#dce8fc;color:#dce8fc;}#mqa-execution .node rect,#mqa-execution .node circle,#mqa-execution .node ellipse,#mqa-execution .node polygon,#mqa-execution .node path{fill:#18283e;stroke:#6888af;stroke-width:1px;}#mqa-execution .rough-node .label text,#mqa-execution .node .label text,#mqa-execution .image-shape .label,#mqa-execution .icon-shape .label{text-anchor:middle;}#mqa-execution .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#mqa-execution .rough-node .label,#mqa-execution .node .label,#mqa-execution .image-shape .label,#mqa-execution .icon-shape .label{text-align:center;}#mqa-execution .node.clickable{cursor:pointer;}#mqa-execution .root .anchor path{fill:#a1badb!important;stroke-width:0;stroke:#a1badb;}#mqa-execution .arrowheadPath{fill:#eee8df;}#mqa-execution .edgePath .path{stroke:#a1badb;stroke-width:2.0px;}#mqa-execution .flowchart-link{stroke:#a1badb;fill:none;}#mqa-execution .edgeLabel{background-color:#17342f;text-align:center;}#mqa-execution .edgeLabel p{background-color:#17342f;}#mqa-execution .edgeLabel rect{opacity:0.5;background-color:#17342f;fill:#17342f;}#mqa-execution .labelBkg{background-color:rgba(23, 52, 47, 0.5);}#mqa-execution .cluster rect{fill:#1c2738;stroke:hsl(216.4285714286, 0%, 6.4705882353%);stroke-width:1px;}#mqa-execution .cluster text{fill:#e3d8c7;}#mqa-execution .cluster span{color:#e3d8c7;}#mqa-execution div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:Arial,sans-serif;font-size:12px;background:#1c2738;border:1px solid hsl(216.4285714286, 0%, 6.4705882353%);border-radius:2px;pointer-events:none;z-index:100;}#mqa-execution .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#dce8fc;}#mqa-execution rect.text{fill:none;stroke-width:0;}#mqa-execution .icon-shape,#mqa-execution .image-shape{background-color:#17342f;text-align:center;}#mqa-execution .icon-shape p,#mqa-execution .image-shape p{background-color:#17342f;padding:2px;}#mqa-execution .icon-shape rect,#mqa-execution .image-shape rect{opacity:0.5;background-color:#17342f;fill:#17342f;}#mqa-execution .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#mqa-execution .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#mqa-execution :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker class="marker flowchart-v2" id="mqa-execution_flowchart-v2-pointEnd" markerheight="8" markerunits="userSpaceOnUse" markerwidth="8" orient="auto" refx="5" refy="5" viewbox="0 0 10 10"><path class="arrowMarkerPath" d="M 0 0 L 10 5 L 0 10 z" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker class="marker flowchart-v2" id="mqa-execution_flowchart-v2-pointStart" markerheight="8" markerunits="userSpaceOnUse" markerwidth="8" orient="auto" refx="4.5" refy="5" viewbox="0 0 10 10"><path class="arrowMarkerPath" d="M 0 5 L 10 10 L 10 0 z" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker class="marker flowchart-v2" id="mqa-execution_flowchart-v2-circleEnd" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="11" refy="5" viewbox="0 0 10 10"><circle class="arrowMarkerPath" cx="5" cy="5" r="5" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker class="marker flowchart-v2" id="mqa-execution_flowchart-v2-circleStart" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="-1" refy="5" viewbox="0 0 10 10"><circle class="arrowMarkerPath" cx="5" cy="5" r="5" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker class="marker cross flowchart-v2" id="mqa-execution_flowchart-v2-crossEnd" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="12" refy="5.2" viewbox="0 0 11 11"><path class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker class="marker cross flowchart-v2" id="mqa-execution_flowchart-v2-crossStart" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="-1" refy="5.2" viewbox="0 0 11 11"><path class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><g class="root"><g class="clusters"></g><g class="edgePaths"><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M235.027,63L217.307,67.25C199.586,71.5,164.145,80,146.424,93.042C128.703,106.083,128.703,123.667,128.703,141.25C128.703,158.833,128.703,176.417,128.703,190.833C128.703,205.25,128.703,216.5,128.703,222.125L128.703,227.75" data-edge="true" data-et="edge" data-id="L_X_Q_0" data-points="W3sieCI6MjM1LjAyNzM0Mzc1LCJ5Ijo2Mi45OTk1NjA0Mjk4MDE5NzR9LHsieCI6MTI4LjcwMzEyNSwieSI6ODguNX0seyJ4IjoxMjguNzAzMTI1LCJ5IjoxNDEuMjV9LHsieCI6MTI4LjcwMzEyNSwieSI6MTk0fSx7IngiOjEyOC43MDMxMjUsInkiOjIzMS43NX1d" id="L_X_Q_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M348.645,63.5L348.645,67.667C348.645,71.833,348.645,80.167,348.645,87.833C348.645,95.5,348.645,102.5,348.645,106L348.645,109.5" data-edge="true" data-et="edge" data-id="L_X_K_0" data-points="W3sieCI6MzQ4LjY0NDUzMTI1LCJ5Ijo2My41fSx7IngiOjM0OC42NDQ1MzEyNSwieSI6ODguNX0seyJ4IjozNDguNjQ0NTMxMjUsInkiOjExMy41fV0=" id="L_X_K_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M462.262,58.976L486.333,63.896C510.405,68.817,558.548,78.659,582.62,87.079C606.691,95.5,606.691,102.5,606.691,106L606.691,109.5" data-edge="true" data-et="edge" data-id="L_X_V_0" data-points="W3sieCI6NDYyLjI2MTcxODc1LCJ5Ijo1OC45NzU2NTA5MjM0MDI5NjZ9LHsieCI6NjA2LjY5MTQwNjI1LCJ5Ijo4OC41fSx7IngiOjYwNi42OTE0MDYyNSwieSI6MTEzLjV9XQ==" id="L_X_V_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M348.645,169L348.645,173.167C348.645,177.333,348.645,185.667,356.258,193.698C363.871,201.73,379.097,209.46,386.71,213.324L394.323,217.189" data-edge="true" data-et="edge" data-id="L_K_C_0" data-points="W3sieCI6MzQ4LjY0NDUzMTI1LCJ5IjoxNjl9LHsieCI6MzQ4LjY0NDUzMTI1LCJ5IjoxOTR9LHsieCI6Mzk3Ljg5MDExODA4MjA2MTA2LCJ5IjoyMTl9XQ==" id="L_K_C_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M606.691,169L606.691,173.167C606.691,177.333,606.691,185.667,599.078,193.698C591.465,201.73,576.239,209.46,568.626,213.324L561.013,217.189" data-edge="true" data-et="edge" data-id="L_V_C_0" data-points="W3sieCI6NjA2LjY5MTQwNjI1LCJ5IjoxNjl9LHsieCI6NjA2LjY5MTQwNjI1LCJ5IjoxOTR9LHsieCI6NTU3LjQ0NTgxOTQxNzkzOSwieSI6MjE5fV0=" id="L_V_C_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M128.703,287.25L128.703,293.542C128.703,299.833,128.703,312.417,129.239,322.216C129.774,332.015,130.845,339.031,131.381,342.538L131.916,346.046" data-edge="true" data-et="edge" data-id="L_Q_S_0" data-points="W3sieCI6MTI4LjcwMzEyNSwieSI6Mjg3LjI1fSx7IngiOjEyOC43MDMxMjUsInkiOjMyNX0seyJ4IjoxMzIuNTE5OTE4ODkzMTI5NzgsInkiOjM1MH1d" id="L_Q_S_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M361.044,300L349.046,304.167C337.048,308.333,313.051,316.667,292.1,324.734C271.148,332.801,253.242,340.602,244.289,344.502L235.336,348.402" data-edge="true" data-et="edge" data-id="L_C_S_0" data-points="W3sieCI6MzYxLjA0NDQ4OTUwMzgxNjgsInkiOjMwMH0seyJ4IjoyODkuMDU0Njg3NSwieSI6MzI1fSx7IngiOjIzMS42Njg1OTQ5NDI3NDgxLCJ5IjozNTB9XQ==" id="L_C_S_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M138.703,431L138.703,435.167C138.703,439.333,138.703,447.667,138.703,455.333C138.703,463,138.703,470,138.703,473.5L138.703,477" data-edge="true" data-et="edge" data-id="L_S_W_0" data-points="W3sieCI6MTM4LjcwMzEyNSwieSI6NDMxfSx7IngiOjEzOC43MDMxMjUsInkiOjQ1Nn0seyJ4IjoxMzguNzAzMTI1LCJ5Ijo0ODF9XQ==" id="L_S_W_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M138.703,562L138.703,566.167C138.703,570.333,138.703,578.667,150.072,586.781C161.44,594.896,184.177,602.792,195.546,606.74L206.914,610.688" data-edge="true" data-et="edge" data-id="L_W_O_0" data-points="W3sieCI6MTM4LjcwMzEyNSwieSI6NTYyfSx7IngiOjEzOC43MDMxMjUsInkiOjU4N30seyJ4IjoyMTAuNjkyOTI3MDAzODE2OCwieSI6NjEyfV0=" id="L_W_O_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M483.851,300L484.487,304.167C485.123,308.333,486.396,316.667,487.032,331.75C487.668,346.833,487.668,368.667,487.668,390.5C487.668,412.333,487.668,434.167,487.668,456C487.668,477.833,487.668,499.667,487.668,521.5C487.668,543.333,487.668,565.167,478.085,579.998C468.501,594.829,449.335,602.658,439.751,606.573L430.168,610.487" data-edge="true" data-et="edge" data-id="L_C_O_0" data-points="W3sieCI6NDgzLjg1MTE3NDg1Njg3MDIsInkiOjMwMH0seyJ4Ijo0ODcuNjY3OTY4NzUsInkiOjMyNX0seyJ4Ijo0ODcuNjY3OTY4NzUsInkiOjM5MC41fSx7IngiOjQ4Ny42Njc5Njg3NSwieSI6NDU2fSx7IngiOjQ4Ny42Njc5Njg3NSwieSI6NTIxLjV9LHsieCI6NDg3LjY2Nzk2ODc1LCJ5Ijo1ODd9LHsieCI6NDI2LjQ2NTA4MjI5OTYxODMsInkiOjYxMn1d" id="L_C_O_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M327.316,693L327.316,697.167C327.316,701.333,327.316,709.667,327.316,717.333C327.316,725,327.316,732,327.316,735.5L327.316,739" data-edge="true" data-et="edge" data-id="L_O_Y_0" data-points="W3sieCI6MzI3LjMxNjQwNjI1LCJ5Ijo2OTN9LHsieCI6MzI3LjMxNjQwNjI1LCJ5Ijo3MTh9LHsieCI6MzI3LjMxNjQwNjI1LCJ5Ijo3NDN9XQ==" id="L_O_Y_0" marker-end="url(#mqa-execution_flowchart-v2-pointEnd)" style=";"></path></g><g class="edgeLabels"><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g class="edgeLabel"><g class="label" data-id="L_X_Q_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_X_K_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_X_V_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_K_C_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_V_C_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_Q_S_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_C_S_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_S_W_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_W_O_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_C_O_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_O_Y_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g></g><g class="nodes"><g class="node default" id="flowchart-X-0" transform="translate(348.64453125, 35.75)"><rect class="basic label-container" height="55.5" style="" width="227.234375" x="-113.6171875" y="-27.75"></rect><g class="label" style="" transform="translate(-83.6171875, -12.75)"><rect></rect><foreignobject height="25.5" width="167.234375"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Current token x: B x D</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-Q-1" transform="translate(128.703125, 259.5)"><rect class="basic label-container" height="55.5" style="" width="241.40625" x="-120.703125" y="-27.75"></rect><g class="label" style="" transform="translate(-90.703125, -12.75)"><rect></rect><foreignobject height="25.5" width="181.40625"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Q projection: B x Hq x K</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-K-3" transform="translate(348.64453125, 141.25)"><rect class="basic label-container" height="55.5" style="" width="208.359375" x="-104.1796875" y="-27.75"></rect><g class="label" style="" transform="translate(-74.1796875, -12.75)"><rect></rect><foreignobject height="25.5" width="148.359375"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Shared K: B x 1 x K</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-V-5" transform="translate(606.69140625, 141.25)"><rect class="basic label-container" height="55.5" style="" width="207.734375" x="-103.8671875" y="-27.75"></rect><g class="label" style="" transform="translate(-73.8671875, -12.75)"><rect></rect><foreignobject height="25.5" width="147.734375"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Shared V: B x 1 x V</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-C-7" transform="translate(477.66796875, 259.5)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Append one position to shared KV cache</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-S-11" transform="translate(138.703125, 390.5)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Every query head scores the same history</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-W-15" transform="translate(138.703125, 521.5)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Separate softmax for each query head</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-O-17" transform="translate(327.31640625, 652.5)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Distinct weighted values per query head</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-Y-21" transform="translate(327.31640625, 770.75)"><rect class="basic label-container" height="55.5" style="" width="240.484375" x="-120.2421875" y="-27.75"></rect><g class="label" style="" transform="translate(-90.2421875, -12.75)"><rect></rect><foreignobject height="25.5" width="180.484375"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Output projection: B x D</p></span></div></foreignobject></g></g></g></g></g></svg></div><figcaption>Agent-created Mermaid · Shared-KV decode data flow · 窄屏可横向滚动查看完整示意。</figcaption><details><summary>Mermaid source</summary><pre><code>flowchart TD
+    X["Current token x: B x D"] --&gt; Q["Q projection: B x Hq x K"]
+    X --&gt; K["Shared K: B x 1 x K"]
+    X --&gt; V["Shared V: B x 1 x V"]
+    K --&gt; C["Append one position to shared KV cache"]
+    V --&gt; C
+    Q --&gt; S["Every query head scores the same history"]
+    C --&gt; S
+    S --&gt; W["Separate softmax for each query head"]
+    W --&gt; O["Distinct weighted values per query head"]
+    C --&gt; O
+    O --&gt; Y["Output projection: B x D"]
+</code></pre></details></figure>
+<details class="original-listing" id="listing-5"><summary>Original Paper · Listing 5 · 完整原文代码（含原始笔误）</summary><div class="listing-head"><span>PYTHON / TENSORFLOW · UNMODIFIED SOURCE</span><button class="copy-code" data-copy="listing-code-5" type="button">Copy</button></div><pre class="syntax"><code class="language-python" id="listing-code-5"><span class="k">def</span><span class="w"> </span><span class="nf">MultiqueryAttentionBatched</span><span class="p">(</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">P_q</span><span class="p">,</span> <span class="n">P_k</span><span class="p">,</span> <span class="n">P_v</span><span class="p">,</span> <span class="n">P_o</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">"""Multi-Query Attention.</span>
+<span class="sd">  Args:</span>
+<span class="sd">    X: a tensor with shape [b, n, d]</span>
+<span class="sd">    M: a tensor with shape [b, m, d]</span>
+<span class="sd">    mask: a tensor with shape [b, h, n, m]</span>
+<span class="sd">    P_q: a tensor with shape [h, d, k]</span>
+<span class="sd">    P_k: a tensor with shape [d, k]</span>
+<span class="sd">    P_v: a tensor with shape d, v]</span>
+<span class="sd">    P_o: a tensor with shape [h, d, v]</span>
+<span class="sd">  Returns:</span>
+<span class="sd">    Y: a tensor with shape [b, n, d]</span>
+<span class="sd">  """</span>
+  <span class="n">Q</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bnd,hdk-&gt;bhnk"</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">P_q</span><span class="p">)</span>
+  <span class="n">K</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bmd,dk-&gt;bmk"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_k</span><span class="p">)</span>
+  <span class="n">V</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bmd,dv-&gt;bmv"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_v</span><span class="p">)</span>
+  <span class="n">logits</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhnk,bmk-&gt;bhnm"</span><span class="p">,</span> <span class="n">Q</span><span class="p">,</span> <span class="n">K</span><span class="p">)</span>
+  <span class="n">weights</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">logits</span> <span class="o">+</span> <span class="n">mask</span><span class="p">)</span>
+  <span class="n">O</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhnm,bmv-&gt;bhnv"</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+  <span class="n">Y</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhnv,hdv-&gt;bnd"</span><span class="p">,</span> <span class="n">O</span><span class="p">,</span> <span class="n">P_o</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">Y</span>
+</code></pre></details>
+<p>MQA 的训练目标没有另加蒸馏项或 cache 正则项，仍是原任务的预测训练。被分享的 K/V 投影参数接收所有 query head 汇合的梯度，因此需要在训练中学出“可被多个读头共同使用”的历史表示。</p>
+<p>这同时解释了质量风险：MHA 可以为不同 head 学出独立索引和取回空间；MQA 把这些写表示限制在同一个 k/v 维空间。多个 query 能表达不同检索方向，却不能凭空恢复被删除的独立 K/V 子空间。</p>
+<h3 id="section-11">共享 K/V 的具体例子</h3>
+<p>下面是固定二维向量的 <strong>教学构造</strong>，不是训练所得 attention map。K 分别为 (1,0)、(0,1)、(−1,0)，V 使用同样三组数值只是为了容易读图；真实 MQA 的 K 和 V 有不同投影，通常不相等。</p>
+<p>令 Q₁=(2,0)、Q₂=(−2,0)。无 scaling 的 logits 为 [2,0,−2] 和 [−2,0,2]，softmax 约为 [0.867,0.117,0.016] 及其逆序。两个读头共用同一份 cache，输出的第一维却分别约为 +0.851 与 −0.851。</p>
+<section aria-labelledby="query-title" class="mechanism" id="query-demo">
+<p class="eyebrow">AGENT-CREATED / EXACT TOY CALCULATION</p>
+<h3 id="query-title">One history, two retrieval distributions</h3>
+<p>调整 query 强度，观察两组 Q 对同一组 K/V 产生不同的 softmax 与输出。K/V 固定，仅用于解释数学；这里没有训练或质量测量。</p>
+<label class="query-control" for="query-strength">Query strength <input id="query-strength" max="6" min="0" step="0.1" type="range" value="2"/><output id="query-strength-value">2.0</output></label>
+<div class="table-scroll"><table class="toy-table"><thead><tr><th>Shared token</th><th>Key / Value</th><th>Q₁ weight</th><th>Q₂ weight</th></tr></thead><tbody id="query-rows">
+<tr><td>0</td><td>(1,0)</td><td>0.867</td><td>0.016</td></tr>
+<tr><td>1</td><td>(0,1)</td><td>0.117</td><td>0.117</td></tr>
+<tr><td>2</td><td>(−1,0)</td><td>0.016</td><td>0.867</td></tr>
+</tbody></table></div>
+<div aria-live="polite" class="readout" id="query-readout">Q₁=(2,0) → o₁≈(+0.851,0.117); Q₂=(−2,0) → o₂≈(−0.851,0.117).</div>
+<p class="hint">Blue = Q₁ · Teal = Q₂. Toy K=V simplifies the display; ordinary MQA has separate K and V projections. At strength 0 both distributions become uniform.</p>
+</section>
+<h3 id="section-13">Incremental MQA：cache 的时间轴也随之移动</h3>
+<details class="original-listing" id="listing-6"><summary>Original Paper · Listing 6 · 完整原文代码（含原始笔误）</summary><div class="listing-head"><span>PYTHON / TENSORFLOW · UNMODIFIED SOURCE</span><button class="copy-code" data-copy="listing-code-6" type="button">Copy</button></div><pre class="syntax"><code class="language-python" id="listing-code-6"><span class="k">def</span><span class="w"> </span><span class="nf">MultiquerySelfAttentionIncremental</span><span class="p">(</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">prev_K</span><span class="p">,</span> <span class="n">prev_V</span><span class="p">,</span> <span class="n">P_q</span><span class="p">,</span> <span class="n">P_k</span><span class="p">,</span> <span class="n">P_v</span><span class="p">,</span> <span class="n">P_o</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">"""Multi-query Self-Attention (one step).</span>
+<span class="sd">  Args:</span>
+<span class="sd">    x: a tensor with shape [b, d]</span>
+<span class="sd">    prev_K: tensor with shape [b, m, k]</span>
+<span class="sd">    prev_V: tensor with shape [b, m, v]</span>
+<span class="sd">    P_q: a tensor with shape [h, d, k]</span>
+<span class="sd">    P_k: a tensor with shape [d, k]</span>
+<span class="sd">    P_v: a tensor with shape [d, v]</span>
+<span class="sd">    P_o: a tensor with shape [h, d, v]</span>
+<span class="sd">  Returns:</span>
+<span class="sd">    y: a tensor with shape [b, d]</span>
+<span class="sd">    new_K: tensor with shape [b, m+1, k]</span>
+<span class="sd">    new_V: tensor with shape [b, m+1, v]</span>
+<span class="sd">  """</span>
+   <span class="n">q</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bd,hdk-&gt;bhk"</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">P_q</span><span class="p">)</span>
+  <span class="n">K</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">prev_K</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bd,dk-&gt;bk"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_k</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)],</span>
+    <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+  <span class="n">V</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">prev_V</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bd,dv-&gt;bv"</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">P_v</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)],</span>
+    <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+  <span class="n">logits</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhk,bmk-&gt;bhm"</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">K</span><span class="p">)</span>
+  <span class="n">weights</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
+  <span class="n">o</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhm,bmv-&gt;bhv"</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+  <span class="n">y</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhv,hdv-&gt;bd"</span><span class="p">,</span> <span class="n">O</span><span class="p">,</span> <span class="n">P_o</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">y</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">V</span>
+</code></pre></details>
+<p>原文 §3 的 incremental listing 同样误用了 <code>M</code> 与 <code>O</code>，并把 [b,k] 的新 key 在 axis=2 扩维和拼接。MQA cache 是 [b,m,k]，正确的新 key 应为 [b,1,k]，<strong>时间轴是 axis=1</strong>。MHA 的时间轴是 axis=2；不能仅删除 einsum 字母而不修改 cache 操作。</p>
+<p>以下为修正版教学实现，可用于理解 shape。它用 NumPy、稳定 softmax、原文未缩放的 logits；<code>concatenate</code> 只用于验证，不是高效生产 cache allocator。</p>
+<pre class="syntax"><code class="language-python"><span class="k">def</span><span class="w"> </span><span class="nf">mqa_step</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">cache_k</span><span class="p">,</span> <span class="n">cache_v</span><span class="p">,</span> <span class="n">pq</span><span class="p">,</span> <span class="n">pk</span><span class="p">,</span> <span class="n">pv</span><span class="p">,</span> <span class="n">po</span><span class="p">):</span>
+<span class="c1"># x: [b,d]; cache_k/cache_v: [b,m,k/v]</span>
+<span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bd,hdk-&gt;bhk"</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">pq</span><span class="p">)</span>
+<span class="n">cache_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">cache_k</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span> <span class="o">@</span> <span class="n">pk</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">cache_v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">cache_v</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span> <span class="o">@</span> <span class="n">pv</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">scores</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhk,bmk-&gt;bhm"</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">cache_k</span><span class="p">)</span>
+<span class="n">scores</span> <span class="o">-=</span> <span class="n">scores</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span>
+<span class="n">weights</span> <span class="o">/=</span> <span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhm,bmv-&gt;bhv"</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">cache_v</span><span class="p">)</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"bhv,hdv-&gt;bd"</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">po</span><span class="p">)</span>
+<span class="k">return</span> <span class="n">y</span><span class="p">,</span> <span class="n">cache_k</span><span class="p">,</span> <span class="n">cache_v</span>
+</code></pre>
+<p>训练/批量 prefill 与逐步 decode 必须给出同样的因果结果。本文用独立的显式 head 循环核对完整因果计算，再比较逐步缓存计算，float64 最大误差分别为 8.89×10⁻¹⁶ 以下与 4.45×10⁻¹⁶ 以下。<a href="assets/evidence/mechanism-checks.json">Validation</a> 只验证代数与 shape，不复现论文 BLEU、PPL 或 TPU 性能。</p>
+<h3 id="section-14">3.1 Performance Analysis：h 倍节省具体发生在哪</h3>
+<p><strong>原文 §3.1，PDF p.6。</strong></p>
+<div class="formula" data-latex="\Theta(bnd^{2})" id="formula-7"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Θ</mi><mo stretchy="false">(</mo><mi>b</mi><mi>n</mi><msup><mi>d</mi><mrow><mn>2</mn></mrow></msup><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Original Paper · mqa-compute · 原文无编号 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\Theta(bnd^{2})</code></pre></details></div>
+<div class="formula" data-latex="\Theta(bnd+bn^{2}k+nd^{2})" id="formula-8"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Θ</mi><mo stretchy="false">(</mo><mi>b</mi><mi>n</mi><mi>d</mi><mo>+</mo><mi>b</mi><msup><mi>n</mi><mrow><mn>2</mn></mrow></msup><mi>k</mi><mo>+</mo><mi>n</mi><msup><mi>d</mi><mrow><mn>2</mn></mrow></msup><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Original Paper · mqa-memory · 原文无编号 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\Theta(bnd+bn^{2}k+nd^{2})</code></pre></details></div>
+<div class="formula" data-latex="\Theta(\frac{1}{d}+\frac{n}{dh}+\frac{1}{b})" id="formula-9"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Θ</mi><mo stretchy="false">(</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>d</mi></mrow></mfrac><mo>+</mo><mfrac><mrow><mi>n</mi></mrow><mrow><mi>d</mi><mi>h</mi></mrow></mfrac><mo>+</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>b</mi></mrow></mfrac><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Original Paper · mqa-ratio · 原文无编号 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\Theta(\frac{1}{d}+\frac{n}{dh}+\frac{1}{b})</code></pre></details></div>
+<p>bnd 是本步激活/输出，bn²k 是历史 K/V 累积读取，nd² 是仍然存在的投影权重成本。由于 k=d/h，历史读取项从 n/d 变成 n/(dh)；1/b 没有消失。</p>
+<p><strong>存储。</strong> 若一层一条序列缓存 m 个 token，MHA 需 m·h·(k+v) 个元素，MQA 需 m·(k+v)。令 k=v、层数 L、每元素 s bytes，得到：</p>
+<div class="formula" data-latex="C_{\mathrm{KV}}=2bLm\,h_{\mathrm{KV}}k\,s,\qquad
+h_{\mathrm{KV}}=h\ \text{(MHA)},\quad 1\ \text{(MQA)}." id="formula-14"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>C</mi><mrow><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi></mrow></mrow></msub><mo>=</mo><mn>2</mn><mi>b</mi><mi>L</mi><mi>m</mi><mspace width="0.167em"></mspace><msub><mi>h</mi><mrow><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi></mrow></mrow></msub><mi>k</mi><mspace width="0.167em"></mspace><mi>s</mi><mo>,</mo><mspace width="2em"></mspace><msub><mi>h</mi><mrow><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi></mrow></mrow></msub><mo>=</mo><mi>h</mi><mtext> </mtext><mtext>(MHA)</mtext><mo>,</mo><mspace width="1em"></mspace><mn>1</mn><mtext> </mtext><mtext>(MQA)</mtext><mo>.</mo></mrow></math><span class="formula-label">Agent-created · 原代码/shape 的数学重构 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>C_{\mathrm{KV}}=2bLm\,h_{\mathrm{KV}}k\,s,\qquad
+h_{\mathrm{KV}}=h\ \text{(MHA)},\quad 1\ \text{(MQA)}.</code></pre></details></div>
+<p>上式是本文补充的精确容量账。它不含 padding、allocator metadata、量化 scales、beam/prefix sharing 或额外工作区。单步写入为 2bLhKVks，与 m 无关；每步完整逻辑读取近似 C_KV，随 m 线性增长。</p>
+<p><strong>计算。</strong> 固定 b、m、h、k，QK 与 weighted V 的乘加计算合计约 4bhmk FLOPs/层，MQA 不改变它。K/V 投影的 FLOPs 确实减少，但 Q、输出投影和 h 份 softmax 都还存在。完整层复杂度的阶不变，常数可以改变。</p>
+<p><strong>算术密度。</strong> 在理想的共享读取与 k=v 条件下，QK/PV 计算除以 KV read bytes 约为 2h/(hKV·s) FLOPs/byte。BF16 下 MHA 约为 1，MQA 为 h；这里没有计入权重、激活及 softmax。如果 kernel 给每个 query head 从 DRAM 再读一遍共享 K/V，而不能在片上有效复用，实际流量可能远大于这个模型。</p>
+<section aria-labelledby="cache-title" class="mechanism" id="cache-demo">
+<p class="eyebrow">AGENT-CREATED / SHAPE ACCOUNTING, NOT LATENCY</p>
+<h3 id="cache-title">How many bytes must the next query read?</h3>
+<p>固定 Q heads=32、head width=128。调整 KV groups、batch、层数、长度与存储位宽；观察逻辑 cache 与每步一次完整读取的字节数。窗口设置假定 runner 使用保留有效窗口的 cache。</p>
+<div class="controls">
+<label>KV heads<select id="kv-heads"><option value="32">32 · MHA</option><option value="16">16 · GQA</option><option selected="" value="8">8 · GQA</option><option value="4">4 · GQA</option><option value="2">2 · GQA</option><option value="1">1 · MQA</option></select></label>
+<label>Batch<input id="batch-size" max="128" min="1" type="number" value="1"/></label>
+<label>Layers<input id="layer-count" max="128" min="1" type="number" value="32"/></label>
+<label>Context tokens<input id="context-length" max="262144" min="0" type="number" value="4096"/></label>
+<label>Storage<select id="storage-bytes"><option value="4">FP32 · 4 B</option><option selected="" value="2">BF16/FP16 · 2 B</option><option value="1">INT8 · 1 B</option><option value="0.5">INT4 · 0.5 B</option></select></label>
+<label>Visible window<select id="window-length"><option value="0">Full history</option><option value="32">32 tokens</option><option value="128">128 tokens</option><option value="512">512 tokens</option></select></label>
+</div>
+<div aria-label="MHA and selected KV capacity relative bars" class="cache-bars" role="img">
+<div><span>MHA</span><div class="bar-track"><span class="bar-fill" id="mha-bar"></span></div><output id="mha-size">2.00 GiB</output></div>
+<div><span id="selected-label">GQA-8</span><div class="bar-track"><span class="bar-fill selected" id="selected-bar"></span></div><output id="selected-size">512.00 MiB</output></div>
+</div>
+<div aria-live="polite" class="readout" id="cache-readout">4096 visible tokens · KV=512 MiB · 4× smaller than MHA · logical QK/PV intensity≈4 FLOPs/byte.</div>
+<div class="actions"><button id="step-token" type="button">Step token</button><button id="reset-cache" type="button">Reset</button></div>
+<p class="hint">Formula: 2 × B × L × visible tokens × KV heads × 128 × bytes. QK/PV FLOPs stay constant at fixed Q heads and visible length. One-pass logical reads exclude tiling reloads, padding, allocator metadata, quantization scales, beam/prefix sharing and model weights. This panel predicts no real latency or accuracy.</p>
+</section>
+<p>默认例子 b=1、L=32、h=32、k=128、m=4096、BF16：MHA 仅 KV 为 2 GiB；GQA-8 为 512 MiB；MQA 为 64 MiB。<strong>这是精确 shape 计算的例子，不是论文模型配置，也不是硬件实测。</strong> 切换 dtype 只改变容量账，不提供量化质量结论。</p>
+<h3 id="section-16">训练、prefill、decode 与 cross-attention</h3>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>需要什么 query</th>
+<th>KV 如何产生与使用</th>
+<th>MQA 主要改变</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Teacher-forced training</td>
+<td>一段目标位置已知</td>
+<td>整段 K/V，一次批量注意力，反向累积梯度</td>
+<td>K/V 投影及激活规模；attention score 仍有 h</td>
+</tr>
+<tr>
+<td>Prompt prefill</td>
+<td>所有 prompt 位置</td>
+<td>计算并写 prompt KV，因果并行</td>
+<td>初始 cache 容量与写流量；TTFT 需单独测</td>
+</tr>
+<tr>
+<td>Self-attention decode</td>
+<td>当前新 token</td>
+<td>每步写一项，读可见历史</td>
+<td>最直接的重复读取节省</td>
+</tr>
+<tr>
+<td>Encoder-decoder attention</td>
+<td>当前 decoder query</td>
+<td>encoder memory 的 K/V 可预计算，随后反复读取</td>
+<td>源序列 KV sharing 同样减少读取</td>
+</tr>
+</tbody>
+</table></div>
+<p>论文实际翻译模型把 encoder self-attention、decoder self-attention、cross-attention <strong>全部</strong> 换成 MQA。Table 2 不是“只改 decoder self-attention”的隔离实验。</p>
+<h2 id="section-17">4. Experiments and Results：质量、参数和速度分开验</h2>
+<p><strong>原文 §4，PDF pp.6–8。</strong> 本节保留原论文子章节顺序。Table 3 虽与 Table 1、2 一起排在 p.8，但讨论属于 §4.2，因此放在质量分析旁。</p>
+<h3 id="section-18">4.1 Experimental Setup：等参数不是等架构</h3>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>WMT 2014 EN-DE</th>
+<th>Billion-Word LM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>架构</td>
+<td>标准 6 层 encoder + 6 层 decoder Transformer</td>
+<td>6 层 decoder-only Transformer</td>
+</tr>
+<tr>
+<td>dmodel；h；dk=dv</td>
+<td>1024；8；128</td>
+<td>1024；8；128</td>
+</tr>
+<tr>
+<td>MHA → MQA dff</td>
+<td>4096 → 5440</td>
+<td>8192 → 9088</td>
+</tr>
+<tr>
+<td>总参数</td>
+<td>所有变体约 211M</td>
+<td>所有变体约 192M</td>
+</tr>
+<tr>
+<td>训练步数</td>
+<td>100,000，约 20 epochs</td>
+<td>136K，10 epochs</td>
+</tr>
+<tr>
+<td>训练 batch</td>
+<td>128 例，input/target 各 256 token</td>
+<td>64K tokens，原文未进一步展开</td>
+</tr>
+<tr>
+<td>训练硬件与耗时</td>
+<td>32-core TPUv3，约 2 小时/模型</td>
+<td>32-core TPUv3，约 3 小时/模型</td>
+</tr>
+<tr>
+<td>位置与 embedding</td>
+<td>learned positional embeddings；token/output embedding sharing</td>
+<td>原文未完整展开对应细节</td>
+</tr>
+<tr>
+<td>评估指标</td>
+<td>dev ln(PPL)、dev BLEU；test greedy/beam-4 BLEU</td>
+<td>dev per-word PPL</td>
+</tr>
+<tr>
+<td>推理/训练计时硬件</td>
+<td>单 TPUv2，8 cores</td>
+<td>无 LM 速度表</td>
+</tr>
+</tbody>
+</table></div>
+<p>原文写翻译模型 “6 layers”，结合标准 encoder-decoder 配置理解为每侧 6 层；下面 FFN 参数守恒也与此一致。它没有独立给出模型配置文件来进一步复核。</p>
+<p>翻译模型有 18 个 attention 模块：6 个 encoder self-attention、6 个 decoder self-attention、6 个 cross-attention。去掉每层 K/V 的 7 份重复 head，节省：</p>
+<div class="formula" data-latex="\Delta P_{\mathrm{attn}}=18\cdot2\cdot1024\cdot128\cdot(8-1)=33{,}030{,}144." id="formula-15"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Δ</mi><msub><mi>P</mi><mrow><mrow><mi mathvariant="normal">a</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">n</mi></mrow></mrow></msub><mo>=</mo><mn>18</mn><mo>·</mo><mn>2</mn><mo>·</mo><mn>1024</mn><mo>·</mo><mn>128</mn><mo>·</mo><mo stretchy="false">(</mo><mn>8</mn><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><mo>=</mo><mn>33</mn><mrow><mo>,</mo></mrow><mn>030</mn><mrow><mo>,</mo></mrow><mn>144</mn><mo>.</mo></mrow></math><span class="formula-label">Agent-created · 原代码/shape 的数学重构 · selectable MathML</span><details><summary>Copy LaTeX</summary><pre><code>\Delta P_{\mathrm{attn}}=18\cdot2\cdot1024\cdot128\cdot(8-1)=33{,}030{,}144.</code></pre></details></div>
+<p>12 个 FFN 各有两个矩阵，扩宽 5440−4096=1344，增加 12·2·1024·1344=33,030,144，正好抵消。LM 对应节省 11,010,048，扩宽 9088−8192=896 同样抵消。以上是按主要矩阵的参数账；原文没有逐项交代 bias 参数与约 211M/192M 的细粒度舍入。</p>
+<p>因此实验有一个明确优点：没有靠减少总参数量取得速度。也有一个归因边界：<strong>MQA sharing 与把容量重新分配给 FFN 同时发生</strong>；它们对质量的贡献没有在正文表中完全分离。TeX 中有被注释掉的同 dff 行，但不属于已发表表格结果，本文不把它们当正式证据。</p>
+<p>local 变体只让 decoder self-attention 看当前与此前 31 个位置，总窗口 32；encoder 和 cross-attention 不截断。减 h、减 dk/dv 的替代变体使 h·k=128，并扩宽 FFN，以保持总参数。这些变体的 query 总宽度比 MQA 的 1024 小，不能说两类方法保留了相同的 attention 表达能力。</p>
+<h3 id="section-19">4.2 Model Quality — Table 1：共享 KV 比削弱读头更稳</h3>
+<section class="table-evidence" id="table-1"><p class="table-title">Original Paper · Table 1 · PDF p.8</p><div aria-label="Original Table 1, all rows and columns, horizontally scrollable" class="table-scroll" role="region" tabindex="0"><table class="original-table">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col">
+Attention</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col"><math alttext="h" class="ltx_Math" display="inline"><semantics><mi>h</mi></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col"><math alttext="d_{k},d_{v}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>d</mi><mi>k</mi></msub><mo>,</mo><msub><mi>d</mi><mi>v</mi></msub></mrow></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" scope="col"><math alttext="d_{ff}" class="ltx_Math" display="inline"><semantics><msub><mi>d</mi><mrow><mi>f</mi><mo lspace="0em" rspace="0em">​</mo><mi>f</mi></mrow></msub></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col">ln(PPL)</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" scope="col">BLEU</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col">BLEU (test)</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column" scope="col">Type</th>
+<th class="ltx_td ltx_th ltx_th_column" scope="col"></th>
+<th class="ltx_td ltx_th ltx_th_column" scope="col"></th>
+<th class="ltx_td ltx_th ltx_th_column ltx_border_r" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column" scope="col">(dev)</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r" scope="col">(dev)</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column" scope="col">beam 1 / 4</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">multi-head</td>
+<td class="ltx_td ltx_align_center ltx_border_t">8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">128</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">4096</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">1.424</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">26.7</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">27.7 / 28.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">multi-query</td>
+<td class="ltx_td ltx_align_center">8</td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td ltx_align_center ltx_border_r">5440</td>
+<td class="ltx_td ltx_align_center">1.439</td>
+<td class="ltx_td ltx_align_center ltx_border_r">26.5</td>
+<td class="ltx_td ltx_align_center">27.5 / <span class="ltx_text ltx_font_bold">28.5</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">multi-head local</td>
+<td class="ltx_td ltx_align_center">8</td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td ltx_align_center ltx_border_r">4096</td>
+<td class="ltx_td ltx_align_center">1.427</td>
+<td class="ltx_td ltx_align_center ltx_border_r">26.6</td>
+<td class="ltx_td ltx_align_center">27.5 / 28.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">multi-query local</td>
+<td class="ltx_td ltx_align_center">8</td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td ltx_align_center ltx_border_r">5440</td>
+<td class="ltx_td ltx_align_center">1.437</td>
+<td class="ltx_td ltx_align_center ltx_border_r">26.5</td>
+<td class="ltx_td ltx_align_center">27.6 / 28.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">multi-head</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">128</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">6784</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.518</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">25.8</td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">multi-head</td>
+<td class="ltx_td ltx_align_center">2</td>
+<td class="ltx_td ltx_align_center">64</td>
+<td class="ltx_td ltx_align_center ltx_border_r">6784</td>
+<td class="ltx_td ltx_align_center">1.480</td>
+<td class="ltx_td ltx_align_center ltx_border_r">26.2</td>
+<td class="ltx_td ltx_align_center">26.8 / 27.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">multi-head</td>
+<td class="ltx_td ltx_align_center">4</td>
+<td class="ltx_td ltx_align_center">32</td>
+<td class="ltx_td ltx_align_center ltx_border_r">6784</td>
+<td class="ltx_td ltx_align_center">1.488</td>
+<td class="ltx_td ltx_align_center ltx_border_r">26.1</td>
+<td class="ltx_td"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_b">multi-head</td>
+<td class="ltx_td ltx_align_center ltx_border_b">8</td>
+<td class="ltx_td ltx_align_center ltx_border_b">16</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">6784</td>
+<td class="ltx_td ltx_align_center ltx_border_b">1.513</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">25.8</td>
+<td class="ltx_td ltx_border_b"></td></tr>
+</tbody>
+</table></div><details class="original-caption"><summary>Original PDF view / 完整原表与原始 Caption</summary><figure class="original-figure"><button aria-label="Zoom original Table 1" data-zoom="assets/original/table-01-wmt-quality.png" type="button"><img alt="Table 1: WMT14 EN-DE Results." decoding="async" loading="lazy" src="assets/original/table-01-wmt-quality.png"/></button><figcaption>Table 1: WMT14 EN-DE Results. · Source: arXiv:1911.02150v1, p.8 · <a href="assets/original/table-01-wmt-quality.png">Open full resolution ↗</a></figcaption></figure></details></section>
+<p><strong>如何阅读。</strong> ln(PPL) 越低越好；BLEU 越高越好。原表没有添加 ↑↓，本文解释方向而不改写原表。dev 用 WMT13，test 用 WMT14；test 两个数字对应 greedy 与 beam=4、α=0.6。部分替代变体 test 列留空，表示原文没有报告，不表示 0。原有 bold 完整保留。</p>
+<p><strong>主比较。</strong> MHA → MQA，dev ln(PPL) 1.424 → 1.439，差 +0.015。还原 PPL 的相对变化为 exp(0.015)−1≈<strong>+1.51%</strong>。dev BLEU 26.7 → 26.5，下降 <strong>0.2 个 BLEU 点</strong>；test greedy 27.7 → 27.5，同样下降 0.2。test beam-4 28.4 → 28.5，增加 0.1。</p>
+<p>这支持“质量接近”，不支持“MQA 更准确”。没有多随机种子、置信区间或 bootstrap，0.1 BLEU 不能被当作统计显著优势。相对 dev BLEU 变化约 −0.75%，但 BLEU 不是线性效用尺度，优先看绝对点差。</p>
+<p><strong>替代基线。</strong> h=2、k=v=64 是列出的削减变体中 dev ln(PPL) / BLEU 最好的，仍为 1.480 / 26.2，落后 MQA 的 1.439 / 26.5。h=1 或 h=8、k=16 的 dev BLEU 为 25.8。更合理的解释是：在这组预算下，保留多个宽 query，让它们共享 KV，比同时削弱 query 视角更划算。</p>
+<p><strong>local 交互。</strong> MQA local 的 dev ln(PPL)=1.437，略好于 global MQA 的 1.439；test beam=28.2 却低于 global 28.5。它说明可组合，不能说明 local 无质量代价。</p>
+<p>评估命令原样保留：<code>sacrebleu -t wmt13 -l en-de -tok intl</code> 与 <code>sacrebleu -t wmt14 -l en-de -tok intl</code>。原文没有 sacrebleu 版本和完整 signature；其数值不能与使用其他 tokenizer、case、参考集的 BLEU 直接拼成 SOTA 排名。</p>
+<h3 id="section-20">4.2 Model Quality — Table 3：语言建模上出现相同趋势</h3>
+<section class="table-evidence" id="table-3"><p class="table-title">Original Paper · Table 3 · PDF p.8</p><div aria-label="Original Table 3, all rows and columns, horizontally scrollable" class="table-scroll" role="region" tabindex="0"><table class="original-table">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col">
+Attention</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col"><math alttext="h" class="ltx_Math" display="inline"><semantics><mi>h</mi></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col"><math alttext="d_{k},d_{v}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>d</mi><mi>k</mi></msub><mo>,</mo><msub><mi>d</mi><mi>v</mi></msub></mrow></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" scope="col"><math alttext="d_{ff}" class="ltx_Math" display="inline"><semantics><msub><mi>d</mi><mrow><mi>f</mi><mo lspace="0em" rspace="0em">​</mo><mi>f</mi></mrow></msub></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col">dev-PPL</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">multi-head</td>
+<td class="ltx_td ltx_align_center ltx_border_t">8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">128</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">8192</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">29.9</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">multi-query</td>
+<td class="ltx_td ltx_align_center">8</td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td ltx_align_center ltx_border_r">9088</td>
+<td class="ltx_td ltx_align_center">30.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">multi-head</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">128</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">9984</td>
+<td class="ltx_td ltx_align_center ltx_border_t">31.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">multi-head</td>
+<td class="ltx_td ltx_align_center">2</td>
+<td class="ltx_td ltx_align_center">64</td>
+<td class="ltx_td ltx_align_center ltx_border_r">9984</td>
+<td class="ltx_td ltx_align_center">31.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">multi-head</td>
+<td class="ltx_td ltx_align_center">4</td>
+<td class="ltx_td ltx_align_center">32</td>
+<td class="ltx_td ltx_align_center ltx_border_r">9984</td>
+<td class="ltx_td ltx_align_center">31.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_b">multi-head</td>
+<td class="ltx_td ltx_align_center ltx_border_b">8</td>
+<td class="ltx_td ltx_align_center ltx_border_b">16</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r">9984</td>
+<td class="ltx_td ltx_align_center ltx_border_b">30.9</td></tr>
+</tbody>
+</table></div><details class="original-caption"><summary>Original PDF view / 完整原表与原始 Caption</summary><figure class="original-figure"><button aria-label="Zoom original Table 3" data-zoom="assets/original/table-03-lm-quality.png" type="button"><img alt="Table 3: Billion-Word LM Benchmark Results." decoding="async" loading="lazy" src="assets/original/table-03-lm-quality.png"/></button><figcaption>Table 3: Billion-Word LM Benchmark Results. · Source: arXiv:1911.02150v1, p.8 · <a href="assets/original/table-03-lm-quality.png">Open full resolution ↗</a></figcaption></figure></details></section>
+<p><strong>指标。</strong> 这里是 dev <strong>per-word</strong> perplexity，越低越好；与翻译表的 per-subword ln(PPL) 不是同一个尺度。PPL 是负 log-likelihood 的指数变换，不是分类准确率，不能从这三张表推出 TP/FP/TN/FN、Precision、Recall、F1。</p>
+<p>MHA → MQA：29.9 → 30.2，绝对 +0.3，相对约 <strong>+1.00%</strong>。最好的削减变体为 h=8、k=v=16，PPL=30.9；它比 MQA 高 0.7，约 2.32%。其余削减变体为 31.0–31.2。</p>
+<p>这个结果为翻译之外的任务提供了补充证据。但只有一个较小的 6 层语言模型和一个 benchmark，且 Billion-Word 主要由被打乱的独立句子构成，无法证明长文档、多模态、复杂推理或巨大模型的质量不受影响。论文没有提供该任务的加速比。</p>
+<h3 id="section-21">4.3 Speed — Table 2：摊销微秒与 wall time 的区别</h3>
+<section class="table-evidence" id="table-2"><p class="table-title">Original Paper · Table 2 · PDF p.8</p><div aria-label="Original Table 2, all rows and columns, horizontally scrollable" class="table-scroll" role="region" tabindex="0"><table class="original-table">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t" scope="col">
+Attention</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" scope="col">Training</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" scope="col">Inference</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" scope="col">Beam-4 Search</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_th_row ltx_border_r" scope="col">Type</th>
+<th class="ltx_td ltx_th ltx_th_column ltx_border_r" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r" scope="col">enc. + dec.</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column" scope="col">enc. + dec.</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">multi-head</th>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">13.2</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1.7 + 46</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.0 + 203</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">multi-query</th>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">13.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r">1.5 + 3.8</td>
+<td class="ltx_td ltx_align_center">1.6 + 32</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">multi-head local</th>
+<td class="ltx_td ltx_align_center ltx_border_r">13.2</td>
+<td class="ltx_td ltx_align_center ltx_border_r">1.7 + 23</td>
+<td class="ltx_td ltx_align_center">1.9 + 47</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_b ltx_border_r">multi-query local</th>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r"><span class="ltx_text ltx_font_bold">13.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r"><span class="ltx_text ltx_font_bold">1.5 + 3.3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b"><span class="ltx_text ltx_font_bold">1.6 + 16</span></td></tr>
+</tbody>
+</table></div><details class="original-caption"><summary>Original PDF view / 完整原表与原始 Caption</summary><figure class="original-figure"><button aria-label="Zoom original Table 2" data-zoom="assets/original/table-02-wmt-speed.png" type="button"><img alt="Table 2: Amortized training and inference costs for WMT14 EN-DE Translation Task with sequence length 128. Values listed are in TPUv2-microseconds per output token." decoding="async" loading="lazy" src="assets/original/table-02-wmt-speed.png"/></button><figcaption>Table 2: Amortized training and inference costs for WMT14 EN-DE Translation Task with sequence length 128. Values listed are in TPUv2-microseconds per output token. · Source: arXiv:1911.02150v1, p.8 · <a href="assets/original/table-02-wmt-speed.png">Open full resolution ↗</a></figcaption></figure></details></section>
+<p><strong>条件。</strong> 单 TPUv2（8 cores），greedy inference batch=1024（每 core 128），source/target 各 128 token。self-attention memory 固定 padding 到 128；local 模型为 32。每一步执行固定 shape，所以作者测得每步耗时恒定。训练计时用 input/target 各 256 token，不能被表 caption 的“sequence length 128”误导。</p>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>从原文及 Table 2 重算</th>
+<th style="text-align: right;">MHA</th>
+<th style="text-align: right;">MQA</th>
+<th>正确解读</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Greedy encoder wall time</td>
+<td style="text-align: right;">222 ms</td>
+<td style="text-align: right;">195 ms</td>
+<td>整个输入 batch 一次编码</td>
+</tr>
+<tr>
+<td>Greedy decoder step wall time</td>
+<td style="text-align: right;">47 ms</td>
+<td style="text-align: right;">3.9 ms</td>
+<td>一步为每条序列各生成一个 token</td>
+</tr>
+<tr>
+<td>Greedy decoder 摊销成本</td>
+<td style="text-align: right;">46 μs</td>
+<td style="text-align: right;">3.8 μs</td>
+<td>wall time ÷ 1024，不是单请求延迟</td>
+</tr>
+<tr>
+<td>Decoder speedup</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">≈12.1×</td>
+<td>rounded 46/3.8；raw 47/3.9≈12.05×</td>
+</tr>
+<tr>
+<td>Encoder+decoder 摊销总成本</td>
+<td style="text-align: right;">47.7 μs</td>
+<td style="text-align: right;">5.3 μs</td>
+<td>等 source/target 长度下约 9.0×</td>
+</tr>
+<tr>
+<td>Beam-4 decoder 摊销成本</td>
+<td style="text-align: right;">203 μs</td>
+<td style="text-align: right;">32 μs</td>
+<td>约 6.34×；不同于 greedy</td>
+</tr>
+</tbody>
+</table></div>
+<p>greedy decoder 的时间下降约 91.7%，beam-4 约 84.2%。把 encoder 纳入后 greedy 全程约为 222+128·47=6238 ms 与 195+128·3.9=694.2 ms，约 <strong>8.99×</strong>。这与表中舍入数算出的 9.0×一致，不包含完整线上服务调度、网络或 tokenization。</p>
+<p><strong>TPOT。</strong> 在这个 batch 设置下，一条序列相邻 token 的 step 间隔约为 47 / 3.9 ms，不是 46 / 3.8 μs。<strong>Throughput。</strong> batch 同时产出 1024 个 token，故可以由 batch/step 推得吞吐，但不能由此推出 b=1 的速度。<strong>TTFT。</strong> 论文没有现代服务定义下的独立 TTFT 测量，encoder wall time也不能直接替代端到端 TTFT。</p>
+<p><strong>local 的作用。</strong> MHA decoder 46 → 23，MQA 3.8 → 3.3；在 MQA 下再缩窗口的收益较小。它与“共享后 KV 成本不再是唯一瓶颈”的解释一致，但论文没有 per-op profiling，不能据此断言余下多少时间来自 FFN、softmax、参数读取或 beam 处理。</p>
+<p><strong>训练。</strong> 433 → 425 ms/step，改善约 1.85%；表中 13.2 → 13.0 μs。原文以 32,768 作分母，实际一步同时有 32,768 input 和 32,768 target token。因此它相当于每个 input/target 配对或每 target token 的成本；若把两侧 token 都计入，baseline 是约 6.61 μs/物理 token。原文措辞 “per (input-token + target-token)” 存在口径歧义，本文显式说明，不悄悄改掉表中数值。</p>
+<div class="callout interpretation"><strong>为什么加速可以超过 h=8？</strong>h 倍是单份 KV 容量的精确比例，并非整模型时间上界。这里还改变多个 attention 通路的投影、shape、可能的 kernel 效率及 FFN 分配。论文没有把 12 倍分解到算子或带宽 counter，不能把 12.1× 全归因于“少读 8 倍 KV”，也不能用它证明理想带宽模型失效。</div>
+<h2 id="section-22">5. Conclusion：证据支持的是一个有效的架构取舍</h2>
+<p><strong>原文 §5，PDF p.8。</strong> 作者提出 MQA，把增量推理中的 KV memory-bandwidth 要求大幅降低，认为它能帮助 attention 模型进入推理性能敏感的应用。</p>
+<p>在本文设置中，这个结论有两个证据支点：等总参数模型在两个任务上质量接近；大 batch TPUv2 翻译 decoder 明显加速。它没有证明任意 MHA checkpoint 可无损转换，没有证明所有任务/硬件/batch 都同样受益，也没有证明固定窗口或大模型训练稳定性。</p>
+<p>原论文 References 在 pp.8–9，连接 Bahdanau attention、Transformer、长序列压缩、average attention 和 time-restricted attention。没有单独的 related-work 章节，也没有附录。下面内容均为本文扩展分析。</p>
+<h2 id="section-23">6. Experiment Audit：哪些结论足够，哪些仍缺证据</h2>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>审计维度</th>
+<th>原文确实提供</th>
+<th>需要保留的边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Novelty / mechanism</td>
+<td>保留 query heads、共享 K/V；容量账清晰</td>
+<td>模型参数化变化，不是对任意 MHA 的等价加速</td>
+</tr>
+<tr>
+<td>Baseline fairness</td>
+<td>同任务、训练步数、硬件；总参数对齐</td>
+<td>FFN 扩宽使注意力与 FFN 贡献耦合</td>
+</tr>
+<tr>
+<td>Quality</td>
+<td>翻译 dev/test、多 decoding；LM dev PPL</td>
+<td>无多种子、显著性、长上下文或大型模型</td>
+</tr>
+<tr>
+<td>Speed</td>
+<td>8-core TPUv2；greedy/beam；窗口对比</td>
+<td>batch=1024、长度128、固定 padding；无 b=1 sweep</td>
+</tr>
+<tr>
+<td>Precision</td>
+<td>未明确报告</td>
+<td>不能凭 TPU 型号写成已证实 BF16</td>
+</tr>
+<tr>
+<td>Training recipe</td>
+<td>步数、batch、规模与总时长</td>
+<td>learning rate、optimizer、dropout、label smoothing 未完整给出</td>
+</tr>
+<tr>
+<td>Compute accounting</td>
+<td>理论 Θ 分析；FFN 的重新分配可核算</td>
+<td>无 measured FLOPs、HBM bytes、per-op time</td>
+</tr>
+<tr>
+<td>Reproducibility</td>
+<td>原 TeX、示意代码；说明用 t2t / Mesh TensorFlow</td>
+<td>配置链接仍是 “to be added before publication”</td>
+</tr>
+<tr>
+<td>Generalization</td>
+<td>两种语言任务</td>
+<td>没有 VLM、端侧 NPU 或 long-document 证据</td>
+</tr>
+<tr>
+<td>Capacity/scalability</td>
+<td>KV 存储按 head 因子下降</td>
+<td>没有实际峰值显存、最大 batch 或 tensor-parallel 测量</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>优点。</strong> 方法非常小，却把模型设计与 inference IO 直接连起来；作者没有只报最快的一个结果，而同时给 global/local、greedy/beam 与削减 attention 的替代路线。</p>
+<p><strong>弱点。</strong> 主性能点非常依赖大 batch、短固定长度与 TPU 实现；超参数发布承诺没有兑现到当前 v1 文本；质量差异缺乏统计估计；代码有会影响执行的错误。它应被视为强机制与初步实证，不是今天完整的 serving benchmark。</p>
+<p><strong>隐藏成本。</strong> 少 KV head 可能限制表示；等参数时 FFN 变宽；共享 KV 的高效 kernel 需要跨 query head 复用；head-axis TP 常需要复制单组 KV；量化 cache 还涉及 scale/zero-point、误差和混合 dtype，不是只乘一个 byte 数。</p>
+<p><strong>我希望补的实验。</strong> b∈{1,8,64,1024}、长度从 128 到长上下文的 sweep；相同 FFN 与相同参数两组控制；逐层/逐算子 time 与读写 bytes；多种子 BLEU/PPL；native shared-KV kernel 对比物化 repeat；完整 TTFT/TPOT/throughput 与峰值 cache；TP 与 beam/prefix sharing 场景。这些是建议，本文没有声称运行了它们。</p>
+<h2 id="section-24">7. Related Work：从共享写头到不同的持久状态</h2>
+<p>扩展资料优先原论文、作者/组织代码，检索截止 <strong>2026-10-27</strong>。下面区分历史机制、后续实验和系统实现，不把不同任务的数字混在一起。</p>
+<h3 id="section-25">7.1 Before / Concurrent：减少位置与减少 head 是两个轴</h3>
+<p>2017 Transformer 的 MHA 是本文的出发点。2018 年 long-sequence summarization、Average Attention Network 和 time-restricted attention 等路线改变 memory positions、聚合方式或可见区域；MQA 在保留全局历史位置的情况下减少 head multiplicity。local 与 MQA 的组合实验正是验证这种区别。[R1, R2]</p>
+<p>2019 年的证据应放回当时背景：主要是 200M 级语言任务、TPU、较短序列。不能用今天的巨大 decoder-only LLM benchmark 替换作者原本的问题；也不能因为今天普遍有 KV cache，就忽略“cache 仍要读”在当时模型设计中的价值。</p>
+<h3 id="section-26">7.2 After：PaLM、GQA 与 Llama</h3>
+<p><strong>PaLM（2022）。</strong> 其 Architecture 章节明确写 K/V 为 [1,head_dim]，Q 保持多个 head，并与 RoPE 一同使用，报告其设置下质量与训练速度大体中性、decode 更经济。这提供规模化应用证据，但不是对 2019 年实验的相同配置复现。[R3]</p>
+<p><strong>GQA（2023，EMNLP）。</strong> 设置 G 个 KV head，每组 h/G 个 query。G=h 恢复 MHA，G=1 恢复 MQA。另提出把 MHA checkpoint 的 K/V heads 按组 mean-pool，然后用原预训练计算约 5% 的 uptraining 适应新表示。T5 实验中选择 G=8 为质量/速度折中。[R4]</p>
+<p>这回答了 MQA 原文没有回答的迁移问题：sharing 不是一个可以无损删除的 tensor 轴。平均投影只能给出初始化，后续训练用于恢复能力；“5%”是该研究方案的预算与结果，不是所有模型的通用承诺。</p>
+<p><strong>Llama 3（2024）。</strong> 官方模型论文明确采用 8 个 KV heads 的 GQA 以改善 decode 并缩小 cache。这说明实际部署常选中间点，不意味着所有层、所有新模型都必须 G=8。[R6]</p>
+<h3 id="section-27">7.3 Orthogonal：FlashAttention 与 PagedAttention</h3>
+<p>FlashAttention 通过分块、在线 softmax 和片上复用减少 attention 计算过程的 IO，保持 exact attention 语义。MQA 改的是模型中 K/V 的表示自由度。二者可以共存：一个减少“历史要存多少”，另一个优化“拿到历史后怎样计算”。[R5]</p>
+<p>PagedAttention / vLLM 处理动态 KV 分配、碎片、复制与共享，提高可用 batch 和吞吐。它不把 MHA checkpoint 改成 MQA；MQA/GQA 缩小 block payload，paging 管理这些 blocks。prefix cache reuse 又是跨请求的语义共享，与单模型多 query heads 共享不是一回事。[R7]</p>
+<h3 id="section-28">7.4 MLA：cache 里不一定要显式存 K 和 V</h3>
+<p>DeepSeek-V2（2024）的 MLA 保存联合低秩 latent 与单独的 RoPE key，通过吸收上投影，decode 可直接在 latent 上计算。若 latent 宽度 r、位置通道宽度 dr，每层每 token 状态为 r+dr，而 MQA 是 k+v；谁更小取决于实际宽度，不能只凭“latent”命名判断。[R8]</p>
+<p>关键区别是：MQA 让每个 head 共享同一显式 K/V 空间；MLA 让持久状态共享低秩 latent，可保留 head-specific 上投影。矩阵吸收与位置旋转之间有条件：一般 RoPE 不能随意穿过任意 learned projection，DeepSeek 用 decoupled positional path 避开这一点。可与站内 <a href="../roformer/">RoFormer 精读</a> 的旋转与相对位置分析对照。</p>
+<h3 id="section-29">7.5 Related-work Matrix</h3>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作</th>
+<th style="text-align: right;">年份</th>
+<th>核心机制</th>
+<th>优势</th>
+<th>限制 / 与 MQA 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transformer [R2]</td>
+<td style="text-align: right;">2017</td>
+<td>每个 head 独立 Q/K/V</td>
+<td>表达自由度高</td>
+<td>cache 与 head 数成正比，MQA 的基线</td>
+</tr>
+<tr>
+<td>MQA [R1]</td>
+<td style="text-align: right;">2019</td>
+<td>多 Q，共用一组 K/V</td>
+<td>极小改动，KV 减 h 倍</td>
+<td>写表示受限；TP 可能复制</td>
+</tr>
+<tr>
+<td>PaLM [R3]</td>
+<td style="text-align: right;">2022</td>
+<td>大模型采用 MQA + RoPE</td>
+<td>规模化应用</td>
+<td>多项架构同时改变，无同设置因果归因</td>
+</tr>
+<tr>
+<td>FlashAttention [R5]</td>
+<td style="text-align: right;">2022</td>
+<td>exact attention IO tiling</td>
+<td>少中间矩阵读写</td>
+<td>不减少模型规定的 KV head 数；可组合</td>
+</tr>
+<tr>
+<td>GQA [R4]</td>
+<td style="text-align: right;">2023</td>
+<td>多 KV groups + checkpoint uptraining</td>
+<td>控制质量/速度折中</td>
+<td>多于 MQA 的 cache；转换需适应</td>
+</tr>
+<tr>
+<td>PagedAttention [R7]</td>
+<td style="text-align: right;">2023</td>
+<td>分块动态分配与共享</td>
+<td>降碎片、扩大 batch</td>
+<td>存储管理层；不改变 attention 参数化</td>
+</tr>
+<tr>
+<td>Llama 3 [R6]</td>
+<td style="text-align: right;">2024</td>
+<td>8 KV-head GQA</td>
+<td>开放模型应用证据</td>
+<td>不能由采用本身证明全局最优</td>
+</tr>
+<tr>
+<td>DeepSeek-V2 MLA [R8]</td>
+<td style="text-align: right;">2024</td>
+<td>joint latent + decoupled RoPE</td>
+<td>紧凑持久状态，head-specific 上投影</td>
+<td>kernel、矩阵吸收与并行更复杂</td>
+</tr>
+<tr>
+<td>GTA / GLA [R9]</td>
+<td style="text-align: right;">2025</td>
+<td>tied state / grouped latent，hardware-aware kernel</td>
+<td>平衡 IO 与 TP，给出模型和 serving 实验</td>
+<td>硬件、kernel 版本、规模依赖</td>
+</tr>
+<tr>
+<td>GQLA [R10]</td>
+<td style="text-align: right;">2026</td>
+<td>同权重允许 latent / grouped cache 两种执行</td>
+<td>硬件适配的研究方向</td>
+<td>v1 硬件性能主要是 roofline；实际 kernel benchmark 待补</td>
+</tr>
+<tr>
+<td>GVA [R11]</td>
+<td style="text-align: right;">2026</td>
+<td>缓存 grouped V，用 learned map 重构 content K</td>
+<td>进一步少 cache，保留不同索引映射</td>
+<td>350M 单规模，decode 与 serving 性能未报告</td>
+</tr>
+</tbody>
+</table></div>
+<figure class="generated-figure"><div aria-label="Horizontally scrollable explanatory diagram" class="diagram-scroll" role="region" tabindex="0"><svg aria-roledescription="flowchart-v2" class="flowchart" id="mqa-evolution" role="graphics-document document" style="max-width: 906.890625px;" viewbox="0 0 906.890625 621" width="100%" xmlns="http://www.w3.org/2000/svg"><style>#mqa-evolution{font-family:Arial,sans-serif;font-size:17px;fill:#dce8fc;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#mqa-evolution .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#mqa-evolution .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#mqa-evolution .error-icon{fill:#1c2738;}#mqa-evolution .error-text{fill:#e3d8c7;stroke:#e3d8c7;}#mqa-evolution .edge-thickness-normal{stroke-width:1px;}#mqa-evolution .edge-thickness-thick{stroke-width:3.5px;}#mqa-evolution .edge-pattern-solid{stroke-dasharray:0;}#mqa-evolution .edge-thickness-invisible{stroke-width:0;fill:none;}#mqa-evolution .edge-pattern-dashed{stroke-dasharray:3;}#mqa-evolution .edge-pattern-dotted{stroke-dasharray:2;}#mqa-evolution .marker{fill:#a1badb;stroke:#a1badb;}#mqa-evolution .marker.cross{stroke:#a1badb;}#mqa-evolution svg{font-family:Arial,sans-serif;font-size:17px;}#mqa-evolution p{margin:0;}#mqa-evolution .label{font-family:Arial,sans-serif;color:#dce8fc;}#mqa-evolution .cluster-label text{fill:#e3d8c7;}#mqa-evolution .cluster-label span{color:#e3d8c7;}#mqa-evolution .cluster-label span p{background-color:transparent;}#mqa-evolution .label text,#mqa-evolution span{fill:#dce8fc;color:#dce8fc;}#mqa-evolution .node rect,#mqa-evolution .node circle,#mqa-evolution .node ellipse,#mqa-evolution .node polygon,#mqa-evolution .node path{fill:#18283e;stroke:#6888af;stroke-width:1px;}#mqa-evolution .rough-node .label text,#mqa-evolution .node .label text,#mqa-evolution .image-shape .label,#mqa-evolution .icon-shape .label{text-anchor:middle;}#mqa-evolution .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#mqa-evolution .rough-node .label,#mqa-evolution .node .label,#mqa-evolution .image-shape .label,#mqa-evolution .icon-shape .label{text-align:center;}#mqa-evolution .node.clickable{cursor:pointer;}#mqa-evolution .root .anchor path{fill:#a1badb!important;stroke-width:0;stroke:#a1badb;}#mqa-evolution .arrowheadPath{fill:#eee8df;}#mqa-evolution .edgePath .path{stroke:#a1badb;stroke-width:2.0px;}#mqa-evolution .flowchart-link{stroke:#a1badb;fill:none;}#mqa-evolution .edgeLabel{background-color:#17342f;text-align:center;}#mqa-evolution .edgeLabel p{background-color:#17342f;}#mqa-evolution .edgeLabel rect{opacity:0.5;background-color:#17342f;fill:#17342f;}#mqa-evolution .labelBkg{background-color:rgba(23, 52, 47, 0.5);}#mqa-evolution .cluster rect{fill:#1c2738;stroke:hsl(216.4285714286, 0%, 6.4705882353%);stroke-width:1px;}#mqa-evolution .cluster text{fill:#e3d8c7;}#mqa-evolution .cluster span{color:#e3d8c7;}#mqa-evolution div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:Arial,sans-serif;font-size:12px;background:#1c2738;border:1px solid hsl(216.4285714286, 0%, 6.4705882353%);border-radius:2px;pointer-events:none;z-index:100;}#mqa-evolution .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#dce8fc;}#mqa-evolution rect.text{fill:none;stroke-width:0;}#mqa-evolution .icon-shape,#mqa-evolution .image-shape{background-color:#17342f;text-align:center;}#mqa-evolution .icon-shape p,#mqa-evolution .image-shape p{background-color:#17342f;padding:2px;}#mqa-evolution .icon-shape rect,#mqa-evolution .image-shape rect{opacity:0.5;background-color:#17342f;fill:#17342f;}#mqa-evolution .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#mqa-evolution .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#mqa-evolution :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker class="marker flowchart-v2" id="mqa-evolution_flowchart-v2-pointEnd" markerheight="8" markerunits="userSpaceOnUse" markerwidth="8" orient="auto" refx="5" refy="5" viewbox="0 0 10 10"><path class="arrowMarkerPath" d="M 0 0 L 10 5 L 0 10 z" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker class="marker flowchart-v2" id="mqa-evolution_flowchart-v2-pointStart" markerheight="8" markerunits="userSpaceOnUse" markerwidth="8" orient="auto" refx="4.5" refy="5" viewbox="0 0 10 10"><path class="arrowMarkerPath" d="M 0 5 L 10 10 L 10 0 z" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker class="marker flowchart-v2" id="mqa-evolution_flowchart-v2-circleEnd" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="11" refy="5" viewbox="0 0 10 10"><circle class="arrowMarkerPath" cx="5" cy="5" r="5" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker class="marker flowchart-v2" id="mqa-evolution_flowchart-v2-circleStart" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="-1" refy="5" viewbox="0 0 10 10"><circle class="arrowMarkerPath" cx="5" cy="5" r="5" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker class="marker cross flowchart-v2" id="mqa-evolution_flowchart-v2-crossEnd" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="12" refy="5.2" viewbox="0 0 11 11"><path class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker class="marker cross flowchart-v2" id="mqa-evolution_flowchart-v2-crossStart" markerheight="11" markerunits="userSpaceOnUse" markerwidth="11" orient="auto" refx="-1" refy="5.2" viewbox="0 0 11 11"><path class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><g class="root"><g class="clusters"></g><g class="edgePaths"><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M438.891,63.5L438.891,67.667C438.891,71.833,438.891,80.167,438.891,87.833C438.891,95.5,438.891,102.5,438.891,106L438.891,109.5" data-edge="true" data-et="edge" data-id="L_A_M_0" data-points="W3sieCI6NDM4Ljg5MDYyNSwieSI6NjMuNX0seyJ4Ijo0MzguODkwNjI1LCJ5Ijo4OC41fSx7IngiOjQzOC44OTA2MjUsInkiOjExMy41fV0=" id="L_A_M_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M308.891,181.877L279.65,188.148C250.409,194.418,191.927,206.959,162.686,218.855C133.445,230.75,133.445,242,133.445,247.625L133.445,253.25" data-edge="true" data-et="edge" data-id="L_M_P_0" data-points="W3sieCI6MzA4Ljg5MDYyNSwieSI6MTgxLjg3NzMzMDc0MTQ4OTEyfSx7IngiOjEzMy40NDUzMTI1LCJ5IjoyMTkuNX0seyJ4IjoxMzMuNDQ1MzEyNSwieSI6MjU3LjI1fV0=" id="L_M_P_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M438.891,194.5L438.891,198.667C438.891,202.833,438.891,211.167,438.891,218.833C438.891,226.5,438.891,233.5,438.891,237L438.891,240.5" data-edge="true" data-et="edge" data-id="L_M_G_0" data-points="W3sieCI6NDM4Ljg5MDYyNSwieSI6MTk0LjV9LHsieCI6NDM4Ljg5MDYyNSwieSI6MjE5LjV9LHsieCI6NDM4Ljg5MDYyNSwieSI6MjQ0LjV9XQ==" id="L_M_G_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M308.891,313.383L280.557,319.569C252.224,325.756,195.557,338.128,167.224,349.939C138.891,361.75,138.891,373,138.891,378.625L138.891,384.25" data-edge="true" data-et="edge" data-id="L_G_L_0" data-points="W3sieCI6MzA4Ljg5MDYyNSwieSI6MzEzLjM4MzMzMzMzMzMzMzN9LHsieCI6MTM4Ljg5MDYyNSwieSI6MzUwLjV9LHsieCI6MTM4Ljg5MDYyNSwieSI6Mzg4LjI1fV0=" id="L_G_L_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M568.891,179.982L601.844,186.569C634.798,193.155,700.706,206.327,733.66,216.414C766.613,226.5,766.613,233.5,766.613,237L766.613,240.5" data-edge="true" data-et="edge" data-id="L_M_D_0" data-points="W3sieCI6NTY4Ljg5MDYyNSwieSI6MTc5Ljk4MjMzNTQ4Mjc5NDM4fSx7IngiOjc2Ni42MTMyODEyNSwieSI6MjE5LjV9LHsieCI6NzY2LjYxMzI4MTI1LCJ5IjoyNDQuNX1d" id="L_M_D_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M438.891,325.5L438.891,329.667C438.891,333.833,438.891,342.167,439.339,349.839C439.787,357.511,440.683,364.522,441.13,368.027L441.578,371.532" data-edge="true" data-et="edge" data-id="L_G_H_0" data-points="W3sieCI6NDM4Ljg5MDYyNSwieSI6MzI1LjV9LHsieCI6NDM4Ljg5MDYyNSwieSI6MzUwLjV9LHsieCI6NDQyLjA4NTUxMzE3ODkxMzc0LCJ5IjozNzUuNX1d" id="L_G_H_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M665.999,325.5L655.647,329.667C645.296,333.833,624.593,342.167,606.584,350.2C588.574,358.232,573.257,365.965,565.599,369.831L557.941,373.697" data-edge="true" data-et="edge" data-id="L_D_H_0" data-points="W3sieCI6NjY1Ljk5ODUwOTA2NDg4NTUsInkiOjMyNS41fSx7IngiOjYwMy44OTA2MjUsInkiOjM1MC41fSx7IngiOjU1NC4zNjk4NTgyMjY4MzcxLCJ5IjozNzUuNX1d" id="L_D_H_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M448.891,482L448.891,486.167C448.891,490.333,448.891,498.667,448.891,506.333C448.891,514,448.891,521,448.891,524.5L448.891,528" data-edge="true" data-et="edge" data-id="L_H_Q_0" data-points="W3sieCI6NDQ4Ljg5MDYyNSwieSI6NDgyfSx7IngiOjQ0OC44OTA2MjUsInkiOjUwN30seyJ4Ijo0NDguODkwNjI1LCJ5Ijo1MzJ9XQ==" id="L_H_Q_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M553.28,325.5L565.048,329.667C576.817,333.833,600.354,342.167,623.194,352.308C646.035,362.45,668.179,374.4,679.251,380.375L690.323,386.35" data-edge="true" data-et="edge" data-id="L_G_V_0" data-points="W3sieCI6NTUzLjI3OTkzNzk3NzA5OTMsInkiOjMyNS41fSx7IngiOjYyMy44OTA2MjUsInkiOjM1MC41fSx7IngiOjY5My44NDI3MDE2NzczMTYzLCJ5IjozODguMjV9XQ==" id="L_G_V_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path><path class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" d="M774.205,325.5L774.986,329.667C775.767,333.833,777.329,342.167,777.39,351.964C777.452,361.761,776.012,373.022,775.293,378.652L774.573,384.282" data-edge="true" data-et="edge" data-id="L_D_V_0" data-points="W3sieCI6Nzc0LjIwNDYxNTkzNTExNDUsInkiOjMyNS41fSx7IngiOjc3OC44OTA2MjUsInkiOjM1MC41fSx7IngiOjc3NC4wNjYzNDM4NDk4NDAyLCJ5IjozODguMjV9XQ==" id="L_D_V_0" marker-end="url(#mqa-evolution_flowchart-v2-pointEnd)" style=";"></path></g><g class="edgeLabels"><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g><rect class="background" style="stroke: none"></rect></g><g class="edgeLabel"><g class="label" data-id="L_A_M_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_M_P_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_M_G_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_G_L_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_M_D_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_G_H_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_D_H_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_H_Q_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_G_V_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g><g class="edgeLabel"><g class="label" data-id="L_D_V_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" dy="1.1em" x="0" y="-0.1em"></tspan></text></g></g></g><g class="nodes"><g class="node default" id="flowchart-A-0" transform="translate(438.890625, 35.75)"><rect class="basic label-container" height="55.5" style="" width="241.40625" x="-120.703125" y="-27.75"></rect><g class="label" style="" transform="translate(-90.703125, -12.75)"><rect></rect><foreignobject height="25.5" width="181.40625"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2017: Transformer MHA</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-M-1" transform="translate(438.890625, 154)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2019: MQA - separate readers, shared history</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-P-3" transform="translate(133.4453125, 285)"><rect class="basic label-container" height="55.5" style="" width="250.890625" x="-125.4453125" y="-27.75"></rect><g class="label" style="" transform="translate(-95.4453125, -12.75)"><rect></rect><foreignobject height="25.5" width="190.890625"><div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2022: PaLM adopts MQA</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-G-5" transform="translate(438.890625, 285)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2023: GQA - tunable KV groups + uptraining</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-L-7" transform="translate(138.890625, 428.75)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2024: Llama 3 adopts 8 KV heads</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-D-9" transform="translate(766.61328125, 285)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2024: MLA - joint latent + decoupled RoPE</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-H-11" transform="translate(448.890625, 428.75)"><rect class="basic label-container" height="106.5" style="" width="260" x="-130" y="-53.25"></rect><g class="label" style="" transform="translate(-100, -38.25)"><rect></rect><foreignobject height="76.5" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2025: GTA / GLA - grouped states + hardware-aware kernels</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-Q-15" transform="translate(448.890625, 572.5)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2026: GQLA - multiple execution paths</p></span></div></foreignobject></g></g><g class="node default" id="flowchart-V-17" transform="translate(768.890625, 428.75)"><rect class="basic label-container" height="81" style="" width="260" x="-130" y="-40.5"></rect><g class="label" style="" transform="translate(-100, -25.5)"><rect></rect><foreignobject height="51" width="200"><div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;" xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>2026: GVA - reconstruct content keys from values</p></span></div></foreignobject></g></g></g></g></g></svg></div><figcaption>Agent-created Mermaid · Concept evolution; arrows indicate reading relationships, not all direct citations · 窄屏可横向滚动查看完整示意。</figcaption><details><summary>Mermaid source</summary><pre><code>flowchart TD
+    A["2017: Transformer MHA"] --&gt; M["2019: MQA - separate readers, shared history"]
+    M --&gt; P["2022: PaLM adopts MQA"]
+    M --&gt; G["2023: GQA - tunable KV groups + uptraining"]
+    G --&gt; L["2024: Llama 3 adopts 8 KV heads"]
+    M --&gt; D["2024: MLA - joint latent + decoupled RoPE"]
+    G --&gt; H["2025: GTA / GLA - grouped states + hardware-aware kernels"]
+    D --&gt; H
+    H --&gt; Q["2026: GQLA - multiple execution paths"]
+    G --&gt; V["2026: GVA - reconstruct content keys from values"]
+    D --&gt; V
+</code></pre></details></figure>
+<h2 id="section-30">8. Current State / SOTA：截止 2026-10-27 的证据地图</h2>
+<p>“最快 attention”至少需要指定硬件、batch、上下文、query length、TP、dtype、模型质量和比较 kernel 版本。本文没有找到能把 MQA、GQA、MLA 及最新变体在全部这些条件下统一排名的可靠公开证据，因而不指定一个跨设置的 SOTA 冠军。以下是已检索一手材料中的具体进展。</p>
+<p><strong>GLA / GTA（2025）。</strong> “Hardware-Efficient Attention for Fast Decoding” 在 1.47B、FineWeb-Edu 模型设置中，报告 GTA PPL=10.12 vs GQA=10.20；GLA 下游平均 accuracy=60.0% vs MLA=59.1%，PPL=10.21 vs 10.25。optimized decode kernel 在部分条件下快于 FlashMLA 1.2–2×，特别是 query length≥2；原比较明确绑定 <strong>2025-03-28 版本的 FlashMLA</strong>，线上 serving 最多约 2×也是其特定实验结果。[R9]</p>
+<p>2026-10-27 检查的官方仓库仍提供 modeling，kernel 指向 FlashAttention 的 Hopper 路径，要求 Hopper GPUs、CUDA≥12.3，建议12.8。这里的“开源”指可检查源码，不表示本地 Apple CPU 具备对应 GPU 环境，也不表示论文的 peak speed 能直接迁移到 HTP/NPU。</p>
+<p><strong>GQLA（2026-05，v1）。</strong> 提出同一训练参数可走 compact latent 的 MQA-absorb path，或 grouped expanded-cache 的 GQA path。其 Llama-3-8B 转换例子报告 latent path cache 为原 GQA 的28.125%。但 Limitations 明确：H100/H20 的硬件结论主要来自 roofline；真实 kernel 对比仍待做，继续预训练结果部分仍为预测。[R10] 本文不把摘要里的 near-ideal MTP gain 当作已实测吞吐。</p>
+<p><strong>GVA（2026-09，v1）。</strong> 在约350M、30B FineWeb-Edu token 的实验中，DRoPE-16 variant 五任务平均 accuracy=44.35，GQA=44.36，MLA=43.88；按三种 random seed 的 benchmark 结果取平均。理论持久状态比 matched GQA 少约45–47%。但同一论文明确没有报告 fused decode throughput、serving peak memory 或 batch capacity，kernel 正在测试，release 仍是计划。[R11]</p>
+<p>这组新材料再次说明：<strong>紧凑状态、质量接近和真正低延迟是三个需要分别验证的命题。</strong> 不能把 GVA 的44.35与 GLA 的60.0横向比高低：模型规模、训练预算、任务集合、评测协议不同。</p>
+<h2 id="section-31">9. Implementation Notes：从公式走到 runner</h2>
+<h3 id="section-32">数据布局与 per-op 检查</h3>
+<ol>
+<li><strong>投影与 cache write。</strong> 把 hKV 从 h 调至1或G，需要匹配训练权重。native runner 持有 [L,B,hKV,T,k] 或等价布局；不能靠裁掉已有 checkpoint 的 head 实现数学等价。</li>
+<li><strong>QK。</strong> 按 query head 找所属 KV group；MQA 全部映射到0。同组 KV tile 读入后应被多个 Q 复用，避免物化 h 份 <code>repeat</code>。</li>
+<li><strong>softmax。</strong> 仍对每个 query/head 在可见 token 轴独立归一化；local mask、padding mask 和 causal boundary 必须一致。</li>
+<li><strong>weighted V 与 output。</strong> 每个 query head 的聚合不同，输出投影仍保留 h。K/V 共享不意味着输出可省为一个 head。</li>
+<li><strong>cache 生命周期。</strong> 用已分配 token slot 更新 K/V；真实长度与可见窗口分开，不能把 padding 容量误当有效位置。prefix/beam sharing 需要独立处理所有权与写入语义。</li>
+</ol>
+<p>Mesh TensorFlow 的固定 commit 是实现参考，不是被恢复的2019实验 release。其 <code>memory_heads_dims</code> 与 query heads 分离，可以表达 MQA/GQA；<code>shared_kv=True</code> 则有另一个含义：K 和 V 共享投影/表示。[R12] <strong>跨 head 共享 K/V 与让 K=V 是不同操作。</strong></p>
+<h3 id="section-33">RoPE、量化与 tensor parallel</h3>
+<p>MQA 可以与普通 RoPE 组合：按 token position 旋转 Q 与共享 K，K 在写 cache 时旋转一次，V 保持原样。同组 query heads 使用相容的位置约定。RoPE 不改变 token slot 数；多模态 position IDs 的数值跨度也不代表 KV 更短，可对照 <a href="../vrope/">VRoPE 精读</a>。</p>
+<p>cache INT8/INT4 需要独立评估 K 的 logit 误差和 V 的聚合误差。容量缩小是 shape 与 bytes 的结论，精度是否保住取决于真实校准、scale 粒度、异常值与各层敏感性，本文交互不生成“位宽 → 准确率”的虚假曲线。</p>
+<p>head-axis tensor parallel 分割 query heads 时，MQA 的单组 KV 常要在参与设备上复制，或通过其他方式传输。GQA 可按 group 分片，但若 TP 超过 KV group 数也可能复制。总 cluster cache、per-device cache 和通信必须分别计数；单卡 h 倍节省不能直接套到每卡。</p>
+<h3 id="section-34">面向端侧与服务端的测量</h3>
+<p>端侧 b=1 时参数读取的1/b项很大，小模型/短上下文也可能被 dispatch、RPC、转置或 kernel 不支持拖慢。应把 TTFT、稳定 TPOT、各 op latency、实际 memory traffic、cache 峰值放在同一组 workload 下观察。对 HTP/NPU，要确认 shared-head broadcast 由计算 kernel 直接支持，而不是退回 host repeat 或额外 tensor copy。</p>
+<p>服务端 b 较大时，MQA/GQA 节省的 cache 可能容纳更多请求，改变吞吐；为了归因，先比较固定 batch，再比较固定 memory budget 下的最大 batch。两种结果都有效，但回答的问题不同。</p>
+<p>本文没有执行训练或 accelerator benchmark；<a href="assets/evidence/mechanism-checks.json">CPU mechanism evidence</a> 与 <a href="assets/evidence/verify_mechanism.py">可运行验证程序</a> 只覆盖因果全序列/逐步等价、参数守恒及论文数字重算。</p>
+<h2 id="section-35">10. My Takeaways / Open Questions</h2>
+<div class="callout interpretation"><strong>个人判断：</strong>MQA 最持久的贡献，是把“读历史的视角数”与“写历史的表示数”解耦，让 inference IO 成为模型架构的一等约束。今天看 GQA、MLA 或 grouped latent，仍然可以用这两个数与 cache 内容来还原机制。</div>
+<p>我认为阅读这篇论文时最值得记住的是三个账：<strong>状态账</strong>决定每 token 保留多少元素；<strong>运算账</strong>决定各 query 如何访问与聚合它们；<strong>执行账</strong>决定这些共享能否在真实 kernel 和硬件上兑现。三者分开，才能解释为什么 cache 省32倍而模型未必快32倍，也能识别“理论更紧凑、实测尚未完成”的新论文。</p>
+<p>两个值得继续追的方向：第一，给 query 更灵活的检索空间，能否在小的 shared state 上恢复 MHA 的表示自由度？MLA/GVA 的 per-head map 属于这一方向。第二，同一套训练权重能否提供不同持久 cache 表示和执行路径，按硬件/并行拓扑选择？这需要同时考虑转换精度、cache migration、kernel 与 serving 调度，不能只看 roofline。</p>
+<p>对实际选型，我会先保留任务质量约束，再决定 KV groups、dtype 和 cache layout，最后用目标设备的真实 TTFT/TPOT 与容量验证。MQA 是可取的设计点，GQA 是可调折中，latent 是不同的状态表示；它们的选择应由模型训练和系统测量共同决定。</p>
+<h2 id="section-36">11. References &amp; Source Record</h2>
+<p><strong>Original Paper</strong></p>
+<ul>
+<li><strong>[R1]</strong> Noam Shazeer. <em>Fast Transformer Decoding: One Write-Head is All You Need</em>. 2019. <a href="https://arxiv.org/abs/1911.02150v1">arXiv:1911.02150v1</a>. <a href="assets/original/1911.02150v1.pdf">PDF</a> · <a href="assets/evidence/main.tex">TeX</a> · <a href="assets/evidence/inventory.json">完整原表与公式清单</a>。</li>
+</ul>
+<p><strong>Related Papers / Primary Sources</strong></p>
+<ul>
+<li><strong>[R2]</strong> Vaswani et al. <em>Attention Is All You Need</em>. 2017. <a href="https://arxiv.org/abs/1706.03762">arXiv:1706.03762</a>。原论文其余前置工作见 <a href="assets/evidence/main.bib">original bibliography</a>，包含 Bahdanau attention、Liu et al. long-sequence summarization、Zhang et al. Average Attention Network、Povey et al. time-restricted attention。</li>
+<li><strong>[R3]</strong> Chowdhery et al. <em>PaLM: Scaling Language Modeling with Pathways</em>. 2022. <a href="https://arxiv.org/html/2204.02311v5">arXiv:2204.02311v5</a>，Architecture。</li>
+<li><strong>[R4]</strong> Ainslie et al. <em>GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints</em>. EMNLP 2023. <a href="https://arxiv.org/html/2305.13245v3">arXiv:2305.13245v3</a>，§2及checkpoint/uptraining/groups实验。</li>
+<li><strong>[R5]</strong> Dao et al. <em>FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness</em>. 2022. <a href="https://arxiv.org/abs/2205.14135">arXiv:2205.14135</a>。</li>
+<li><strong>[R6]</strong> Grattafiori et al. <em>The Llama 3 Herd of Models</em>. 2024. <a href="https://arxiv.org/html/2407.21783v3">arXiv:2407.21783v3</a>，模型架构中的8 KV heads。</li>
+<li><strong>[R7]</strong> Kwon et al. <em>Efficient Memory Management for Large Language Model Serving with PagedAttention</em>. SOSP 2023. <a href="https://arxiv.org/abs/2309.06180">arXiv:2309.06180</a> · <a href="https://github.com/vllm-project/vllm">vLLM</a>。</li>
+<li><strong>[R8]</strong> DeepSeek-AI et al. <em>DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model</em>. 2024. <a href="https://arxiv.org/html/2405.04434v5">arXiv:2405.04434v5</a>，MLA 方法。</li>
+<li><strong>[R9]</strong> Zadouri, Strauss, Dao. <em>Hardware-Efficient Attention for Fast Decoding</em>. 2025. <a href="https://arxiv.org/html/2505.21487v1">arXiv:2505.21487v1</a> · <a href="https://github.com/Dao-AILab/grouped-latent-attention/tree/17889dbb4612182a4b7b92315ca11bf76ddaadef">Official code, pinned commit</a>。</li>
+<li><strong>[R10]</strong> Fanxu Meng. <em>GQLA: Group-Query Latent Attention for Hardware-Adaptive Large Language Model Decoding</em>. 2026. <a href="https://arxiv.org/html/2605.15250v1">arXiv:2605.15250v1</a>，Methods 与 Limitations。</li>
+<li><strong>[R11]</strong> Vishesh Tripathi, Abhay Kumar, Ramsha Khan. <em>Grouped Value Attention: Efficient KV Caching via On-Demand Key Reconstruction</em>. 2026. <a href="https://arxiv.org/html/2609.13285v1">arXiv:2609.13285v1</a>，Abstract、Results 与 Limitations。</li>
+</ul>
+<p><strong>Implementation / Additional Resources</strong></p>
+<ul>
+<li><strong>[R12]</strong> TensorFlow Mesh TensorFlow <a href="https://github.com/tensorflow/mesh/blob/e6798a2610a2c2f4c4cd236d8214422cb1ecc00a/mesh_tensorflow/transformer/attention.py">attention.py，固定 commit</a>，<code>memory_heads_dims</code>、<code>shared_kv</code>。</li>
+<li><a href="assets/evidence/retrieval.json">Source retrieval record</a> · <a href="assets/evidence/mechanism-checks.json">CPU validation</a> · <a href="assets/evidence/reading-source.md">Reading source</a>。</li>
+<li>站内延伸：<a href="../roformer/">RoFormer</a>：旋转与共享 K 的位置语义；<a href="../vrope/">VRoPE</a>：多模态位置跨度与 KV token 数的区别。</li>
+</ul>
+<p><strong>Updated 2026-10-27：</strong>首次精读发布；包含全部3张原表与6段原代码、公式重构、数字核对、交互教学与截至当日的一手扩展调研。未恢复原论文缺失的完整实验配置；没有声称复现实验性能。</p></article></main><footer class="site-footer"><span>© 2026 Howie Yin</span><a href="../">Back to Paper Readings ←</a></footer></div>
+<dialog id="figure-modal" class="figure-modal" aria-label="Original table high-resolution viewer"><button type="button">Close · Esc</button><img src="assets/original/table-02-wmt-speed.png" alt="Original Table 2"><p><a href="assets/original/table-02-wmt-speed.png" target="_blank" rel="noopener">Open full resolution ↗</a></p></dialog>
+<script src="../../assets/article-navigation.js" defer></script><script type="module" src="assets/reading.js"></script></body></html>

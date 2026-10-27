@@ -1,0 +1,18 @@
+{
+  "scope": "CPU algebra and reported arithmetic only; no training, BLEU/PPL or TPU/GPU speed replication",
+  "causal_reference_max_error": 8.881784197001252e-16,
+  "incremental_max_error": 4.440892098500626e-16,
+  "cache_shape": [
+    2,
+    7,
+    4
+  ],
+  "mt_parameter_reallocation": 33030144,
+  "lm_parameter_reallocation": 11010048,
+  "greedy_decoder_speedup_rounded": 12.105263157894738,
+  "greedy_step_speedup_raw": 12.051282051282051,
+  "greedy_end_to_end_rounded": 9.0,
+  "beam4_decoder_speedup": 6.34375,
+  "translation_ppl_relative_increase": 0.015113064615719152,
+  "lm_ppl_relative_increase": 0.010033444816053505
+}
