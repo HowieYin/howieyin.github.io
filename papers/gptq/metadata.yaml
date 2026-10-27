@@ -1,0 +1,23 @@
+title: "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers"
+authors: ["Elias Frantar", "Saleh Ashkboos", "Torsten Hoefler", "Dan Alistarh"]
+institutions: ["IST Austria", "ETH Zurich", "NeuralMagic"]
+venue: "ICLR 2023"
+year: 2023
+first_submitted: "2022-10-31"
+version: "arXiv:2210.17323v2"
+version_date: "2023-03-22"
+pages: 16
+arxiv: "https://arxiv.org/abs/2210.17323v2"
+doi: "https://doi.org/10.48550/arXiv.2210.17323"
+pdf: "assets/original/2210.17323v2.pdf"
+code: "https://github.com/IST-DASLab/gptq"
+code_revision: "2d65066eeb06a5c9ff5184d8cebdf33662c67faf"
+project_page: null
+reading_date: "2026-10-27"
+updated: "2026-10-27"
+url: "https://howieyin.github.io/papers/gptq/"
+tags: ["LLM", "Quantization", "Inference", "Systems", "Edge AI"]
+original_figures: 4
+original_tables: 22
+original_algorithms: 1
+numbered_equations: 5
