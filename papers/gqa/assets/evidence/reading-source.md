@@ -64,7 +64,7 @@ MHA 给不同 Query 独立的 Key 匹配空间和 Value 内容空间。MQA 保�
 
 **Toy Example。** 两个 head 的某条 K 权重分别为 [1,3]、[3,5]，共享权重是 [2,4]。这对线性投影成立；若两套 K 曾让同一个 Q 分别偏好不同 token，平均 K 可能让分布变平，而不保留两个检索结果。
 
-<figure class="generated"><img src="assets/generated/uptraining.svg" alt="Agent-created：MHA checkpoint，经组内平均、继续预训练、任务微调到推理的步骤图" loading="lazy"><figcaption>Agent-created Visualization · 可下载 <a href="assets/generated/uptraining.mmd">Mermaid source</a>。区分权重转换、继续预训练和下游微调。</figcaption></figure>
+<figure class="generated"><a class="zoom-link" href="assets/generated/uptraining.svg"><img src="assets/generated/uptraining.svg" alt="Agent-created：MHA checkpoint，经组内平均、继续预训练、任务微调到推理的步骤图" loading="lazy"></a><figcaption>Agent-created Visualization · 点击放大；可下载 <a href="assets/generated/uptraining.mmd">Mermaid source</a>。区分权重转换、继续预训练和下游微调。</figcaption></figure>
 
 **Training Pipeline。** 原 T5.1.1 checkpoint → 改 decoder self/cross attention 的 K/V → 原 recipe 继续预训练 α 比例原始 steps → 各任务单独微调 → greedy inference。α 是继续预训练比例，论文主要用 0.05，也比较 0 和 0.1。α=0 只是不做这一段额外预训练，仍有下游微调，不能读成“所有训练都没做”。
 
@@ -288,7 +288,7 @@ TriviaQA 的 Precision / Recall 分别以预测与参考答案 token 数为分�
 
 ## 外部扩展：2019 → 2026 的技术演进
 
-<figure class="generated"><img src="assets/generated/evolution.svg" alt="Agent-created：MQA、GQA 及后续 grouping、latent cache、cost optimal 和 2026 新路线的分支演进图" loading="lazy"><figcaption>Agent-created Visualization · <a href="assets/generated/evolution.mmd">Mermaid source</a>。分支表示不同问题轴，不表示统一排行榜。</figcaption></figure>
+<figure class="generated"><a class="zoom-link" href="assets/generated/evolution.svg"><img src="assets/generated/evolution.svg" alt="Agent-created：MQA、GQA 及后续 grouping、latent cache、cost optimal 和 2026 新路线的分支演进图" loading="lazy"></a><figcaption>Agent-created Visualization · 点击放大或打开完整 SVG；<a href="assets/generated/evolution.mmd">Mermaid source</a>。分支表示不同问题轴，不表示统一排行榜。</figcaption></figure>
 
 ### Before / This Paper / After
 
