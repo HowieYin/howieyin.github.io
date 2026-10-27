@@ -1,0 +1,8 @@
+flowchart TD
+H[HBM Q K V and O m l] --> K[Load KV tile into SRAM]
+K --> Q[Load Q tile and its current state]
+Q --> S[Compute score tile max exp sum]
+S --> M[Merge normalization and weighted value]
+M --> W[Write output and row state to HBM]
+W --> Q
+W --> K

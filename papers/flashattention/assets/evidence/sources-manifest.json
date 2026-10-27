@@ -1,0 +1,138 @@
+[
+  {
+    "id": "arxiv",
+    "url": "https://arxiv.org/abs/2205.14135",
+    "resolved": "https://arxiv.org/abs/2205.14135",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "08fc19eeceb6b92cbd088c522dd9147e177ac2c7d99c9474deb447387d66fb30"
+  },
+  {
+    "id": "official-readme",
+    "url": "https://raw.githubusercontent.com/Dao-AILab/flash-attention/main/README.md",
+    "resolved": "https://raw.githubusercontent.com/Dao-AILab/flash-attention/main/README.md",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "0dbaba56da1c8372d460956e2609bfb89acf8f3aadd65d132b1697d221069619"
+  },
+  {
+    "id": "fa2",
+    "url": "https://arxiv.org/abs/2307.08691",
+    "resolved": "https://arxiv.org/abs/2307.08691",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "991a1992abb427888e9fb93ef4c6a85006018baf17bab77a5f2afe92376d3e21"
+  },
+  {
+    "id": "fa3",
+    "url": "https://arxiv.org/abs/2407.08608",
+    "resolved": "https://arxiv.org/abs/2407.08608",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "be16f89a7719f1777adc79e84717bd0fcaad1812ee4030db7e3591c292eaf41c"
+  },
+  {
+    "id": "fa4",
+    "url": "https://arxiv.org/abs/2603.05451",
+    "resolved": "https://arxiv.org/abs/2603.05451",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "8e135c7b7e3232dc0b1fb033a2e0431ab1483621ff2cab0bb6389be065073f9c"
+  },
+  {
+    "id": "fa4-blog",
+    "url": "https://tridao.me/blog/2026/flash4/",
+    "resolved": "https://tridao.me/blog/2026/flash4/",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "5ab9fe868ce7b5f22f299ed716bd9682f9f928e7e86d593b953bdd03e3fd174a"
+  },
+  {
+    "id": "online-softmax",
+    "url": "https://arxiv.org/abs/1805.02867",
+    "resolved": "https://arxiv.org/abs/1805.02867",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "e098262205203846eb4ecb032d4f5af3ac1f89ab42a167889a0fcf73d10b731f"
+  },
+  {
+    "id": "rabe-staats",
+    "url": "https://arxiv.org/abs/2112.05682",
+    "resolved": "https://arxiv.org/abs/2112.05682",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "b1ce296365ff71aa96b420020e6b46c79f78a36ff182f7a225f3f6834f32a0a0"
+  },
+  {
+    "id": "flash-decoding",
+    "url": "https://pytorch.org/blog/flash-decoding/",
+    "resolved": "https://pytorch.org/blog/flash-decoding/",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "0486a10965eece1f06a4b7f30be18d85fbe19b38de33ce622d70f7c5331a1595"
+  },
+  {
+    "id": "flexattention",
+    "url": "https://pytorch.org/blog/flexattention/",
+    "resolved": "https://pytorch.org/blog/flexattention/",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "1597f3c386e7628a673cc4778fa25133f0aaeb7d8e5da149be14ff259a673d5e"
+  },
+  {
+    "id": "flex-fa4",
+    "url": "https://pytorch.org/blog/flexattention-flashattention-4-fast-and-flexible/",
+    "resolved": "https://pytorch.org/blog/flexattention-flashattention-4-fast-and-flexible/",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "8d3dfba93d74e4c8376984269850ec5f7838682c89d1dd81513b894832012570"
+  },
+  {
+    "id": "lp-fa4",
+    "url": "https://pytorch.org/blog/low-precision-flash-attention-4-end-to-end-block-scaled-attention-for-blackwell/",
+    "resolved": "https://pytorch.org/blog/low-precision-flash-attention-4-end-to-end-block-scaled-attention-for-blackwell/",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "a9d612d3a3cac1113fce76d79bb6456d6e206877f27cbf8fa134be19cd890192"
+  },
+  {
+    "id": "ring-attention",
+    "url": "https://arxiv.org/abs/2310.01889",
+    "resolved": "https://arxiv.org/abs/2310.01889",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "69bc500dfeca9c48f0f6f21937445f2126eedb8ee652c54ff7182dece55de379"
+  },
+  {
+    "id": "sageattention3",
+    "url": "https://arxiv.org/abs/2505.11594",
+    "resolved": "https://arxiv.org/abs/2505.11594",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "edf4fcd3a13899d5934478605a6a9a6587cdfe77f7104e6fcd5ff4631ec1eb5b"
+  },
+  {
+    "id": "mpfa",
+    "url": "https://arxiv.org/abs/2609.33135",
+    "resolved": "https://arxiv.org/abs/2609.33135",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "2f19ecb158f3220b64b13a50806a98b0e6ff237f92efba75f33781ea16dec643"
+  },
+  {
+    "id": "triton",
+    "url": "https://triton-lang.org/main/getting-started/tutorials/06-fused-attention.html",
+    "resolved": "https://triton-lang.org/main/getting-started/tutorials/06-fused-attention.html",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "92b79cc8e1466e2fd471db6ee0e8987315e09b8009112f784b1d4d2fe1a66c0f"
+  },
+  {
+    "id": "sdpa",
+    "url": "https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html",
+    "resolved": "https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html",
+    "status": 200,
+    "retrieved": "2026-10-27",
+    "sha256": "0c497251a3d5e944f357efd1a87f268672f758158ecd5dc89c6df87ca3c93abc"
+  }
+]

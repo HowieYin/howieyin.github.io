@@ -1,0 +1,9 @@
+flowchart TD
+F[Forward saves Q K V O and row statistics] --> D[Compute D from dO and O]
+D --> S[Recompute score tile on chip]
+S --> P[Recover probability tile with global statistics]
+P --> V[Accumulate dV]
+P --> G[Compute dP then dS]
+G --> Q[Accumulate dQ and dK]
+V --> H[Write gradients to HBM]
+Q --> H

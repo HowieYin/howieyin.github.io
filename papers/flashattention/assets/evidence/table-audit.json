@@ -1,0 +1,149 @@
+[
+  {
+    "table": 1,
+    "rows": 3,
+    "cells": 6,
+    "bold": 1,
+    "underline": 0
+  },
+  {
+    "table": 2,
+    "rows": 7,
+    "cells": 21,
+    "bold": 2,
+    "underline": 0
+  },
+  {
+    "table": 3,
+    "rows": 10,
+    "cells": 80,
+    "bold": 1,
+    "underline": 0
+  },
+  {
+    "table": 4,
+    "rows": 5,
+    "cells": 20,
+    "bold": 2,
+    "underline": 0
+  },
+  {
+    "table": 5,
+    "rows": 3,
+    "cells": 21,
+    "bold": 2,
+    "underline": 0
+  },
+  {
+    "table": 6,
+    "rows": 10,
+    "cells": 30,
+    "bold": 3,
+    "underline": 0
+  },
+  {
+    "table": 7,
+    "rows": 7,
+    "cells": 28,
+    "bold": 16,
+    "underline": 0
+  },
+  {
+    "table": 8,
+    "rows": 14,
+    "cells": 56,
+    "bold": 4,
+    "underline": 0
+  },
+  {
+    "table": 9,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 10,
+    "rows": 13,
+    "cells": 143,
+    "bold": 24,
+    "underline": 9
+  },
+  {
+    "table": 11,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 12,
+    "rows": 13,
+    "cells": 143,
+    "bold": 24,
+    "underline": 9
+  },
+  {
+    "table": 13,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 14,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 15,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 16,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 17,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 18,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 19,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 20,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  },
+  {
+    "table": 21,
+    "rows": 13,
+    "cells": 143,
+    "bold": 23,
+    "underline": 10
+  }
+]

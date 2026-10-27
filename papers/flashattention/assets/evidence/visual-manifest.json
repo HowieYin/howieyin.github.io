@@ -1,0 +1,408 @@
+[
+  {
+    "kind": "figure",
+    "number": 1,
+    "page": 2,
+    "file": "fig-01.png",
+    "caption": "Figure 1 : Left: FlashAttention uses tiling to prevent materialization of the large N × N attention matrix (dotted box) on (relatively) slow GPU HBM. In the outer loop (red arrows), FlashAttention loops through blocks of the 𝐊 and 𝐕 matrices and loads them to fast on-chip SRAM.\nIn each block, FlashAttention loops over blocks of 𝐐 matrix (blue arrows), loading them to SRAM, and writing the output of the attention computation back to HBM. Right: Speedup over the PyTorch implementation of attention on GPT-2. FlashAttention does not read and write the large N × N attention matrix to HBM, resulting in an 7.6 × speedup on the attention computation.",
+    "crop": [
+      65,
+      53,
+      548,
+      325
+    ],
+    "source": "local 2205.14135v2.pdf"
+  },
+  {
+    "kind": "figure",
+    "number": 2,
+    "page": 6,
+    "file": "fig-02.png",
+    "caption": "Figure 2 : Left : Forward + backward runtime of\nstandard attention and FlashAttention for GPT-2 medium\n(seq. length 1024, head dim. 64, 16 heads, batch size 64) on\nA100 GPU.\nHBM access is the primary factor affecting runtime. Middle : Forward runtime of FlashAttention (seq. length 1024, head\ndim. 64, 16 heads, batch size 64)\non A100 GPU. Fewer HBM accesses result in faster runtime, up to a point. Right : The runtime (for seq. length 4K) of\nblock-sparse FlashAttention is faster than FlashAttention by a factor proportional\nto the sparsity.",
+    "crop": [
+      65,
+      50,
+      548,
+      212
+    ],
+    "source": "local 2205.14135v2.pdf"
+  },
+  {
+    "kind": "figure",
+    "number": 3,
+    "page": 9,
+    "file": "fig-03.png",
+    "caption": "Figure 3 : Left: runtime of forward pass + backward pass. Right: attention memory usage.",
+    "crop": [
+      65,
+      52,
+      548,
+      220
+    ],
+    "source": "local 2205.14135v2.pdf"
+  },
+  {
+    "kind": "figure",
+    "number": 4,
+    "page": 27,
+    "file": "fig-04.png",
+    "caption": "Figure 4 : Validation perplexity of GPT-2\nsmall/medium using two implementations.\nWe confirm that FlashAttention yields the same validation curves as the baseline\nimplementation from HuggingFace.",
+    "crop": [
+      65,
+      55,
+      548,
+      365
+    ],
+    "source": "local 2205.14135v2.pdf"
+  },
+  {
+    "kind": "figure",
+    "number": 5,
+    "page": 28,
+    "file": "fig-05.png",
+    "caption": "Figure 5 : Speedup over standard PyTorch attention at different sequence lengths, on A100.",
+    "crop": [
+      65,
+      448,
+      548,
+      664
+    ],
+    "source": "local 2205.14135v2.pdf"
+  },
+  {
+    "kind": "figure",
+    "number": 6,
+    "page": 29,
+    "file": "fig-06.png",
+    "caption": "Figure 6 : Speedup over standard PyTorch attention at different sequence lengths, on A100, with head dimension 128.",
+    "crop": [
+      65,
+      50,
+      548,
+      282
+    ],
+    "source": "local 2205.14135v2.pdf"
+  },
+  {
+    "kind": "figure",
+    "number": 7,
+    "page": 29,
+    "file": "fig-07.png",
+    "caption": "Figure 7 : Speedup over standard PyTorch attention at different sequence lengths, on RTX 3090.",
+    "crop": [
+      65,
+      354,
+      548,
+      568
+    ],
+    "source": "local 2205.14135v2.pdf"
+  },
+  {
+    "kind": "figure",
+    "number": 8,
+    "page": 30,
+    "file": "fig-08.png",
+    "caption": "Figure 8 : Speedup over standard PyTorch attention at different sequence lengths, on T4. Top: Combined forward pass + backward pass. Bottom: Forward pass only.",
+    "crop": [
+      65,
+      50,
+      548,
+      475
+    ],
+    "source": "local 2205.14135v2.pdf"
+  },
+  {
+    "kind": "table",
+    "number": 1,
+    "page": 7,
+    "file": "table-01.png",
+    "caption": "Table 1: Training time of BERT-large,\nstarting\nfrom the same initialization provided by the MLPerf benchmark,\nto reach the\ntarget accuracy of 72.0% on masked language modeling.\nAveraged over 10 runs on 8 × A100 GPUs.",
+    "crop": [
+      65,
+      602.5651245117188,
+      548,
+      672
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 2,
+    "page": 8,
+    "file": "table-02.png",
+    "caption": "Table 2: GPT-2 small and medium using FlashAttention achieve up to 3 × speed up compared to\nHuggingface implementation and up to 1.7 × compared to Megatron-LM.\nTraining time reported on 8 × A100s GPUs.",
+    "crop": [
+      65,
+      110.09912872314453,
+      548,
+      225
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 3,
+    "page": 8,
+    "file": "table-03.png",
+    "caption": "Table 3 : The performance of standard attention, FlashAttention , block-sparse FlashAttention , and approximate attention baselines on the Long-Range-Arena benchmarks.",
+    "crop": [
+      65,
+      303.8571472167969,
+      548,
+      451
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 4,
+    "page": 8,
+    "file": "table-04.png",
+    "caption": "Table 4: GPT-2 small with FlashAttention , with 4 × larger context\nlength compared to Megatron-LM, is still 30% faster while achieving 0.7\nbetter perplexity. Training time on 8 × A100 GPUs is reported.",
+    "crop": [
+      65,
+      545.5331420898438,
+      548,
+      647
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 5,
+    "page": 9,
+    "file": "table-05.png",
+    "caption": "Table 5: Long Document performance (micro F 1 ) at different sequence lengths using FlashAttention .",
+    "crop": [
+      108,
+      371.0531311035156,
+      306,
+      445
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 6,
+    "page": 9,
+    "file": "table-06.png",
+    "caption": "Table 6 : We report the first Transformer model that can achieve non-random performance on Path-X and Path-256.",
+    "crop": [
+      310,
+      343.27813720703125,
+      506,
+      473
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 7,
+    "page": 28,
+    "file": "table-07.png",
+    "caption": "Table 7: Runtime (ms) of FlashAttention compared to FMHA by sequence length, with\nmasking and dropout, measured on an A100-SXM4-40GB GPU. Batch size 64, 16\nheads, head dimension 64 (i.e., BERT-large size).",
+    "crop": [
+      65,
+      71.35517120361328,
+      548,
+      192
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 8,
+    "page": 31,
+    "file": "table-08.png",
+    "caption": "Table 8 : Pointers to results tables.",
+    "crop": [
+      65,
+      70.25990295410156,
+      548,
+      272
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 9,
+    "page": 31,
+    "file": "table-09.png",
+    "caption": "Table 9 : Forward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout and masking . Best in bold , second best underlined .",
+    "crop": [
+      65,
+      280.1671447753906,
+      548,
+      430
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 10,
+    "page": 32,
+    "file": "table-10.png",
+    "caption": "Table 10 : Backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout and masking . Best in bold , second best underlined .",
+    "crop": [
+      65,
+      77.77515411376953,
+      548,
+      226
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 11,
+    "page": 32,
+    "file": "table-11.png",
+    "caption": "Table 11 : Forward pass + backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout and masking . Best in bold , second best underlined .",
+    "crop": [
+      65,
+      241.76812744140625,
+      548,
+      390
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 12,
+    "page": 32,
+    "file": "table-12.png",
+    "caption": "Table 12 : Forward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with masking . Best in bold , second best underlined .",
+    "crop": [
+      65,
+      405.7601318359375,
+      548,
+      554
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 13,
+    "page": 32,
+    "file": "table-13.png",
+    "caption": "Table 13 : Backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with masking . Best in bold , second best underlined .",
+    "crop": [
+      65,
+      569.753173828125,
+      548,
+      716
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 14,
+    "page": 33,
+    "file": "table-14.png",
+    "caption": "Table 14 : Forward pass + backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with masking . Best in bold , second best underlined .",
+    "crop": [
+      65,
+      77.77515411376953,
+      548,
+      226
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 15,
+    "page": 33,
+    "file": "table-15.png",
+    "caption": "Table 15 : Forward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout . Best in bold , second best underlined .",
+    "crop": [
+      65,
+      241.76812744140625,
+      548,
+      390
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 16,
+    "page": 33,
+    "file": "table-16.png",
+    "caption": "Table 16 : Backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout . Best in bold , second best underlined .",
+    "crop": [
+      65,
+      405.7601318359375,
+      548,
+      554
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 17,
+    "page": 33,
+    "file": "table-17.png",
+    "caption": "Table 17 : Forward pass + backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout . Best in bold , second best underlined .",
+    "crop": [
+      65,
+      569.753173828125,
+      548,
+      716
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 18,
+    "page": 34,
+    "file": "table-18.png",
+    "caption": "Table 18 : Forward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length. Best in bold , second best underlined .",
+    "crop": [
+      65,
+      77.77515411376953,
+      548,
+      226
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 19,
+    "page": 34,
+    "file": "table-19.png",
+    "caption": "Table 19 : Backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length. Best in bold , second best underlined .",
+    "crop": [
+      65,
+      241.76812744140625,
+      548,
+      390
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 20,
+    "page": 34,
+    "file": "table-20.png",
+    "caption": "Table 20 : Forward pass + backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length. Best in bold , second best underlined .",
+    "crop": [
+      65,
+      405.7601318359375,
+      548,
+      554
+    ],
+    "source": "local PDF + arXiv HTML"
+  },
+  {
+    "kind": "table",
+    "number": 21,
+    "page": 34,
+    "file": "table-21.png",
+    "caption": "Table 21 : Memory usage (MB) of various exact/approximate/sparse attention mechanisms by sequence length. Best in bold , second best underlined .",
+    "crop": [
+      65,
+      569.753173828125,
+      548,
+      716
+    ],
+    "source": "local PDF + arXiv HTML"
+  }
+]

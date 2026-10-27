@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-27",
+  "scope": "Actual JavaScript teaching functions; independent NumPy stable-softmax and finite-difference references",
+  "forward_cases": 20,
+  "max_forward_abs_error": 7.105427357601002e-15,
+  "gradient_max_abs_error": {
+    "Q": 1.3109201224548173e-12,
+    "K": 3.41083411514731e-12,
+    "V": 1.7135459717820822e-12
+  },
+  "gradient_conditions": "scaled scores, a partially masked row, an all-masked row, fixed replayed dropout factors",
+  "storage_formula_checks": "passed",
+  "fixed_hardware_io_doubling_ratio": 4,
+  "tolerances": {
+    "forward": 1e-10,
+    "gradient": 1e-08
+  },
+  "not_verified": "CUDA speed, mixed-precision kernel accuracy, training convergence, production backend support"
+}
