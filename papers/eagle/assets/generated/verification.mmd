@@ -1,0 +1,10 @@
+flowchart TD
+ A["Committed prefix + target-sampled anchor"] --> B["Draft tree + conditional q"]
+ B --> C["Target tree forward: ancestor mask + depth positions"]
+ C --> D{"Exact accept?"}
+ D -->|yes| E["Commit selected tokens + true features + KV"]
+ D -->|no| F["Vector residual sampling"]
+ E --> A
+ F --> G["New anchor: target feature evaluated next round"]
+ G --> A
+ C --> H["Discard sibling KV"]

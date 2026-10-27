@@ -1,0 +1,32 @@
+[
+  {
+    "path": "assets/generated/alignment.mmd",
+    "source": "Agent-created simplified reconstruction; original paper or explicitly dated external primary sources",
+    "kind": "diagram"
+  },
+  {
+    "path": "assets/generated/alignment.svg",
+    "source": "Agent-created simplified reconstruction; original paper or explicitly dated external primary sources",
+    "kind": "diagram"
+  },
+  {
+    "path": "assets/generated/verification.mmd",
+    "source": "Agent-created simplified reconstruction; original paper or explicitly dated external primary sources",
+    "kind": "diagram"
+  },
+  {
+    "path": "assets/generated/verification.svg",
+    "source": "Agent-created simplified reconstruction; original paper or explicitly dated external primary sources",
+    "kind": "diagram"
+  },
+  {
+    "path": "assets/generated/timeline.mmd",
+    "source": "Agent-created simplified reconstruction; original paper or explicitly dated external primary sources",
+    "kind": "diagram"
+  },
+  {
+    "path": "assets/generated/timeline.svg",
+    "source": "Agent-created simplified reconstruction; original paper or explicitly dated external primary sources",
+    "kind": "diagram"
+  }
+]
