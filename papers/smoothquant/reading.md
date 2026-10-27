@@ -216,7 +216,7 @@ for fc in all_consumers_of_this_norm_output:
 
 若输出还走未同步改写的 residual 分支，随意缩放会改变整个 block。原文讨论可增加 residual 分支缩放，但“零额外 kernel”依赖可融合的位置；非线性、独立消费者、down_proj、图优化重排都要逐边检查。官方代码默认只在 attention 与 FFN 入口做这种 Norm 融合，不是每一个量化 Linear 前都直接加一个平滑乘法。
 
-<figure class="generated-figure" id="pipeline-diagram"><figcaption><strong>从离线标定到真实 INT8 执行</strong><br><span class="source-label">Agent-created Diagram · Mermaid · 解释性关系，非原论文图</span></figcaption><img src="assets/generated/pipeline-diagram.svg" alt="从离线标定到真实 INT8 执行" loading="lazy"><details><summary>图的文字结构</summary><pre>flowchart TB
+<figure class="generated-figure" id="pipeline-diagram"><figcaption><strong>从离线标定到真实 INT8 执行</strong><br><span class="source-label">Agent-created Diagram · Mermaid · 解释性关系，非原论文图</span></figcaption><img src="assets/generated/pipeline-diagram.svg" width="336.796875" height="1048.199951171875" alt="从离线标定到真实 INT8 执行" loading="lazy"><details><summary>图的文字结构</summary><pre>flowchart TB
 subgraph OFF[&quot;Offline · 冻结 checkpoint&quot;]
 A[&quot;代表性语料前向 / 输入通道 absmax&quot;] --&gt; B[&quot;选择 α / 共同消费者的权重 absmax&quot;]
 B --&gt; C[&quot;计算 s / Norm γ、β 除 s / 所有 fc 输入列乘 s&quot;]
@@ -938,7 +938,7 @@ GPTQ 面向低 bit weight-only，用近似二阶信息减少权重量化误差�
 | TwinQuant | 2026-06 preprint | 量化友好的可学习双子空间/低秩分解，双分支融合 | 对所测 Llama / Qwen 4bit 有竞争力 | rank、校准优化、额外分支与 kernel | 进一步处理单空间变换的误差限制 <a class="citation" href="#cite-13">[13]</a> |
 | TensorRT-LLM / ModelOpt | 持续更新，2026-10 检索 | INT8、FP8、FP4 / block scaling 与独立缓存格式 | 生产后端、硬件专门优化 | model / hardware / backend support matrix 不同 | 系统落地与现代硬件路线 <a class="citation" href="#cite-14">[14]</a><a class="citation" href="#cite-15">[15]</a> |
 
-<figure class="generated-figure" id="timeline-diagram"><figcaption><strong>量化技术演进：并行路线与后续扩展</strong><br><span class="source-label">Agent-created Diagram · Mermaid · 解释性关系，非原论文图</span></figcaption><img src="assets/generated/timeline-diagram.svg" alt="量化技术演进：并行路线与后续扩展" loading="lazy"><details><summary>图的文字结构</summary><pre>flowchart TB
+<figure class="generated-figure" id="timeline-diagram"><figcaption><strong>量化技术演进：并行路线与后续扩展</strong><br><span class="source-label">Agent-created Diagram · Mermaid · 解释性关系，非原论文图</span></figcaption><img src="assets/generated/timeline-diagram.svg" width="274.84375" height="765.6000366210938" alt="量化技术演进：并行路线与后续扩展" loading="lazy"><details><summary>图的文字结构</summary><pre>flowchart TB
 A[&quot;2019 · Weight Equalization / 等价缩放&quot;] --&gt; B[&quot;2022 · LLM.int8、ZeroQuant、GPTQ / 并行路线&quot;]
 B --&gt; C[&quot;2022–23 · SmoothQuant / 固定通道尺度 / W8A8&quot;]
 C --&gt; D[&quot;2023–24 · AWQ、OmniQuant / activation-aware 与 learned transform&quot;]
