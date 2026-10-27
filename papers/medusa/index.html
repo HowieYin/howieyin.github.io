@@ -1100,6 +1100,7 @@ These predictions are assembled into candidates, which are processed in parallel
 <p><strong>Generalization / Hardware。</strong> 固定树校准方便、可预计算，但领域迁移可能降低 rank 命中；长 context、高并发和端侧小算力不一定有同样余量。附录 roofline 提供趋势依据，不能代替真实服务测量。</p>
 <p><strong>Reproducibility。</strong> 有官方源码与模型 recipe，复现起点清楚；仍需固定 commit、模型/模板版本、精度、树实际节点数、采样 flag 和 timer 范围。源码中数值分支与论文描述不同处，应如实区分源码观察和运行验证。</p>
 <h2 id="related-readings">Related Readings</h2>
+<p><a href="../eagle-3/">EAGLE-3：让草稿模型学会接住自己的输出</a> —— 对照多头并行候选，理解递归自由状态、训练中的反馈和验证成本。</p>
 <ul>
 <li><a href="../flashattention/">FlashAttention：算得更多，为什么反而更快？</a> —— attention IO 与 kernel 路径。</li>
 <li><a href="../gqa/">GQA：让 Query 保留多样性，让 KV 共享历史</a> —— candidate KV 的实际 head 数。</li>

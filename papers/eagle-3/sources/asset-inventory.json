@@ -1,0 +1,134 @@
+[
+  {
+    "kind": "figure",
+    "number": 1,
+    "file": "assets/original/fig-01.png",
+    "source": [
+      "scaale",
+      "scaletau"
+    ],
+    "width": 2160,
+    "height": 1752
+  },
+  {
+    "kind": "figure",
+    "number": 2,
+    "file": "assets/original/fig-02.png",
+    "source": [
+      "r1"
+    ],
+    "width": 4221,
+    "height": 1106
+  },
+  {
+    "kind": "figure",
+    "number": 3,
+    "file": "assets/original/fig-03.png",
+    "source": [
+      "nofe"
+    ],
+    "width": 1639,
+    "height": 2329
+  },
+  {
+    "kind": "figure",
+    "number": 4,
+    "file": "assets/original/fig-04.png",
+    "source": [
+      "alpha0",
+      "alpha1"
+    ],
+    "width": 2089,
+    "height": 2835
+  },
+  {
+    "kind": "figure",
+    "number": 5,
+    "file": "assets/original/fig-05.png",
+    "source": [
+      "method"
+    ],
+    "width": 1164,
+    "height": 1776
+  },
+  {
+    "kind": "figure",
+    "number": 6,
+    "file": "assets/original/fig-06.png",
+    "source": [
+      "train"
+    ],
+    "width": 2759,
+    "height": 1305
+  },
+  {
+    "kind": "figure",
+    "number": 7,
+    "file": "assets/original/fig-07.png",
+    "source": [
+      "alpha"
+    ],
+    "width": 2160,
+    "height": 1080
+  },
+  {
+    "kind": "table",
+    "number": 1,
+    "file": "assets/original/table-01.png",
+    "source": "v3 PDF page 7",
+    "clip": [
+      66,
+      70,
+      529,
+      488
+    ]
+  },
+  {
+    "kind": "table",
+    "number": 2,
+    "file": "assets/original/table-02.png",
+    "source": "v3 PDF page 8",
+    "clip": [
+      67,
+      383,
+      294,
+      545
+    ]
+  },
+  {
+    "kind": "table",
+    "number": 3,
+    "file": "assets/original/table-03.png",
+    "source": "v3 PDF page 8",
+    "clip": [
+      302,
+      108,
+      530,
+      211
+    ]
+  },
+  {
+    "kind": "table",
+    "number": 4,
+    "file": "assets/original/table-04.png",
+    "source": "v3 PDF page 8",
+    "clip": [
+      302,
+      297,
+      530,
+      415
+    ]
+  },
+  {
+    "kind": "table",
+    "number": 5,
+    "file": "assets/original/table-05.png",
+    "source": "v3 PDF page 8",
+    "clip": [
+      302,
+      598,
+      530,
+      696
+    ]
+  }
+]

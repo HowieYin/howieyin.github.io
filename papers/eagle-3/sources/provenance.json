@@ -1,0 +1,9 @@
+{
+  "paper": "https://arxiv.org/pdf/2503.01840v3",
+  "source": "https://arxiv.org/src/2503.01840v3",
+  "pdf_sha256": "8a178337a1b05067907167dd81a43a7184596d71d4b795d6a0c73e6235fe1a27",
+  "retrieved": "2026-10-27",
+  "original_figures": 7,
+  "original_tables": 5,
+  "derivation": "Original figure PDFs rendered at 3x; original table regions rendered at 4x; no axes, legends or annotations removed."
+}

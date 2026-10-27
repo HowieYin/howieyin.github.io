@@ -1,0 +1,17 @@
+title: "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test"
+reading_title: "EAGLE-3：让草稿模型学会接住自己的输出"
+authors: [Yuhui Li, Fangyun Wei, Chao Zhang, Hongyang Zhang]
+arxiv: 2503.01840
+version: v3
+version_date: 2025-04-23
+venue: NeurIPS 2025
+doi: 10.48550/arXiv.2503.01840
+reading_date: 2026-10-27
+research_cutoff: 2026-10-27
+language: zh-CN
+tags: [LLM, Inference, Speculative Decoding, Training, Systems]
+original_figures: 7
+original_tables: 5
+source: https://arxiv.org/abs/2503.01840v3
+code: https://github.com/SafeAILab/EAGLE
+url: https://howieyin.github.io/papers/eagle-3/

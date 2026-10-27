@@ -1,0 +1,14 @@
+flowchart TD
+    A["Committed prefix"] --> B["Target forward: logits + low / mid / high features"]
+    B --> C["Sample target root token"]
+    B --> D["Fuse 3k features into k"]
+    C --> E["Shifted token embedding + state"]
+    D --> E
+    E --> F["Light drafter: free state + candidate tokens"]
+    F --> G["Self-feedback: state + next token embedding"]
+    G --> F
+    F --> H["EAGLE-2 dynamic candidate tree"]
+    H --> I["Target verification with ancestor-only mask"]
+    I --> J["Accept prefix / correct rejection / bonus token"]
+    J --> K["Commit selected tokens and KV; discard other branches"]
+    K --> A
