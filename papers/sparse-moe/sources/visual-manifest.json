@@ -1,0 +1,184 @@
+[
+  {
+    "name": "fig-01-architecture",
+    "page": 2,
+    "id": "S1.F1",
+    "clip": [
+      104,
+      60,
+      508,
+      301
+    ],
+    "caption": "Figure 1: A Mixture of Experts (MoE) layer embedded within a recurrent language model. In this case, the sparse gating function selects two experts to perform computations. Their outputs are modulated by the outputs of the gating network.",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "d0f54c12a32dfb084d2ed4508a07ae8117fb7ab8e5dfed353910f3a756929a68"
+  },
+  {
+    "name": "fig-02-capacity-compute",
+    "page": 6,
+    "id": "S5.F2",
+    "clip": [
+      104,
+      482,
+      508,
+      683
+    ],
+    "caption": "Figure 2: Model comparison on 1-Billion-Word Language-Modeling Benchmark. On the left, we plot test perplexity as a function of model capacity for models with similar computational budgets of approximately 8-million-ops-per-timestep. On the right, we plot test perplexity as a function of computational budget. The top line represents the LSTM models from ( Jozefowicz et al., 2016 ) . The bottom line represents 4-billion parameter MoE models with different computational budgets.",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "085ce2747cf464bd34ab2544a3f58b0166ccec914bfd26bca87ac177a745c5d1"
+  },
+  {
+    "name": "fig-03-news-scaling",
+    "page": 7,
+    "id": "S5.F3",
+    "clip": [
+      104,
+      448,
+      508,
+      627
+    ],
+    "caption": "Figure 3: Language modeling on a 100 billion word corpus. Models have similar computational budgets (8 million ops/timestep).",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "4cc4dc9ccf828bde5e6f036a918014eb56b1777186e20f53f86aefac323cbed1"
+  },
+  {
+    "name": "fig-04-translation-learning",
+    "page": 18,
+    "id": "Ax1.F4",
+    "clip": [
+      104,
+      151,
+      508,
+      334
+    ],
+    "caption": "Figure 4: Perplexity on WMT’14 En → \\rightarrow Fr (left) and Google Production En → \\rightarrow Fr (right) datasets as a function of number of words processed. The large differences between models at the beginning of training are due to different batch sizes. All models incur the same computational budget (85M ops/timestep) except the one with no experts.",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "c719ebc86a23ac27f723726a4c4f8282f0489a528910c5f913d6ebcfc015492e"
+  },
+  {
+    "name": "table-01-high-capacity-lm",
+    "page": 7,
+    "id": "S5.T1",
+    "clip": [
+      103,
+      77,
+      510,
+      186
+    ],
+    "caption": "Table 1: Summary of high-capacity MoE-augmented models with varying computational budgets, vs. best previously published results ( Jozefowicz et al., 2016 ) . Details in Appendix C .",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "c0bff05f1a7311d1a5fd84ce1866c871081eaf79d85e8090c88dbf47fc3a1df7"
+  },
+  {
+    "name": "table-02-wmt-en-fr",
+    "page": 8,
+    "id": "S5.T2",
+    "clip": [
+      104,
+      419,
+      508,
+      549
+    ],
+    "caption": "Table 2: Results on WMT’14 En → \\rightarrow Fr newstest2014 (bold values represent best results).",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "d6cc3f04d9268c8b1f6644aebeb713acc6d9d5448899e3079f2d1a72c12dc1b9"
+  },
+  {
+    "name": "table-03-wmt-en-de",
+    "page": 8,
+    "id": "S5.T3",
+    "clip": [
+      104,
+      559,
+      508,
+      653
+    ],
+    "caption": "Table 3: Results on WMT’14 En → \\rightarrow De newstest2014 (bold values represent best results).",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "6bc670a9d13f50421638826f9aaa92fd1c3b28464200d6f7596856ea4a8ec0ab"
+  },
+  {
+    "name": "table-04-production-en-fr",
+    "page": 8,
+    "id": "S5.T4",
+    "clip": [
+      104,
+      664,
+      508,
+      734
+    ],
+    "caption": "Table 4: Results on the Google Production En → \\rightarrow Fr dataset (bold values represent best results).",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "686554af9eeb40dc62f586199668705c14c0cecae532076501ad065fbd63863a"
+  },
+  {
+    "name": "table-05-multilingual",
+    "page": 9,
+    "id": "S5.T5",
+    "clip": [
+      104,
+      367,
+      508,
+      549
+    ],
+    "caption": "Table 5: Multilingual Machine Translation (bold values represent best results).",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "ba8b4606fa115a7c77176603d554502796abc44fdcc24366c97fb12b32331967"
+  },
+  {
+    "name": "table-06-balancing-ablation",
+    "page": 13,
+    "id": "Ax1.T6",
+    "clip": [
+      103,
+      630,
+      509,
+      734
+    ],
+    "caption": "Table 6: Experiments with different combinations of losses.",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "5491dd76256e2c3f3d85a0f3585402f45ccf3fbd81179ba13fd19c04f5d57f7b"
+  },
+  {
+    "name": "table-07-complete-lm",
+    "page": 15,
+    "id": "Ax1.T7",
+    "clip": [
+      103,
+      502,
+      509,
+      735
+    ],
+    "caption": "Table 7: Model comparison on 1 Billion Word Language Modeling Benchmark. Models marked with * are from ( Jozefowicz et al., 2016 ) .",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "e54f28dff634ceba29250042a95ba6ee4637f21208d8f9c5ed16846bb6f98de9"
+  },
+  {
+    "name": "table-08-complete-news",
+    "page": 16,
+    "id": "Ax1.T8",
+    "clip": [
+      103,
+      557,
+      509,
+      700
+    ],
+    "caption": "Table 8: Model comparison on 100 Billion Word Google News Dataset",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "f65592fd962c90211b6d568b80f18fa3c57986dca4ecef37444a75cb8c5c6b43"
+  },
+  {
+    "name": "table-09-specialization",
+    "page": 18,
+    "id": "Ax1.T9",
+    "clip": [
+      104,
+      387,
+      508,
+      574
+    ],
+    "caption": "Table 9: Contexts corresponding to a few of the 2048 experts in the MoE layer in the encoder portion of the WMT’14 En → \\rightarrow Fr translation model. For each expert i i , we sort the inputs in a training batch in decreasing order of G ​ ( x ) i G(x)_{i} , and show the words surrounding the corresponding positions in the input sentences.",
+    "source": "Original arXiv 1701.06538v1 PDF, lossless 4× render including caption",
+    "sha256": "64114b0737f71dda15d88c117ec4dea87334d4dc6181bec7e31396d1af93b750"
+  }
+]

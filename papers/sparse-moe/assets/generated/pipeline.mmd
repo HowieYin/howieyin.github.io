@@ -1,0 +1,7 @@
+flowchart TD
+X["LSTM token 表示 N×d"] --> R["Clean logits + noise"] --> K["Top-K 后 softmax"] --> P["Pack / dispatch"]
+P --> E0["Expert 0"]
+P --> E1["Expert 1"]
+E0 --> C["Combine / weighted scatter"]
+E1 --> C
+C --> Y["Sigmoid / residual / LSTM / loss"]

@@ -1,0 +1,74 @@
+<figure class="ltx_table" id="S5.T7">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 7: </span>SmoothQuant can enable lossless W8A8 quantization for Llama-2 <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/2211.10438v7#bib.bib35" title="">Touvron et al., 2023b</a>)</cite>, Falcon <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/2211.10438v7#bib.bib1" title="">Almazrouei et al., 2023</a>)</cite>, Mistral <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/2211.10438v7#bib.bib15" title="">Jiang et al., 2023</a>)</cite>, and Mixtral <cite class="ltx_cite ltx_citemacro_citep">(<a class="ltx_ref" href="https://arxiv.org/html/2211.10438v7#bib.bib16" title="">Jiang et al., 2024</a>)</cite> models. Results are perplexities on the WikiText-2 dataset with a sequence length of 2048. We used per-token activation quantization and per-channel weight quantization for SmoothQuant.
+</figcaption>
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Model</span></td>
+<td class="ltx_td ltx_align_left ltx_border_tt" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Method</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">PPL</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.25pt 8.0pt;"><math alttext="\alpha" class="ltx_Math" display="inline" intent=":literal"><semantics><mi mathsize="0.900em">α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Llama-2-7B</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">5.474</span></td>
+<td class="ltx_td ltx_border_t" style="padding:-0.25pt 8.0pt;"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">W8A8 SQ</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">5.515</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">0.85</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Llama-2-13B</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">4.950</span></td>
+<td class="ltx_td ltx_border_t" style="padding:-0.25pt 8.0pt;"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">W8A8 SQ</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">4.929</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">0.85</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Llama-2-70B</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">3.320</span></td>
+<td class="ltx_td ltx_border_t" style="padding:-0.25pt 8.0pt;"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">W8A8 SQ</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">3.359</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">0.9</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Falcon-7B</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">6.590</span></td>
+<td class="ltx_td ltx_border_t" style="padding:-0.25pt 8.0pt;"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">W8A8 SQ</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">6.629</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">0.6</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Falcon-40B</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">5.228</span></td>
+<td class="ltx_td ltx_border_t" style="padding:-0.25pt 8.0pt;"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">W8A8 SQ</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">5.255</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">0.7</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Mistral-7B</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">5.253</span></td>
+<td class="ltx_td ltx_border_t" style="padding:-0.25pt 8.0pt;"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">W8A8 SQ</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">5.277</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">0.8</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="2" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">Mixtral-8x7B</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">3.842</span></td>
+<td class="ltx_td ltx_border_t" style="padding:-0.25pt 8.0pt;"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">W8A8 SQ</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">3.893</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.25pt 8.0pt;"><span class="ltx_text" style="font-size:90%;">0.8</span></td></tr>
+</table>
+</figure>

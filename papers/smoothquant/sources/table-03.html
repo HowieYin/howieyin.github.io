@@ -1,0 +1,104 @@
+<figure class="ltx_table" id="S5.T3">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 3: </span>SmoothQuant maintains the accuracy of OPT-175B model after INT8 quantization, even with the most aggressive and most efficient O3 setting (Table <a class="ltx_ref" href="https://arxiv.org/html/2211.10438v7#S5.T2" title="Table 2 ‣ Baselines. ‣ 5.1 Setups ‣ 5 Experiments ‣ SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models"><span class="ltx_text ltx_ref_tag">2</span></a>). We extensively benchmark the performance on 7 zero-shot benchmarks (by reporting the average accuracy) and 1 language modeling benchmark (perplexity). *For ZeroQuant, we also tried leaving the input activation of self-attention in FP16 and quantizing the rest to INT8, which is their solution to the GPT-NeoX-20B. But this does not solve the accuracy degradation of OPT-175B.</figcaption>
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt" style="padding:-0.3pt 2.5pt;"><em class="ltx_emph ltx_font_italic" style="font-size:90%;">OPT-175B</em></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">LAMBADA</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">HellaSwag</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">PIQA</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">WinoGrande</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">OpenBookQA</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">RTE</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">COPA</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.3pt 2.5pt;"><span class="ltx_text ltx_font_bold" style="font-size:90%;">Average<math alttext="\uparrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↑</mo><annotation encoding="application/x-tex">\uparrow</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" style="padding:-0.3pt 2.5pt;"><span class="ltx_text ltx_font_bold" style="font-size:90%;">WikiText<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo><annotation encoding="application/x-tex">\downarrow</annotation></semantics></math></span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">FP16</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">74.7%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">59.3%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">79.7%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">72.6%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">34.0%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">59.9%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">88.0%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">66.9%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">10.99</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">W8A8</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">0.0%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">25.6%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">53.4%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">50.3%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">14.0%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">49.5%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">56.0%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">35.5%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">93080</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">ZeroQuant</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">0.0%*</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">26.0%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">51.7%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">49.3%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">17.8%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">50.9%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">55.0%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">35.8%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">84648</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.3pt 2.5pt;"><span class="ltx_text ltx_font_typewriter" style="font-size:90%;">LLM.int8()</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">74.7%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">59.2%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">79.7%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">72.1%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">34.2%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">60.3%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">87.0%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">66.7%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">11.10</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">Outlier Suppression</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">0.00%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">25.8%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">52.5%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">48.6%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">16.6%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">53.4%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">55.0%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">36.0%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">96151</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O1</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">74.7%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">59.2%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">79.7%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">71.2%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">33.4%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">58.1%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">89.0%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">66.5%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">11.11</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O2</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">75.0%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">59.0%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">79.2%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">71.2%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">33.0%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">59.6%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">88.0%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">66.4%</span></td>
+<td class="ltx_td ltx_align_center" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">11.14</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">SmoothQuant-O3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">74.6%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">58.9%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">79.7%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">71.2%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">33.4%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">59.9%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">90.0%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">66.8%</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" style="padding:-0.3pt 2.5pt;"><span class="ltx_text" style="font-size:90%;">11.17</span></td></tr>
+</table>
+</figure>
