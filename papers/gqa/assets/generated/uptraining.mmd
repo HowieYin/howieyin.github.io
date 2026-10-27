@@ -1,0 +1,7 @@
+flowchart TB
+    A["MHA checkpoint · H KV heads"] --> B["组内均值 · K / V"]
+    B --> C["GQA checkpoint · G KV heads"]
+    C --> D["继续预训练 · α × 原 steps"]
+    D --> E["下游任务微调"]
+    E --> F["Greedy decode · native grouped KV"]
+    A -. "继承 Q / O 与其他参数" .-> C

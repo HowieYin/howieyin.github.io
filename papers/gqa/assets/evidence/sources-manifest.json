@@ -1,0 +1,93 @@
+{
+  "cutoff": "2026-10-27",
+  "primary": {
+    "pdf": "https://arxiv.org/pdf/2305.13245v3",
+    "source": "https://arxiv.org/src/2305.13245v3",
+    "paper_version": "v3 / 2023-12-23",
+    "all_pages_read": 7,
+    "figures": 6,
+    "tables": 1,
+    "numbered_equations": 0
+  },
+  "retrieval_method": "Primary PDF + LaTeX source; related paper HTML and official source/config fetched. Mutable code/config links are retrieval-date snapshots, not frozen benchmark code.",
+  "references": [
+    "https://aclanthology.org/2023.emnlp-main.298.mp4",
+    "https://aclanthology.org/2023.emnlp-main.298/",
+    "https://arxiv.org/abs/1911.02150",
+    "https://arxiv.org/abs/2305.13245",
+    "https://arxiv.org/abs/2307.09288",
+    "https://arxiv.org/abs/2405.04434",
+    "https://arxiv.org/abs/2406.14963",
+    "https://arxiv.org/abs/2407.10855",
+    "https://arxiv.org/abs/2503.09579",
+    "https://arxiv.org/abs/2605.15250",
+    "https://arxiv.org/abs/2609.13285",
+    "https://arxiv.org/pdf/2305.13245v3",
+    "https://arxiv.org/src/2305.13245v3",
+    "https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html",
+    "https://doi.org/10.18653/v1/2023.emnlp-main.298",
+    "https://github.com/Dao-AILab/flash-attention",
+    "https://github.com/MuLabPKU/TransArch",
+    "https://github.com/THUNLP/cost-optimal-gqa",
+    "https://github.com/google-research/t5x/blob/main/t5x/examples/t5/t5_1_1/large.gin",
+    "https://github.com/google-research/t5x/blob/main/t5x/examples/t5/t5_1_1/xxl.gin",
+    "https://github.com/google/flaxformer",
+    "https://github.com/google/flaxformer/blob/main/flaxformer/components/attention/memory_efficient_attention.py",
+    "https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json"
+  ],
+  "assets": [
+    {
+      "path": "assets/original/2305.13245v3-source.tar",
+      "sha256": "c510090218fadf0df595a302d23714d8190315388bf134fed56c7ebd04376f05",
+      "bytes": 143656
+    },
+    {
+      "path": "assets/original/2305.13245v3.pdf",
+      "sha256": "ba9094fe73db9bf515d47ae8b2d502fee9d8a6c7b1327e197ddb160f4c63b94a",
+      "bytes": 269116
+    },
+    {
+      "path": "assets/original/fig-01-checkpoint-conversion.png",
+      "sha256": "4e9d7a98e85d71a598cc174545462ed1c114fd42303a8f189635b34e6df7eec3",
+      "bytes": 58217
+    },
+    {
+      "path": "assets/original/fig-02-mha-gqa-mqa.png",
+      "sha256": "9eb19795386c0108b14681e6861381c491c3c88d50cc325c73a7195e6202f615",
+      "bytes": 122892
+    },
+    {
+      "path": "assets/original/fig-03-quality-latency.png",
+      "sha256": "6a22fc55c59d2417b120098aeb46ba6341652df1ed2352581ae794d23ca29f81",
+      "bytes": 123505
+    },
+    {
+      "path": "assets/original/fig-04-conversion-ablation.png",
+      "sha256": "b5a485e7ba2f2e62a48cfc0cd2167f655d1a405f259bb31643a429df3a9e6580",
+      "bytes": 68728
+    },
+    {
+      "path": "assets/original/fig-05-uptraining-ablation.png",
+      "sha256": "1cd513f4c97b3dd1f32b4543cfa2a0efaea9dbc86eedb2a02de74753754a331a",
+      "bytes": 70265
+    },
+    {
+      "path": "assets/original/fig-06-group-latency.png",
+      "sha256": "32becb1ceebf351b898847acba9a7be48ef5e4cdd00d7bab8b1ed3af987bf7f8",
+      "bytes": 91952
+    },
+    {
+      "path": "assets/original/table-01-main-results.png",
+      "sha256": "9625e39e46bf13aaf3c994a05e9864fbcdbeae8530e7d68d27f11dbbf7e76d44",
+      "bytes": 122074
+    }
+  ],
+  "interpretation_boundaries": [
+    "Figure 3 printed ms conflicts with Table 1 seconds; original preserved",
+    "Figure 6 measured curve is non-monotonic at G=4",
+    "Table 1 Average preserves printed rounding",
+    "All explanatory equations are agent derivations",
+    "KV calculator is analytical payload, not measured latency",
+    "2026 updates are preprints, not one comparable SOTA ranking"
+  ]
+}

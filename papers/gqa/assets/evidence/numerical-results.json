@@ -1,0 +1,37 @@
+{
+  "status": "passed",
+  "grouped_vs_repeat_reference": [
+    {
+      "H": 8,
+      "G": 8,
+      "max_abs_error": 2.220446049250313e-16
+    },
+    {
+      "H": 8,
+      "G": 1,
+      "max_abs_error": 2.220446049250313e-16
+    },
+    {
+      "H": 8,
+      "G": 2,
+      "max_abs_error": 2.220446049250313e-16
+    },
+    {
+      "H": 8,
+      "G": 4,
+      "max_abs_error": 2.220446049250313e-16
+    }
+  ],
+  "linear_pooling_max_abs_error": 4.440892098500626e-16,
+  "softmax_non_equivalence": {
+    "mean_softmax": [
+      0.46411147557772453,
+      0.5358885244222754
+    ],
+    "softmax_mean": [
+      0.37754066879814546,
+      0.6224593312018546
+    ]
+  },
+  "scope": "Float64 toy mechanism; not checkpoint uptraining or hardware performance reproduction"
+}

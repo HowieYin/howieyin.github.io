@@ -1,0 +1,8 @@
+flowchart TB
+    A["2019 · MQA / 一份 KV"] --> B["2023 · GQA / 可调共享 + uptraining"]
+    B --> C["2023–2025 · Llama 2 / Qwen · decoder-only"]
+    B --> D["2024 · AsymGQA / WGQA · 分组与转换"]
+    B --> E["2025 · Cost-Optimal GQA · 联合维度与规模"]
+    F["2024 · MLA / 低秩 KV latent"] --> G["2026 · GQLA · 共享 + 低秩双路径"]
+    B --> G
+    B --> H["2026 · GVA · V cache + K reconstruction"]
