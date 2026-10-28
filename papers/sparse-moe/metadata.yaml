@@ -13,7 +13,7 @@ code_note: "提供 Tensor2Tensor v1.15.7 历史官方实现作为对照；非已
 code_url: "https://github.com/tensorflow/tensor2tensor/blob/v1.15.7/tensor2tensor/utils/expert_utils.py"
 project_page: null
 reading_date: "2026-10-27"
-last_updated: "2026-10-27"
+last_updated: "2026-10-28"
 tags: ["MoE", "LLM", "Training", "Inference", "Systems"]
 slug: "sparse-moe"
 canonical: "https://howieyin.github.io/papers/sparse-moe/"
