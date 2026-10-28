@@ -13,39 +13,60 @@
         306,
         202,
         545,
+        335
+      ],
+      "asset": "assets/original/fig-01-model-memory-gap.png",
+      "previous_bbox": [
+        306,
+        202,
+        545,
         401
       ],
-      "asset": "assets/original/fig-01-model-memory-gap.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 2,
       "id": "S1.F2",
-      "caption": "Figure 2 : SmoothQuant’s intuition: the activation 𝐗 \\mathbf{X} is hard to quantize because outliers stretch the quantization range, leaving few effective bits for most values. We migrate the scale variance from activations to weights 𝐖 \\mathbf{W} during offline to reduce the quantization difficulty of activations. The smoothed activation 𝐗 ^ \\hat{\\mathbf{X}} and the adjusted weight 𝐖 ^ \\hat{\\mathbf{W}} are both easy to quantize.",
+      "caption": "Figure 2: SmoothQuant’s intuition: the activation X is hard to quantize because outliers stretch the quantization range, leaving few effective bits for most values. We migrate the scale variance from activations to weights W during offline to reduce the quantization difficulty of activations. The smoothed activation X̂ and the adjusted weight Ŵ are both easy to quantize.",
       "html_assets": [
         "2211.10438v7/intuition.png"
       ],
       "page": 2,
       "bbox": [
         55,
+        63,
+        292,
+        243
+      ],
+      "asset": "assets/original/fig-02-migration-intuition.png",
+      "previous_bbox": [
+        55,
         65,
         292,
         334
       ],
-      "asset": "assets/original/fig-02-migration-intuition.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 3,
       "id": "S2.F3",
-      "caption": "Figure 3 : Definition of per-tensor, per-token, and per-channel quantization. Per-tensor quantization is the most efficient to implement. For vector-wise quantization to efficiently utilize the INT8 GEMM kernels, we can only use scaling factors from the outer dimensions (i.e. , token dimension T T and out channel dimension C o C_{o} ) but not inner dimension (i.e. , in channel dimension C i C_{i} ).",
+      "caption": "Figure 3: Definition of per-tensor, per-token, and per-channel quantization. Per-tensor quantization is the most efficient to implement. For vector-wise quantization to efficiently utilize the INT8 GEMM kernels, we can only use scaling factors from the outer dimensions (i.e., token dimension T and out channel dimension Cₒ) but not inner dimension (i.e., in channel dimension Cᵢ).",
       "html_assets": [],
       "page": 3,
       "bbox": [
+        54,
+        62,
+        292,
+        235
+      ],
+      "asset": "assets/original/fig-03-quantization-granularity.png",
+      "previous_bbox": [
         55,
         65,
         292,
         327
       ],
-      "asset": "assets/original/fig-03-quantization-granularity.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 4,
@@ -59,14 +80,21 @@
         55,
         65,
         545,
+        212
+      ],
+      "asset": "assets/original/fig-04-activation-weight-distributions.png",
+      "previous_bbox": [
+        55,
+        65,
+        545,
         279
       ],
-      "asset": "assets/original/fig-04-activation-weight-distributions.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 5,
       "id": "S4.F5",
-      "caption": "Figure 5 : Main idea of SmoothQuant when α \\alpha is 0.5 0.5 . The smoothing factor s s is obtained on calibration samples and the entire transformation is performed offline. At runtime, the activations are smooth without scaling.",
+      "caption": "Figure 5: Main idea of SmoothQuant when α is 0.5. The smoothing factor s is obtained on calibration samples and the entire transformation is performed offline. At runtime, the activations are smooth without scaling.",
       "html_assets": [
         "2211.10438v7/transform.png"
       ],
@@ -75,9 +103,16 @@
         307,
         283,
         544,
+        370
+      ],
+      "asset": "assets/original/fig-05-offline-smoothing.png",
+      "previous_bbox": [
+        307,
+        283,
+        544,
         424
       ],
-      "asset": "assets/original/fig-05-offline-smoothing.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 6,
@@ -91,9 +126,16 @@
         55,
         65,
         292,
+        212
+      ],
+      "asset": "assets/original/fig-06-precision-mapping.png",
+      "previous_bbox": [
+        55,
+        65,
+        292,
         254
       ],
-      "asset": "assets/original/fig-06-precision-mapping.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 7,
@@ -107,23 +149,37 @@
         307,
         259,
         544,
+        397
+      ],
+      "asset": "assets/original/fig-07-opt-model-scales.png",
+      "previous_bbox": [
+        307,
+        259,
+        544,
         452
       ],
-      "asset": "assets/original/fig-07-opt-model-scales.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 8,
       "id": "S5.F8",
-      "caption": "Figure 8 : The PyTorch implementation of SmoothQuant-O3 achieves up to 1.51 × \\times speedup and 1.96 × \\times memory saving for OPT models on a single NVIDIA A100-80GB GPU, while LLM.int8() slows down the inference in most cases.",
+      "caption": "Figure 8: The PyTorch implementation of SmoothQuant-O3 achieves up to 1.51× speedup and 1.96× memory saving for OPT models on a single NVIDIA A100-80GB GPU, while LLM.int8() slows down the inference in most cases.",
       "html_assets": [],
       "page": 8,
       "bbox": [
+        53,
+        65,
+        292,
+        199
+      ],
+      "asset": "assets/original/fig-08-pytorch-latency-memory.png",
+      "previous_bbox": [
         55,
         65,
         292,
         254
       ],
-      "asset": "assets/original/fig-08-pytorch-latency-memory.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 9,
@@ -132,17 +188,24 @@
       "html_assets": [],
       "page": 9,
       "bbox": [
+        53,
+        65,
+        545,
+        187
+      ],
+      "asset": "assets/original/fig-09-fastertransformer-latency-memory.png",
+      "previous_bbox": [
         55,
         65,
         545,
         242
       ],
-      "asset": "assets/original/fig-09-fastertransformer-latency-memory.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 10,
       "id": "S5.F10",
-      "caption": "Figure 10 : A suitable migration strength α \\alpha (sweet spot) makes both activations and weights easy to quantize. If the α \\alpha is too large, weights will be hard to quantize; if too small, activations will be hard to quantize.",
+      "caption": "Figure 10: A suitable migration strength α (sweet spot) makes both activations and weights easy to quantize. If α is too large, weights will be hard to quantize; if too small, activations will be hard to quantize.",
       "html_assets": [
         "2211.10438v7/alpha.png"
       ],
@@ -151,9 +214,16 @@
         55,
         65,
         292,
+        184
+      ],
+      "asset": "assets/original/fig-10-alpha-ablation.png",
+      "previous_bbox": [
+        55,
+        65,
+        292,
         239
       ],
-      "asset": "assets/original/fig-10-alpha-ablation.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     }
   ],
   "tables": [
@@ -166,11 +236,18 @@
       "page": 3,
       "bbox": [
         306,
+        133,
+        545,
+        208
+      ],
+      "asset": "assets/original/table-01.png",
+      "previous_bbox": [
+        306,
         65,
         545,
         219
       ],
-      "asset": "assets/original/table-01.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 2,
@@ -181,11 +258,18 @@
       "page": 5,
       "bbox": [
         55,
+        327,
+        292,
+        432
+      ],
+      "asset": "assets/original/table-02.png",
+      "previous_bbox": [
+        55,
         271,
         292,
         448
       ],
-      "asset": "assets/original/table-02.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 3,
@@ -196,11 +280,18 @@
       "page": 6,
       "bbox": [
         54,
+        133,
+        545,
+        246
+      ],
+      "asset": "assets/original/table-03.png",
+      "previous_bbox": [
+        54,
         65,
         545,
         250
       ],
-      "asset": "assets/original/table-03.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 4,
@@ -211,11 +302,18 @@
       "page": 6,
       "bbox": [
         54,
+        364,
+        292,
+        480
+      ],
+      "asset": "assets/original/table-04.png",
+      "previous_bbox": [
+        54,
         261,
         292,
         485
       ],
-      "asset": "assets/original/table-04.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 5,
@@ -226,26 +324,40 @@
       "page": 7,
       "bbox": [
         54,
+        97,
+        292,
+        193
+      ],
+      "asset": "assets/original/table-05.png",
+      "previous_bbox": [
+        54,
         65,
         292,
         195
       ],
-      "asset": "assets/original/table-05.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 6,
       "id": "S5.T6",
-      "caption": "Table 6: SmoothQuant can enable lossless W8A8 quantization for LLaMA models ( Touvron et al., 2023a ) . Results are perplexities on the WikiText-2 dataset with a sequence length of 512. We used per-token activation quantization and α \\alpha =0.8 for SmoothQuant.",
+      "caption": "Table 6: SmoothQuant can enable lossless W8A8 quantization for LLaMA models (Touvron et al., 2023a). Results are perplexities on the WikiText-2 dataset with a sequence length of 512. We used per-token activation quantization and α=0.8 for SmoothQuant.",
       "rows": 3,
       "cells": 15,
       "page": 7,
       "bbox": [
         54,
+        270,
+        292,
+        320
+      ],
+      "asset": "assets/original/table-06.png",
+      "previous_bbox": [
+        54,
         203,
         292,
         329
       ],
-      "asset": "assets/original/table-06.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 7,
@@ -256,11 +368,18 @@
       "page": 7,
       "bbox": [
         306,
+        157,
+        545,
+        352
+      ],
+      "asset": "assets/original/table-07.png",
+      "previous_bbox": [
+        306,
         65,
         545,
         469
       ],
-      "asset": "assets/original/table-07.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 8,
@@ -271,11 +390,18 @@
       "page": 8,
       "bbox": [
         306,
+        85,
+        545,
+        226
+      ],
+      "asset": "assets/original/table-08.png",
+      "previous_bbox": [
+        306,
         65,
         545,
         222
       ],
-      "asset": "assets/original/table-08.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 9,
@@ -286,11 +412,18 @@
       "page": 8,
       "bbox": [
         306,
+        261,
+        545,
+        307
+      ],
+      "asset": "assets/original/table-09.png",
+      "previous_bbox": [
+        306,
         229,
         545,
         307
       ],
-      "asset": "assets/original/table-09.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 10,
@@ -301,11 +434,18 @@
       "page": 9,
       "bbox": [
         54,
+        314,
+        292,
+        437
+      ],
+      "asset": "assets/original/table-10.png",
+      "previous_bbox": [
+        54,
         258,
         292,
         468
       ],
-      "asset": "assets/original/table-10.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     },
     {
       "number": 11,
@@ -316,11 +456,19 @@
       "page": 9,
       "bbox": [
         306,
+        338,
+        545,
+        433
+      ],
+      "asset": "assets/original/table-11.png",
+      "previous_bbox": [
+        306,
         258,
         545,
         433
       ],
-      "asset": "assets/original/table-11.png"
+      "caption_presentation": "Text outside image; image contains chart/table body only."
     }
-  ]
+  ],
+  "asset_update": "2026-10-28: captions and adjacent prose removed from all 21 image crops; complete captions remain in page text."
 }
