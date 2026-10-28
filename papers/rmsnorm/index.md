@@ -3,7 +3,7 @@
 **Root Mean Square Layer Normalization**
 
 Biao Zhang、Rico Sennrich · University of Edinburgh / University of Zurich · NeurIPS 2019\
-精读版本：1910.07467v1，14 页（正文、参考文献与完整附录）。arXiv 提交：2019-10-16。阅读与更新：2026-10-27。
+精读版本：1910.07467v1，14 页（正文、参考文献与完整附录）。arXiv 提交：2019-10-16。阅读：2026-10-27。更新：2026-10-28。
 
 [Paper PDF](assets/original/1910.07467v1.pdf) · [arXiv](https://arxiv.org/abs/1910.07467) · [DOI](https://doi.org/10.48550/arXiv.1910.07467) · [Official Code](https://github.com/bzhangGo/rmsnorm) · [Original TeX](sources/paper.tex)
 
@@ -417,7 +417,7 @@ HTP/NPU 的内存验证用实际 `dmabuf_dump` 与 CPU `VmHWM` 分开统计；�
 
 ## References & Source Record
 
-所有外部事实核验截至 **2026-10-27**。原图／原表从本地 1910.07467v1.pdf 无损 PNG 提取（4× PDF point resolution），同时保留 PDF、TeX、原始 figure PDFs 与资产清单。静态 MathML 为可选择公式；新增示意与交互均标 Agent-created，不代替原始证据。
+所有外部事实核验截至 **2026-10-27**。原图／原表从本地 1910.07467v1.pdf 提取为 4× 分辨率 PNG，展示图片只保留图表主体；完整图注与子图说明以可选择文字放在图片外。裁剪不重绘、不缩放图内像素，坐标轴、图例、数值、表格行列均保留；完整 PDF、TeX、原始 figure PDFs 与资产清单仍可查阅。静态 MathML 为可选择公式；新增示意与交互均标 Agent-created，不代替原始证据。
 
 | 类型 | 来源与用途 |
 |---|---|

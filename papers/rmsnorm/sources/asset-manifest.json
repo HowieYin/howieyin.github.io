@@ -8,13 +8,28 @@
       104,
       70,
       508,
-      235
+      180.0
     ],
     "scale": 4,
     "width": 1616,
-    "height": 660,
+    "height": 440,
     "caption": "Training procedure of a GRU-based RNNSearch for the first 10k training steps. Baseline means the original model without any normalization. When the Baseline training loss arrives at 7.0, the loss of LayerNorm reaches 5.4 after the same number of training steps (a), but only 5.9 after the same training time (b).",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      104,
+      70,
+      508,
+      235
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 2,
+      "baseline_pdf_y": 209.827,
+      "conservative_top_pdf_y": 201.5420464
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "bc288f158bfb216f1c1a3e69115b0f858dffe9268d6aff3d2717dcda25a2c880",
+    "panel_caption": "左图 (a)：Training loss vs. training steps；右图 (b)：Training loss vs. training time。"
   },
   {
     "kind": "fig",
@@ -25,13 +40,27 @@
       104,
       70,
       289,
-      208
+      174.0
     ],
     "scale": 4,
     "width": 740,
-    "height": 552,
+    "height": 416,
     "caption": "SacreBLEU score on newstest2013 for the RNNSearch. Models are implemented according to Nematus in Tensorflow.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      104,
+      70,
+      289,
+      208
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 6,
+      "baseline_pdf_y": 182.99400000000003,
+      "conservative_top_pdf_y": 174.70904640000003
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "c15bc720bee03f804805e928eb24fc05f8fd86887b5c472d3890e6e0e1f6c0bf"
   },
   {
     "kind": "fig",
@@ -42,13 +71,27 @@
       104,
       70,
       270,
-      216
+      174.0
     ],
     "scale": 4,
     "width": 664,
-    "height": 584,
+    "height": 416,
     "caption": "SacreBLEU score on newstest2013 (devset) for the RNNSearch with pRMSNorm. We use Tensorflow-version Nematus, and change p by a step size of 10%.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      104,
+      70,
+      270,
+      216
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 7,
+      "baseline_pdf_y": 182.99400000000003,
+      "conservative_top_pdf_y": 174.70904640000003
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "eca97a399cb6e60cde4e6ba41ff0b83c17ff48cd2e7b28c74d603ef11a27fc50"
   },
   {
     "kind": "fig",
@@ -59,13 +102,27 @@
       346,
       441,
       508,
-      577
+      543.75
     ],
     "scale": 4,
     "width": 648,
-    "height": 544,
+    "height": 411,
     "caption": "SacreBLEU score curve of LayerNorm and RMSNorm on newstest2013 (devset) when the initialization center is 0.2.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      346,
+      441,
+      508,
+      577
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 7,
+      "baseline_pdf_y": 552.66,
+      "conservative_top_pdf_y": 544.3750464
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "5664da84c640156e4bca3ab5d52bc7daae219d6b80222487bbcd0dc178e2596b"
   },
   {
     "kind": "fig",
@@ -76,13 +133,27 @@
       104,
       70,
       280,
-      201
+      177.75
     ],
     "scale": 4,
     "width": 704,
-    "height": 524,
+    "height": 431,
     "caption": "Error rate on validation set for the attentive reader model.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      104,
+      70,
+      280,
+      201
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 8,
+      "baseline_pdf_y": 186.59400000000005,
+      "conservative_top_pdf_y": 178.30904640000006
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "81ebe486e9c11156d422bd0778baa17fdc74aadedc463eecea6d78a74c114791"
   },
   {
     "kind": "fig",
@@ -93,13 +164,28 @@
       120,
       200,
       482,
-      314
+      290.25
     ],
     "scale": 4,
     "width": 1448,
-    "height": 456,
+    "height": 361,
     "caption": "Recall@K values on validation set for the order-embedding models.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      120,
+      200,
+      482,
+      314
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 8,
+      "baseline_pdf_y": 308.80699999999996,
+      "conservative_top_pdf_y": 300.52204639999997
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "d38721863c8836188aabe29d1b1056e4de89b2341a4d1762b807a5d0e21c9fb4",
+    "panel_caption": "从左到右：(a) Recall@1、(b) Recall@5、(c) Recall@10。"
   },
   {
     "kind": "fig",
@@ -110,13 +196,27 @@
       347,
       305,
       508,
-      450
+      407.5
     ],
     "scale": 4,
     "width": 644,
-    "height": 580,
+    "height": 410,
     "caption": "SacreBLEU score curve over training steps on newstest2013 (devset) for the RNNSearch. Models are trained with Nematus in Theano.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      347,
+      305,
+      508,
+      450
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 13,
+      "baseline_pdf_y": 416.454,
+      "conservative_top_pdf_y": 408.1690464
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "a063a72656a3a94aeef794b5c409b86d834f88286859de87f575f46dd5102c68"
   },
   {
     "kind": "table",
@@ -127,13 +227,27 @@
       104,
       69,
       508,
-      160
+      137.5
     ],
     "scale": 4,
     "width": 1616,
-    "height": 364,
-    "caption": "Invariance properties of different normalization methods. ``cmark'' indicates invariant, while ``xmark'' denotes the opposite.",
-    "source": "1910.07467v1.pdf"
+    "height": 274,
+    "caption": "Invariance properties of different normalization methods. “✓” indicates invariant, while “✗” denotes the opposite.",
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      104,
+      69,
+      508,
+      160
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 4,
+      "baseline_pdf_y": 146.52099999999996,
+      "conservative_top_pdf_y": 138.23604639999996
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "9aad880def90762c93daffee964178058a44232198d05096907d90d93f2310de"
   },
   {
     "kind": "table",
@@ -144,13 +258,27 @@
       290,
       72,
       506,
-      204
+      140.5
     ],
     "scale": 4,
     "width": 864,
-    "height": 528,
+    "height": 274,
     "caption": "SacreBLEU score on newstest2014 (Test14) and newstest2017 (Test17) for RNNSearch using Tensorflow-version Nematus. ``Time'': the time in second per 1k training steps. We set p to 6.25%. We highlight the best results in bold, and show the speedup of RMSNorm against LayerNorm in bracket.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      290,
+      72,
+      506,
+      204
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 6,
+      "baseline_pdf_y": 149.42200000000003,
+      "conservative_top_pdf_y": 141.13704640000003
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "e00653d5c3e19ed954b339dc4753274f42ca4a5f72fd454b529d8f116b66584d"
   },
   {
     "kind": "table",
@@ -161,13 +289,27 @@
       270,
       76,
       508,
-      210
+      176.5
     ],
     "scale": 4,
     "width": 952,
-    "height": 536,
+    "height": 402,
     "caption": "SacreBLEU score on newstest2014 (Test14) and newstest2017 (Test17) for RNNSearch. ``Th'': Theano-version Nematus, ``Py'': an in-house PyTorch-based RNNSearch.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      270,
+      76,
+      508,
+      210
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 7,
+      "baseline_pdf_y": 185.486,
+      "conservative_top_pdf_y": 177.2010464
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "84323bba16f9f5d9ff239d4cb098629da096abadadee4b4eecc4809118577c42"
   },
   {
     "kind": "table",
@@ -178,13 +320,27 @@
       104,
       220,
       282,
-      328
+      264.25
     ],
     "scale": 4,
     "width": 712,
-    "height": 432,
+    "height": 177,
     "caption": "SacreBLEU score on newstest2014 (Test14) and newstest2017 (Test17) for the Transformer. ``Time'': the time in second per 1k training steps, which is measured using Tesla V100. ``-'' indicates that we fail to train this model and BLEU score is 0.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      104,
+      220,
+      282,
+      328
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 7,
+      "baseline_pdf_y": 273.06500000000005,
+      "conservative_top_pdf_y": 264.78004640000006
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "5df8843fb23b63ddd8f11ccd0e976437b2cf79e80163ab4d0c583fc7a39a0f0a"
   },
   {
     "kind": "table",
@@ -195,13 +351,27 @@
       282,
       213,
       506,
-      336
+      272.5
     ],
     "scale": 4,
     "width": 896,
-    "height": 492,
+    "height": 238,
     "caption": "Mean (M) and standard deviation (S) statistics estimated on the hidden-to-hidden mapping of decoder-part GRU cell in RNNSearch model. We use the newstest2013 dataset. ALL: the statistics averaged across all token positions. Numbers 1,2,3,4 indicate the statistic estimated for specific token positions.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      282,
+      213,
+      506,
+      336
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 7,
+      "baseline_pdf_y": 281.434,
+      "conservative_top_pdf_y": 273.14904640000003
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "b28166945f50adf381446b16e641e1820ff1720053e0b772e01fc5f3f6f88c21"
   },
   {
     "kind": "table",
@@ -212,13 +382,27 @@
       282,
       85,
       505,
-      187
+      162.0
     ],
     "scale": 4,
     "width": 892,
-    "height": 408,
+    "height": 308,
     "caption": "Time in seconds per 0.1k training steps for the attentive reader model.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      282,
+      85,
+      505,
+      187
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 8,
+      "baseline_pdf_y": 170.84799999999996,
+      "conservative_top_pdf_y": 162.56304639999996
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "a247f3a47e30af333d42cdc9e7748905d1ee02670e2c1c17c8cffbcb7ec35cbb"
   },
   {
     "kind": "table",
@@ -229,13 +413,27 @@
       104,
       69,
       508,
-      189
+      156.25
     ],
     "scale": 4,
     "width": 1616,
-    "height": 480,
+    "height": 349,
     "caption": "Average R@K values across 5 test sets from Microsoft COCO. R@K: Recall @ K, higher is better. Mean r: mean rank, lower is better. The number in bold highlights the best result. ‡ denotes the reproduced results of †.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      104,
+      69,
+      508,
+      189
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 9,
+      "baseline_pdf_y": 165.23000000000002,
+      "conservative_top_pdf_y": 156.94504640000002
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "0f5931d6a595e520ecfc66586b3ad51946358de94b84038b74075650ae1df7fc"
   },
   {
     "kind": "table",
@@ -246,13 +444,27 @@
       347,
       459,
       508,
-      542
+      519.5
     ],
     "scale": 4,
     "width": 644,
-    "height": 332,
+    "height": 242,
     "caption": "Time in seconds per 0.1k training steps for the order-embedding model.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      347,
+      459,
+      508,
+      542
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 8,
+      "baseline_pdf_y": 528.341,
+      "conservative_top_pdf_y": 520.0560464
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "17ccbcd85fc462599397e657f26b373357e1f8bc69bafde430c689916de68d3e"
   },
   {
     "kind": "table",
@@ -263,13 +475,27 @@
       104,
       187,
       282,
-      312
+      288.0
     ],
     "scale": 4,
     "width": 712,
-    "height": 500,
+    "height": 404,
     "caption": "Training error rate for the ConvPool-CNN-C model.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      104,
+      187,
+      282,
+      312
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 9,
+      "baseline_pdf_y": 296.953,
+      "conservative_top_pdf_y": 288.6680464
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "971a607c2ca6f3c789972fb018770bc000f39b1f08d00fba6400b97a31eccce9"
   },
   {
     "kind": "table",
@@ -280,12 +506,26 @@
       282,
       192,
       506,
-      302
+      269.5
     ],
     "scale": 4,
     "width": 896,
-    "height": 440,
+    "height": 310,
     "caption": "Test error rate and time in seconds per training epoch for the ConvPool-CNN-C model. Time is measured with GeForce RTX 2080 Ti.",
-    "source": "1910.07467v1.pdf"
+    "source": "1910.07467v1.pdf",
+    "original_clip_pdf_points": [
+      282,
+      192,
+      506,
+      302
+    ],
+    "caption_placement": "external_selectable_text",
+    "caption_pdf_position": {
+      "pdf_page": 9,
+      "baseline_pdf_y": 278.44399999999996,
+      "conservative_top_pdf_y": 270.15904639999997
+    },
+    "extraction": "Lossless pixel crop of the original 4x PDF rendering; no graphic redraw or resampling.",
+    "sha256": "d46665e3ac333ee6dc7bb5da985ced955cdaeef860befa234f28728becdfca49"
   }
 ]

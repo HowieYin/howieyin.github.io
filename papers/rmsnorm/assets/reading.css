@@ -29,7 +29,9 @@
 .original-figure img { display: block; width: 100%; height: auto; background: white; }
 .zoom-link { display: block; background: white; border-radius: 6px; overflow: hidden; cursor: zoom-in; }
 .original-figure:has(img[src*="fig-02"]), .original-figure:has(img[src*="fig-03"]), .original-figure:has(img[src*="fig-04"]), .original-figure:has(img[src*="fig-05"]), .original-figure:has(img[src*="fig-07"]), .original-figure:has(img[src*="table-09"]) { max-width: 620px; margin-left: auto; margin-right: auto; }
-.original-figure figcaption { color: var(--muted); font-size: 12px; line-height: 1.8; margin-top: 10px; }
+.original-figure figcaption { color: #a7b5c5; font-size: 14px; line-height: 1.85; margin-top: 12px; }
+.original-figure figcaption > strong, .original-figure .caption-links { font-size: 12px; }
+.original-figure .panel-caption { color: #c0ccdb; }
 .table-title { font-size: 15px; color: var(--text); margin: 24px 0 12px; }
 .original-caption { font-size: 12px; }
 .formula { min-width: 0; max-width: 100%; overflow-x: auto; padding: 22px 18px; margin: 24px 0; border: 1px solid #314057; border-radius: 7px; background: #121a26; }

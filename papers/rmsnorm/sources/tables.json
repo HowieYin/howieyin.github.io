@@ -56,7 +56,7 @@
         "✓"
       ]
     ],
-    "caption": "Invariance properties of different normalization methods. ``cmark'' indicates invariant, while ``xmark'' denotes the opposite."
+    "caption": "Invariance properties of different normalization methods. “✓” indicates invariant, while “✗” denotes the opposite."
   },
   "2": {
     "headers": [
