@@ -34,6 +34,26 @@ editorial directions, not published content.
 - `assets/`: locally served fonts and favicon. No external services are needed at
 runtime.
 
+Paper navigation is generated from `papers/readings.json`. Each reading has one
+primary category; the catalog retains its title, complete archive description,
+metadata, article slug and ISO `readDate`. Topics are defined in the same file.
+
+After adding a paper's existing-style `papers/<slug>/index.html` page, prepend
+its catalog entry and run:
+
+```bash
+python3 scripts/build_papers.py
+```
+
+This updates the homepage's latest three readings and topic links, the paper
+landing page's latest reading per topic, and the full topic archives at
+`papers/topics/<category>/`. Readings sort by reading date descending; entries
+with the same date retain catalog order, so prepend newly added readings.
+All generated navigation is static HTML and works without JavaScript.
+Do not hand-edit generated paper indexes or the homepage paper section.
+`papers/archive.css` styles these components without changing article layouts.
+Commit the catalog and regenerated HTML together when publishing.
+
 For a new article, add its static HTML file inside the relevant column directory,
 then link to it from that column's archive. Keep site navigation in English;
 article bodies can use the language appropriate to the content. Use relative

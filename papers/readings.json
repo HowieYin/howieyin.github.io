@@ -1,0 +1,196 @@
+{
+  "categories": [
+    {
+      "slug": "model-architecture",
+      "title": "Model Architecture",
+      "description": "Transformers, gated feed-forward networks, and mixture-of-experts models."
+    },
+    {
+      "slug": "attention-kv-cache",
+      "title": "Attention & KV Cache",
+      "description": "Attention kernels, shared KV heads, and the cost of reading model history."
+    },
+    {
+      "slug": "position-long-context",
+      "title": "Position & Long Context",
+      "description": "Position encoding, sparse attention, and longer text and video sequences."
+    },
+    {
+      "slug": "quantization",
+      "title": "Quantization & Edge AI",
+      "description": "Lower precision, calibration, and practical deployment on constrained hardware."
+    },
+    {
+      "slug": "speculative-decoding",
+      "title": "Speculative Decoding",
+      "description": "Drafting, verification, and generating more tokens per target-model pass."
+    },
+    {
+      "slug": "training-scaling",
+      "title": "Training & Scaling",
+      "description": "Normalization, scaling laws, and how training compute is allocated."
+    }
+  ],
+  "papers": [
+    {
+      "slug": "dflash",
+      "title": "DFlash：让目标模型提供上下文，让扩散模型并行起草",
+      "metadata": "2026 · ICML · arXiv v2 · Read October 27, 2026 · LLM / Inference / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 5 original figures and 13 complete tables; parallel drafting, per-layer target feature KV, prefix verification animation, measured concurrency and analytical memory explorers, experiment audits, and research updates through October 2026.",
+      "category": "speculative-decoding"
+    },
+    {
+      "slug": "eagle",
+      "title": "EAGLE：先知道下一个 token，再外推它的特征",
+      "metadata": "ICML 2024 · arXiv v3 · Read October 27, 2026 · Speculative Decoding / Inference / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 9 original figures, 8 complete tables and the original algorithm; shifted-token drafting, exact tree verification, KV feedback, three interactive explainers, experiment audits, and dated EAGLE-2/3/4 and DFlash research.",
+      "category": "speculative-decoding"
+    },
+    {
+      "slug": "eagle-3",
+      "title": "EAGLE-3：让草稿模型学会接住自己的输出",
+      "metadata": "NeurIPS 2025 · arXiv v3 · Read October 27, 2026 · Inference / Speculative Decoding / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 7 original figures and 5 complete tables; training-time test, multi-layer fusion, attention masks and analytical cost interactions, official code audits, and research updates through October 2026.",
+      "category": "speculative-decoding"
+    },
+    {
+      "slug": "eagle2",
+      "title": "EAGLE-2：把验证预算分给更可能走通的路径",
+      "metadata": "EMNLP 2024 · arXiv v2 · Read October 27, 2026 · LLM / Inference / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 7 original figures and 3 complete tables; dynamic path values, interactive tree selection and attention masks, feature shapes and KV commits, experiment audits, and research updates through October 2026.",
+      "category": "speculative-decoding"
+    },
+    {
+      "slug": "medusa",
+      "title": "Medusa：一次权重读取，能提交多少个 Token？",
+      "metadata": "ICML 2024 · arXiv v3 · Read October 27, 2026 · LLM / Inference / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 23 original figures and 8 complete tables; tree attention, KV commitment and acceptance explorers, training and per-op audits, and a dated update on EAGLE, Hydra, ReDrafter and DFlash.",
+      "category": "speculative-decoding"
+    },
+    {
+      "slug": "glu-variants",
+      "title": "GLU Variants：给 FFN 加一条相乘的支路",
+      "metadata": "2020 · arXiv v1 · Read October 27, 2026 · Training / Inference / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 4 original tables and 6 equation groups; gate and budget explorers, tensor shapes and gradients, experiment audits, and a dated update on fusion, FP8 and sparse alternatives.",
+      "category": "model-architecture"
+    },
+    {
+      "slug": "layer-normalization",
+      "title": "Layer Normalization：一条样本内部，谁决定尺度？",
+      "metadata": "2016 · arXiv v1 · Read October 27, 2026 · Normalization / RNN / Training / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 6 original figures, 3 complete tables and 35 equations; normalization axes, LN/RMSNorm interactions, RNN branches, Fisher geometry, analytical IO accounting, experiment audits, and a dated research update.",
+      "category": "training-scaling"
+    },
+    {
+      "slug": "scaling-laws",
+      "title": "Scaling Laws：规模、训练与预算分配",
+      "metadata": "2020 · arXiv v1 · Read October 27, 2026 · LLM / Training / Scaling Laws",
+      "readDate": "2026-10-27",
+      "description": "All 24 original figures, 6 complete tables and 50 numbered equations; critical batch, interactive compute allocation, experiment audits, Chinchilla and controlled reproductions, and research updates through October 2026.",
+      "category": "training-scaling"
+    },
+    {
+      "slug": "awq",
+      "title": "AWQ：把重要通道的精度，变成端侧真正能用的速度",
+      "metadata": "MLSys 2024 · arXiv v6 · Read October 27, 2026 · Quantization / Inference / Edge AI",
+      "readDate": "2026-10-27",
+      "description": "All 10 original figures and 10 complete tables; activation-aware scaling and clipping, TinyChat kernel costs, three interactive mechanisms, source and experiment audits, and an October 2026 research update.",
+      "category": "quantization"
+    },
+    {
+      "slug": "gptq",
+      "title": "GPTQ：把二阶误差补偿做成可扩展的 LLM 量化",
+      "metadata": "ICLR 2023 · arXiv v2 · Read October 27, 2026 · Quantization / Inference / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 4 original figures and 22 complete tables; second-order compensation and Cholesky derivations, a quantization walkthrough, weight/KV accounting, experiment audits, and a dated research update.",
+      "category": "quantization"
+    },
+    {
+      "slug": "rmsnorm",
+      "title": "RMSNorm：保留尺度约束，拿掉均值中心化",
+      "metadata": "NeurIPS 2019 · arXiv v1 · Read October 27, 2026 · Training / Normalization / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 7 original figures and 10 table IDs; chapter-ordered equations and appendix, gradient and prefix-estimation walkthroughs, interactive normalization and IO costs, experiment audits, and a dated kernel update.",
+      "category": "training-scaling"
+    },
+    {
+      "slug": "sparse-moe",
+      "title": "Sparsely-Gated MoE：容量可以稀疏激活，成本仍在整条链路",
+      "metadata": "2017 · arXiv v1 · Read October 27, 2026 · MoE / Training / Inference / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 4 original figures, 9 complete tables and 22 equations; noisy routing, conditional load, hierarchical and batchwise gates, interactive capacity accounting, experiment audits, and a dated research update.",
+      "category": "model-architecture"
+    },
+    {
+      "slug": "smoothquant",
+      "title": "SmoothQuant：把量化难度迁移到权重，让 INT8 真正进入计算路径",
+      "metadata": "ICML 2023 · arXiv v7 · Read October 27, 2026 · Quantization / Inference / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 10 original figures and 11 complete tables; channel scaling and tensor shapes, interactive α, weight/KV accounting and measured latency, implementation audits, and a dated research update.",
+      "category": "quantization"
+    },
+    {
+      "slug": "transformer",
+      "title": "Attention Is All You Need：用内容决定信息流",
+      "metadata": "NIPS 2017 · arXiv v7 · Read October 27, 2026 · Attention / Training / Inference",
+      "readDate": "2026-10-27",
+      "description": "All 5 original figures and 4 complete tables; chapter-by-chapter equations and tensor shapes, interactive attention and KV costs, experiment audits, and a dated WMT26 evaluation update.",
+      "category": "model-architecture"
+    },
+    {
+      "slug": "longformer",
+      "title": "Longformer：局部窗口、全局中继与长文档迁移",
+      "metadata": "2020 · arXiv v2 · Read October 27, 2026 · Attention / Long Context / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 3 original figures and 14 complete tables; local/global projection paths, a two-layer relay explorer, LED cache calculations, experiment audits, and a dated research update.",
+      "category": "position-long-context"
+    },
+    {
+      "slug": "gqa",
+      "title": "GQA：让 Query 保留多样性，让 KV 共享历史",
+      "metadata": "EMNLP 2023 · Read October 27, 2026 · Attention / Inference / Training",
+      "readDate": "2026-10-27",
+      "description": "All 6 original figures and the complete results table; checkpoint uptraining, tensor shapes, interactive KV and tensor-parallel accounting, experiment audits, and a dated research update.",
+      "category": "attention-kv-cache"
+    },
+    {
+      "slug": "flashattention",
+      "title": "FlashAttention：算得更多，为什么反而更快？",
+      "metadata": "NeurIPS 2022 · arXiv v2 · Read October 27, 2026 · Attention / Systems / Training",
+      "readDate": "2026-10-27",
+      "description": "All 8 original figures, 21 complete tables and 6 algorithms; online softmax and IO calculators, gradient walkthroughs, experiment audits, and a research update through October 2026.",
+      "category": "attention-kv-cache"
+    },
+    {
+      "slug": "mqa",
+      "title": "MQA：多个读头，共用一份历史",
+      "metadata": "2019 · arXiv v1 · Read October 27, 2026 · Attention / Inference / Systems",
+      "readDate": "2026-10-27",
+      "description": "All 3 original tables and 6 code listings; shared-KV interactions, tensor and bandwidth accounting, amortized decoding audits, and the evolution to GQA and latent attention.",
+      "category": "attention-kv-cache"
+    },
+    {
+      "slug": "roformer",
+      "title": "RoFormer：旋转绝对位置，为什么内积只看相对距离？",
+      "metadata": "2021 · arXiv v5 (2023) · Read October 27, 2026 · Attention / Long Context",
+      "readDate": "2026-10-27",
+      "description": "All 37 equations, 3 original figures and 5 complete tables; interactive vector rotations and frequency spectra, experiment audits, implementation checks, and a dated research update.",
+      "category": "position-long-context"
+    },
+    {
+      "slug": "vrope",
+      "title": "VRoPE：视频位置不是 Token 序号，连续也不等于压缩",
+      "metadata": "EMNLP 2025 · Read October 26, 2026 · VLM / Attention / Long Context",
+      "readDate": "2026-10-26",
+      "description": "Four-direction video positions, all 5 original figures and 9 tables, equation walkthroughs, interactive coordinates, implementation checks, and an evidence-based research update.",
+      "category": "position-long-context"
+    }
+  ]
+}
