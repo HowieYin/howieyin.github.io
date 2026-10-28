@@ -6,12 +6,32 @@
     "file": "fig-01.png",
     "caption": "Figure 1 : Left: FlashAttention uses tiling to prevent materialization of the large N × N attention matrix (dotted box) on (relatively) slow GPU HBM. In the outer loop (red arrows), FlashAttention loops through blocks of the 𝐊 and 𝐕 matrices and loads them to fast on-chip SRAM.\nIn each block, FlashAttention loops over blocks of 𝐐 matrix (blue arrows), loading them to SRAM, and writing the output of the attention computation back to HBM. Right: Speedup over the PyTorch implementation of attention on GPT-2. FlashAttention does not read and write the large N × N attention matrix to HBM, resulting in an 7.6 × speedup on the attention computation.",
     "crop": [
+      106.5,
+      71.75,
+      505.75,
+      227.0
+    ],
+    "source": "local 2205.14135v2.pdf",
+    "previous_crop": [
       65,
       53,
       548,
       325
     ],
-    "source": "local 2205.14135v2.pdf"
+    "body_region": [
+      65,
+      53,
+      548,
+      233
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1597,
+      621
+    ],
+    "sha256": "2919a458a75e11efda2034a130e6001b8280dc3dd07051cd725693883cee13e9"
   },
   {
     "kind": "figure",
@@ -20,12 +40,32 @@
     "file": "fig-02.png",
     "caption": "Figure 2 : Left : Forward + backward runtime of\nstandard attention and FlashAttention for GPT-2 medium\n(seq. length 1024, head dim. 64, 16 heads, batch size 64) on\nA100 GPU.\nHBM access is the primary factor affecting runtime. Middle : Forward runtime of FlashAttention (seq. length 1024, head\ndim. 64, 16 heads, batch size 64)\non A100 GPU. Fewer HBM accesses result in faster runtime, up to a point. Right : The runtime (for seq. length 4K) of\nblock-sparse FlashAttention is faster than FlashAttention by a factor proportional\nto the sparsity.",
     "crop": [
+      115.5,
+      71.75,
+      500.25,
+      146.25
+    ],
+    "source": "local 2205.14135v2.pdf",
+    "previous_crop": [
       65,
       50,
       548,
       212
     ],
-    "source": "local 2205.14135v2.pdf"
+    "body_region": [
+      65,
+      50,
+      548,
+      151
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1539,
+      298
+    ],
+    "sha256": "f3c39736a5fa75d612db2ebc310299dd0d1933ff468438c577e1afcd37e6c084"
   },
   {
     "kind": "figure",
@@ -34,12 +74,32 @@
     "file": "fig-03.png",
     "caption": "Figure 3 : Left: runtime of forward pass + backward pass. Right: attention memory usage.",
     "crop": [
+      105.5,
+      72.75,
+      502.75,
+      194.25
+    ],
+    "source": "local 2205.14135v2.pdf",
+    "previous_crop": [
       65,
       52,
       548,
       220
     ],
-    "source": "local 2205.14135v2.pdf"
+    "body_region": [
+      65,
+      52,
+      548,
+      198
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1589,
+      486
+    ],
+    "sha256": "696a100e133ac2ee57650882f57d2efc7a6ef5c16d2b74cd82ff7df9eeb2b562"
   },
   {
     "kind": "figure",
@@ -48,12 +108,32 @@
     "file": "fig-04.png",
     "caption": "Figure 4 : Validation perplexity of GPT-2\nsmall/medium using two implementations.\nWe confirm that FlashAttention yields the same validation curves as the baseline\nimplementation from HuggingFace.",
     "crop": [
+      145.75,
+      76.75,
+      466.5,
+      324.5
+    ],
+    "source": "local 2205.14135v2.pdf",
+    "previous_crop": [
       65,
       55,
       548,
       365
     ],
-    "source": "local 2205.14135v2.pdf"
+    "body_region": [
+      65,
+      55,
+      548,
+      332
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1283,
+      991
+    ],
+    "sha256": "ea8ba15fd79506b921420931dafaf359a54126ebdebb38945487f1f14366e876"
   },
   {
     "kind": "figure",
@@ -62,12 +142,32 @@
     "file": "fig-05.png",
     "caption": "Figure 5 : Speedup over standard PyTorch attention at different sequence lengths, on A100.",
     "crop": [
+      111.25,
+      459.75,
+      501.0,
+      636.25
+    ],
+    "source": "local 2205.14135v2.pdf",
+    "previous_crop": [
       65,
       448,
       548,
       664
     ],
-    "source": "local 2205.14135v2.pdf"
+    "body_region": [
+      106,
+      454,
+      506,
+      643
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1559,
+      706
+    ],
+    "sha256": "e8241e38b6ec81c3571350e8efbcd6acd69cdcd8b69ceaad96c45f69faccac8d"
   },
   {
     "kind": "figure",
@@ -76,12 +176,32 @@
     "file": "fig-06.png",
     "caption": "Figure 6 : Speedup over standard PyTorch attention at different sequence lengths, on A100, with head dimension 128.",
     "crop": [
+      111.0,
+      76.0,
+      501.25,
+      243.0
+    ],
+    "source": "local 2205.14135v2.pdf",
+    "previous_crop": [
       65,
       50,
       548,
       282
     ],
-    "source": "local 2205.14135v2.pdf"
+    "body_region": [
+      106,
+      70,
+      506,
+      250
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1561,
+      668
+    ],
+    "sha256": "2029538eaf5013b3a156df02b06193b8f34bf053415e294423f01ac6a334ce1d"
   },
   {
     "kind": "figure",
@@ -90,12 +210,32 @@
     "file": "fig-07.png",
     "caption": "Figure 7 : Speedup over standard PyTorch attention at different sequence lengths, on RTX 3090.",
     "crop": [
+      111.0,
+      364.0,
+      501.0,
+      540.25
+    ],
+    "source": "local 2205.14135v2.pdf",
+    "previous_crop": [
       65,
       354,
       548,
       568
     ],
-    "source": "local 2205.14135v2.pdf"
+    "body_region": [
+      106,
+      358,
+      506,
+      548
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1560,
+      705
+    ],
+    "sha256": "cfe03405766ee2c1312ff630cd0ac9e875ab4c00116f115449075f77ae01f838"
   },
   {
     "kind": "figure",
@@ -104,12 +244,32 @@
     "file": "fig-08.png",
     "caption": "Figure 8 : Speedup over standard PyTorch attention at different sequence lengths, on T4. Top: Combined forward pass + backward pass. Bottom: Forward pass only.",
     "crop": [
+      110.75,
+      75.75,
+      501.0,
+      433.25
+    ],
+    "source": "local 2205.14135v2.pdf",
+    "previous_crop": [
       65,
       50,
       548,
       475
     ],
-    "source": "local 2205.14135v2.pdf"
+    "body_region": [
+      106,
+      70,
+      506,
+      441
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1561,
+      1430
+    ],
+    "sha256": "8d5f81bf4a7bc2f5223c44021a12802b5a3ea4a0bb394628379140f586f37263"
   },
   {
     "kind": "table",
@@ -118,12 +278,32 @@
     "file": "table-01.png",
     "caption": "Table 1: Training time of BERT-large,\nstarting\nfrom the same initialization provided by the MLPerf benchmark,\nto reach the\ntarget accuracy of 72.0% on masked language modeling.\nAveraged over 10 runs on 8 × A100 GPUs.",
     "crop": [
+      195.75,
+      633.75,
+      410.0,
+      671.25
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       602.5651245117188,
       548,
       672
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      195,
+      632,
+      411,
+      672
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      857,
+      150
+    ],
+    "sha256": "adb98c25d21c413599bda3c0057b42cae56b8aeb714e5cfeb5996c781979cf9a"
   },
   {
     "kind": "table",
@@ -132,12 +312,32 @@
     "file": "table-02.png",
     "caption": "Table 2: GPT-2 small and medium using FlashAttention achieve up to 3 × speed up compared to\nHuggingface implementation and up to 1.7 × compared to Megatron-LM.\nTraining time reported on 8 × A100s GPUs.",
     "crop": [
+      128.5,
+      141.25,
+      477.25,
+      223.0
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       110.09912872314453,
       548,
       225
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      128,
+      140,
+      478,
+      225
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1395,
+      327
+    ],
+    "sha256": "77ae16c50c7b19c3b16f47dc52161867033f4d1accc59258a901f4c8f6a1ba03"
   },
   {
     "kind": "table",
@@ -146,12 +346,32 @@
     "file": "table-03.png",
     "caption": "Table 3 : The performance of standard attention, FlashAttention , block-sparse FlashAttention , and approximate attention baselines on the Long-Range-Arena benchmarks.",
     "crop": [
+      86.25,
+      335.0,
+      516.75,
+      449.75
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       303.8571472167969,
       548,
       451
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      85,
+      333,
+      518,
+      451
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1722,
+      459
+    ],
+    "sha256": "d49d46f2e90e7ce344af1d8eebc75d52d2d1cfb0818a5aa5460a86b0c700fd3b"
   },
   {
     "kind": "table",
@@ -160,12 +380,32 @@
     "file": "table-04.png",
     "caption": "Table 4: GPT-2 small with FlashAttention , with 4 × larger context\nlength compared to Megatron-LM, is still 30% faster while achieving 0.7\nbetter perplexity. Training time on 8 × A100 GPUs is reported.",
     "crop": [
+      96.5,
+      586.0,
+      509.25,
+      645.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       545.5331420898438,
       548,
       647
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      95,
+      585,
+      510,
+      647
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1651,
+      238
+    ],
+    "sha256": "822ae727f5246a2d65cf5e7e94e8701ecd177acda24c2647cd1352c312c2f642"
   },
   {
     "kind": "table",
@@ -174,12 +414,32 @@
     "file": "table-05.png",
     "caption": "Table 5: Long Document performance (micro F 1 ) at different sequence lengths using FlashAttention .",
     "crop": [
+      115.5,
+      413.25,
+      304.25,
+      441.75
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       108,
       371.0531311035156,
       306,
       445
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      114,
+      409,
+      306,
+      445
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      755,
+      114
+    ],
+    "sha256": "bdc6a945c47342e4dc1f0a119932c625ee7d45ef08a102bc1105c94622505944"
   },
   {
     "kind": "table",
@@ -188,12 +448,32 @@
     "file": "table-06.png",
     "caption": "Table 6 : We report the first Transformer model that can achieve non-random performance on Path-X and Path-256.",
     "crop": [
+      318.0,
+      385.5,
+      488.75,
+      470.0
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       310,
       343.27813720703125,
       506,
       473
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      317,
+      382,
+      490,
+      473
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      683,
+      338
+    ],
+    "sha256": "9bcbd4c4b189c6798a2b43fa55acf49f2fd97a539ac9de59ec766742dcb912b7"
   },
   {
     "kind": "table",
@@ -202,12 +482,32 @@
     "file": "table-07.png",
     "caption": "Table 7: Runtime (ms) of FlashAttention compared to FMHA by sequence length, with\nmasking and dropout, measured on an A100-SXM4-40GB GPU. Batch size 64, 16\nheads, head dimension 64 (i.e., BERT-large size).",
     "crop": [
+      164.75,
+      102.5,
+      444.25,
+      191.25
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       71.35517120361328,
       548,
       192
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      164,
+      102,
+      445,
+      192
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1118,
+      355
+    ],
+    "sha256": "f4c029a68ed633d25b2ccfc50acbc1749de65fcc798c42f9062da90a48e8f247"
   },
   {
     "kind": "table",
@@ -216,12 +516,32 @@
     "file": "table-08.png",
     "caption": "Table 8 : Pointers to results tables.",
     "crop": [
+      158.75,
+      92.75,
+      453.25,
+      269.0
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       70.25990295410156,
       548,
       272
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      158,
+      92,
+      454,
+      272
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1178,
+      705
+    ],
+    "sha256": "b1e93caca1b2e2f2ed3ff7c23ed17c3df5ed26b9bd53039f9cb5ade898eb5212"
   },
   {
     "kind": "table",
@@ -230,12 +550,32 @@
     "file": "table-09.png",
     "caption": "Table 9 : Forward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout and masking . Best in bold , second best underlined .",
     "crop": [
+      85.25,
+      311.5,
+      524.0,
+      427.0
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       280.1671447753906,
       548,
       430
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      84,
+      311,
+      525,
+      430
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1755,
+      462
+    ],
+    "sha256": "1860d16988bd5714491eb0b84b56114ec782bbad974b7bd2d86e4d59cbc1ed5d"
   },
   {
     "kind": "table",
@@ -244,12 +584,32 @@
     "file": "table-10.png",
     "caption": "Table 10 : Backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout and masking . Best in bold , second best underlined .",
     "crop": [
+      81.25,
+      109.0,
+      528.0,
+      224.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       77.77515411376953,
       548,
       226
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      108,
+      548,
+      226
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1787,
+      462
+    ],
+    "sha256": "d392452c4819c30e67f582df7c60401c1e80c91e0b1e776e7e128b7dc7aee540"
   },
   {
     "kind": "table",
@@ -258,12 +618,32 @@
     "file": "table-11.png",
     "caption": "Table 11 : Forward pass + backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout and masking . Best in bold , second best underlined .",
     "crop": [
+      78.25,
+      273.0,
+      531.0,
+      388.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       241.76812744140625,
       548,
       390
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      272,
+      548,
+      390
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1811,
+      462
+    ],
+    "sha256": "c791b3f3376a3bef69bd3a238d116a95f5d3a33c4e3932818ba9a9943ef075e0"
   },
   {
     "kind": "table",
@@ -272,12 +652,32 @@
     "file": "table-12.png",
     "caption": "Table 12 : Forward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with masking . Best in bold , second best underlined .",
     "crop": [
+      83.25,
+      437.0,
+      526.0,
+      552.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       405.7601318359375,
       548,
       554
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      436,
+      548,
+      554
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1771,
+      462
+    ],
+    "sha256": "694ca0159149a8392f5484071a0cbde211f02e17912b3abc4cb35d3f711ac0e5"
   },
   {
     "kind": "table",
@@ -286,12 +686,32 @@
     "file": "table-13.png",
     "caption": "Table 13 : Backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with masking . Best in bold , second best underlined .",
     "crop": [
+      81.25,
+      601.0,
+      528.0,
+      716.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       569.753173828125,
       548,
       716
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      600,
+      548,
+      718
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1787,
+      462
+    ],
+    "sha256": "700c973c5b2278d3d8aa466e5ca886c899b94d32d81094722267ebd2801c7eb9"
   },
   {
     "kind": "table",
@@ -300,12 +720,32 @@
     "file": "table-14.png",
     "caption": "Table 14 : Forward pass + backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with masking . Best in bold , second best underlined .",
     "crop": [
+      78.25,
+      109.0,
+      531.0,
+      224.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       77.77515411376953,
       548,
       226
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      108,
+      548,
+      226
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1811,
+      462
+    ],
+    "sha256": "ccaf52b395afe162d685e2a7ae638d621dffcae3bc8581d113d88f52e252fa6b"
   },
   {
     "kind": "table",
@@ -314,12 +754,32 @@
     "file": "table-15.png",
     "caption": "Table 15 : Forward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout . Best in bold , second best underlined .",
     "crop": [
+      85.25,
+      273.0,
+      524.0,
+      388.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       241.76812744140625,
       548,
       390
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      272,
+      548,
+      390
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1755,
+      462
+    ],
+    "sha256": "1565a4bb4c10c531bf292d6905452765a810cda181b7d08208fedca8264f3d51"
   },
   {
     "kind": "table",
@@ -328,12 +788,32 @@
     "file": "table-16.png",
     "caption": "Table 16 : Backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout . Best in bold , second best underlined .",
     "crop": [
+      81.25,
+      437.0,
+      528.0,
+      552.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       405.7601318359375,
       548,
       554
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      436,
+      548,
+      554
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1787,
+      462
+    ],
+    "sha256": "94a653c7deda32bb780d35259f5e6c7ce37b6620a611449c871e383052ea5e85"
   },
   {
     "kind": "table",
@@ -342,12 +822,32 @@
     "file": "table-17.png",
     "caption": "Table 17 : Forward pass + backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length, with dropout . Best in bold , second best underlined .",
     "crop": [
+      78.25,
+      601.0,
+      531.0,
+      716.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       569.753173828125,
       548,
       716
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      600,
+      548,
+      718
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1811,
+      462
+    ],
+    "sha256": "9e0170da639560ffe7528696485d569de0ba064dac7ccaee8c15b376bedee658"
   },
   {
     "kind": "table",
@@ -356,12 +856,32 @@
     "file": "table-18.png",
     "caption": "Table 18 : Forward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length. Best in bold , second best underlined .",
     "crop": [
+      86.25,
+      109.0,
+      523.0,
+      224.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       77.77515411376953,
       548,
       226
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      108,
+      548,
+      226
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1747,
+      462
+    ],
+    "sha256": "19c09908aeddc7f5eb62ccd81b72d6fd708c98c4151269181853c593255b1bde"
   },
   {
     "kind": "table",
@@ -370,12 +890,32 @@
     "file": "table-19.png",
     "caption": "Table 19 : Backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length. Best in bold , second best underlined .",
     "crop": [
+      81.25,
+      273.0,
+      528.0,
+      388.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       241.76812744140625,
       548,
       390
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      272,
+      548,
+      390
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1787,
+      462
+    ],
+    "sha256": "796b92ff78ddc0f9d1040647726490147ff6b6c170ac25bfe7858969a93ed1af"
   },
   {
     "kind": "table",
@@ -384,12 +924,32 @@
     "file": "table-20.png",
     "caption": "Table 20 : Forward pass + backward pass runtime (ms) of various exact/approximate/sparse attention mechanisms by sequence length. Best in bold , second best underlined .",
     "crop": [
+      78.25,
+      437.0,
+      531.0,
+      552.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       405.7601318359375,
       548,
       554
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      436,
+      548,
+      554
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1811,
+      462
+    ],
+    "sha256": "59fe09b0e1e8aeeed1e482a839d4b23f4b3de81627d8488d55f531e0c5b9d641"
   },
   {
     "kind": "table",
@@ -398,11 +958,31 @@
     "file": "table-21.png",
     "caption": "Table 21 : Memory usage (MB) of various exact/approximate/sparse attention mechanisms by sequence length. Best in bold , second best underlined .",
     "crop": [
+      94.25,
+      601.0,
+      515.25,
+      716.5
+    ],
+    "source": "local PDF + arXiv HTML",
+    "previous_crop": [
       65,
       569.753173828125,
       548,
       716
     ],
-    "source": "local PDF + arXiv HTML"
+    "body_region": [
+      65,
+      600,
+      548,
+      718
+    ],
+    "caption_in_image": false,
+    "caption_presentation": "Visible selectable text directly below image",
+    "updated": "2026-10-28",
+    "pixels": [
+      1684,
+      462
+    ],
+    "sha256": "bae129e0e20377e0cc6bca30de75882771d122ab27d8536b05534385b2b31bc5"
   }
 ]
