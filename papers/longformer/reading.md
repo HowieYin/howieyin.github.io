@@ -10,7 +10,7 @@
 
 Attention · Long Context · Sparse Attention · Encoder · Seq2Seq · Systems
 
-本文用 **原论文** 标识 [P]，用 **外部资料** 标识 [E]，用 **解读 / 推导** 标识作者未直接报告的分析。原始图表均保留，重排表格供检索，原图供核对；公式与交互读数不能代替实测性能。
+本文用 **原论文** 标识 [P]，用 **外部资料** 标识 [E]，用 **解读 / 推导** 标识作者未直接报告的分析。原始图表均保留，重排表格供检索，原图供核对。原文图注和中文解读放在图外，以可选择、可复制的文字呈现；图片保留图内坐标、图例、标注与表格内容。公式与交互读数不能代替实测性能。图注排版更新：2026-10-28。
 
 ## TL;DR：一段话与五个关键点
 
@@ -112,7 +112,7 @@ Our Longformer</td>
 <td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_bb ltx_border_t" style="padding-left:1.0pt;padding-right:1.0pt;">multiple</td>
 <td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right ltx_border_bb ltx_border_t" style="padding-left:1.0pt;padding-right:1.0pt;">yes</td></tr>
 </tbody>
-</table></div><details><summary>Table 1 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-01-prior-work.png" aria-label="放大 Table 1"><img src="assets/original/table-01-prior-work.png" alt="Table 1：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 1 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 1 · Original Paper v2 · PDF p. 2</span><span class="caption-text" lang="en">Table 1: Summary of prior work on adapting Transformers for long documents. ltr: left-to-right.</span></p><details><summary>Table 1 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-01-prior-work.png" aria-label="放大 Table 1"><img src="assets/original/table-01-prior-work.png" alt="Table 1：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 1 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 1 深读。** 这张表是机制分类，不是 benchmark 排名。Sliding window 保留连续邻域；dilated window 以间隔采样远处；block/local 通过块限制连接；稀疏分解让多步连接覆盖更大区域；memory 路线把历史压成可复用状态。表里的复杂度必须连同窗口、块、memory 长度等隐含参数一起读。“线性”没有保证更低常数，也没有保证与 dense 模型等价。
 
@@ -122,7 +122,7 @@ Our Longformer</td>
 
 ### 3.1 Attention Pattern：窗口负责连续性，全局节点负责汇聚
 
-<figure class="original-figure"><button type="button" data-zoom="assets/original/fig-02-attention-pattern.png" aria-label="放大 Figure 2"><img src="assets/original/fig-02-attention-pattern.png" alt="Figure 2：full、local、dilated 与 global 的 query–key 连接结构，含原始 caption" loading="lazy"></button><figcaption>Figure 2 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure>
+<figure class="original-figure"><button type="button" data-zoom="assets/original/fig-02-attention-pattern.png" aria-label="放大 Figure 2"><img src="assets/original/fig-02-attention-pattern.png" alt="Figure 2：full、local、dilated 与 global 的 query–key 连接结构" loading="lazy"></button><figcaption><span class="caption-source">Figure 2 · Original Paper v2 · PDF p. 3</span><span class="caption-text" lang="en">Figure 2: Comparing the full self-attention pattern and the configuration of attention patterns in our Longformer.</span></figcaption></figure>
 
 **Figure 2 的问题。** 它比较的是“允许计算哪些 query–key 对”，不是训练后 attention probability 的热力图。按左至右读 full、sliding、dilated、local + global；行对应 query，列对应 key。对角带表示附近连接，膨胀带表示按 stride 取邻居；global 的整行和整列分别表示它能读全文、全文能读它。[P Fig. 2]
 
@@ -171,13 +171,13 @@ return output_projection(concat_heads(Y))
 
 ### 3.2 Implementation：稀疏连接与 GPU 矩阵乘法之间的妥协
 
-<figure class="original-figure"><button type="button" data-zoom="assets/original/fig-01-runtime-memory.png" aria-label="放大 Figure 1"><img src="assets/original/fig-01-runtime-memory.png" alt="Figure 1：attention 实现的 runtime 与 memory 随序列长度变化，含原始 caption" loading="lazy"></button><figcaption>Figure 1 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure>
+<figure class="original-figure"><button type="button" data-zoom="assets/original/fig-01-runtime-memory.png" aria-label="放大 Figure 1"><img src="assets/original/fig-01-runtime-memory.png" alt="Figure 1：attention 实现的 runtime 与 memory 随序列长度变化" loading="lazy"></button><figcaption><span class="caption-source">Figure 1 · Original Paper v2 · PDF p. 1</span><span class="caption-text" lang="en">Figure 1: Runtime and memory of full self-attention and different implementations of Longformer’s self-attention; Longformer-loop is non-vectorized, Longformer-chunk is vectorized, and Longformer-cuda is a custom cuda kernel implementations. Longformer’s memory usage scales linearly with the sequence length, unlike the full self-attention mechanism that runs out of memory for long sequences on current GPUs. Different implementations vary in speed, with the vectorized Longformer-chunk being the fastest. More details are in section 3.2.</span></figcaption></figure>
 
-**Figure 1 的问题 / 读法。** 左图读 runtime，单位 **ms / batch**；右图读 memory，单位 **MiB**。横轴是序列长度，分别比较 full、loop、overlapping chunks、TVM 的 diagonaled kernel 和 non-overlapping local-chunks。先看是否随长度扩展，再看同长度的曲线差异。[P Fig. 1、§3.2、附录 A]
+**Figure 1 的问题 / 读法。** 左图读 runtime，单位 **ms / batch**；右图读 memory，单位 **MiB**。横轴是序列长度，图例中的四条曲线分别是 Full self-attention、Longformer-loop、Longformer-chunks、Longformer-cuda。先看是否随长度扩展，再看同长度的曲线差异。附录 A 的 non-overlapping local-chunks 是额外实现，不是本地 v2 Figure 1 中的一条曲线。[P Fig. 1、§3.2、附录 A]
 
 **Components / Data flow。** Python loop 逐位置处理窗口，算术规模降低却产生很多小操作。Overlapping chunks 把 Q/K 切成重叠块，以 dense GEMM 求块内 score，再转换成对角布局；它会计算一部分最后被 mask 的元素。TVM 自定义 kernel 直接计算对角带，支持 dilation。Local-chunks 避免块重叠，但相应连接形状有细微差别，不是同一 mask 的纯实现替换。
 
-**Key observation。** 图中 local-chunks 最快；TVM 更节省内存，速度不自动胜过 GEMM 分块。作者选择 PyTorch overlapping-chunks 为 fine-tuning 提供更方便的路径，字符 causal / dilation 设置则需要相应支持的实现。
+**Key observation。** 本图中的 Longformer-chunks 最快；Longformer-cuda 更节省内存，速度不自动胜过 GEMM 分块。作者选择 PyTorch overlapping-chunks 为 fine-tuning 提供更方便的路径，字符 causal / dilation 设置则需要相应支持的实现。
 
 **Why it matters / 解读。** GPU 时间受矩阵形状、启动次数、layout 转换和带宽影响。需要逐 op 测量 QKV projection → chunk / gather → QK → mask / softmax → PV → scatter → output projection，而不能仅按稀疏率推算速度。论文没有提供可直接迁移到 H100/H200 的完整 kernel 对比协议；这里不从图上编造精确点值，也不把它当成 FlashAttention 的实测对照。
 
@@ -266,7 +266,7 @@ text8 / enwik8 是字符预测，使用 bits per character（BPC，**越低越�
 <td class="ltx_td ltx_align_right ltx_border_bb">1.02</td>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb"><span class="ltx_text ltx_font_bold">1.00</span></td></tr>
 </tbody>
-</table></div><details><summary>Table 2 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-02-small-char-lm.png" aria-label="放大 Table 2"><img src="assets/original/table-02-small-char-lm.png" alt="Table 2：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 2 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 2 · Original Paper v2 · PDF p. 5</span><span class="caption-text" lang="en">Table 2: Small model BPC on text8 &amp; enwik8</span></p><details><summary>Table 2 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-02-small-char-lm.png" aria-label="放大 Table 2"><img src="assets/original/table-02-small-char-lm.png" alt="Table 2：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 2 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 2。** 同类 small 规模下，Longformer text8 test BPC **1.10**，最佳此前 small 为 1.11，下降 0.01（相对约 0.90%）；enwik8 **1.00** 对 1.02，下降 0.02（约 1.96%）。这些是 BPC 的相对变化，不是 accuracy 上升。参数、数据处理和训练预算并未逐项完全相等；不能据此推导单位 GPU-hour 的优势。
 
@@ -307,7 +307,7 @@ text8 / enwik8 是字符预测，使用 bits per character（BPC，**越低越�
 <td class="ltx_td ltx_align_right ltx_border_bb">102M</td>
 <td class="ltx_td ltx_align_right ltx_border_bb">0.99</td></tr>
 </tbody>
-</table></div><details><summary>Table 3 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-03-large-char-lm.png" aria-label="放大 Table 3"><img src="assets/original/table-03-large-char-lm.png" alt="Table 3：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 3 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 3 · Original Paper v2 · PDF p. 5</span><span class="caption-text" lang="en">Table 3: Performance of large models on enwik8</span></p><details><summary>Table 3 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-03-large-char-lm.png" aria-label="放大 Table 3"><img src="assets/original/table-03-large-char-lm.png" alt="Table 3：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 3 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 3。** Large Longformer 102M 在 enwik8 的 BPC 为 **0.99**；Compressive Transformer 277M 为 **0.97**，仍低 0.02。它说明稀疏模型能在较少参数下达到接近的字符建模质量，不能称“所有规模整体 SOTA”。论文没有统一复训全部 baseline，内存与时长也没有构成完整同预算排名。
 
@@ -336,7 +336,7 @@ text8 / enwik8 是字符预测，使用 bits per character（BPC，**越低越�
 <th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Dilation on 2 heads</th>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb"><span class="ltx_text ltx_font_bold">1.20</span></td></tr>
 </tbody>
-</table></div><details><summary>Table 4 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-04-char-ablation.png" aria-label="放大 Table 4"><img src="assets/original/table-04-char-ablation.png" alt="Table 4：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 4 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 4 · Original Paper v2 · PDF p. 6</span><span class="caption-text" lang="en">Table 4: Top: changing window size across layers. Bottom: with/without dilation (@ 150K steps on phase1)</span></p><details><summary>Table 4 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-04-char-ablation.png" aria-label="放大 Table 4"><img src="assets/original/table-04-char-ablation.png" alt="Table 4：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 4 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 4。** 只在 phase 1、150K 更新的 text8 dev BPC 比较：窗口递减 1.24、固定 1.23、递增 1.21；固定其他设置后，无 dilation 1.21、2 heads dilation 1.20。递增比递减降低 0.03（约 2.42%），dilation 降低 0.01（约 0.83%）。作者明确说中途顺序可能不等于完整训练后的顺序。它支持这套训练阶段中的设计方向，尚不能证明任意 task / depth 都应采用相同 schedule。
 
@@ -381,7 +381,7 @@ Longformer-base / large 继承 RoBERTa weights。Self-attention 的 local 和 gl
 <td class="ltx_td ltx_align_right ltx_border_bb">1.850</td>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb">1.504</td></tr>
 </tbody>
-</table></div><details><summary>Table 5 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-05-mlm-initialization.png" aria-label="放大 Table 5"><img src="assets/original/table-05-mlm-initialization.png" alt="Table 5：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 5 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 5 · Original Paper v2 · PDF p. 6</span><span class="caption-text" lang="en">Table 5: MLM BPC for RoBERTa and various pretrained Longformer configurations.</span></p><details><summary>Table 5 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-05-mlm-initialization.png" aria-label="放大 Table 5"><img src="assets/original/table-05-mlm-initialization.png" alt="Table 5：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 5 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 5。** 这是 MLM evaluation BPC。Base 随机扩展 **10.299**，复制 **1.957**，2K 更新 **1.753**，65K **1.705**；large 为 **8.738 / 1.597 / 1.414 / 1.358**。复制后冻结旧参数、只训练新位置的结果 base **1.850**、large **1.504**，弱于完整继续训练。原 RoBERTa base **1.846**、large **1.496**；由于评估上下文不同，不能把这列当作严格同输入条件的模型质量比较。
 
@@ -428,7 +428,7 @@ Longformer-base / large 继承 RoBERTa weights。Self-attention 的 local 和 gl
 <td class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:3.0pt;padding-right:3.0pt;">705</td>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb" style="padding-left:3.0pt;padding-right:3.0pt;">1,975</td></tr>
 </tbody>
-</table></div><details><summary>Table 6 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-06-dataset-lengths.png" aria-label="放大 Table 6"><img src="assets/original/table-06-dataset-lengths.png" alt="Table 6：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 6 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 6 · Original Paper v2 · PDF p. 7</span><span class="caption-text" lang="en">Table 6: Average and 95th percentile of context length of datasets in wordpieces. WH: WikiHop, TQA: TriviaQA, HQA: HotpotQA, ON: OntoNotes, HY: Hyperpartisan news</span></p><details><summary>Table 6 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-06-dataset-lengths.png" aria-label="放大 Table 6"><img src="assets/original/table-06-dataset-lengths.png" alt="Table 6：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 6 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 6。** 这张表描述数据长度分布，不是结果。平均值会掩盖长尾，95th percentile 与模型最大输入长度要一起看。TriviaQA 平均 6,589 token、p95 17,126，却在本文设置下截断到 4096。支持“长序列”不等于本实验读到了每篇样本的全文。
 
@@ -490,7 +490,7 @@ IMDB 是影评情感分类；Hyperpartisan 是新闻立场分类。分类位置�
 <td class="ltx_td ltx_align_right ltx_border_bb"><span class="ltx_text ltx_font_bold">95.7</span></td>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb"><span class="ltx_text ltx_font_bold">94.8</span></td></tr>
 </tbody>
-</table></div><details><summary>Table 7 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-07-downstream-base.png" aria-label="放大 Table 7"><img src="assets/original/table-07-downstream-base.png" alt="Table 7：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 7 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 7 · Original Paper v2 · PDF p. 8</span><span class="caption-text" lang="en">Table 7: Summary of finetuning results on QA, coreference resolution, and document classification. Results are on the development sets comparing our Longformer-base with RoBERTa-base. TriviaQA, Hyperpartisan metrics are F1, WikiHop and IMDB use accuracy, HotpotQA is joint F1, OntoNotes is average F1.</span></p><details><summary>Table 7 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-07-downstream-base.png" aria-label="放大 Table 7"><img src="assets/original/table-07-downstream-base.png" alt="Table 7：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 7 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 7。** 都是 development set，但任务指标不同。RoBERTa→Longformer-base：WikiHop 72.4→75.0（**+2.6pp**，相对 +3.59%），TriviaQA 74.3→75.2（+0.9pp，+1.21%），HotpotQA 63.5→64.4（+0.9pp，+1.42%），OntoNotes 78.4→78.6（+0.2pp，+0.26%），IMDB 95.3→95.7（+0.4pp，+0.42%），Hyperpartisan 87.4→94.8（+7.4pp，+8.47%）。
 
@@ -516,7 +516,7 @@ IMDB 是影评情感分类；Hyperpartisan 是新闻立场分类。分类位置�
 <td class="ltx_td ltx_align_right ltx_border_bb"><span class="ltx_text ltx_font_bold">77.3</span></td>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb">73.2</td></tr>
 </tbody>
-</table></div><details><summary>Table 8 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-08-qa-leaderboards.png" aria-label="放大 Table 8"><img src="assets/original/table-08-qa-leaderboards.png" alt="Table 8：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 8 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 8 · Original Paper v2 · PDF p. 8</span><span class="caption-text" lang="en">Table 8: Leaderboard results of Longformer-large at time of submission (May 2020). All numbers are F1 scores.</span></p><details><summary>Table 8 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-08-qa-leaderboards.png" aria-label="放大 Table 8"><img src="assets/original/table-08-qa-leaderboards.png" alt="Table 8：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 8 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 8。** 原 caption 写“all F1”，但 WikiHop 实际是 accuracy，这是论文自身的标注冲突，保留原图并勘误。表引用 **May 2020** 榜单：WikiHop 78.3→81.9（+3.6pp），TriviaQA 73.3→77.3（+4.0pp），HotpotQA 74.2→73.2（−1.0pp）。它既不是 v2 日期的完整榜单，也不是 2026 排名。
 
@@ -570,7 +570,7 @@ ETC-large<sup class="ltx_sup"><span class="ltx_text ltx_font_italic">†</span><
 <td class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:4.0pt;padding-right:4.0pt;">88.5</td>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb" style="padding-left:4.0pt;padding-right:4.0pt;">74.2</td></tr>
 </tbody>
-</table></div><details><summary>Table 9 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-09-hotpotqa.png" aria-label="放大 Table 9"><img src="assets/original/table-09-hotpotqa.png" alt="Table 9：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 9 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 9 · Original Paper v2 · PDF p. 9</span><span class="caption-text" lang="en">Table 9: HotpotQA results in distractor setting test set. Quark’s test results are not available. All numbers are F1 scores. † shows contemporaneous leaderboard submissions.</span></p><details><summary>Table 9 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-09-hotpotqa.png" aria-label="放大 Table 9"><img src="assets/original/table-09-hotpotqa.png" alt="Table 9：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 9 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 9。** HotpotQA 要分别看 answer、supporting facts、joint F1；joint 不是两者简单平均。HGN joint 74.2 优于 Longformer 73.2；ETC 73.6 和 GSAN 73.9 也高于它。Quark 行是 dev，其余主要为 test，不能混排作严格结论。v2 表格不支持“当时 overall 第二”或“全面超过所有 baseline”的说法。
 
@@ -612,7 +612,7 @@ RoBERTa-base (seqlen: 512)</th>
 <th class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_left ltx_th ltx_th_row ltx_border_bb" style="padding-left:-2.0pt;padding-right:-2.0pt;">Longformer (pretrain extra position embed. only)</th>
 <td class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_right ltx_border_bb" style="padding-left:-2.0pt;padding-right:-2.0pt;">73.5 / -0.3</td></tr>
 </tbody>
-</table></div><details><summary>Table 10 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-10-wikihop-ablation.png" aria-label="放大 Table 10"><img src="assets/original/table-10-wikihop-ablation.png" alt="Table 10：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 10 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 10 · Original Paper v2 · PDF p. 9</span><span class="caption-text" lang="en">Table 10: WikiHop development set ablations</span></p><details><summary>Table 10 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-10-wikihop-ablation.png" aria-label="放大 Table 10"><img src="assets/original/table-10-wikihop-ablation.png" alt="Table 10：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 10 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 10。** 同为 base、5 epochs：完整模型 **73.8**；去 separate global projections **72.2**（−1.6pp）；再去 global attention **65.5**（相对 72.2 再降 6.7pp）。完整→两个组件同时去掉为 **−8.3pp**，不能把全部损失都归因 global mask。
 
@@ -680,11 +680,11 @@ LED-large (seqlen: 16,384) (ours)</td>
 <td class="ltx_td ltx_align_right ltx_border_bb ltx_border_t"><span class="ltx_text ltx_font_bold">19.62</span></td>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb ltx_border_t"><span class="ltx_text ltx_font_bold">41.83</span></td></tr>
 </tbody>
-</table></div><details><summary>Table 11 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-11-led-summarization.png" aria-label="放大 Table 11"><img src="assets/original/table-11-led-summarization.png" alt="Table 11：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 11 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 11 · Original Paper v2 · PDF p. 10</span><span class="caption-text" lang="en">Table 11: Summarization results of Longformer-Encoder-Decoder (LED) on the arXiv dataset. Metrics from left to right are ROUGE-1, ROUGE-2 and ROUGE-L.</span></p><details><summary>Table 11 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-11-led-summarization.png" aria-label="放大 Table 11"><img src="assets/original/table-11-led-summarization.png" alt="Table 11：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 11 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 11：arXiv test，ROUGE 越高越好。** LED-4096 为 **44.40 / 17.94 / 39.76**；LED-16384 为 **46.63 / 19.62 / 41.83**，R1 / R2 / RL 分别 +2.23 / +1.68 / +2.07（相对 +5.02% / +9.36% / +5.21%）。BigBird-4096 为 **46.63 / 19.02 / 41.77**，LED-16K 的 R1 持平、R2 +0.60、RL +0.06。BigBird 使用 Pegasus 相关初始化，LED 用 BART，输入长度也不同；不是同配置模型替换实验。
 
-<figure class="original-figure"><button type="button" data-zoom="assets/original/fig-03-led-input-length.png" aria-label="放大 Figure 3"><img src="assets/original/fig-03-led-input-length.png" alt="Figure 3：LED validation ROUGE 随 encoder 长度增加，含原始 caption" loading="lazy"></button><figcaption>Figure 3 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure>
+<figure class="original-figure"><button type="button" data-zoom="assets/original/fig-03-led-input-length.png" aria-label="放大 Figure 3"><img src="assets/original/fig-03-led-input-length.png" alt="Figure 3：LED validation ROUGE 随 encoder 长度增加" loading="lazy"></button><figcaption><span class="caption-source">Figure 3 · Original Paper v2 · PDF p. 10</span><span class="caption-text" lang="en">Figure 3: ROUGE-1 and ROUGE-2 of LED when varying the input size (arXiv validation set).</span></figcaption></figure>
 
 **Figure 3 的问题 / 读法。** 看增加 encoder context 是否改善摘要，在 **validation** 上分别画 ROUGE-1 / ROUGE-2。1K 是 **35.21 / 11.54**，4K **44.48 / 17.99**，16K **46.23 / 19.62**。[P Fig. 3]
 
@@ -786,7 +786,7 @@ Overlapping chunks 使用大小 `2w`、重叠 `w` 的块，其中这里的实现
 <th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Dilation heads</th>
 <td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb">2 heads only</td></tr>
 </tbody>
-</table></div><details><summary>Table 12 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-12-char-hyperparameters.png" aria-label="放大 Table 12"><img src="assets/original/table-12-char-hyperparameters.png" alt="Table 12：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 12 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 12 · Original Paper v2 · PDF p. 15</span><span class="caption-text" lang="en">Table 12: Hyperparameters for the best performing model for character-level language modeling</span></p><details><summary>Table 12 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-12-char-hyperparameters.png" aria-label="放大 Table 12"><img src="assets/original/table-12-char-hyperparameters.png" alt="Table 12：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 12 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 12 审计。** 原 PDF 和 HTML 均有明显排版 / 数值异常：phase 1 window 写 **32→8192**，而消融文字为 **32→512**；phase 5 top window 缺失；末阶段 LR 写作 **`000015625`**。不能静默修成合理数字。由起始 `0.00025` 连续减半四次推得 `0.000015625` 仅是推断，需代码或作者确认。
 
@@ -819,7 +819,7 @@ Overlapping chunks 使用大小 `2w`、重叠 `w` 的块，其中这里的实现
 <td class="ltx_td ltx_align_right ltx_border_bb">2.1B</td>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb">7.8K</td></tr>
 </tbody>
-</table></div><details><summary>Table 13 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-13-pretraining-corpus.png" aria-label="放大 Table 13"><img src="assets/original/table-13-pretraining-corpus.png" alt="Table 13：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 13 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 13 · Original Paper v2 · PDF p. 15</span><span class="caption-text" lang="en">Table 13: Pretraining data</span></p><details><summary>Table 13 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-13-pretraining-corpus.png" aria-label="放大 Table 13"><img src="assets/original/table-13-pretraining-corpus.png" alt="Table 13：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 13 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 13。** 完整语料包括书籍、Wikipedia、RealNews 和 Stories 等，合计 **6.5B tokens**。数据统计不等于训练曝光量，也不能从 token 总量推断去重比例、数据许可或 unique documents。继续 MLM 累积的 17.03936B token positions 是另一个口径。
 
@@ -858,7 +858,7 @@ Overlapping chunks 使用大小 `2w`、重叠 `w` 的块，其中这里的实现
 <td class="ltx_td ltx_align_right ltx_border_bb">Adam</td>
 <td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb">Adam</td></tr>
 </tbody>
-</table></div><details><summary>Table 14 原始截图、caption 与排版（核对用）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-14-qa-hyperparameters.png" aria-label="放大 Table 14"><img src="assets/original/table-14-qa-hyperparameters.png" alt="Table 14：完整实验行列、指标与注释，含原始 caption" loading="lazy"></button><figcaption>Table 14 · Original Paper v2。点击放大；原 caption 已完整保留。</figcaption></figure></details>
+</table></div><p class="table-caption"><span class="caption-source">Table 14 · Original Paper v2 · PDF p. 16</span><span class="caption-text" lang="en">Table 14: Hyperparameters of the QA models. All models use a similar scheduler with linear warmup and decay.</span></p><details><summary>Table 14 原始表格与排版（点击展开核对）</summary><figure class="original-figure"><button type="button" data-zoom="assets/original/table-14-qa-hyperparameters.png" aria-label="放大 Table 14"><img src="assets/original/table-14-qa-hyperparameters.png" alt="Table 14：完整实验行列、指标与注释" loading="lazy"></button><figcaption><span class="caption-source">Table 14 · Original Paper v2 · 点击放大核对图内内容</span></figcaption></figure></details>
 
 **Table 14。** 它列 QA 的 optimizer / LR / batch 等设置，须按任务和模型规模分别读。HotpotQA 表内 LR **5e-5**，附录 D 文本所述最佳配置 **3e-5**，冲突未解；复现应两者都记录或向作者求证，而不是任取一个声称原配置。
 

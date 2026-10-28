@@ -191,11 +191,15 @@ for K_j, V_j in key_value_tiles:
 
 {{fig:2}}
 
-先看左侧统计，再看右侧曲线。左侧在给定 GPT-2 medium 设置下比较标准实现与 FlashAttention：batch 64、sequence 1024、head 64，A100，forward + backward。FLOPs 为 66.6 与 75.2 GFLOPs，HBM 读写为 40.3 与 4.4 GB，时间为 41.7 与 7.3 ms。
+**如何阅读左图。** 左侧三行分别比较算术量、HBM 读写量和 forward + backward 时间；两列是标准 Attention 与 FlashAttention。设置为 GPT-2 medium、batch 64、sequence 1024、16 heads、head dimension 64、A100。FLOPs 为 66.6 与 75.2 GFLOPs，HBM 读写为 40.3 与 4.4 GB，时间为 41.7 与 7.3 ms。这三行对应同一设置，可以联合解释重计算的收益。
 
 **重算结果。** `(75.2−66.6)/66.6≈12.9%` 更多算术；`40.3/4.4≈9.16×` 更少 HBM 流量；`41.7/7.3≈5.71×` 加速。对应时间下降约 82.5%。这些是单图中同一对结果；不要把 Figure 1 的 7.6× 拼到这里。
 
-中间图改变 block size，横轴是块宽而非 SRAM KB：块变大，扫 Q 的轮数减少，访问下降、前向时间下降；超过约 256 后其他瓶颈开始限制收益。右图比较随序列增长的 HBM 访问。关键意义是实际测量支持 IO 分析的解释方向。局限是这不是跨所有 GPU、shape 的因果消融，也不能用理论 IO 比值精确预测每个 kernel 的时间。
+**如何阅读中图。** 横轴是 block size，取 64、128、256、512；绿色曲线对左侧 HBM Accesses（GB），蓝色曲线对右侧 forward runtime（ms）。不要把两条曲线按同一个纵轴比较。块变大后，重复扫描 Q/O 的轮数减少，绿色曲线下降；蓝色时间也下降，但约 256 之后改善趋缓，说明 IO 之外的计算、归约或片上资源约束开始限制收益。这里测前向，不能与左图的前后向时间直接合并。
+
+**如何阅读右图。** 横轴是 **非零块百分比**，不是 sequence length；纵轴是 forward + backward 时间（ms），序列固定为 4K。红色水平虚线表示 dense FlashAttention，蓝色曲线表示 block-sparse FlashAttention。非零块越少，实际计算和搬运的 tile 越少，sparse 时间越低；接近全部非零时，优势逐渐缩小。它比较的是不同 Attention pattern，不能作为 dense exact 算子的无损加速倍数。
+
+**这张图为什么重要。** 左图回答“更多 FLOPs 能否更快”，中图回答“tile 大小如何改变 IO 与时间”，右图回答“跳过块如何进一步降成本”。三者共同支持执行链路分析，但不是完整的组件隔离消融；理论 IO 比值也不能精确预测任意 GPU、shape 的 kernel 时间。
 
 ### 3.5 IO complexity：线性存储不等于线性计算
 
@@ -239,7 +243,7 @@ mask 的数学语义是被排除 score 设为 `−∞`，权重为零；不是�
 
 {{table:1}}
 
-三行完整比较 HuggingFace、NVIDIA MLPerf 和 FlashAttention。最快 baseline 是 NVIDIA MLPerf，20.0±1.5 分钟；FlashAttention 为 17.4±1.4 分钟。HF 的 32.9±2.6 分钟不是最强 baseline。
+**如何阅读。** 本地 v2 的 Table 1 只有两行实现：NVIDIA MLPerf 1.1 与 FlashAttention。右列是达到同一目标的训练时间，单位为分钟，越低越好；两者分别为 20.0±1.5 和 17.4±1.4。表注说明结果来自 10 次运行的平均。原表没有 HuggingFace 的第三行，不应把其他来源的数字混入此表。
 
 **重算。** 相对 NVIDIA：绝对少 2.6 分钟，时间减少 13.0%，速度提高约 14.94%；原文约 15% 加速可以由此理解。“15% faster”不应不加区分地写成“时间下降 15%”。
 
@@ -309,7 +313,9 @@ FlashAttention 在 16K 的 Path-X 达到 61.4%；block-sparse 为 56.0%，并在
 
 {{fig:3}}
 
-左图是 forward + backward 时间，右图是额外内存。先辨认图例中 exact 与 approximate 方法，再看交叉点和随 N 的增长，不要直接按曲线排名当作精度等价竞赛。
+**如何阅读左图。** 横轴为 128–8192 的 sequence length，纵轴是 forward + backward runtime（ms），使用对数刻度；相同垂直距离表示倍率变化，不能当成相同毫秒差。黑色点线为 dense FlashAttention，绿色虚线为 block-sparse，蓝色实线为 PyTorch，橙色为 Megatron，棕色为 Linformer，青色虚线为 OpenAI sparse。红色圆圈标出 dense FA 与其他方法的交叉区域：速度排序会随长度改变。
+
+**如何阅读右图。** 横轴扩展到 64K，纵轴为 Attention memory footprint（GB）；它测存储占用，不是 HBM 读写流量。右图保留同一图例。PyTorch 随 N 快速增大，dense FA 与 sparse FA 的内存曲线几乎重合；Linformer 虽属于近似路线，仍有自己的投影和中间存储。图中的约 20× 与 2× 箭头分别指指定长度下 PyTorch / FA、Linformer / FA 的内存比，不能推广到所有长度或整个模型。
 
 **Key observation。** Dense FA 的时间仍随长度明显增长，内存曲线却近似线性；这与算术二次、激活线性的分析一致。某些近似算法在部分长度时间更低；FA 的价值是 exact 结果与效率的组合。左图的 cross-over 指不同方法的速度排序会随 N 改变。
 
@@ -471,7 +477,11 @@ Algorithm 5 只遍历选定非零块，保留 softmax merge 与完整 forward �
 
 {{fig:4}}
 
-先看横轴 training steps、纵轴 validation perplexity，再按 small/medium 分组比较 HF 与 FA 曲线。对应模型的曲线接近，支持 kernel 替换不明显破坏训练结果。横轴不是 wall time，因此曲线本身不能证明训练时间快多少；时间证据来自 Table 2。单次或汇总曲线也不能推出所有随机种子严格一致。
+**如何阅读。** 横轴是 training steps，刻度 100K、200K、300K；纵轴为 validation perplexity，越低越好。蓝色与橙色分别是 GPT-2 small 的 HuggingFace / FlashAttention，绿色与红色分别是 GPT-2 medium 的两种实现。应先比较同一模型的一对曲线，再比较模型大小；不能把 medium 的低 perplexity 归因于 FlashAttention。
+
+**关键观察。** 同一模型的两条曲线大部分重合，前期迅速下降、后期逐渐变缓；small 接近 18，medium 接近 14，与 Table 2 的最终结果方向一致。局部波动和细小偏差仍存在，所以证据支持训练行为接近，而不是每一步或每个浮点输出完全一致。
+
+**为什么重要与边界。** 这张图检查融合、归约顺序变化和反向重计算是否明显破坏收敛。横轴不是 wall time，因此它不直接证明训练加速；时间证据来自 Table 2。同一组曲线也不能推出所有随机种子严格一致，或证明任意 dtype / mask / kernel 配置都数值稳定。
 
 ### E.4 FMHA comparison：已有融合 kernel 是必要的 baseline
 
@@ -479,7 +489,9 @@ Algorithm 5 只遍历选定非零块，保留 softmax merge 与完整 forward �
 
 {{table:7}}
 
-这是 A100-SXM4-80GB、batch 64、16 heads、head dimension 64 的短序列测试，包含 mask 与 dropout。128 / 256 / 512 时，Apex FMHA 的 forward+backward 为 0.27 / 0.81 / 2.95 ms，FA 为 0.28 / 0.75 / 2.81 ms。
+**如何阅读。** 列为 sequence length 128 / 256 / 512，行按 forward、backward、forward + backward 分组，每组比较 Apex FMHA 与 FlashAttention；单位 ms，越低越好。原表注写的是 **A100-SXM4-40GB**，batch 64、16 heads、head dimension 64，包含 mask 与 dropout。不要与 Table 1 的 8×A100 80 GB 训练设置混淆。
+
+**逐 pass 比较。** Forward 中 Apex / FA 为 0.10/0.08、0.29/0.22、1.14/0.81 ms，FA 都更快；backward 为 0.17/0.20、0.52/0.53、1.81/2.00 ms，FA 都更慢。Combined 为 0.27/0.28、0.81/0.75、2.95/2.81 ms；因此最后结论必须同时看 pass 与长度。
 
 **重算。** 128 时 FA 时间多约 3.7%；256、512 时分别少约 7.4%、4.7%。FA 的 backward 三个长度都比 FMHA 更慢；combined 的后两项获益来自 forward。这个表直接否定“所有长度、所有 pass 都更快”。
 
@@ -491,25 +503,41 @@ Algorithm 5 只遍历选定非零块，保留 softmax merge 与完整 forward �
 
 {{fig:5}}
 
-按序列长度从左到右，按四种颜色区分 dropout + masking、dropout、masking、无两者。加速随长度和配置变化，说明被融合的低算术强度操作数量影响收益。纵轴是相对指定 PyTorch baseline 的 speedup，不是绝对毫秒或硬件利用率。
+**如何阅读。** 横轴是 sequence length 128–4096；纵轴为标准 PyTorch 时间 / FlashAttention 时间，1× 表示持平，越高越快。图中有 **三组** 柱：蓝色是 dropout + masking，橙色是 masking only，红色是无 mask、无 dropout；没有单独的 dropout-only 柱。原文设置为 A100、batch 8、12 heads、head dimension 64。
+
+**关键观察。** 512–4096 时，蓝色与橙色约为 4×，红色约为 2×；128/256 的收益较小，且橙色可以高于蓝色。图上近似读数只用于辨认趋势，不替代完整计时表。额外 mask/dropout 路径在普通实现中带来更多中间读写，融合后可以省掉这些往返，因而某些完整配置的相对收益更高。
+
+**边界。** 柱高是各配置相对其 PyTorch baseline 的比值，不说明“加上 dropout 会让 FA 绝对时间更短”，也不等于 GPU 利用率或整模型加速。长度、配置和 baseline 融合程度共同决定倍率。
 
 ### Figure 6 — A100，head dimension 128
 
 {{fig:6}}
 
-读法与 Figure 5 相同，但 head dimension 改为 128。曲线不应与上一图当成同 shape 的重复测量：d 变大会改变 tile 容量、matmul 成本与 occupancy。图显示仍有加速，但不能仅凭柱高推出独立的 d 因果关系，因为最优 kernel 配置可能也发生变化。
+**如何阅读。** 横轴为 128–2048，纵轴仍是相对 PyTorch 的 speedup。这里有 **四组** 柱：蓝色 dropout + padding mask、橙色 padding mask only、红色 causal mask、绿色无 mask / dropout。红色的含义与 Figure 5 不同，必须重新读图例。设置为 A100、batch 16、12 heads、head dimension 128。
+
+**关键观察。** 随长度增大，红色 causal 柱约从 2.5× 上升到 3.2×；蓝色、橙色大致在 1.9–2.4×，绿色从约 2× 下降到接近 1×。图没有给出绝对时间，因此不能由倍率下降判断 FA 自身随长度增长得更慢或更快；baseline 的时间也在变化。
+
+**工程解释与边界。** d 增大后，每个 tile 的 Q/K/V 与累积量占用更多片上空间，可能迫使块变小、增加重复访问并改变 occupancy。Causal 与 padding mask 的有效区域、跳块机会也不同。Figure 5 与本图的 batch、长度范围和图例都变化了，不能把两图当作只改变 d 的严格单变量消融。
 
 ### Figure 7 — RTX 3090
 
 {{fig:7}}
 
-消费级 GPU 的测试支持方法具有一定跨硬件价值。依然要按 mask/dropout 与长度阅读；最高柱不是一条全平台保证。A100 与 RTX 3090 的片上资源、带宽、Tensor Core 和软件环境不同，原文没有把它们归一成统一 roofline 实验。
+**如何阅读。** 横轴为 sequence length 128–2048；蓝色是 dropout + masking，橙色是 masking only，红色是无两者，纵轴是相对 PyTorch 的 speedup。正文给出的 GPU 为 RTX 3090、batch 12、12 heads。原图标题写作 “GTX 3090”，这里完整保留原图并按正文识别硬件，不擅自改图。
+
+**关键观察。** 蓝色大致从 2.9× 上升到 4.6×，橙色从约 3.5× 上升到 4.3×；红色多在 2.3–2.7×，并非所有柱都随长度单调上升。128 时橙色高于蓝色，长序列时排序反转，说明融合收益还受短序列固定开销与配置影响。
+
+**为什么重要与边界。** 作者以 RTX 3090 约 900 GB/s、A100 约 1.5 TB/s 的 HBM / 显存带宽差解释前者部分倍率更高：减少搬运在较慢显存上可能更有价值。但较高相对倍率不等于 RTX 3090 的绝对时间更短，也不是只改变带宽的控制实验；batch、片上资源、计算吞吐和软件环境需一起考虑。
 
 ### Figure 8 — T4 与 forward-only
 
 {{fig:8}}
 
-上下两个 panel 分别提供 combined 和 forward-only 视角；先识别 panel，再比较同一配置。只看前向不包含反向重计算，因此与训练时间不能直接互换。T4 的柱图说明跨代 GPU 仍可能收益，也进一步说明应该对目标设备单独 profile。
+**如何阅读。** 图有两个完整 panel：上面是 forward + backward，下面是 forward only；横轴均为 128–2048，纵轴为各自 pass 相对 PyTorch 的 speedup。两图都使用蓝色 dropout + masking、橙色 masking only、红色无两者，读数时必须同时指定 panel、长度和颜色。
+
+**关键观察。** 上图在较长序列时，蓝色约 3.2×、橙色约 2.9×，红色逐渐降至约 1.5×；下图蓝色、橙色随长度总体提高，2048 时分别约 4.6×、4.3×。同一硬件上的 forward-only 与 combined 倍率并不相同，说明反向重计算与梯度累积改变了总成本。不能从这两个比值反推出 backward 的单独加速，因为还缺 baseline 前后向时间占比。
+
+**工程意义与边界。** T4 的 SRAM 较小，kernel 可能需要更小 tile，增加重复 HBM 访问；原文用这一点解释部分收益受限。Forward-only 对推理更有参考意义，但本图仍是 Attention 微基准，未测整模型 TTFT、TPOT、KV Cache 管理与调度。实际部署需要按目标 dtype、batch、mask 和 query/KV 长度重新 profile。
 
 ### E.6 Full speed and memory tables：21 张表的完整性说明
 

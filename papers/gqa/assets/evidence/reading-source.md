@@ -8,7 +8,7 @@
 
 [Paper PDF](https://arxiv.org/pdf/2305.13245v3) · [arXiv](https://arxiv.org/abs/2305.13245) · [ACL / DOI](https://doi.org/10.18653/v1/2023.emnlp-main.298) · [Conference video](https://aclanthology.org/2023.emnlp-main.298.mp4) · [Flaxformer](https://github.com/google/flaxformer)
 
-**Reading / Last Updated：2026-10-27。** 全部 **6 张原始 Figure、1 张完整 Table、Appendix A** 均保留并解析。原论文没有编号公式；本文数学块都是明确标记的讲解推导。没有确认独立 supplementary、slides 或 project page。论文链接 Flaxformer，且致谢 Rabe 独立开发的 GQA 实现；这不等于作者公开了完整 uptraining 与 benchmark 复现仓库。[1][3]
+**Reading：2026-10-27 / Last Updated：2026-10-28。** 全部 **6 张原始 Figure、1 张完整 Table、Appendix A** 均保留并解析。图片仅包含图区或表格，原论文 Caption 与中文说明以图外可复制文字呈现。原论文没有编号公式；本文数学块都是明确标记的讲解推导。没有确认独立 supplementary、slides 或 project page。论文链接 Flaxformer，且致谢 Rabe 独立开发的 GQA 实现；这不等于作者公开了完整 uptraining 与 benchmark 复现仓库。[1][3]
 
 正文按原文 **§1 Introduction → §2 Method → §3 Experiments → §4 Related Work → §5 Conclusion → Limitations → Appendix A** 推进；之后是扩展调研、工程实现和个人判断。**Paper Fact** 来自原文，**External Source** 来自链接的一手资料，**Interpretation / Agent-created Visualization** 是本文重构。容量推导、本地机制检查、作者测得的耗时和真正端到端复现，是不同层次的证据。
 
@@ -46,7 +46,7 @@ MHA 给不同 Query 独立的 Key 匹配空间和 Value 内容空间。MQA 保�
 
 ### 2.1 Uptraining：组内平均是初始化，继续预训练是适应
 
-<figure id="figure-1" class="original"><a href="assets/original/fig-01-checkpoint-conversion.png" class="zoom-link"><img src="assets/original/fig-01-checkpoint-conversion.png" alt="原论文 Figure 1：多个 K/V head 平均为共享投影，继续预训练生成 multi-query checkpoint" loading="lazy"></a><figcaption>Figure 1 · Original Paper，PDF p2。完整原图与原 caption 保留；点击放大。[1]</figcaption></figure>
+<figure id="figure-1" class="original"><a href="assets/original/fig-01-checkpoint-conversion.png" class="zoom-link"><img src="assets/original/fig-01-checkpoint-conversion.png" alt="原论文 Figure 1：多个 K/V head 平均为共享投影，继续预训练生成 multi-query checkpoint" loading="lazy"></a><figcaption>Figure 1 · Original Paper，PDF p1。[1]<br>从 multi-head 转换到 multi-query attention 的流程。所有 head 的 Key 和 Value 投影矩阵分别取均值，合并成单个 head。</figcaption><details class="original-caption"><summary>原论文 Caption（可复制）</summary><p lang="en">Overview of conversion from multi-head to multi-query attention. Key and value projection matrices from all heads are mean pooled into a single head.</p></details></figure>
 
 **这张图解决什么问题？** 从已有 MHA 权重得到可用的 MQA 权重，而不是从随机初始化重训。**如何阅读？** 左侧是已训练 checkpoint 的多个 KV 投影，中间进行 mean pooling，右侧是结构变小后的 checkpoint；再沿训练步骤继续预训练。图讨论的是权重迁移，不是把已经运行中的 KV Cache 做平均后直接接着生成。
 
@@ -76,7 +76,7 @@ MHA 给不同 Query 独立的 Key 匹配空间和 Value 内容空间。MQA 保�
 
 ### 2.2 Grouped-query attention：G 是 KV groups，不是每组 Query 数
 
-<figure id="figure-2" class="original"><a href="assets/original/fig-02-mha-gqa-mqa.png" class="zoom-link"><img src="assets/original/fig-02-mha-gqa-mqa.png" alt="原论文 Figure 2：MHA 每个 Query 独立 KV，GQA 每组 Query 共享 KV，MQA 所有 Query 共享 KV" loading="lazy"></a><figcaption>Figure 2 · Original Paper，PDF p2。保留完整 head、连接和标签。[1]</figcaption></figure>
+<figure id="figure-2" class="original"><a href="assets/original/fig-02-mha-gqa-mqa.png" class="zoom-link"><img src="assets/original/fig-02-mha-gqa-mqa.png" alt="原论文 Figure 2：MHA 每个 Query 独立 KV，GQA 每组 Query 共享 KV，MQA 所有 Query 共享 KV" loading="lazy"></a><figcaption>Figure 2 · Original Paper，PDF p2。[1]<br>Grouped-query 方法概览。MHA 有 H 个 Query、Key 和 Value heads；MQA 的全部 Query 共享单个 Key head 和 Value head；GQA 则让每组 Query 共享单个 Key head 和 Value head，在 MHA 与 MQA 之间提供不同的共享粒度。</figcaption><details class="original-caption"><summary>原论文 Caption（可复制）</summary><p lang="en">Overview of grouped-query method. Multi-head attention has H query, key, and value heads. Multi-query attention shares single key and value heads across all query heads. Grouped-query attention instead shares single key and value heads for each group of query heads, interpolating between multi-head and multi-query attention.</p></details></figure>
 
 **目的与读法。** 从 MHA、GQA、MQA 三个结构比较 Query 到 KV 的连接。图中的 Query 分支数量保留；变化的是下面的 K/V 共享粒度。沿一个 Query 往下追踪，找到它连接的 KV，再看相邻 Query 是否共用同一个 KV。
 
@@ -166,7 +166,7 @@ TriviaQA 的 Precision / Recall 分别以预测与参考答案 token 数为分�
 
 ### 3.2 Main results：整体接近，不代表每个任务都接近同样程度
 
-<figure id="figure-3" class="original"><a href="assets/original/fig-03-quality-latency.png" class="zoom-link"><img src="assets/original/fig-03-quality-latency.png" alt="原论文 Figure 3：T5 各配置平均指标与平均推理时间的质量成本散点图，原图横轴单位有冲突" loading="lazy"></a><figcaption>Figure 3 · Original Paper，PDF p3。横轴原样保留。下文解释其单位与 Table 1 的冲突。[1]</figcaption></figure>
+<figure id="figure-3" class="original"><a href="assets/original/fig-03-quality-latency.png" class="zoom-link"><img src="assets/original/fig-03-quality-latency.png" alt="原论文 Figure 3：T5 各配置平均指标与平均推理时间的质量成本散点图，原图横轴单位有冲突" loading="lazy"></a><figcaption>Figure 3 · Original Paper，PDF p3。[1]<br>作者报告：uptrained MQA 相比 MHA-Large 质量更高、推理更快；GQA 在获得相近速度收益的同时进一步提升质量，接近 MHA-XXL。横轴是每个样本的平均推理时间，纵轴是全部任务的平均表现；比较 MHA T5-Large、MHA T5-XXL，以及经过 5% uptraining 的 MQA 和 GQA-8 T5-XXL。原图横轴单位与 Table 1 冲突，见下文勘误。</figcaption><details class="original-caption"><summary>原论文 Caption（可复制）</summary><p lang="en">Uptrained MQA yields a favorable tradeoff compared to MHA with higher quality and faster speed than MHA-Large, and GQA achieves even better performance with similar speed gains and comparable quality to MHA-XXL. Average performance on all tasks as a function of average inference time per sample for T5-Large and T5-XXL with multi-head attention, and 5% uptrained T5-XXL with MQA and GQA-8 attention.</p></details></figure>
 
 **目的。** 大模型减少 KV 后，能否比小 MHA 同时更快、质量更高？**读法。** 横轴越小越快，纵轴越高平均分越高；不要把两轴当成独立“排名”。先看 MHA-Large 与 MHA-XXL 的规模代价，再看同为 XXL 的 MQA / GQA。
 
@@ -176,7 +176,7 @@ TriviaQA 的 Precision / Recall 分别以预测与参考答案 token 数为分�
 
 ### Table 1：完整原表与可复制转录
 
-<figure id="table-1" class="original"><a href="assets/original/table-01-main-results.png" class="zoom-link"><img src="assets/original/table-01-main-results.png" alt="原论文 Table 1：4 个模型、推理时间、平均指标与全部 7 个任务结果" loading="lazy"></a><figcaption>Table 1 · Original Paper，PDF p3。所有行列与原 caption 保留。原表没有结果单元格粗体、下划线、箭头或脚注；下表保留完整数值。[1]</figcaption></figure>
+<figure id="table-1" class="original"><a href="assets/original/table-01-main-results.png" class="zoom-link"><img src="assets/original/table-01-main-results.png" alt="原论文 Table 1：4 个模型、推理时间、平均指标与全部 7 个任务结果" loading="lazy"></a><figcaption>Table 1 · Original Paper，PDF p3。[1]<br>推理时间与开发集平均表现的完整对比：MHA T5-Large、MHA T5-XXL，以及经过 5% uptraining 的 MQA 和 GQA T5-XXL。任务覆盖 CNN/Daily Mail、arXiv、PubMed、MediaSum、MultiNews 摘要，WMT 翻译与 TriviaQA 问答。全部行列、指标和单位保留；原表没有结果单元格粗体、下划线、箭头或脚注。</figcaption><details class="original-caption"><summary>原论文 Caption（可复制）</summary><p lang="en">Inference time and average dev set performance comparison of T5 Large and XXL models with multi-head attention, and 5% uptrained T5-XXL models with multi-query and grouped-query attention on summarization datasets CNN/Daily Mail, arXiv, PubMed, MediaSum, and MultiNews, translation dataset WMT, and question-answering dataset TriviaQA.</p></details></figure>
 
 | Model | T<sub>infer</sub> (s) | Average | CNN/Daily Mail R1 | arXiv R1 | PubMed R1 | MediaSum R1 | MultiNews R1 | WMT BLEU | TriviaQA F1 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -201,7 +201,7 @@ TriviaQA 的 Precision / Recall 分别以预测与参考答案 token 数为分�
 
 #### Figure 4 — 如何合并旧 KV heads？
 
-<figure id="figure-4" class="original"><a href="assets/original/fig-04-conversion-ablation.png" class="zoom-link"><img src="assets/original/fig-04-conversion-ablation.png" alt="原论文 Figure 4：T5-Large 的 mean、first head、random checkpoint 转换消融" loading="lazy"></a><figcaption>Figure 4 · Original Paper，PDF p4。mean pooling、选择一个 head、随机初始化，α=0.05。[1]</figcaption></figure>
+<figure id="figure-4" class="original"><a href="assets/original/fig-04-conversion-ablation.png" class="zoom-link"><img src="assets/original/fig-04-conversion-ablation.png" alt="原论文 Figure 4：T5-Large 的 mean、first head、random checkpoint 转换消融" loading="lazy"></a><figcaption>Figure 4 · Original Paper，PDF p4。[1]<br>T5-Large 转换为 MQA 并进行 α=0.05 uptraining 后，不同 checkpoint 转换方法的表现对比。Mean 对 Key 和 Value heads 分别取均值；First 选择第一个 head；Random 从随机初始化开始。</figcaption><details class="original-caption"><summary>原论文 Caption（可复制）</summary><p lang="en">Performance comparison of different checkpoint conversion methods for T5-Large uptrained to MQA with proportion α=0.05. ‘Mean’ mean-pools key and value heads, ‘First’ selects the first head and ‘Random’ initializes heads from scratch.</p></details></figure>
 
 **问题与读法。** 在 T5-Large、5% uptraining、CNN/MultiNews/TriviaQA 子集平均下，看转换初始化是否影响最终质量。比较三个点的纵坐标，而不是把它们与 Table 1 的七任务平均混在一起。
 
@@ -211,7 +211,7 @@ TriviaQA 的 Precision / Recall 分别以预测与参考答案 token 数为分�
 
 #### Figure 5 — 5% uptraining 到底恢复了多少？
 
-<figure id="figure-5" class="original"><a href="assets/original/fig-05-uptraining-ablation.png" class="zoom-link"><img src="assets/original/fig-05-uptraining-ablation.png" alt="原论文 Figure 5：T5-XXL MQA、GQA 在 0、5%、10% uptraining 下的三任务平均质量" loading="lazy"></a><figcaption>Figure 5 · Original Paper，PDF p4。三任务子集平均，与主表七任务平均不直接比较。[1]</figcaption></figure>
+<figure id="figure-5" class="original"><a href="assets/original/fig-05-uptraining-ablation.png" class="zoom-link"><img src="assets/original/fig-05-uptraining-ablation.png" alt="原论文 Figure 5：T5-XXL MQA、GQA 在 0、5%、10% uptraining 下的三任务平均质量" loading="lazy"></a><figcaption>Figure 5 · Original Paper，PDF p4。[1]<br>MQA 与 GQA-8 T5-XXL 的表现随 uptraining 比例的变化。图中的三任务子集平均与主表七任务平均不直接比较。</figcaption><details class="original-caption"><summary>原论文 Caption（可复制）</summary><p lang="en">Performance as a function of uptraining proportion for T5 XXL models with MQA and GQA-8.</p></details></figure>
 
 **问题。** 更温和的 KV 共享是否降低结构适应难度？**读法。** 先看 α=0 的两种转换差异，再看 0→0.05 的收益，最后看 0.05→0.1 的边际收益；横向 MHA 线是参考。
 
@@ -229,7 +229,7 @@ TriviaQA 的 Precision / Recall 分别以预测与参考答案 token 数为分�
 
 #### Figure 6 — groups 增多，会线性变慢吗？
 
-<figure id="figure-6" class="original"><a href="assets/original/fig-06-group-latency.png" class="zoom-link"><img src="assets/original/fig-06-group-latency.png" alt="原论文 Figure 6：T5-XXL groups 1 到 64 与 2048 输入、512 输出的推理时间" loading="lazy"></a><figcaption>Figure 6 · Original Paper，PDF p4。输入 2048，输出 512。纵轴秒；不是 Table 1 的跨任务平均 timing。[1]</figcaption></figure>
+<figure id="figure-6" class="original"><a href="assets/original/fig-06-group-latency.png" class="zoom-link"><img src="assets/original/fig-06-group-latency.png" alt="原论文 Figure 6：T5-XXL groups 1 到 64 与 2048 输入、512 输出的推理时间" loading="lazy"></a><figcaption>Figure 6 · Original Paper，PDF p4。[1]<br>输入长度 2048、输出长度 512 时，GQA-XXL 的每样本推理时间随 GQA groups 数量的变化。从 1 个 group（MQA）增加到 8 个，新增开销较小；继续增加 groups，成本上升。纵轴单位为秒；这不是 Table 1 的跨任务平均耗时。</figcaption><details class="original-caption"><summary>原论文 Caption（可复制）</summary><p lang="en">Time per sample for GQA-XXL as a function of the number of GQA groups with input length 2048 and output length 512. Going from 1 (MQA) to 8 groups adds modest inference overhead, with increasing cost to adding more groups.</p></details></figure>
 
 **问题与读法。** 固定长输入/输出 workload 后，增加 KV groups 的时间代价是多少？从左至右读实际点，不拿容量线性模型代替耗时曲线。
 

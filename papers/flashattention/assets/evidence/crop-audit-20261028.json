@@ -1,0 +1,473 @@
+{
+  "date": "2026-10-28",
+  "status": "passed",
+  "figures": 8,
+  "tables": 21,
+  "checks": [
+    {
+      "file": "fig-01.png",
+      "body_region": [
+        65,
+        53,
+        548,
+        233
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1597,
+        621
+      ],
+      "sha256": "2919a458a75e11efda2034a130e6001b8280dc3dd07051cd725693883cee13e9"
+    },
+    {
+      "file": "fig-02.png",
+      "body_region": [
+        65,
+        50,
+        548,
+        151
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1539,
+        298
+      ],
+      "sha256": "f3c39736a5fa75d612db2ebc310299dd0d1933ff468438c577e1afcd37e6c084"
+    },
+    {
+      "file": "fig-03.png",
+      "body_region": [
+        65,
+        52,
+        548,
+        198
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1589,
+        486
+      ],
+      "sha256": "696a100e133ac2ee57650882f57d2efc7a6ef5c16d2b74cd82ff7df9eeb2b562"
+    },
+    {
+      "file": "fig-04.png",
+      "body_region": [
+        65,
+        55,
+        548,
+        332
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1283,
+        991
+      ],
+      "sha256": "ea8ba15fd79506b921420931dafaf359a54126ebdebb38945487f1f14366e876"
+    },
+    {
+      "file": "fig-05.png",
+      "body_region": [
+        106,
+        454,
+        506,
+        643
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1559,
+        706
+      ],
+      "sha256": "e8241e38b6ec81c3571350e8efbcd6acd69cdcd8b69ceaad96c45f69faccac8d"
+    },
+    {
+      "file": "fig-06.png",
+      "body_region": [
+        106,
+        70,
+        506,
+        250
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1561,
+        668
+      ],
+      "sha256": "2029538eaf5013b3a156df02b06193b8f34bf053415e294423f01ac6a334ce1d"
+    },
+    {
+      "file": "fig-07.png",
+      "body_region": [
+        106,
+        358,
+        506,
+        548
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1560,
+        705
+      ],
+      "sha256": "cfe03405766ee2c1312ff630cd0ac9e875ab4c00116f115449075f77ae01f838"
+    },
+    {
+      "file": "fig-08.png",
+      "body_region": [
+        106,
+        70,
+        506,
+        441
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1561,
+        1430
+      ],
+      "sha256": "8d5f81bf4a7bc2f5223c44021a12802b5a3ea4a0bb394628379140f586f37263"
+    },
+    {
+      "file": "table-01.png",
+      "body_region": [
+        195,
+        632,
+        411,
+        672
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        857,
+        150
+      ],
+      "sha256": "adb98c25d21c413599bda3c0057b42cae56b8aeb714e5cfeb5996c781979cf9a"
+    },
+    {
+      "file": "table-02.png",
+      "body_region": [
+        128,
+        140,
+        478,
+        225
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1395,
+        327
+      ],
+      "sha256": "77ae16c50c7b19c3b16f47dc52161867033f4d1accc59258a901f4c8f6a1ba03"
+    },
+    {
+      "file": "table-03.png",
+      "body_region": [
+        85,
+        333,
+        518,
+        451
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1722,
+        459
+      ],
+      "sha256": "d49d46f2e90e7ce344af1d8eebc75d52d2d1cfb0818a5aa5460a86b0c700fd3b"
+    },
+    {
+      "file": "table-04.png",
+      "body_region": [
+        95,
+        585,
+        510,
+        647
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1651,
+        238
+      ],
+      "sha256": "822ae727f5246a2d65cf5e7e94e8701ecd177acda24c2647cd1352c312c2f642"
+    },
+    {
+      "file": "table-05.png",
+      "body_region": [
+        114,
+        409,
+        306,
+        445
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        755,
+        114
+      ],
+      "sha256": "bdc6a945c47342e4dc1f0a119932c625ee7d45ef08a102bc1105c94622505944"
+    },
+    {
+      "file": "table-06.png",
+      "body_region": [
+        317,
+        382,
+        490,
+        473
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        683,
+        338
+      ],
+      "sha256": "9bcbd4c4b189c6798a2b43fa55acf49f2fd97a539ac9de59ec766742dcb912b7"
+    },
+    {
+      "file": "table-07.png",
+      "body_region": [
+        164,
+        102,
+        445,
+        192
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1118,
+        355
+      ],
+      "sha256": "f4c029a68ed633d25b2ccfc50acbc1749de65fcc798c42f9062da90a48e8f247"
+    },
+    {
+      "file": "table-08.png",
+      "body_region": [
+        158,
+        92,
+        454,
+        272
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1178,
+        705
+      ],
+      "sha256": "b1e93caca1b2e2f2ed3ff7c23ed17c3df5ed26b9bd53039f9cb5ade898eb5212"
+    },
+    {
+      "file": "table-09.png",
+      "body_region": [
+        84,
+        311,
+        525,
+        430
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1755,
+        462
+      ],
+      "sha256": "1860d16988bd5714491eb0b84b56114ec782bbad974b7bd2d86e4d59cbc1ed5d"
+    },
+    {
+      "file": "table-10.png",
+      "body_region": [
+        65,
+        108,
+        548,
+        226
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1787,
+        462
+      ],
+      "sha256": "d392452c4819c30e67f582df7c60401c1e80c91e0b1e776e7e128b7dc7aee540"
+    },
+    {
+      "file": "table-11.png",
+      "body_region": [
+        65,
+        272,
+        548,
+        390
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1811,
+        462
+      ],
+      "sha256": "c791b3f3376a3bef69bd3a238d116a95f5d3a33c4e3932818ba9a9943ef075e0"
+    },
+    {
+      "file": "table-12.png",
+      "body_region": [
+        65,
+        436,
+        548,
+        554
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1771,
+        462
+      ],
+      "sha256": "694ca0159149a8392f5484071a0cbde211f02e17912b3abc4cb35d3f711ac0e5"
+    },
+    {
+      "file": "table-13.png",
+      "body_region": [
+        65,
+        600,
+        548,
+        718
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1787,
+        462
+      ],
+      "sha256": "700c973c5b2278d3d8aa466e5ca886c899b94d32d81094722267ebd2801c7eb9"
+    },
+    {
+      "file": "table-14.png",
+      "body_region": [
+        65,
+        108,
+        548,
+        226
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1811,
+        462
+      ],
+      "sha256": "ccaf52b395afe162d685e2a7ae638d621dffcae3bc8581d113d88f52e252fa6b"
+    },
+    {
+      "file": "table-15.png",
+      "body_region": [
+        65,
+        272,
+        548,
+        390
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1755,
+        462
+      ],
+      "sha256": "1565a4bb4c10c531bf292d6905452765a810cda181b7d08208fedca8264f3d51"
+    },
+    {
+      "file": "table-16.png",
+      "body_region": [
+        65,
+        436,
+        548,
+        554
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1787,
+        462
+      ],
+      "sha256": "94a653c7deda32bb780d35259f5e6c7ce37b6620a611449c871e383052ea5e85"
+    },
+    {
+      "file": "table-17.png",
+      "body_region": [
+        65,
+        600,
+        548,
+        718
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1811,
+        462
+      ],
+      "sha256": "9e0170da639560ffe7528696485d569de0ba064dac7ccaee8c15b376bedee658"
+    },
+    {
+      "file": "table-18.png",
+      "body_region": [
+        65,
+        108,
+        548,
+        226
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1747,
+        462
+      ],
+      "sha256": "19c09908aeddc7f5eb62ccd81b72d6fd708c98c4151269181853c593255b1bde"
+    },
+    {
+      "file": "table-19.png",
+      "body_region": [
+        65,
+        272,
+        548,
+        390
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1787,
+        462
+      ],
+      "sha256": "796b92ff78ddc0f9d1040647726490147ff6b6c170ac25bfe7858969a93ed1af"
+    },
+    {
+      "file": "table-20.png",
+      "body_region": [
+        65,
+        436,
+        548,
+        554
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1811,
+        462
+      ],
+      "sha256": "59fe09b0e1e8aeeed1e482a839d4b23f4b3de81627d8488d55f531e0c5b9d641"
+    },
+    {
+      "file": "table-21.png",
+      "body_region": [
+        65,
+        600,
+        548,
+        718
+      ],
+      "caption_in_image": false,
+      "partially_clipped_text": [],
+      "size": [
+        1684,
+        462
+      ],
+      "sha256": "bae129e0e20377e0cc6bca30de75882771d122ab27d8536b05534385b2b31bc5"
+    }
+  ],
+  "scope": "PDF text clipping and caption exclusion; axes/legends/raster bodies reviewed visually"
+}

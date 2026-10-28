@@ -4,7 +4,7 @@
 
 Chapter order follows original §1–6 and appendices A–G before engineering/research synthesis. Full page has 22 navigable sections, 4 original figures, all 9 complete tables and 22 numbered MathML equations. Original evidence is visibly distinguished from three simplified SVG/Mermaid diagrams and two mechanism/resource interactions.
 
-Checked rendered screenshots at desktop and mobile: hero, routing mechanism, multilingual table and current-state comparison. Original table rows/cells/bold marks compared programmatically with extracted source. Image SHA-256 matches original visual manifest. Captions preserved in high-resolution images and visible text. Long tables/equations/code have their own overflow containers. Fixed mobile router heading wrap and TOC resize behavior. Formula and SVG source are downloadable.
+Checked rendered screenshots at desktop and mobile: hero, routing mechanism, multilingual table and current-state comparison. Original table rows/cells/bold marks compared programmatically with extracted source. Image SHA-256 matches original visual manifest. Captions are preserved as separate, copyable text outside the images. Long tables/equations/code have their own overflow containers. Fixed mobile router heading wrap and TOC resize behavior. Formula and SVG source are downloadable.
 
 Final screenshot review identified arXiv's split Eq. (8) MathML with literal OPEN/CLOSE placeholders. Joined the two original rows inside one probability fence, preserving the original equation and raw extracted JSON. Static check verifies exactly 22 displayed math elements and no OPEN/CLOSE pseudotext. Tiny positive resource quantities retain significant digits instead of rounding to zero.
 
@@ -28,3 +28,7 @@ Preserved nuanced findings:
 Mathematical unit checks verified TopK normalization, top1 invariance, balanced-Importance counterexample, conditional thresholds, strict-batchwise zero-coverage, expected expert assignments, expert parameters and forward-traffic arithmetic. No training or GPU performance experiments were run.
 
 Browser and production evidence are recorded separately in sources and publishing-report.md after verification; they are not inferred from source inspection.
+
+## Caption separation correction — 2026-10-28
+
+Recropped all four figures and nine table screenshots directly from the original PDF. Captions are excluded from every image and appear once as text beside the corresponding figure/table. Verified PDF caption bounding boxes do not intersect the crop, PNG pixels match the original PDF render, and complete embedded chart image bounds remain inside the new crop. Figure 2 now also preserves the complete upper edge of both plots. Reviewed both visual inventories for axes, legends, table borders and all rows.
