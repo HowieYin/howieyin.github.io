@@ -1,6 +1,6 @@
 # EAGLE：先知道下一个 token，再外推它的特征
 
-<p class="reading-meta">PAPER READING · ICML 2024 · arXiv 2401.15077v3 · READ 2026-10-27</p>
+<p class="reading-meta">PAPER READING · ICML 2024 · arXiv 2401.15077v3 · READ 2026-10-27 · UPDATED 2026-10-28</p>
 
 EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty
 

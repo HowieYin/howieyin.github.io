@@ -1,0 +1,372 @@
+{
+  "phase": "captions-local",
+  "widths": [
+    {
+      "width": 375,
+      "scroll": 375,
+      "math": [
+        19.9765625,
+        27.921875,
+        49.640625,
+        18.5546875,
+        17.1953125,
+        52.421875,
+        36.0234375,
+        42.0078125
+      ],
+      "visibleOriginalCaptions": 10,
+      "visibleTableCaptions": 8
+    },
+    {
+      "width": 390,
+      "scroll": 390,
+      "math": [
+        19.9765625,
+        27.921875,
+        49.640625,
+        18.5546875,
+        17.1953125,
+        52.421875,
+        36.0234375,
+        42.0078125
+      ],
+      "visibleOriginalCaptions": 10,
+      "visibleTableCaptions": 8
+    },
+    {
+      "width": 430,
+      "scroll": 430,
+      "math": [
+        19.9765625,
+        27.921875,
+        49.640625,
+        18.5546875,
+        17.1953125,
+        52.421875,
+        36.0234375,
+        42.0078125
+      ],
+      "visibleOriginalCaptions": 10,
+      "visibleTableCaptions": 8
+    },
+    {
+      "width": 1440,
+      "scroll": 1440,
+      "math": [
+        22.203125,
+        31.03125,
+        55.1640625,
+        20.6171875,
+        19.1171875,
+        58.2578125,
+        40.0234375,
+        46.6875
+      ],
+      "visibleOriginalCaptions": 10,
+      "visibleTableCaptions": 8
+    },
+    {
+      "width": 1920,
+      "scroll": 1920,
+      "math": [
+        22.203125,
+        31.03125,
+        55.1640625,
+        20.6171875,
+        19.1171875,
+        58.2578125,
+        40.0234375,
+        46.6875
+      ],
+      "visibleOriginalCaptions": 10,
+      "visibleTableCaptions": 8
+    }
+  ],
+  "interactions": [
+    "Real mouse step/reset, selected ancestry, keyboard slider",
+    "Identical, disjoint and mixed support preserve mass",
+    "Same-engine FP16/INT4 ratios and independent KV heads",
+    "Original Figure 6 zoom and Escape dismissal"
+  ],
+  "errors": [],
+  "failed": [
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    },
+    {
+      "error": "net::ERR_ABORTED",
+      "canceled": true
+    }
+  ],
+  "images": [
+    {
+      "src": "assets/original/figure-01.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/figure-02.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/figure-03.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/figure-04.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/figure-05.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/figure-06.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/table-01.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/table-02.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/table-03.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/table-04.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/figure-07.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/table-05.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/figure-08.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/table-06.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/table-07.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/figure-09.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/algorithm-01.png?v=20261028-caption",
+      "ok": true
+    },
+    {
+      "src": "assets/original/table-08.png?v=20261028-caption",
+      "ok": true
+    }
+  ],
+  "resources": [
+    {
+      "url": "http://127.0.0.1:8774/assets/favicon.svg",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/styles.css?v=3",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/assets/reading.css",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/assets/article-navigation.css",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/index.md",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/assets/generated/alignment.mmd",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/assets/generated/alignment.svg",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/assets/generated/verification.mmd",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/assets/generated/verification.svg",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/assets/generated/timeline.mmd",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/assets/generated/timeline.svg",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/sources/visual-manifest.json",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/interactive/math.test.cjs",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/notes/research-dossier.md",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle2/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/medusa/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/flashattention/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/mqa/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/gqa/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/sparse-moe/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/awq/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/interactive/math.cjs",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/papers/eagle/interactive/reading.js",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8774/assets/article-navigation.js",
+      "status": 200
+    }
+  ],
+  "table": {
+    "client": 276,
+    "scroll": 648,
+    "left": 372
+  },
+  "noJS": {
+    "fallback": 3,
+    "static": true
+  },
+  "navigationAborts": 24
+}

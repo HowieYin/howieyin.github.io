@@ -5,13 +5,17 @@
     "pdf_page": 1,
     "crop_points": [
       54,
-      232,
+      214,
       547,
-      470
+      393
     ],
     "path": "assets/original/figure-01.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Figure 1 : Speedup ratio of Vicuna and LLaMA2-Chat inference latency on the MT-bench for greedy (temperature=0) settings. Speedup ratio of Medusa and Lookahead are copied from their original technical reports. With speculative sampling, there is a lack of suitable draft models to accelerate the 7B model. Employing a 7B model as the draft model for a 13B model results in slow speeds due to the high overhead of the 7B model, rendering it less efficient than vanilla autoregressive decoding. These scenarios are marked as N/A. In this paper, we only compare with speculative sampling based methods that do not need to finetune the backbone models, ensuring the output text distribution remains constant."
+    "caption": "Figure 1 : Speedup ratio of Vicuna and LLaMA2-Chat inference latency on the MT-bench for greedy (temperature=0) settings. Speedup ratio of Medusa and Lookahead are copied from their original technical reports. With speculative sampling, there is a lack of suitable draft models to accelerate the 7B model. Employing a 7B model as the draft model for a 13B model results in slow speeds due to the high overhead of the 7B model, rendering it less efficient than vanilla autoregressive decoding. These scenarios are marked as N/A. In this paper, we only compare with speculative sampling based methods that do not need to finetune the backbone models, ensuring the output text distribution remains constant.",
+    "caption_in_image": false,
+    "caption_path": "sources/figure-01-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "figure",
@@ -21,11 +25,15 @@
       304,
       66,
       547,
-      231
+      166
     ],
     "path": "assets/original/figure-02.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Figure 2 : Speedup ratio on the MT-bench for non-greedy (temperature=1) settings. Lookahead is confined to greedy decoding, and the non-greedy generation of Medusa does not guarantee lossless performance. Therefore, EAGLE is not compared with these methods."
+    "caption": "Figure 2 : Speedup ratio on the MT-bench for non-greedy (temperature=1) settings. Lookahead is confined to greedy decoding, and the non-greedy generation of Medusa does not guarantee lossless performance. Therefore, EAGLE is not compared with these methods.",
+    "caption_in_image": false,
+    "caption_path": "sources/figure-02-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "figure",
@@ -35,11 +43,15 @@
       304,
       249,
       547,
-      389
+      322
     ],
     "path": "assets/original/figure-03.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Figure 3 : Uncertainty in feature sequences. The next feature following f I f_{I} is contingent on the sampling outcome and cannot be determined solely based on f I f_{I} , where both “always” and “am” are possible to follow the token “I” and lead to two branches."
+    "caption": "Figure 3 : Uncertainty in feature sequences. The next feature following f I is contingent on the sampling outcome and cannot be determined solely based on f I , where both “always” and “am” are possible to follow the token “I” and lead to two branches.",
+    "caption_in_image": false,
+    "caption_path": "sources/figure-03-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "figure",
@@ -49,11 +61,15 @@
       54,
       66,
       294,
-      229
+      150
     ],
     "path": "assets/original/figure-04.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Figure 4 : Accuracy and speedup ratio of draft models based on tokens, features and feature&shifted-token at temperature=0, tested on MT-bench with Vicuna 7B as the original LLM. Feature&shifted-token refers to using a feature sequence and a token sequence advanced by one time step as inputs."
+    "caption": "Figure 4 : Accuracy and speedup ratio of draft models based on tokens, features and feature&shifted-token at temperature=0, tested on MT-bench with Vicuna 7B as the original LLM. Feature&shifted-token refers to using a feature sequence and a token sequence advanced by one time step as inputs.",
+    "caption_in_image": false,
+    "caption_path": "sources/figure-04-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "figure",
@@ -63,11 +79,15 @@
       53,
       66,
       294,
-      238
+      147
     ],
     "path": "assets/original/figure-05.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Figure 5 : A comparison of the methods for drafting the fourth and fifth tokens, t 4 t_{4} and t 5 t_{5} . t t (represented by blue blocks) denotes tokens, and f f ( orange blocks) signifies the features, with subscripts indicating their positions in the sequence. The red border indicates the predictions of the draft model. For simplicity, the n n in the n n -gram for Lookahead, as shown in the figure, has been set to 2."
+    "caption": "Figure 5 : A comparison of the methods for drafting the fourth and fifth tokens, t 4 and t 5 . t (represented by blue blocks) denotes tokens, and f ( orange blocks) signifies the features, with subscripts indicating their positions in the sequence. The red border indicates the predictions of the draft model. For simplicity, the n in the n -gram for Lookahead, as shown in the figure, has been set to 2.",
+    "caption_in_image": false,
+    "caption_path": "sources/figure-05-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "figure",
@@ -77,11 +97,15 @@
       304,
       66,
       547,
-      431
+      328
     ],
     "path": "assets/original/figure-06.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Figure 6 : Pipeline of EAGLE. The upper section illustrates the computational process, while the lower section displays the corresponding generation results for each step. In the upper section, green blocks represent token embeddings, orange blocks represent features, red boxes indicate the predictions of the draft model, and blue modules with snowflake icons represent the use of target LLM parameters, which are not subject to training."
+    "caption": "Figure 6 : Pipeline of EAGLE. The upper section illustrates the computational process, while the lower section displays the corresponding generation results for each step. In the upper section, green blocks represent token embeddings, orange blocks represent features, red boxes indicate the predictions of the draft model, and blue modules with snowflake icons represent the use of target LLM parameters, which are not subject to training.",
+    "caption_in_image": false,
+    "caption_path": "sources/figure-06-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "figure",
@@ -91,11 +115,15 @@
       53,
       66,
       294,
-      214
+      173
     ],
     "path": "assets/original/figure-07.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Figure 7 : Speedup ratios of EAGLE with and without the use of tree attention. The evaluation dataset is MT-bench, with the temperature parameter set to 0."
+    "caption": "Figure 7 : Speedup ratios of EAGLE with and without the use of tree attention. The evaluation dataset is MT-bench, with the temperature parameter set to 0.",
+    "caption_in_image": false,
+    "caption_path": "sources/figure-07-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "figure",
@@ -105,11 +133,15 @@
       53,
       66,
       547,
-      371
+      314
     ],
     "path": "assets/original/figure-08.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Figure 8 : Performance of draft models with varying inputs. The target LLM is Vicuna 7B, and the test dataset is MT-bench. Speed refers to the walltime speedup ratio, τ \\tau denotes the average acceptance length, 0 ​ - ​ α 0\\text{-}\\alpha represents the acceptance rate with entirely precise inputs, 1 ​ - ​ α 1\\text{-}\\alpha indicates the acceptance rate when the input includes one imprecise feature, and T T refers to the temperature."
+    "caption": "Figure 8 : Performance of draft models with varying inputs. The target LLM is Vicuna 7B, and the test dataset is MT-bench. Speed refers to the walltime speedup ratio, τ denotes the average acceptance length, 0 ​ - ​ α represents the acceptance rate with entirely precise inputs, 1 ​ - ​ α indicates the acceptance rate when the input includes one imprecise feature, and T refers to the temperature.",
+    "caption_in_image": false,
+    "caption_path": "sources/figure-08-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "figure",
@@ -119,11 +151,15 @@
       53,
       263,
       547,
-      498
+      468
     ],
     "path": "assets/original/figure-09.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Figure 9 : Structure of EAGLE’s draft. The left side shows the draft structure when tree attention is employed, while the right side depicts the draft structure without the use of tree attention."
+    "caption": "Figure 9 : Structure of EAGLE’s draft. The left side shows the draft structure when tree attention is employed, while the right side depicts the draft structure without the use of tree attention.",
+    "caption_in_image": false,
+    "caption_path": "sources/figure-09-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "table",
@@ -131,13 +167,17 @@
     "pdf_page": 6,
     "crop_points": [
       53,
-      66,
+      110,
       294,
-      271
+      263
     ],
     "path": "assets/original/table-01.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Table 1 : Speedup ratio and average acceptance length τ \\tau on HumanEval, GSM8K, and Alpaca. T denotes temperature, V represents Vicuna, and LC stands for LLaMA2-Chat."
+    "caption": "Table 1 : Speedup ratio and average acceptance length τ on HumanEval, GSM8K, and Alpaca. T denotes temperature, V represents Vicuna, and LC stands for LLaMA2-Chat.",
+    "caption_in_image": false,
+    "caption_path": "sources/table-01-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "table",
@@ -145,13 +185,17 @@
     "pdf_page": 6,
     "crop_points": [
       53,
-      273,
+      305,
       294,
-      502
+      447
     ],
     "path": "assets/original/table-02.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Table 2 : Average acceptance length τ \\tau and acceptance rate α \\alpha on MT-bench. T denotes temperature."
+    "caption": "Table 2 : Average acceptance length τ and acceptance rate α on MT-bench. T denotes temperature.",
+    "caption_in_image": false,
+    "caption_path": "sources/table-02-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "table",
@@ -159,13 +203,17 @@
     "pdf_page": 6,
     "crop_points": [
       304,
-      66,
+      110,
       547,
-      156
+      151
     ],
     "path": "assets/original/table-03.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Table 3 : Speedup ratio, average acceptance length τ \\tau , and acceptance rate α \\alpha on MT-bench at temperature=0. The target LLM is Mixtral 8x7B Instruct-v0.1."
+    "caption": "Table 3 : Speedup ratio, average acceptance length τ , and acceptance rate α on MT-bench at temperature=0. The target LLM is Mixtral 8x7B Instruct-v0.1.",
+    "caption_in_image": false,
+    "caption_path": "sources/table-03-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "table",
@@ -173,13 +221,17 @@
     "pdf_page": 6,
     "crop_points": [
       304,
-      161,
+      205,
       547,
-      263
+      268
     ],
     "path": "assets/original/table-04.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Table 4 : Generation speed of EAGLE combined with gpt-fast, evaluated on MT-bench with LLaMA2-Chat 7B at temperature=0."
+    "caption": "Table 4 : Generation speed of EAGLE combined with gpt-fast, evaluated on MT-bench with LLaMA2-Chat 7B at temperature=0.",
+    "caption_in_image": false,
+    "caption_path": "sources/table-04-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "table",
@@ -187,13 +239,17 @@
     "pdf_page": 7,
     "crop_points": [
       53,
-      237,
+      281,
       294,
-      358
+      356
     ],
     "path": "assets/original/table-05.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Table 5 : Average acceptance length τ \\tau of EAGLE with and without the use of tree attention. The evaluation dataset is MT-bench, with the temperature parameter set to 0."
+    "caption": "Table 5 : Average acceptance length τ of EAGLE with and without the use of tree attention. The evaluation dataset is MT-bench, with the temperature parameter set to 0.",
+    "caption_in_image": false,
+    "caption_path": "sources/table-05-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "table",
@@ -201,13 +257,17 @@
     "pdf_page": 7,
     "crop_points": [
       304,
-      66,
+      171,
       547,
-      226
+      222
     ],
     "path": "assets/original/table-06.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Table 6 : The speedup ratios and average acceptance length τ \\tau using different training datasets evaluated on the MT-bench, with the target LLM being LLaMA2-Chat 7B and the temperature set to 0. “Fixed dataset” refers to both questions and answers originating from the ShareGPT dataset. “Data generated by target LLM” denotes that while questions are sourced from the ShareGPT dataset, the answers are generated by the target LLM."
+    "caption": "Table 6 : The speedup ratios and average acceptance length τ using different training datasets evaluated on the MT-bench, with the target LLM being LLaMA2-Chat 7B and the temperature set to 0. “Fixed dataset” refers to both questions and answers originating from the ShareGPT dataset. “Data generated by target LLM” denotes that while questions are sourced from the ShareGPT dataset, the answers are generated by the target LLM.",
+    "caption_in_image": false,
+    "caption_path": "sources/table-06-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "table",
@@ -215,13 +275,17 @@
     "pdf_page": 8,
     "crop_points": [
       304,
-      385,
+      428,
       547,
-      479
+      473
     ],
     "path": "assets/original/table-07.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Table 7 : Speedup ratios at different batch sizes and throughput of EAGLE. The evaluation dataset is MT-bench, with the temperature parameter set to 0."
+    "caption": "Table 7 : Speedup ratios at different batch sizes and throughput of EAGLE. The evaluation dataset is MT-bench, with the temperature parameter set to 0.",
+    "caption_in_image": false,
+    "caption_path": "sources/table-07-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "table",
@@ -229,13 +293,17 @@
     "pdf_page": 13,
     "crop_points": [
       53,
-      386,
+      418,
       547,
-      718
+      672
     ],
     "path": "assets/original/table-08.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Table 8 : Speedup ratio, average acceptance length τ \\tau and acceptance rate α \\alpha on HumanEval, GSM8K, and Alpaca at temperature = 0."
+    "caption": "Table 8 : Speedup ratio, average acceptance length τ and acceptance rate α on HumanEval, GSM8K, and Alpaca at temperature = 0.",
+    "caption_in_image": false,
+    "caption_path": "sources/table-08-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   },
   {
     "kind": "algorithm",
@@ -243,12 +311,16 @@
     "pdf_page": 13,
     "crop_points": [
       53,
-      113,
+      129,
       547,
-      284
+      290
     ],
     "path": "assets/original/algorithm-01.png",
     "source": "https://arxiv.org/pdf/2401.15077v3",
-    "caption": "Algorithm 1 Multi-round speculative sampling"
+    "caption": "Algorithm 1 Multi-round speculative sampling",
+    "caption_in_image": false,
+    "caption_path": "sources/algorithm-01-caption.html",
+    "caption_display": "Selectable text outside image",
+    "crop_updated": "2026-10-28"
   }
 ]
