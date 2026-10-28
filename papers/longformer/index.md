@@ -10,7 +10,7 @@
 
 Attention · Long Context · Sparse Attention · Encoder · Seq2Seq · Systems
 
-本文用 **原论文** 标识 [P]，用 **外部资料** 标识 [E]，用 **解读 / 推导** 标识作者未直接报告的分析。原始图表均保留，重排表格供检索，原图供核对；公式与交互读数不能代替实测性能。
+本文用 **原论文** 标识 [P]，用 **外部资料** 标识 [E]，用 **解读 / 推导** 标识作者未直接报告的分析。原始图表均保留，重排表格供检索，原图供核对。原文图注和中文解读放在图外，以可选择、可复制的文字呈现；图片保留图内坐标、图例、标注与表格内容。公式与交互读数不能代替实测性能。图注排版更新：2026-10-28。
 
 ## TL;DR：一段话与五个关键点
 
@@ -101,11 +101,11 @@ return output_projection(concat_heads(Y))
 
 {{fig1}}
 
-**Figure 1 的问题 / 读法。** 左图读 runtime，单位 **ms / batch**；右图读 memory，单位 **MiB**。横轴是序列长度，分别比较 full、loop、overlapping chunks、TVM 的 diagonaled kernel 和 non-overlapping local-chunks。先看是否随长度扩展，再看同长度的曲线差异。[P Fig. 1、§3.2、附录 A]
+**Figure 1 的问题 / 读法。** 左图读 runtime，单位 **ms / batch**；右图读 memory，单位 **MiB**。横轴是序列长度，图例中的四条曲线分别是 Full self-attention、Longformer-loop、Longformer-chunks、Longformer-cuda。先看是否随长度扩展，再看同长度的曲线差异。附录 A 的 non-overlapping local-chunks 是额外实现，不是本地 v2 Figure 1 中的一条曲线。[P Fig. 1、§3.2、附录 A]
 
 **Components / Data flow。** Python loop 逐位置处理窗口，算术规模降低却产生很多小操作。Overlapping chunks 把 Q/K 切成重叠块，以 dense GEMM 求块内 score，再转换成对角布局；它会计算一部分最后被 mask 的元素。TVM 自定义 kernel 直接计算对角带，支持 dilation。Local-chunks 避免块重叠，但相应连接形状有细微差别，不是同一 mask 的纯实现替换。
 
-**Key observation。** 图中 local-chunks 最快；TVM 更节省内存，速度不自动胜过 GEMM 分块。作者选择 PyTorch overlapping-chunks 为 fine-tuning 提供更方便的路径，字符 causal / dilation 设置则需要相应支持的实现。
+**Key observation。** 本图中的 Longformer-chunks 最快；Longformer-cuda 更节省内存，速度不自动胜过 GEMM 分块。作者选择 PyTorch overlapping-chunks 为 fine-tuning 提供更方便的路径，字符 causal / dilation 设置则需要相应支持的实现。
 
 **Why it matters / 解读。** GPU 时间受矩阵形状、启动次数、layout 转换和带宽影响。需要逐 op 测量 QKV projection → chunk / gather → QK → mask / softmax → PV → scatter → output projection，而不能仅按稀疏率推算速度。论文没有提供可直接迁移到 H100/H200 的完整 kernel 对比协议；这里不从图上编造精确点值，也不把它当成 FlashAttention 的实测对照。
 
