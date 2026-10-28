@@ -1,0 +1,200 @@
+{
+  "date": "2026-10-28",
+  "assets": [
+    {
+      "name": "fig-01-architecture",
+      "clip": [
+        104.0,
+        60.0,
+        508.0,
+        264.2
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1616,
+      "height": 817,
+      "sha256": "245225748c7cb44afdfb9bf59b5c345cc41f0ebe465997292baaf805e9e39a05"
+    },
+    {
+      "name": "fig-02-capacity-compute",
+      "clip": [
+        104.0,
+        476.0,
+        508.0,
+        625.1
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1616,
+      "height": 597,
+      "sha256": "4f1057784457e60c6b9705f76e82ac781359014dedadcce1da1994271f88b4a0"
+    },
+    {
+      "name": "fig-03-news-scaling",
+      "clip": [
+        104.0,
+        448.0,
+        508.0,
+        601.25
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1616,
+      "height": 613,
+      "sha256": "7a33bdb0ddd784c920002ccdb1fb9429fbd7b5b3af575d26bb8613f818841ab8"
+    },
+    {
+      "name": "fig-04-translation-learning",
+      "clip": [
+        104.0,
+        151.0,
+        508.0,
+        285.7
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1616,
+      "height": 539,
+      "sha256": "da07877fdffd7c4dbc1a6fc02677d267961db82c61a89da16ab719c89836222d"
+    },
+    {
+      "name": "table-01-high-capacity-lm",
+      "clip": [
+        103.0,
+        104.0,
+        510.0,
+        186.0
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1628,
+      "height": 328,
+      "sha256": "90dfd6d50ceec59d453d7a84da18a94bf62b1c3fba30dfa2468854c9dfa913ac"
+    },
+    {
+      "name": "table-02-wmt-en-fr",
+      "clip": [
+        104.0,
+        434.5,
+        508.0,
+        549.0
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1616,
+      "height": 458,
+      "sha256": "96a3e62728c842effeee8f69cc17ddef81b2670adcd7a0ca37f302022ee9bd6d"
+    },
+    {
+      "name": "table-03-wmt-en-de",
+      "clip": [
+        104.0,
+        574.3,
+        508.0,
+        653.0
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1616,
+      "height": 315,
+      "sha256": "6286c19369c5e425a494f8ed6266beff6071f96cc8fa32afe1bc937f3105c4c1"
+    },
+    {
+      "name": "table-04-production-en-fr",
+      "clip": [
+        104.0,
+        679.0,
+        508.0,
+        734.0
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1616,
+      "height": 220,
+      "sha256": "55399676e04fa4e6e7fef3891fbd8d4cdbac60f66a2af1c687106b85947fd30c"
+    },
+    {
+      "name": "table-05-multilingual",
+      "clip": [
+        104.0,
+        381.0,
+        508.0,
+        549.0
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1616,
+      "height": 672,
+      "sha256": "5f14d3f2ab85ba0feb832cd6cc16edbee6df34e263e2f647c7f300c53a23326e"
+    },
+    {
+      "name": "table-06-balancing-ablation",
+      "clip": [
+        103.0,
+        648.2,
+        509.0,
+        734.0
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1624,
+      "height": 344,
+      "sha256": "20e256c0ff175899fc21b4961107b311d616d243ad379ceba936cd0f816201f1"
+    },
+    {
+      "name": "table-07-complete-lm",
+      "clip": [
+        103.0,
+        528.8,
+        509.0,
+        735.0
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1624,
+      "height": 825,
+      "sha256": "2d9c46e8dd2947f91a78e562b4b615af6aea147f528bd40027fd8eab68dc70ad"
+    },
+    {
+      "name": "table-08-complete-news",
+      "clip": [
+        103.0,
+        572.5,
+        509.0,
+        700.0
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1624,
+      "height": 510,
+      "sha256": "6dc9cf4d86a2aa2c821ddd5f65c9d94e2b2ddd346769ddc0b231b63d0357381e"
+    },
+    {
+      "name": "table-09-specialization",
+      "clip": [
+        104.0,
+        434.5,
+        508.0,
+        574.0
+      ],
+      "captionOutsideImage": true,
+      "separateCaptionCount": 1,
+      "pixelsMatchOriginalPDF": true,
+      "width": 1616,
+      "height": 558,
+      "sha256": "e46624c9efc5f7e7d4b0a6ece607a3e5c10d779f9612ae2d44ddcf34d673b4f5"
+    }
+  ]
+}

@@ -465,7 +465,7 @@ Qwen模型native context为262,144，扩展到1M依赖YaRN等设置，不能写�
 
 ## References、资料清单与更新记录
 
-**Original Paper。** [arXiv1701.06538v1](https://arxiv.org/abs/1701.06538v1)，[版本固定PDF](https://arxiv.org/pdf/1701.06538v1)，[本地原始PDF](assets/original/1701.06538v1.pdf)。全部原图表含原caption；[视觉清单与SHA-256](sources/visual-manifest.json)，[完整公式MathML/TeX](sources/equations.json)。
+**Original Paper。** [arXiv1701.06538v1](https://arxiv.org/abs/1701.06538v1)，[版本固定PDF](https://arxiv.org/pdf/1701.06538v1)，[本地原始PDF](assets/original/1701.06538v1.pdf)。图片保留图表本体，原图注与解析以可复制文字列在图外；[视觉清单与SHA-256](sources/visual-manifest.json)，[完整公式MathML/TeX](sources/equations.json)。
 
 **Related Papers。** [GShard](https://arxiv.org/abs/2006.16668)、[Switch](https://arxiv.org/abs/2101.03961)、[GLaM](https://arxiv.org/abs/2112.06905)、[ST-MoE](https://arxiv.org/abs/2202.08906)、[Expert Choice](https://arxiv.org/abs/2202.09368)、[MegaBlocks](https://arxiv.org/abs/2211.15841)、[Adafactor](https://arxiv.org/abs/1804.04235)、[DeepSeekMoE](https://arxiv.org/abs/2401.06066)、[DeepSeek-V3 v2](https://arxiv.org/html/2412.19437v2)、[DeepSeek-V4报告](https://arxiv.org/html/2606.19348)。
 
@@ -474,3 +474,5 @@ Qwen模型native context为262,144，扩展到1M依赖YaRN等设置，不能写�
 以上外部资料检索日期均为 **2026-10-27**，用途分别为历史关系、机制比较或当前状态，不将链接数量当作独立实验证据。正文解释、简化图与交互由本次精读创建。原作者数值均保留协议和预算边界；未运行模型训练、GPU benchmark或质量复测。
 
 2026-10-27：初版精读；完整覆盖§1–6与A–G，保留4图9表22公式，增加路由交互、容量/通信账本、实验公平性审计与当前资料核验。
+
+2026-10-28：重新裁切全部13张原始图表图片，将原论文图注移到图片外，以可复制文字展示；保留图表本体、坐标轴、图例与完整表格。

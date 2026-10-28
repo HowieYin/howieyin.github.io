@@ -4,7 +4,7 @@
 
 **Accurate and Efficient Post-Training Quantization for Large Language Models**
 
-Guangxuan Xiao、Ji Lin（共同一作）、Mickael Seznec、Hao Wu、Julien Demouth、Song Han · MIT / NVIDIA。ICML 2023，PMLR 202:38087–38099。首发 2022-11-18；精读指定 **arXiv 2211.10438v7，2024-03-29，13 页**。阅读及更新日期：2026-10-27。[1][2]
+Guangxuan Xiao、Ji Lin（共同一作）、Mickael Seznec、Hao Wu、Julien Demouth、Song Han · MIT / NVIDIA。ICML 2023，PMLR 202:38087–38099。首发 2022-11-18；精读指定 **arXiv 2211.10438v7，2024-03-29，13 页**。阅读日期：2026-10-27；页面更新：2026-10-28。[1][2]
 
 [指定版本 PDF](sources/2211.10438v7.pdf) · [arXiv v7](https://arxiv.org/abs/2211.10438v7) · [论文 HTML](https://arxiv.org/html/2211.10438v7) · [官方代码](https://github.com/mit-han-lab/smoothquant) · [作者 Slides](sources/author-slides.pdf) · [作者 Talk](https://youtu.be/U0yvqjdMfr0) · [DOI](https://doi.org/10.48550/arXiv.2211.10438)
 
@@ -491,4 +491,4 @@ HTP / DSP 迁移需核实实际 QNN 算子的 quantization granularity、zero-po
 16. <span id="cite-16"></span> Luo et al. **A Case Study of Selected PTQ Baselines for Reasoning LLMs on Ascend NPU**，2602.17693v1，2026。含 pseudo / real quant 区分；部分表内 Average 算术存在疑点。[https://arxiv.org/html/2602.17693v1](https://arxiv.org/html/2602.17693v1)
 17. <span id="cite-17"></span> AMD ROCm Blog，**SmoothQuant model inference on AMD Instinct MI300X using Composable Kernel**，2024；官方工程落地示例。[https://rocm.blogs.amd.com/software-tools-optimization/ck-int8-gemm-sq/README.html](https://rocm.blogs.amd.com/software-tools-optimization/ck-int8-gemm-sq/README.html)
 
-<p class="reading-note">更新记录：2026-10-27 初次精读 v7；原始 PDF 图表完整保存，扩展研究按检索日期标注。原论文图表版权归作者/出版方；本页用于学术讨论并明确注明来源。</p>
+<p class="reading-note">更新记录：2026-10-27 初次精读 v7；2026-10-28 重新裁切全部 10 张原图与 11 张原表，图片只保留图表主体，完整图注及解读以图外文字呈现。原始 PDF 完整保存，扩展研究按检索日期标注。原论文图表版权归作者/出版方；本页用于学术讨论并明确注明来源。</p>

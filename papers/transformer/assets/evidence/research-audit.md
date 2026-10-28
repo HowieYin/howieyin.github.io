@@ -6,7 +6,7 @@ Read all 15 pages of local `1706.03762v7.pdf`, including references and Attentio
 
 Abstract; 1 Introduction; 2 Background; 3 Model Architecture (3.1 stacks; 3.2 attention including 3.2.1–3; 3.3 FFN; 3.4 embedding; 3.5 positions); 4 Why Self-Attention; 5 Training (5.1–4); 6 Results (6.1–3); 7 Conclusion; References; Attention Visualizations.
 
-Preserved 5 original figures and 4 tables, including figure/table captions, at 288 dpi from PDF. HTML tables preserved without deleting blank cells, colspans, rows or math. Table 3 blank settings inherit base, including big dk=dv=64. Fig 4 visually inspected: full head-5 panel and two its-only head-5/head-6 arcs to Law/application; all source token labels present.
+Preserved 5 original figures and 4 tables at 288 dpi from PDF. On 2026-10-28, re-rendered artwork-only crops; figure/table titles and full captions remain selectable text outside each image. Caption and artwork rectangles do not overlap. HTML tables preserved without deleting blank cells, colspans, rows or math. Table 3 blank settings inherit base, including big dk=dv=64. Fig 4 visually inspected: full head-5 panel and two its-only head-5/head-6 arcs to Law/application; all source token labels present. Table 3's crop extends through the complete right edge at PDF x=508.74.
 
 ## Source inconsistencies and conclusions
 

@@ -6,9 +6,18 @@
       105,
       45,
       507,
-      188
+      171
     ],
-    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi; caption rendered separately as text",
+    "caption_bbox": [
+      108,
+      173,
+      504,
+      185
+    ],
+    "caption": "Figure 1: Recall@K curves using order-embeddings with and without layer normalization.",
+    "caption_zh": "Order-embeddings 在使用与不使用 Layer Normalization 时的 Recall@K 曲线；三个面板分别对应 R@1、R@5 和 R@10。",
+    "caption_in_image": false
   },
   {
     "name": "fig-02-attentive-reader",
@@ -17,20 +26,38 @@
       105,
       48,
       507,
-      223
+      196.5
     ],
-    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi; caption rendered separately as text",
+    "caption_bbox": [
+      108,
+      198,
+      504,
+      220
+    ],
+    "caption": "Figure 2: Validation curves for the attentive reader model. BN results are taken from [Cooijmans et al., 2016].",
+    "caption_zh": "Attentive reader 模型的验证曲线。Batch Normalization 的结果引用自 Cooijmans 等人（2016）。",
+    "caption_in_image": false
   },
   {
     "name": "fig-03-skip-thoughts",
     "page": 8,
     "bbox": [
       105,
-      46,
+      43,
       507,
-      313
+      270
     ],
-    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi; caption rendered separately as text",
+    "caption_bbox": [
+      108,
+      277,
+      504,
+      310
+    ],
+    "caption": "Figure 3: Performance of skip-thought vectors with and without layer normalization on downstream tasks as a function of training iterations. The original lines are the reported results in [Kiros et al., 2015]. Plots with error use 10-fold cross validation. Best seen in color.",
+    "caption_zh": "Skip-thought 向量在各下游任务上的表现随训练迭代次数的变化，比较使用与不使用 Layer Normalization 的模型。标为 Original 的参考线来自 Kiros 等人（2015）；带误差区域的图使用 10 折交叉验证。原论文建议以彩色查看。",
+    "caption_in_image": false
   },
   {
     "name": "fig-04-draw",
@@ -39,9 +66,18 @@
       360,
       266,
       506,
-      450
+      407
     ],
-    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi; caption rendered separately as text",
+    "caption_bbox": [
+      360,
+      414,
+      506,
+      447
+    ],
+    "caption": "Figure 4: DRAW model test negative log likelihood with and without layer normalization.",
+    "caption_zh": "DRAW 模型在使用与不使用 Layer Normalization 时的测试负对数似然曲线。图中纵轴实际标为 Test Variational Bound，后文按变分界解释。",
+    "caption_in_image": false
   },
   {
     "name": "fig-05-handwriting",
@@ -50,52 +86,97 @@
       105,
       50,
       507,
-      208
+      178
     ],
-    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi; caption rendered separately as text",
+    "caption_bbox": [
+      108,
+      183,
+      504,
+      205
+    ],
+    "caption": "Figure 5: Handwriting sequence generation model negative log likelihood with and without layer normalization. The models are trained with mini-batch size of 8 and sequence length of 500,",
+    "caption_zh": "手写序列生成模型在使用与不使用 Layer Normalization 时的负对数似然。训练 mini-batch 为 8，序列切片长度为 500。",
+    "caption_in_image": false
   },
   {
     "name": "fig-06-mnist",
     "page": 10,
     "bbox": [
       105,
-      46,
+      42,
       507,
-      246
+      203
     ],
-    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi; caption rendered separately as text",
+    "caption_bbox": [
+      108,
+      210,
+      504,
+      243
+    ],
+    "caption": "Figure 6: Permutation invariant MNIST 784-1000-1000-10 model negative log likelihood and test error with layer normalization and batch normalization. (Left) The models are trained with batch-size of 128. (Right) The models are trained with batch-size of 4.",
+    "caption_zh": "Permutation-invariant MNIST 的 784–1000–1000–10 模型，比较 Layer Normalization 与 Batch Normalization 的负对数似然和测试错误。左列 batch size 为 128，右列为 4；上排是训练 NLL，下排是测试错误。",
+    "caption_in_image": false
   },
   {
     "name": "table-01-invariance",
     "page": 4,
     "bbox": [
-      105,
-      48,
-      507,
-      118
+      130,
+      55,
+      482,
+      101.5
     ],
-    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi; caption rendered separately as text",
+    "caption_bbox": [
+      108,
+      103,
+      504,
+      114
+    ],
+    "caption": "Table 1: Invariance properties under the normalization methods.",
+    "caption_zh": "三种归一化方法对不同参数或数据变换的不变性。",
+    "caption_in_image": false
   },
   {
     "name": "table-02-retrieval",
     "page": 6,
     "bbox": [
-      105,
+      115,
       196,
-      507,
-      317
+      497,
+      278
     ],
-    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi; caption rendered separately as text",
+    "caption_bbox": [
+      108,
+      281,
+      504,
+      314
+    ],
+    "caption": "Table 2: Average results across 5 test splits for caption and image retrieval. R@K is Recall@K (high is good). Mean r is the mean rank (low is good). Sym corresponds to the symmetric baseline while OE indicates order-embeddings.",
+    "caption_zh": "图像与描述检索在 5 个测试 split 上的平均结果。R@K 为 Recall@K，越高越好；Mean r 为平均排名，越低越好。Sym 表示对称 baseline，OE 表示 order-embeddings。",
+    "caption_in_image": false
   },
   {
     "name": "table-03-skip-thoughts",
     "page": 8,
     "bbox": [
-      105,
+      113,
       321,
-      507,
-      438
+      497,
+      387
     ],
-    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi"
+    "source": "Original Paper, arXiv:1607.06450v1; PDF raster at 288 dpi; caption rendered separately as text",
+    "caption_bbox": [
+      108,
+      391,
+      504,
+      435
+    ],
+    "caption": "Table 3: Skip-thoughts results. The first two evaluation columns indicate Pearson and Spearman correlation, the third is mean squared error and the remaining indicate classification accuracy. Higher is better for all evaluations except MSE. Our models were trained for 1M iterations with the exception of (†) which was trained for 1 month (approximately 1.7M iterations)",
+    "caption_zh": "Skip-thoughts 的测试结果。前三个评估列依次为 Pearson 相关系数、Spearman 相关系数与均方误差，后四列为分类准确率；除 MSE 外均为越高越好。Ours 模型训练 1M 次迭代，带 † 的版本训练一个月，约 1.7M 次迭代。",
+    "caption_in_image": false
   }
 ]

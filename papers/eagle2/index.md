@@ -2,7 +2,7 @@
 
 同一个 draft model，不同上下文需要不同的树。EAGLE-2 用路径置信度分配候选节点，再让原模型并行验证；关键成本仍落在 draft、LM head、树注意力与 KV 提交的整条链路上。
 
-<p class="reading-meta">FULL PAPER READING · 2406.16858v2 · UPDATED 2026-10-27</p>
+<p class="reading-meta">FULL PAPER READING · 2406.16858v2 · UPDATED 2026-10-28</p>
 
 **论文**：EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees。**作者**：Yuhui Li、Fangyun Wei、Chao Zhang、Hongyang Zhang。**机构**：Peking University、Microsoft Research、University of Waterloo、Vector Institute。
 
@@ -255,7 +255,7 @@ L 为 target 层数、h_kv 为 KV heads、d_h 为 head dim、s 为元素字节�
 
 {{table1}}
 
-**如何阅读**：两个左侧字段 Model / Method，随后 6 个任务与 Mean，每组含 Speedup、τ，共 16 列。Temperature=0 有 22 个数据行，Temperature=1 有 10 个数据行；另有标题与分组行。原截图保留 bold、布局与完整 caption，网页表保留所有行列。
+**如何阅读**：两个左侧字段 Model / Method，随后 6 个任务与 Mean，每组含 Speedup、τ，共 16 列。Temperature=0 有 22 个数据行，Temperature=1 有 10 个数据行；另有标题与分组行。原截图保留 bold 与完整表格布局，caption 以图片外的文字呈现；网页表保留所有行列。
 
 **最强 baseline**：同模型、同温度下 EAGLE 是主要最强可比 baseline。Mean speedup 的核算如下，绝对差单位为“相对 AR 的倍数差”，不是毫秒或百分点。
 
@@ -412,6 +412,10 @@ L 为 target 层数、h_kv 为 KV heads、d_h 为 head dim、s 为元素字节�
 
 ## 相关精读与参考资料
 
+**Next Reading**：[EAGLE-3：让草稿模型学会接住自己的输出](https://howieyin.github.io/papers/eagle-3/)。动态树之外，继续看自由状态、多层特征融合和 training-time test 如何提高多步草稿的可靠性。
+
+[DFlash：并行扩散草稿与目标特征 KV](https://howieyin.github.io/papers/dflash/) · [EAGLE：先知道下一个 token，再外推它的特征](https://howieyin.github.io/papers/eagle/)
+
 [Transformer：注意力与因果位置](https://howieyin.github.io/papers/transformer/) · [Sparsely-Gated MoE：路由与执行链路](https://howieyin.github.io/papers/sparse-moe/)
 
 **Original Paper**：
@@ -439,4 +443,4 @@ L 为 target 层数、h_kv 为 KV heads、d_h 为 head dim、s 为元素字节�
 - [S12 · DFlash v2, 2602.06036v2](https://arxiv.org/html/2602.06036v2)；[SGLang DFlash v2, 2026-06-15](https://www.lmsys.org/blog/2026-06-15-next-generation-speculative-decoding-dflash-v2)。
 - [S13 · JetSpec, 2606.18394v5, 2026-10-03](https://arxiv.org/html/2606.18394v5)。
 
-**Changelog**：2026-10-27，首次全文精读；以 v2 为准，补充当前官方代码与 2026 技术路线。本文未运行 GPU benchmark、未重新训练 draft。
+**Changelog**：2026-10-27，首次全文精读；以 v2 为准，补充当前官方代码与 2026 技术路线。2026-10-28，重新裁切全部 7 张原图和 3 张原表，将 caption 与子图说明移至图片外的可选文字，保留图内标注与完整数据。本文未运行 GPU benchmark、未重新训练 draft。

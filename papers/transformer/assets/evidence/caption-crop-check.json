@@ -1,0 +1,56 @@
+[
+  {
+    "file": "fig-01-architecture.png",
+    "artwork_elements": 1,
+    "caption_overlap": false,
+    "clipped_artwork": 0
+  },
+  {
+    "file": "fig-02-attention.png",
+    "artwork_elements": 2,
+    "caption_overlap": false,
+    "clipped_artwork": 0
+  },
+  {
+    "file": "fig-03-long-distance.png",
+    "artwork_elements": 616,
+    "caption_overlap": false,
+    "clipped_artwork": 0
+  },
+  {
+    "file": "fig-04-anaphora.png",
+    "artwork_elements": 806,
+    "caption_overlap": false,
+    "clipped_artwork": 0
+  },
+  {
+    "file": "fig-05-syntax.png",
+    "artwork_elements": 696,
+    "caption_overlap": false,
+    "clipped_artwork": 0
+  },
+  {
+    "file": "table-01.png",
+    "artwork_elements": 3,
+    "caption_overlap": false,
+    "clipped_artwork": 0
+  },
+  {
+    "file": "table-02.png",
+    "artwork_elements": 7,
+    "caption_overlap": false,
+    "clipped_artwork": 0
+  },
+  {
+    "file": "table-03.png",
+    "artwork_elements": 53,
+    "caption_overlap": false,
+    "clipped_artwork": 0
+  },
+  {
+    "file": "table-04.png",
+    "artwork_elements": 33,
+    "caption_overlap": false,
+    "clipped_artwork": 0
+  }
+]

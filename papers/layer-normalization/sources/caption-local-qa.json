@@ -1,0 +1,152 @@
+{
+  "phase": "caption-local",
+  "widths": [
+    {
+      "width": 375,
+      "scroll": 375,
+      "article": 343,
+      "maths": 39
+    },
+    {
+      "width": 390,
+      "scroll": 390,
+      "article": 358,
+      "maths": 39
+    },
+    {
+      "width": 430,
+      "scroll": 430,
+      "article": 398,
+      "maths": 39
+    },
+    {
+      "width": 1440,
+      "scroll": 1440,
+      "article": 880,
+      "maths": 39
+    },
+    {
+      "width": 1920,
+      "scroll": 1920,
+      "article": 880,
+      "maths": 39
+    }
+  ],
+  "interactions": [
+    "Zero denominator with epsilon=0 is explicitly undefined; no invalid SVG values.",
+    "Real mouse presets/feature shift, keyboard range and select input event: negative scale, epsilon, common shift, RMSNorm.",
+    "Axis LN output independent of another sample; toy BN changes after other-sample scale.",
+    "Cost select input event: T=1 gives 16KiB, decode uses B independent of T.",
+    "Original figure zoom opens and Escape closes."
+  ],
+  "errors": [],
+  "images": [
+    {
+      "src": "assets/original/table-01-invariance.png?v=20261028",
+      "ok": true,
+      "width": 1408
+    },
+    {
+      "src": "assets/original/fig-01-order-embeddings.png?v=20261028",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/table-02-retrieval.png?v=20261028",
+      "ok": true,
+      "width": 1528
+    },
+    {
+      "src": "assets/original/fig-02-attentive-reader.png?v=20261028",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/fig-03-skip-thoughts.png?v=20261028",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/table-03-skip-thoughts.png?v=20261028",
+      "ok": true,
+      "width": 1536
+    },
+    {
+      "src": "assets/original/fig-04-draw.png?v=20261028",
+      "ok": true,
+      "width": 584
+    },
+    {
+      "src": "assets/original/fig-05-handwriting.png?v=20261028",
+      "ok": true,
+      "width": 1608
+    },
+    {
+      "src": "assets/original/fig-06-mnist.png?v=20261028",
+      "ok": true,
+      "width": 1608
+    }
+  ],
+  "captions": [
+    {
+      "source": "assets/original/table-01-invariance.png?v=20261028",
+      "outside": "Table 1 · Original Paper 1607.06450v1 · 点击放大三种归一化方法对不同参数或数据变换的不变性。原论文图注（文本）Table 1: Invariance properties under the normalization methods.",
+      "selectable": true
+    },
+    {
+      "source": "assets/original/fig-01-order-embeddings.png?v=20261028",
+      "outside": "Figure 1 · Original Paper 1607.06450v1 · 点击放大Order-embeddings 在使用与不使用 Layer Normalization 时的 Recall@K 曲线；三个面板分别对应 R@1、R@5 和 R@10。原论文图注（文本）Figure 1: Recall@K curves using order-embeddings with and without layer normalization.",
+      "selectable": true
+    },
+    {
+      "source": "assets/original/table-02-retrieval.png?v=20261028",
+      "outside": "Table 2 · Original Paper 1607.06450v1 · 点击放大图像与描述检索在 5 个测试 split 上的平均结果。R@K 为 Recall@K，越高越好；Mean r 为平均排名，越低越好。Sym 表示对称 baseline，OE 表示 order-embeddings。原论文图注（文本）Table 2: Average results across 5 test splits for caption and image retrieval. R@K is Recall@K (high is good). Mean r is the mean rank (low is good). Sym corresponds to the symmetric baseline while OE indicates order-embeddings.",
+      "selectable": true
+    },
+    {
+      "source": "assets/original/fig-02-attentive-reader.png?v=20261028",
+      "outside": "Figure 2 · Original Paper 1607.06450v1 · 点击放大Attentive reader 模型的验证曲线。Batch Normalization 的结果引用自 Cooijmans 等人（2016）。原论文图注（文本）Figure 2: Validation curves for the attentive reader model. BN results are taken from [Cooijmans et al., 2016].",
+      "selectable": true
+    },
+    {
+      "source": "assets/original/fig-03-skip-thoughts.png?v=20261028",
+      "outside": "Figure 3 · Original Paper 1607.06450v1 · 点击放大Skip-thought 向量在各下游任务上的表现随训练迭代次数的变化，比较使用与不使用 Layer Normalization 的模型。标为 Original 的参考线来自 Kiros 等人（2015）；带误差区域的图使用 10 折交叉验证。原论文建议以彩色查看。原论文图注（文本）Figure 3: Performance of skip-thought vectors with and without layer normalization on downstream tasks as a function of training iterations. The original lines are the reported results in [Kiros et al., 2015]. Plots with error use 10-fold cross validation. Best seen in color.",
+      "selectable": true
+    },
+    {
+      "source": "assets/original/table-03-skip-thoughts.png?v=20261028",
+      "outside": "Table 3 · Original Paper 1607.06450v1 · 点击放大Skip-thoughts 的测试结果。前三个评估列依次为 Pearson 相关系数、Spearman 相关系数与均方误差，后四列为分类准确率；除 MSE 外均为越高越好。Ours 模型训练 1M 次迭代，带 † 的版本训练一个月，约 1.7M 次迭代。原论文图注（文本）Table 3: Skip-thoughts results. The first two evaluation columns indicate Pearson and Spearman correlation, the third is mean squared error and the remaining indicate classification accuracy. Higher is better for all evaluations except MSE. Our models were trained for 1M iterations with the exception of (†) which was trained for 1 month (approximately 1.7M iterations)",
+      "selectable": true
+    },
+    {
+      "source": "assets/original/fig-04-draw.png?v=20261028",
+      "outside": "Figure 4 · Original Paper 1607.06450v1 · 点击放大DRAW 模型在使用与不使用 Layer Normalization 时的测试负对数似然曲线。图中纵轴实际标为 Test Variational Bound，后文按变分界解释。原论文图注（文本）Figure 4: DRAW model test negative log likelihood with and without layer normalization.",
+      "selectable": true
+    },
+    {
+      "source": "assets/original/fig-05-handwriting.png?v=20261028",
+      "outside": "Figure 5 · Original Paper 1607.06450v1 · 点击放大手写序列生成模型在使用与不使用 Layer Normalization 时的负对数似然。训练 mini-batch 为 8，序列切片长度为 500。原论文图注（文本）Figure 5: Handwriting sequence generation model negative log likelihood with and without layer normalization. The models are trained with mini-batch size of 8 and sequence length of 500,",
+      "selectable": true
+    },
+    {
+      "source": "assets/original/fig-06-mnist.png?v=20261028",
+      "outside": "Figure 6 · Original Paper 1607.06450v1 · 点击放大Permutation-invariant MNIST 的 784–1000–1000–10 模型，比较 Layer Normalization 与 Batch Normalization 的负对数似然和测试错误。左列 batch size 为 128，右列为 4；上排是训练 NLL，下排是测试错误。原论文图注（文本）Figure 6: Permutation invariant MNIST 784-1000-1000-10 model negative log likelihood and test error with layer normalization and batch normalization. (Left) The models are trained with batch-size of 128. (Right) The models are trained with batch-size of 4.",
+      "selectable": true
+    }
+  ],
+  "tableScroll": {
+    "client": 356,
+    "scroll": 805,
+    "left": 53
+  },
+  "formulaScroll": {
+    "client": 356,
+    "scroll": 744,
+    "left": 46
+  },
+  "reducedMotion": true,
+  "noJS": {
+    "fallbacks": 3,
+    "math": true
+  }
+}

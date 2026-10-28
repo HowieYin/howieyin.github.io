@@ -50,6 +50,7 @@
 .reading-note{font-size:13px;color:var(--secondary)!important}.citation{font-size:.83em;white-space:nowrap}
 dialog{max-width:96vw;max-height:96vh;padding:15px;border:1px solid #52617a;background:#111823;color:#fff}
 dialog::backdrop{background:#000c}dialog img{max-width:100%;max-height:85vh;display:block;background:#fff;margin-top:10px}
+dialog figure{margin:0}dialog figcaption{font-size:13px;line-height:1.8;margin:12px 0;color:var(--secondary);overflow-wrap:anywhere}
 dialog button,.copy-formula{background:#1b2b44;border:1px solid #6684ac;color:#e5edfa;padding:10px 15px;border-radius:6px;cursor:pointer}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,.table-scroll:focus-visible{outline:2px solid #b4d0ff;outline-offset:4px}
 .highlight .k,.highlight .kn,.highlight .ow{color:#c4a7e7}.highlight .s,.highlight .s1,.highlight .s2{color:#9bc5b0}
