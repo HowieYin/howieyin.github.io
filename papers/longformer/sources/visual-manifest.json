@@ -7,11 +7,17 @@
       305,
       220,
       530,
-      474
+      323.67
     ],
-    "caption": "Figure 1: Runtime and memory of full self-attention\nand different implementations of Longformer’s self-attention; Longformer-loop is non-vectorized, Longformer-chunk is vectorized, and Longformer-cuda is a custom cuda kernel implementations.\nLongformer’s memory usage scales linearly with the sequence length, unlike the full self-attention mechanism that runs out of memory for long sequences on current GPUs. Different implementations vary in speed,\nwith the vectorized Longformer-chunk being the fastest. More details are in section 3.2 .",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "e387ae536158494319e301a1152208c9f05c158bfe889453eec8c707f5d2d8eb"
+    "caption": "Figure 1: Runtime and memory of full self-attention and different implementations of Longformer’s self-attention; Longformer-loop is non-vectorized, Longformer-chunk is vectorized, and Longformer-cuda is a custom cuda kernel implementations. Longformer’s memory usage scales linearly with the sequence length, unlike the full self-attention mechanism that runs out of memory for long sequences on current GPUs. Different implementations vary in speed, with the vectorized Longformer-chunk being the fastest. More details are in section 3.2.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "e92956fc83ab982960ad1c727a5c4d9e3fd9e80f4f4124c4d6081972ca46f300",
+    "caption_bbox_pdf_points": [
+      305,
+      328.67,
+      530,
+      474
+    ]
   },
   {
     "name": "fig-02-attention-pattern",
@@ -21,11 +27,17 @@
       70,
       60,
       530,
-      178
+      158.01
     ],
     "caption": "Figure 2: Comparing the full self-attention pattern and the configuration of attention patterns in our Longformer.",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "bb0973bad7c1574dbc3137c25a6daa156fb9de44722a3c4ebb3459ba9a209701"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "c1464df9b2f500d2c19f1cb465ab3eabcde317f87a8e1c532e55747967d0e205",
+    "caption_bbox_pdf_points": [
+      70,
+      163.01,
+      530,
+      178
+    ]
   },
   {
     "name": "fig-03-led-input-length",
@@ -35,11 +47,17 @@
       70,
       224,
       294,
-      378
+      347.9
     ],
     "caption": "Figure 3: ROUGE-1 and ROUGE-2 of LED when varying the input size (arXiv validation set).",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "017741d92ba45bb9461925afa534aefc96720ee0f38da00fe882572acd7a2a03"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "ba374de36b03e0c9d5d8a377390c427cd78a2ede42e64e34ef491ecba7baf36d",
+    "caption_bbox_pdf_points": [
+      70,
+      352.9,
+      294,
+      378
+    ]
   },
   {
     "name": "table-01-prior-work",
@@ -49,11 +67,17 @@
       304,
       63,
       531,
-      223
+      192.32
     ],
     "caption": "Table 1: Summary of prior work on adapting Transformers for long documents. ltr: left-to-right.",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "4cb8eac1de49040e1ef390e6587a351e6f01ed58bc361dd7c006c7c1341e8b35"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "53057c5eccf4c99dc81e3e1f3384a4990e5572d65e2c2612da81dd29e035a8a8",
+    "caption_bbox_pdf_points": [
+      304,
+      197.32,
+      531,
+      223
+    ]
   },
   {
     "name": "table-02-small-char-lm",
@@ -63,11 +87,17 @@
       304,
       63,
       530,
-      235
+      216.29
     ],
     "caption": "Table 2: Small model BPC on text8 & enwik8",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "e1bb832ac2afc479049e6507fdd29969da53e6228292c98528a1a0490f7c56f0"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "2432f85210fd98436af8c43897771c9660c9ad65eeaa259d46f3be6fb74d93d3",
+    "caption_bbox_pdf_points": [
+      304,
+      221.29,
+      530,
+      235
+    ]
   },
   {
     "name": "table-03-large-char-lm",
@@ -77,11 +107,17 @@
       304,
       252,
       529,
-      368
+      349.63
     ],
     "caption": "Table 3: Performance of large models on enwik8",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "ff1fb9b92e9d099eb569ea5337837847c2917090d048bf3ddc5f3694522564ff"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "c0a8ed84464c42a18fd79b108e16e314dce52e3633ae929877daa8b6e0dad8cb",
+    "caption_bbox_pdf_points": [
+      304,
+      354.63,
+      529,
+      368
+    ]
   },
   {
     "name": "table-04-char-ablation",
@@ -91,11 +127,17 @@
       69,
       63,
       296,
-      178
+      146.79
     ],
-    "caption": "Table 4: Top: changing window size\nacross layers. Bottom: with/without dilation (@ 150K steps on phase1)",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "024db5ce45af4c667d5968b8561b1596cdf216b32d5f385aabf4c6bcddcc34f1"
+    "caption": "Table 4: Top: changing window size across layers. Bottom: with/without dilation (@ 150K steps on phase1)",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "7c5dcc75d4d3bc35c15d72df9f5be7f0ad8c7566481699be42ec01d316fddc8b",
+    "caption_bbox_pdf_points": [
+      69,
+      151.79,
+      296,
+      178
+    ]
   },
   {
     "name": "table-05-mlm-initialization",
@@ -105,11 +147,17 @@
       304,
       63,
       532,
-      182
+      151.28
     ],
     "caption": "Table 5: MLM BPC for RoBERTa and various pretrained Longformer configurations.",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "66b410d0fb8e508b5ebcca5359f99b95f68bc3c035b6f58891e20dad092b66b6"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "ed51052ef256228a955ce008996b505a7439f8ee56fc1abbac2995e5a680c934",
+    "caption_bbox_pdf_points": [
+      304,
+      156.28,
+      532,
+      182
+    ]
   },
   {
     "name": "table-06-dataset-lengths",
@@ -119,11 +167,17 @@
       69,
       63,
       296,
-      166
+      111.43
     ],
     "caption": "Table 6: Average and 95th percentile of context length of datasets in wordpieces. WH: WikiHop, TQA: TriviaQA, HQA: HotpotQA, ON: OntoNotes, HY: Hyperpartisan news",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "7e7cfa252310e5c94111d9b9c1fa43bec9267af8a8d0bc3a17f3caca1a448b09"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "d242fa28bff7cb269f31a8143a6f2b10e39213975aadcefc22cf26cc339efc41",
+    "caption_bbox_pdf_points": [
+      69,
+      116.43,
+      296,
+      166
+    ]
   },
   {
     "name": "table-07-downstream-base",
@@ -133,11 +187,17 @@
       69,
       63,
       530,
-      170
+      126.65
     ],
-    "caption": "Table 7: Summary of finetuning results on QA,\ncoreference resolution, and document classification.\nResults are on the development sets comparing our\nLongformer-base with RoBERTa-base.\nTriviaQA, Hyperpartisan metrics are F1, WikiHop and IMDB use accuracy, HotpotQA is joint F1, OntoNotes is average F1.",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "f89c4eb459727d1677df3684a391e16de055879db05387c7679572f6c2e510ca"
+    "caption": "Table 7: Summary of finetuning results on QA, coreference resolution, and document classification. Results are on the development sets comparing our Longformer-base with RoBERTa-base. TriviaQA, Hyperpartisan metrics are F1, WikiHop and IMDB use accuracy, HotpotQA is joint F1, OntoNotes is average F1.",
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "aa2be20dd4e448e563f6534f0d49b7940d85f6273b4df6afc8eda927c4ef0947",
+    "caption_bbox_pdf_points": [
+      69,
+      131.65,
+      530,
+      170
+    ]
   },
   {
     "name": "table-08-qa-leaderboards",
@@ -147,11 +207,17 @@
       304,
       186,
       531,
-      277
+      234.44
     ],
     "caption": "Table 8: Leaderboard results of Longformer-large at time of submission (May 2020). All numbers are F1 scores.",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "f2a64fea46f0fc8e471df1a731308114eee1756217d88d851d4eebc3729329af"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "2171f3a014d85b45d3123ab8e805e5a0863f8617baf73c9d3389b37d55bf34d3",
+    "caption_bbox_pdf_points": [
+      304,
+      239.44,
+      531,
+      277
+    ]
   },
   {
     "name": "table-09-hotpotqa",
@@ -161,11 +227,17 @@
       69,
       63,
       296,
-      237
+      182.04
     ],
     "caption": "Table 9: HotpotQA results in distractor setting test set. Quark’s test results are not available. All numbers are F1 scores. † shows contemporaneous leaderboard submissions.",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "91c9d4dec3357ba9092dedca72f494a9c4f9efb7e0a195954c3afff70f6d7d44"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "d09e6316052b6dde586557bb1e8a70cb2cc513afdf705204d25afa4f4388a35e",
+    "caption_bbox_pdf_points": [
+      69,
+      187.04,
+      296,
+      237
+    ]
   },
   {
     "name": "table-10-wikihop-ablation",
@@ -175,11 +247,17 @@
       68,
       256,
       297,
-      399
+      380.29
     ],
     "caption": "Table 10: WikiHop development set ablations",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "6b9aa2ed2b1a790af50d16dfa49d08288c4de25206baf121d992849f365e76cf"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "eed0e1bc5f2a413563b3202425ca974e9c46d4f73b673645c79a0653f9a24d4e",
+    "caption_bbox_pdf_points": [
+      68,
+      385.29,
+      297,
+      399
+    ]
   },
   {
     "name": "table-11-led-summarization",
@@ -189,11 +267,17 @@
       69,
       63,
       296,
-      216
+      161.64
     ],
     "caption": "Table 11: Summarization results of Longformer-Encoder-Decoder (LED) on the arXiv dataset. Metrics from left to right are ROUGE-1, ROUGE-2 and ROUGE-L.",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "3fdc97621d4793ba87932c221c07315ec3fd9f4c1e0218df437acc19c2855e76"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "9c407be887bb9c705359c2e1369373d13fa565b7675070c2c0f5b191c78352a4",
+    "caption_bbox_pdf_points": [
+      69,
+      166.64,
+      296,
+      216
+    ]
   },
   {
     "name": "table-12-char-hyperparameters",
@@ -203,11 +287,17 @@
       103,
       61,
       493,
-      350
+      330.61
     ],
     "caption": "Table 12: Hyperparameters for the best performing model for character-level language modeling",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "1c1cd2ac8c76aade9834cd6ba44be5e3153f50fb725a84c97acd6875a873af6a"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "ec16d13f1c99cdacf36136718746f5c67d6c53d02571aafddee47d7563454fe7",
+    "caption_bbox_pdf_points": [
+      103,
+      335.61,
+      493,
+      350
+    ]
   },
   {
     "name": "table-13-pretraining-corpus",
@@ -217,11 +307,17 @@
       77,
       365,
       286,
-      453
+      434.42
     ],
     "caption": "Table 13: Pretraining data",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "e60fb5091e1bfc01edac825c7d9d77c172f306dd320a59041a2b77e33a2577ed"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "a8c463c276150ff039588321623eb00c717144daaf333d17ebb0ee0059a948af",
+    "caption_bbox_pdf_points": [
+      77,
+      439.42,
+      286,
+      453
+    ]
   },
   {
     "name": "table-14-qa-hyperparameters",
@@ -231,10 +327,16 @@
       304,
       62,
       531,
-      185
+      141.32
     ],
     "caption": "Table 14: Hyperparameters of the QA models. All models use a similar scheduler with linear warmup and decay.",
-    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG, original caption included",
-    "sha256": "b928ef8c7928e681c2f6908ab0ab8b3aa8cd2670601b1825fa8374f58a58497b"
+    "source": "arXiv 2004.05150v2 local PDF, 4x lossless PNG; figure/table body only; original caption transcribed as separate text",
+    "sha256": "e90f0d2574cd5506cb86f7ab67aa849a562dfd3114d0af164b6528f538f4ecb1",
+    "caption_bbox_pdf_points": [
+      304,
+      146.32,
+      531,
+      185
+    ]
   }
 ]
