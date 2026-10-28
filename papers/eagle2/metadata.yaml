@@ -13,7 +13,7 @@ code: https://github.com/SafeAILab/EAGLE
 code_snapshot: cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b
 project: https://sites.google.com/view/eagle-llm
 reading_date: 2026-10-27
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 url: https://howieyin.github.io/papers/eagle2/
 tags: [LLM, Inference, Systems, Speculative Decoding, KV Cache]
 original_figures: 7
