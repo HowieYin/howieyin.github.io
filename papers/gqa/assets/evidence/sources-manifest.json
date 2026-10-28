@@ -48,38 +48,38 @@
     },
     {
       "path": "assets/original/fig-01-checkpoint-conversion.png",
-      "sha256": "4e9d7a98e85d71a598cc174545462ed1c114fd42303a8f189635b34e6df7eec3",
-      "bytes": 58217
+      "sha256": "ac091d122e44a08dd1083d06c659a831e7938b7e9da4433be331a445529f9863",
+      "bytes": 29668
     },
     {
       "path": "assets/original/fig-02-mha-gqa-mqa.png",
-      "sha256": "9eb19795386c0108b14681e6861381c491c3c88d50cc325c73a7195e6202f615",
-      "bytes": 122892
+      "sha256": "a04a1786d6e828229600f18f9a9bda5cce183494bafe50d6c6d51a68e30fa8ec",
+      "bytes": 73678
     },
     {
       "path": "assets/original/fig-03-quality-latency.png",
-      "sha256": "6a22fc55c59d2417b120098aeb46ba6341652df1ed2352581ae794d23ca29f81",
-      "bytes": 123505
+      "sha256": "01e60d2645653d6b0ac612321f86957ec412ec1d2be4a2f0c9dbfaf033f66ad4",
+      "bytes": 36228
     },
     {
       "path": "assets/original/fig-04-conversion-ablation.png",
-      "sha256": "b5a485e7ba2f2e62a48cfc0cd2167f655d1a405f259bb31643a429df3a9e6580",
-      "bytes": 68728
+      "sha256": "0bf5af9db73c8f038ad0740def1836923551fa9f72ba6a82ac459a6450ecc71f",
+      "bytes": 22363
     },
     {
       "path": "assets/original/fig-05-uptraining-ablation.png",
-      "sha256": "1cd513f4c97b3dd1f32b4543cfa2a0efaea9dbc86eedb2a02de74753754a331a",
-      "bytes": 70265
+      "sha256": "99ff57ea980ac6de8970c9f75fac9b94f0d08155905f19e1864f5c6d2dd991ee",
+      "bytes": 49053
     },
     {
       "path": "assets/original/fig-06-group-latency.png",
-      "sha256": "32becb1ceebf351b898847acba9a7be48ef5e4cdd00d7bab8b1ed3af987bf7f8",
-      "bytes": 91952
+      "sha256": "51275f771373472373e561bc4b2eddef4dd51820e9a5417a6f32e198a27f47a9",
+      "bytes": 42171
     },
     {
       "path": "assets/original/table-01-main-results.png",
-      "sha256": "9625e39e46bf13aaf3c994a05e9864fbcdbeae8530e7d68d27f11dbbf7e76d44",
-      "bytes": 122074
+      "sha256": "cb466702d4e46f44639faec71cccca5b7f65cd59d0f2b224696f745c633e48f7",
+      "bytes": 63014
     }
   ],
   "interpretation_boundaries": [
