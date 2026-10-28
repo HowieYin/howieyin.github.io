@@ -29,7 +29,7 @@ Biao Zhang、Rico Sennrich · University of Edinburgh / University of Zurich · 
 
 {{fig:1}}
 
-**Figure 1 — 步数与时间是两种横轴。** 两个面板展示 GRU RNNSearch 的前 10k 训练步骤；纵轴都是 training loss，越低越好。(a) 以 step 为横轴，Baseline 到 7.0 时 LayerNorm 到约 5.4；(b) 以 seconds 为横轴，同样时间里 LayerNorm 只到约 5.9。曲线的组成是同一模型的无归一化与 LayerNorm 两种训练过程，没有额外网络数据流箭头。先对齐纵轴，再对齐横轴单位，才能读出“优化效果被运行开销抵消了一部分”。
+**Figure 1 — 步数与时间是两种横轴。** 两个面板展示 GRU RNNSearch 的前 10k 训练步骤；纵轴都是 training loss，越低越好。(a) 以 step 为横轴，Baseline 到 7.0 时 LayerNorm 到约 5.4；(b) 以 minutes 为横轴，同样时间里 LayerNorm 只到约 5.9。曲线的组成是同一模型的无归一化与 LayerNorm 两种训练过程，没有额外网络数据流箭头。先对齐纵轴，再对齐横轴单位，才能读出“优化效果被运行开销抵消了一部分”。
 
 **关键观察：** 这张图证明要检查 time-to-quality，而非只比较 loss/step。它并没有直接测 RMSNorm，也没有证明所有 LayerNorm kernel 都很慢；后续实验才比较新方法。RNN 的时间依赖会使许多小归一化沿序列串行发生，归约与调度开销反复进入关键路径。
 
