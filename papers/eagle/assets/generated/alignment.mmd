@@ -1,0 +1,9 @@
+flowchart LR
+ F["F1:i · B×i×D"] --> C["concat · B×i×2D"]
+ T["T2:i+1 · B×i"] --> E["Frozen embedding"]
+ E --> C
+ C --> P["FC 2D to D"]
+ P --> D["One decoder"]
+ D --> H["Predicted f_i+1"]
+ H --> W["Frozen LM head"]
+ W --> Q["q_i+2 · B×V"]

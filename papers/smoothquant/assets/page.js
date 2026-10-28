@@ -25,9 +25,11 @@
     region.scrollBy({left:e.key === "ArrowRight" ? 80 : -80, behavior:"instant"});
   }));
   const dialog = document.getElementById("figure-dialog"), image = document.getElementById("zoom-image");
+  const caption = document.getElementById("zoom-caption");
   document.querySelectorAll("[data-zoom]").forEach(button => button.addEventListener("click", () => {
     image.src = button.dataset.zoom;
     image.alt = button.querySelector("img").alt;
+    caption.innerHTML = button.closest("figure").querySelector("figcaption").innerHTML;
     dialog.showModal();
   }));
   document.getElementById("close-figure").addEventListener("click", () => dialog.close());

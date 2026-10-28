@@ -1,0 +1,88 @@
+{
+  "figures": 5,
+  "tables": [
+    {
+      "table": 1,
+      "rows": 16,
+      "cells": 258,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 2,
+      "rows": 6,
+      "cells": 41,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 3,
+      "rows": 26,
+      "cells": 152,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 4,
+      "rows": 8,
+      "cells": 52,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 5,
+      "rows": 17,
+      "cells": 95,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 6,
+      "rows": 5,
+      "cells": 31,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 7,
+      "rows": 4,
+      "cells": 24,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 8,
+      "rows": 6,
+      "cells": 43,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 9,
+      "rows": 7,
+      "cells": 27,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 10,
+      "rows": 4,
+      "cells": 19,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 11,
+      "rows": 11,
+      "cells": 55,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 12,
+      "rows": 5,
+      "cells": 20,
+      "exact_cells_spans_emphasis": true
+    },
+    {
+      "table": 13,
+      "rows": 4,
+      "cells": 25,
+      "exact_cells_spans_emphasis": true
+    }
+  ],
+  "generated_diagrams": 2,
+  "equation_groups": 10,
+  "interactive": 3,
+  "duplicate_ids": 0,
+  "broken_anchors": 0
+}

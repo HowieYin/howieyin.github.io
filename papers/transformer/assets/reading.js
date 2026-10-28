@@ -121,6 +121,7 @@ const modal = el("figure-dialog");
 document.querySelectorAll("[data-zoom]").forEach(button => button.addEventListener("click", () => {
   const original = button.querySelector("img");
   el("zoom-image").src = original.src; el("zoom-image").alt = original.alt;
+  el("zoom-caption").textContent = original.alt;
   el("full-figure").href = original.src; modal.showModal();
 }));
 el("close-dialog").addEventListener("click", () => modal.close());

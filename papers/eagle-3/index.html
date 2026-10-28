@@ -1,0 +1,1069 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#0c1016">
+<title>EAGLE-3：让草稿模型学会接住自己的输出 — Paper Readings · Howie Yin</title><meta name="description" content="EAGLE-3 v3 全文精读：7张原图、5个完整表；training-time test、多层特征融合、注意力掩码、条件接受率与成本交互；官方代码审计和截至2026-10-27的研究更新。"><link rel="canonical" href="https://howieyin.github.io/papers/eagle-3/"><meta property="og:title" content="EAGLE-3：让草稿模型学会接住自己的输出"><meta property="og:description" content="自由状态如何支持多步草稿？接受长度为什么不等于实际速度？"><meta property="og:type" content="article"><meta property="og:url" content="https://howieyin.github.io/papers/eagle-3/"><meta property="og:image" content="https://howieyin.github.io/papers/eagle-3/assets/original/fig-03.png"><meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="shared/assets/favicon.svg"><link rel="stylesheet" href="shared/styles.css"><link rel="stylesheet" href="assets/reading.css"><link rel="stylesheet" href="shared/assets/article-navigation.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a><div class="page"><header class="site-header"><a class="wordmark" href="../../" aria-label="Howie Yin home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header>
+<main id="main" class="report"><details class="toc"><summary>Contents</summary><ul><li><a href="#section-1">TL;DR：约束撤掉之后，训练要接住什么？</a></li><li><a href="#section-2">1. Introduction：为什么扩大训练数据，原来的草稿却不继续变好？</a></li><li><a href="#section-5">2. Preliminaries：验证为什么能保持目标分布？</a></li><li><a href="#section-8">3. EAGLE-3：自由状态、多层输入与训练中的递归</a></li><li><a href="#section-14">4. Experiments：把加速、接受长度和框架收益分别核对</a></li><li><a href="#section-24">5. Related Work：把 EAGLE-3 放回论文发表时的技术分工</a></li><li><a href="#section-25">6. Conclusion：论文真正证明了什么？</a></li><li><a href="#section-26">Appendix A. Implementation Details：复现实验需要哪些具体配置？</a></li><li><a href="#section-27">扩展调研：从 2025 的多步状态，走到 2026 的硬件适配</a></li><li><a href="#section-32">官方代码审计：论文示意图与当前实现分别是什么？</a></li><li><a href="#section-38">My Interpretation：优势、隐含代价与下一步实验</a></li><li><a href="#section-41">References、来源与下载</a></li></ul></details><p class="eyebrow">PAPER READINGS / INFERENCE · TRAINING · SYSTEMS</p>
+<noscript><style>.mechanism{display:none}</style><p class="no-js-note">JavaScript is disabled. The full reading, original figures and tables, MathML equations, diagrams and numerical examples remain available. Interactive controls are hidden.</p></noscript>
+<h1>EAGLE-3：让草稿模型学会接住自己的输出</h1>
+<p class="lead">大模型每次只生成一个 token，往往在反复搬运同一批权重。EAGLE-3 把“多走几步”交给一个小模型：它不再被要求精确复原大模型的隐藏特征，而是在训练时反复使用自己的状态，学会提出更长、更可靠的候选序列。</p>
+<div class="paper-meta">
+<p><strong>Paper</strong> · EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test</p>
+<p><strong>Authors</strong> · Yuhui Li · Fangyun Wei · Chao Zhang · Hongyang Zhang<br/><strong>Affiliations</strong> · Peking University · Microsoft Research · University of Waterloo · Vector Institute</p>
+<p><strong>Version</strong> · arXiv 2503.01840v3 · 2025-04-23 · 12 PDF pages<br/><strong>Venue</strong> · NeurIPS 2025（本文精读仍以指定 v3 为准）<br/><strong>Read / Updated</strong> · 2026-10-27 · Inference / Speculative Decoding / Systems</p>
+<p><a href="https://arxiv.org/abs/2503.01840v3">arXiv v3 ↗</a> · <a href="assets/original/2503.01840v3.pdf">Local PDF ↓</a> · <a href="https://doi.org/10.48550/arXiv.2503.01840">DOI ↗</a> · <a href="https://github.com/SafeAILab/EAGLE">Official Code ↗</a> · <a href="https://sites.google.com/view/eagle-llm">Project ↗</a> · <a href="https://openreview.net/forum?id=4exx1hUffq">NeurIPS Record ↗</a></p>
+</div>
+<h2 id="section-1">TL;DR：约束撤掉之后，训练要接住什么？</h2>
+<p><strong>一句话。</strong> EAGLE-3 用训练中的多轮自反馈，替代对目标模型特征的回归约束，再融合目标模型的低、中、高层信息，使小草稿模型能够持续提出更容易通过验证的 token。</p>
+<p><strong>一段话。</strong> EAGLE / EAGLE-2 的小模型既预测 token，也预测目标模型的高层隐藏特征。这个辅助任务让后续草稿步骤有状态可用，却限制了状态表达。直接撤掉特征回归会使第一步变好、后续步骤变差：训练时看到真实特征，推理时看到自己的输出，两者分布不同。EAGLE-3 把这种自反馈放进训练，让状态只为多步 token 预测服务，并通过多层特征融合提供更丰富的起点。大模型仍验证草稿，正确的推测采样保留目标分布。原文最高 6.47× 是特定模型、数据集、greedy 条件下相对普通自回归的结果；H100 + SGLang 的 batch=1 吞吐是 373.25 tokens/s，相对同框架普通解码约 2.36×。</p>
+<p><strong>五个关键点。</strong></p>
+<ol>
+<li><strong>改变训练目标。</strong> 自由状态不必模仿教师某一层，却必须对后面的 token 有用。</li>
+<li><strong>改变训练输入。</strong> 让后续轮次真正吃到草稿自己的状态，减少自反馈造成的漂移。</li>
+<li><strong>改变初始化信息。</strong> 低、中、高层特征拼接投影，取代只看顶层。</li>
+<li><strong>复用验证机制。</strong> EAGLE-2 的动态候选树继续使用；EAGLE-3 主要增强 drafter。</li>
+<li><strong>分开质量和成本。</strong> 接受率、每轮推进长度、wall time、batch 吞吐是不同指标。</li>
+</ol>
+<aside class="callout insight"><strong>阅读约定。</strong> “Original Paper”来自指定 v3；“External Source”来自另外注明日期的论文或官方实现；“Interpretation / Reconstruction”是本篇推导与判断。原文没有编号公式。所有原图、原表完整保留，辅助可视化明确标记来源。</aside>
+<h2 id="section-2">1. Introduction：为什么扩大训练数据，原来的草稿却不继续变好？</h2>
+<h3 id="section-3">问题、已有方法与作者的观察</h3>
+<p>LLM 解码要依赖前面已经生成的 token。普通自回归每推进一格，就执行一次完整目标模型；小 batch 时，权重搬运常比乘加吞吐更关键。推测解码先由较便宜的模型提出一组候选，再由目标模型一次并行评估。它并没有让因果关系消失：它用廉价猜测跨越依赖，再用目标计算校正。</p>
+<p>EAGLE 路线利用目标模型已有的隐藏信息，把 drafter 缩成一个轻量 decoder。EAGLE-2 根据候选置信度组织动态树，减少把验证预算花在不可靠分支上的浪费。作者发现，继续扩大 EAGLE-2 的训练数据，提速逐渐饱和；EAGLE-3 的设计则在本文测试的数据范围内继续改善。</p>
+<figure class="original-figure" id="original-figure-1">
+<a aria-label="Open original figure 1 at full resolution" class="zoom-link" data-zoom="Original Paper · Figure 1" href="assets/original/fig-01.png"><img alt="Figure 1: Scaling law evaluated on the MT-bench using LLaMA-Instruct 3.1 8B as the target model, with the x-axis representing the data scale relative to ShareGPT. The new architectural designs in EAGLE-3 enable an increasing scaling curve, which was never observed in the previous works." height="1752" loading="lazy" src="assets/original/fig-01.png" width="2160"/></a>
+<figcaption><strong>Original Paper · Figure 1 · arXiv v3</strong> · Original source subplots stacked in source order; no axes or legends removed<br/>Figure 1: Scaling law evaluated on the MT-bench using LLaMA-Instruct 3.1 8B as the target model, with the x-axis representing the data scale relative to ShareGPT. The new architectural designs in EAGLE-3 enable an increasing scaling curve, which was never observed in the previous works.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p><strong>Figure 1 怎么读？</strong> 两个子图的横轴都是相对 ShareGPT 的数据规模，目标模型为 LLaMA-Instruct 3.1 8B，评测为 MT-bench；纵轴分别读提速与接受长度。先比较同一数据量的不同方法，再沿每条曲线观察扩大数据的变化。EAGLE-3 的上升趋势是作者“可以通过数据扩展推理加速”的主要证据。</p>
+<p><strong>图支持到哪里？</strong> 它支持有限规模区间内的可扩展性，未给出拟合指数、置信区间或固定训练 FLOPs 的比较。8× 是训练数据条目规模的近似标签，不能直接解释成 8× 的 token 数或 8× 的训练算力。把它称为 scaling curve 比把它当成已证明的普适幂律更准确。</p>
+<figure class="original-figure" id="original-figure-2">
+<a aria-label="Open original figure 2 at full resolution" class="zoom-link" data-zoom="Original Paper · Figure 2" href="assets/original/fig-02.png"><img alt="Figure 2: Speedup ratios of different methods at temperature=0. For the standard speculative sampling, Vicuna-13B uses Vicuna-68M as the draft model. In Table 1 , we present comparisons with additional methods, but this figure only showcases a subset. Chat model’s evaluation dataset is MT-bench, and the reasoning model’s evaluation dataset is GSM8K. DeepSeek R1 LLaMA 8B refers to DeepSeek-R1-Distill-LLaMA 8B." height="1106" loading="lazy" src="assets/original/fig-02.png" width="4221"/></a>
+<figcaption><strong>Original Paper · Figure 2 · arXiv v3</strong><br/>Figure 2: Speedup ratios of different methods at temperature=0. For the standard speculative sampling, Vicuna-13B uses Vicuna-68M as the draft model. In Table 1 , we present comparisons with additional methods, but this figure only showcases a subset. Chat model’s evaluation dataset is MT-bench, and the reasoning model’s evaluation dataset is GSM8K. DeepSeek R1 LLaMA 8B refers to DeepSeek-R1-Distill-LLaMA 8B.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p><strong>Figure 2 的角色。</strong> 这张图先展示不同目标模型上 temperature=0 的方法级提速。聊天模型看 MT-bench，推理模型看 GSM8K；标准 speculative sampling 的 Vicuna-13B drafter 是 Vicuna-68M。柱子是整条推理路径的速度比，不能读成 drafter 本身的算力提升。该图只画部分 baseline，完整比较要回到 Table 1。</p>
+<h3 id="section-4">Figure 3：特征回归解决一个问题，也引入一个约束</h3>
+<figure class="original-figure" id="original-figure-3">
+<a aria-label="Open original figure 3 at full resolution" class="zoom-link" data-zoom="Original Paper · Figure 3" href="assets/original/fig-03.png"><img alt="Figure 3: Illustration of training-time test (the bottom part) and its comparison with other draft methods (the upper and middle parts). f denotes the feature, t denotes the token, and a represents the unconstrained vectors. We use the hat to denote the predictions from models. All the methods shown in the figure use the token sequence from the previous time step, but for simplicity, this is not depicted in the figure. The input to EAGLE-3 is not actually f , but it is not shown in this figure. We will provide a detailed explanation in the following section." height="2329" loading="lazy" src="assets/original/fig-03.png" width="1639"/></a>
+<figcaption><strong>Original Paper · Figure 3 · arXiv v3</strong><br/>Figure 3: Illustration of training-time test (the bottom part) and its comparison with other draft methods (the upper and middle parts). f denotes the feature, t denotes the token, and a represents the unconstrained vectors. We use the hat to denote the predictions from models. All the methods shown in the figure use the token sequence from the previous time step, but for simplicity, this is not depicted in the figure. The input to EAGLE-3 is not actually f , but it is not shown in this figure. We will provide a detailed explanation in the following section.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p>从上到下读三条训练路径：传统特征预测、撤去特征约束、EAGLE-3 的 training-time test。图中 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>f</mi></mrow></math></span> 是教师特征，<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>t</mi></mrow></math></span> 是 token，<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>a</mi></mrow></math></span> 是自由状态，帽子表示预测。所有方法还使用上一时间步的 token 输入，图为简洁省略了这条路径；底部画成 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>f</mi></mrow></math></span> 的入口，实际将在 §3 换为融合特征。</p>
+<p><strong>第一条路径。</strong> 拟合教师特征让 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mover accent="true"><mi>f</mi><mo>^</mo></mover></mrow></math></span> 接近下一步真实 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>f</mi></mrow></math></span>，因而递归使用 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mover accent="true"><mi>f</mi><mo>^</mo></mover></mrow></math></span> 有一定合理性。代价是小模型既要完成 token 任务，又要逼近大模型的内部表示；很多不同状态都能预测同一个 token，回归却强迫它选中教师的那一个。</p>
+<p><strong>第二条路径。</strong> 撤去回归后，状态 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>a</mi></mrow></math></span> 只需要服务 token loss。在教师特征输入下，第一步可以改善；但后续输入已换成 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>a</mi></mrow></math></span>，模型未在这种输入上充分训练，于是误差累积。形状相同的两个向量，不意味着语义和分布相同。</p>
+<p><strong>第三条路径。</strong> 把 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>a</mi></mrow></math></span> 送回 drafter，在这些后续状态上继续算 token loss。最关键的箭头不是额外接一个预测头，而是从上一轮输出通向下一轮输入。状态可以自成体系，训练同时要求它支持未来的递归预测。</p>
+<p>我的理解是：<strong>EAGLE-3 将“逼近教师表示”换成“维持一个可持续预测的内部状态”。</strong> 这与学习可用的状态转移更接近，而不是把大模型每个隐层细节压缩一份。</p>
+<figure class="original-figure" id="original-figure-4">
+<a aria-label="Open original figure 4 at full resolution" class="zoom-link" data-zoom="Original Paper · Figure 4" href="assets/original/fig-04.png"><img alt="Figure 4: Comparison of acceptance rates across different methods, with the x-axis representing the data scale relative to ShareGPT." height="2835" loading="lazy" src="assets/original/fig-04.png" width="2089"/></a>
+<figcaption><strong>Original Paper · Figure 4 · arXiv v3</strong> · Original source subplots stacked in source order; no axes or legends removed<br/>Figure 4: Comparison of acceptance rates across different methods, with the x-axis representing the data scale relative to ShareGPT.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p><strong>Figure 4 要同时看两步。</strong> 两幅子图对照第一步与第二步的接受率随数据规模的变化。撤去 feature constraint 的方法第一步改善，第二步却恶化；完整 EAGLE-3 对后续步更稳定。还有一个容易被口号掩盖的细节：在 1× 数据处，EAGLE-3 的第一步接受率并不优于所有旧方法。收益来自训练规模和多步行为的结合，不能概括为“每个草稿位置都更好”。</p>
+<h2 id="section-5">2. Preliminaries：验证为什么能保持目标分布？</h2>
+<h3 id="section-6">2.1 Speculative Sampling：接受、纠正和 bonus token</h3>
+<p>设词表大小 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>V</mi></mrow></math></span>。给定同一个已提交前缀，目标模型输出 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>p</mi><mo>∈</mo><msup><mi mathvariant="double-struck">R</mi><mi>V</mi></msup></mrow></math></span>，草稿模型输出 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>q</mi><mo>∈</mo><msup><mi mathvariant="double-struck">R</mi><mi>V</mi></msup></mrow></math></span>。两者都是归一化概率；草稿从 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>q</mi></mrow></math></span> 中采样候选 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>x</mi></mrow></math></span>。原文保留的接受式为：</p>
+<div class="formula"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>min</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mn>1</mn><mo>,</mo><mfrac><mrow><mi>p</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mrow><mi>q</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow></mrow></math><span class="formula-label">Original Paper · §2.1 acceptance probability</span><details><summary>Copy LaTeX</summary><pre><code>\min\left(1,\frac{p(x)}{q(x)}\right)</code></pre></details></div>
+<p>当 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>p</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>≥</mo><mi>q</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></math></span> 时必接受；否则用均匀随机数与比值比较。拒绝时，从原文的残差分布采样：</p>
+<div class="formula"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msup><mi>p</mi><mi>′</mi></msup><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mo>max</mo><mo stretchy="false">(</mo><mn>0</mn><mo>,</mo><mi>p</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>−</mo><mi>q</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo></mrow><mrow><msubsup><mo>∑</mo><mrow><mi>v</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>V</mi></mrow></msubsup><mo>max</mo><mo stretchy="false">(</mo><mn>0</mn><mo>,</mo><mi>p</mi><mo stretchy="false">(</mo><mi>v</mi><mo stretchy="false">)</mo><mo>−</mo><mi>q</mi><mo stretchy="false">(</mo><mi>v</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo></mrow></mfrac></mrow></math><span class="formula-label">Original Paper · §2.1 normalized positive residual</span><details><summary>Copy LaTeX</summary><pre><code>p'(x)=\frac{\max(0,p(x)-q(x))}{\sum_{v=1}^{V}\max(0,p(v)-q(v))}</code></pre></details></div>
+<p>这里 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><mi>z</mi><msub><mo stretchy="false">]</mo><mo>+</mo></msub><mo>=</mo><mo>max</mo><mo stretchy="false">(</mo><mi>z</mi><mo>,</mo><mn>0</mn><mo stretchy="false">)</mo></mrow></math></span>，分母对词表所有 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>v</mi></mrow></math></span> 求和。形状仍为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><mi>V</mi><mo stretchy="false">]</mo></mrow></math></span>。注意对当前 token 的接受不等于整条链的接受：从第一个拒绝点起，后面的候选均建立在错误前缀上，应丢弃。所有候选通过时，再采样一个目标 bonus token；拒绝时则产生一个纠正 token。批量 target forward 的主要收益，就是一次目标计算换来多个最终提交位置。</p>
+<p><strong>一个可算清的 toy example。</strong> 令词表为 A/B/C，<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>p</mi><mo>=</mo><mo stretchy="false">(</mo><mn>0.5</mn><mo>,</mo><mn>0.3</mn><mo>,</mo><mn>0.2</mn><mo stretchy="false">)</mo></mrow></math></span>，<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>q</mi><mo>=</mo><mo stretchy="false">(</mo><mn>0.6</mn><mo>,</mo><mn>0.1</mn><mo>,</mo><mn>0.3</mn><mo stretchy="false">)</mo></mrow></math></span>。A 接受率为 5/6，B 为 1，C 为 2/3。直接接受的概率质量是 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">(</mo><mn>0.5</mn><mo>,</mo><mn>0.1</mn><mo>,</mo><mn>0.2</mn><mo stretchy="false">)</mo></mrow></math></span>，剩余 0.2 全部分配给 B；最终得到 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">(</mo><mn>0.5</mn><mo>,</mo><mn>0.3</mn><mo>,</mo><mn>0.2</mn><mo stretchy="false">)</mo><mo>=</mo><mi>p</mi></mrow></math></span>。拒绝不是把错误草稿“硬改成 argmax”，而是补齐目标分布中尚未被接受路径覆盖的概率质量。</p>
+<p><strong>为什么无损？</strong> 任一 token 的接受质量为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>min</mo><mo stretchy="false">(</mo><mi>p</mi><mo>,</mo><mi>q</mi><mo stretchy="false">)</mo></mrow></math></span>，拒绝质量补回 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><mi>p</mi><mo>−</mo><mi>q</mi><msub><mo stretchy="false">]</mo><mo>+</mo></msub></mrow></math></span>，两者相加为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>p</mi></mrow></math></span>。这是一格条件分布的等价性，逐格应用才得到序列分布等价。浮点实现、随机数消耗顺序、量化 logits、top-p 配置都必须与验证算法的假设匹配。分布相同不要求相同 seed 下逐 token、逐 bit 一模一样。</p>
+<pre><code class="language-python"># Reconstruction: simple chain, not the full EAGLE tree sampler
+draft = sample_chain(q, prefix, depth)
+p = target_forward(prefix, draft)   # evaluate proposed positions in parallel
+for i, x in enumerate(draft):
+    if uniform() &lt;= min(1, p[i][x] / q[i][x]):
+        commit(x)
+    else:
+        commit(sample(normalize(positive_part(p[i] - q[i]))))
+        discard_suffix(i + 1)
+        break
+else:
+    commit(sample(p[depth]))        # bonus token
+</code></pre>
+<p>对 greedy 解码，接受条件通常退化为与目标选择一致；对随机采样，必须保留候选概率和正确残差。<strong>任意树都不能直接套用一条链的 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>q</mi></mrow></math></span></strong>：树的生成、选择与验证必须共同构成有效的条件采样器。</p>
+<h3 id="section-7">2.2 EAGLE 和 EAGLE-2：小 decoder 与动态候选树</h3>
+<p>EAGLE 把大模型顶部特征与向前移动一格的 token embedding 一起输入小 decoder。提前提供“真正选了哪个 token”，可以消除只看隐藏状态时下一 token 采样的不确定性。它预测下一位置的特征，再通过 LM head 得到 token 候选。</p>
+<p>EAGLE-2 没有把小模型变成另一台完整 LLM，而是按候选置信度动态分配树节点。高置信度区域可以走深，分布不确定时可以展开兄弟分支。验证中一个节点只能看已提交前缀、自身和祖先，不能看同层兄弟或别的路径；树 attention mask 将多个候选路径放进一次 forward，保持每条路径的因果语义。</p>
+<p>树节点数是验证计算预算，树深度是最多串行提出几步，最终接受长度是一次循环真正推进几格。三个量必须分开。更宽的树可能增加命中路径的机会，也会增加 target 的 token 计算和临时 KV。</p>
+<h2 id="section-8">3. EAGLE-3：自由状态、多层输入与训练中的递归</h2>
+<h3 id="section-9">3.1 Inference Pipeline：先对齐 token，再对齐特征</h3>
+<figure class="original-figure" id="original-figure-5">
+<a aria-label="Open original figure 5 at full resolution" class="zoom-link" data-zoom="Original Paper · Figure 5" href="assets/original/fig-05.png"><img alt="Figure 5: Diagram of the EAGLE-3 inference pipeline, illustrating the three steps of the draft model. l , m , and h represent the low, middle, and high-level features of the target model, respectively. e denotes the embedding." height="1776" loading="lazy" src="assets/original/fig-05.png" width="1164"/></a>
+<figcaption><strong>Original Paper · Figure 5 · arXiv v3</strong><br/>Figure 5: Diagram of the EAGLE-3 inference pipeline, illustrating the three steps of the draft model. l , m , and h represent the low, middle, and high-level features of the target model, respectively. e denotes the embedding.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p><strong>Figure 5 从 “How can” 开始。</strong> 已提交前缀经过 target prefill 后，target 的 logits 产生根 token “I”。此刻有 “can” 位置的低、中、高层特征，却没有把 “I” 作为输入再跑过 target，所以尚无对应的教师特征 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>g</mi><mrow><mi mathvariant="normal">I</mi></mrow></msub></mrow></math></span>。</p>
+<p>第一步将 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>g</mi><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">n</mi></mrow></mrow></msub></mrow></math></span> 与已选 token 的 embedding <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>e</mi><mrow><mi mathvariant="normal">I</mi></mrow></msub></mrow></math></span> 配对，生成自由状态 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>a</mi><mrow><mi mathvariant="normal">I</mi></mrow></msub></mrow></math></span>，再预测 “do”。第二步用 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>a</mi><mrow><mi mathvariant="normal">I</mi></mrow></msub></mrow></math></span> 与 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>e</mi><mrow><mrow><mi mathvariant="normal">d</mi><mi mathvariant="normal">o</mi></mrow></mrow></msub></mrow></math></span> 继续预测 “it”。第三步依此递归。<strong>状态属于当前输入位置，logits 用来预测下一位置</strong>；embedding 向前一格是数据流的关键。</p>
+<p>原文说 “I has not been checked”，这里指尚未把它送入 target 获得特征；“I” 本身来自目标采样，根 token 并非不可信草稿。另外，§3.1 第二步描述里写 input to “Step 1”，按图和递归关系应为第二步，属于索引笔误。</p>
+<h3 id="section-10">融合与递归的 tensor shape</h3>
+<p>以下为<strong>本篇依据论文重构的表达式</strong>，不是原文编号公式。<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>B</mi></mrow></math></span> 为 batch，<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>S</mi></mrow></math></span> 为位置数，<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>k</mi></mrow></math></span> 为 target hidden width。三组教师特征 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>l</mi><mo>,</mo><mi>m</mi><mo>,</mo><mi>h</mi></mrow></math></span> 均为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><mi>B</mi><mo>,</mo><mi>S</mi><mo>,</mo><mi>k</mi><mo stretchy="false">]</mo></mrow></math></span>：</p>
+<div class="formula"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>g</mi><mo>=</mo><msub><mi>W</mi><mi>f</mi></msub><mo stretchy="false">[</mo><mi>l</mi><mi>;</mi><mi>m</mi><mi>;</mi><mi>h</mi><mo stretchy="false">]</mo><mo>,</mo><mspace width="2em"></mspace><mo stretchy="false">[</mo><mi>B</mi><mo>,</mo><mi>S</mi><mo>,</mo><mn>3</mn><mi>k</mi><mo stretchy="false">]</mo><mo>→</mo><mo stretchy="false">[</mo><mi>B</mi><mo>,</mo><mi>S</mi><mo>,</mo><mi>k</mi><mo stretchy="false">]</mo></mrow></math><span class="formula-label">Agent-created reconstruction · not an original numbered equation</span><details><summary>Copy LaTeX</summary><pre><code>g=W_f[l;m;h],\qquad [B,S,3k]\rightarrow[B,S,k]</code></pre></details></div>
+<p>若按 PyTorch 的行向量约定，实现写成 <code>Linear(3*k, k)</code>，其权重存为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><mi>k</mi><mo>,</mo><mn>3</mn><mi>k</mi><mo stretchy="false">]</mo></mrow></math></span>。单位置融合约需 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>3</mn><msup><mi>k</mi><mn>2</mn></msup></mrow></math></span> MAC；它增加了输入信息，不需要把目标模型全部层长期缓存。</p>
+<div class="formula"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>a</mi><mrow><mi>t</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msub><mi>D</mi><mi>θ</mi></msub><mo stretchy="false">(</mo><msub><mi>s</mi><mi>t</mi></msub><mo>,</mo><msub><mi>e</mi><mrow><mi>t</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>,</mo><msub><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi></mrow><mrow><mrow><mi mathvariant="normal">d</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi></mrow></mrow></msub><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><msub><mi>q</mi><mrow><mi>t</mi><mo>+</mo><mn>2</mn></mrow></msub><mo>=</mo><mo>softmax</mo><mo stretchy="false">(</mo><msub><mi>W</mi><mrow><mrow><mi mathvariant="normal">h</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">d</mi></mrow></mrow></msub><msub><mi>a</mi><mrow><mi>t</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Agent-created reconstruction · not an original numbered equation</span><details><summary>Copy LaTeX</summary><pre><code>a_{t+1}=D_\theta(s_t,e_{t+1},\mathrm{KV}_{\mathrm{draft}}),\quad q_{t+2}=\operatorname{softmax}(W_{\mathrm{head}}a_{t+1})</code></pre></details></div>
+<p>首步 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>s</mi><mi>t</mi></msub><mo>=</mo><msub><mi>g</mi><mi>t</mi></msub></mrow></math></span>，后续 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>s</mi><mi>t</mi></msub><mo>=</mo><msub><mi>a</mi><mi>t</mi></msub></mrow></math></span>。<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>e</mi><mo>,</mo><mi>s</mi><mo>,</mo><mi>a</mi></mrow></math></span> 的形状都是 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><mi>B</mi><mo>,</mo><mi>S</mi><mo>,</mo><mi>k</mi><mo stretchy="false">]</mo></mrow></math></span>，<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>q</mi></mrow></math></span> 为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><mi>B</mi><mo>,</mo><mi>S</mi><mo>,</mo><mi>V</mi><mo stretchy="false">]</mo></mrow></math></span>；draft 内部实际需要 attention、位置编码、KV 与因果 mask，表达式省略这些细节。论文图把 embedding 与 state 的 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><mi>B</mi><mo>,</mo><mi>S</mi><mo>,</mo><mn>2</mn><mi>k</mi><mo stretchy="false">]</mo></mrow></math></span> 拼接经过 FC 压回 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>k</mi></mrow></math></span>，再进入 decoder；后面的代码审计会说明当前仓库为何不同。</p>
+<figure class="generated-figure"><div class="diagram-scroll"><img alt="Agent-created simplified flow diagram" loading="lazy" src="assets/generated/flow.svg"/></div><figcaption>Agent-created / Simplified Mermaid diagram · <a href="assets/generated/flow.mmd">Mermaid source</a> · <a href="assets/generated/flow.svg">Full SVG</a></figcaption></figure>
+<p><strong>自制简化图的读法。</strong> 蓝色路径只提出候选；target verification 才决定提交哪些 token、保留哪些 KV。验证完成后的真实教师特征为下一轮重新锚定状态，避免一直无限滚动草稿的估计状态。</p>
+<h3 id="section-11">为何中间层值得保留，但不能过度解释？</h3>
+<p>作者以顶层与输出头的关系解释：高层特征强烈受下一 token 任务约束，中间层可能保留对未来预测有帮助的信息。融合允许 drafter 学习不同层的组合。</p>
+<p>这里有个数学边界。若输出矩阵满列秩，隐藏向量到<strong>完整 logits</strong> 的线性映射是单射；这不能证明顶层“只包含下一 token 信息”，也不能使 logits 到 softmax 成为单射（统一加常数不改变分布）。所以，多层特征更丰富应看成实验支持的设计动机，不能当作信息论定理。</p>
+<h3 id="section-12">3.2 Draft Model Training：把推理时会遇到的状态放进训练</h3>
+<p>训练前冻结 target，用目标模型重新生成数据回答，并提取教师特征和预测分布。旧方法的目标可概括为“feature regression + token loss”；EAGLE-3 去掉 feature regression，在多轮自反馈位置上优化 token 预测。</p>
+<p>第一轮以真实融合特征为起点；后面的轮次把 drafter 自己产生的自由状态作为输入。每个轮次都要预测对应后续 token，不只在第一轮监督。如此，小模型不仅学会“给正确输入时猜对”，也学会“面对自己的内部状态时继续猜”。</p>
+<div class="formula"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">r</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">t</mi></mrow></mrow></msub><mo>=</mo><msubsup><mo>∑</mo><mrow><mi>r</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>R</mi><mo>−</mo><mn>1</mn></mrow></msubsup><msub><mi>w</mi><mi>r</mi></msub><mspace width="0.167em"></mspace><mrow><mi mathvariant="normal">C</mi><mi mathvariant="normal">E</mi></mrow><mo stretchy="false">(</mo><msup><mi>p</mi><mrow><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo></mrow></msup><mo>,</mo><msubsup><mi>q</mi><mi>θ</mi><mrow><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo></mrow></msubsup><mo stretchy="false">)</mo></mrow></math><span class="formula-label">Agent-created reconstruction · not an original numbered equation</span><details><summary>Copy LaTeX</summary><pre><code>\mathcal L_{\mathrm{rollout}}=\sum_{r=0}^{R-1}w_r\,\mathrm{CE}(p^{(r)},q_\theta^{(r)})</code></pre></details></div>
+<p>这是<strong>训练目标的重构概括</strong>。<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msup><mi>p</mi><mrow><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo></mrow></msup><mo>,</mo><msup><mi>q</mi><mrow><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo></mrow></msup></mrow></math></span> 为对应位置的教师和草稿概率分布，CE 对词表求和，再对有效位置聚合；具体轮数、权重和词表处理以实现为准。不能从这条概括式断言原文规定了某个固定 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>R</mi></mrow></math></span>。</p>
+<figure class="original-figure" id="original-figure-6">
+<a aria-label="Open original figure 6 at full resolution" class="zoom-link" data-zoom="Original Paper · Figure 6" href="assets/original/fig-06.png"><img alt="Figure 6: Diagram of the attention causal masks during training-time test. It sequentially shows a native training step (the first step) and two simulated training steps (the second and third steps). The arrows between tokens represent contextual relationships. The gray tokens represent the training data while the blue and yellow tokens represent the first- and second-round predictions by the draft model, respectively." height="1305" loading="lazy" src="assets/original/fig-06.png" width="2759"/></a>
+<figcaption><strong>Original Paper · Figure 6 · arXiv v3</strong><br/>Figure 6: Diagram of the attention causal masks during training-time test. It sequentially shows a native training step (the first step) and two simulated training steps (the second and third steps). The arrows between tokens represent contextual relationships. The gray tokens represent the training data while the blue and yellow tokens represent the first- and second-round predictions by the draft model, respectively.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p><strong>Figure 6：训练难点在 attention 的连接关系。</strong> 灰色为原始序列，蓝色与黄色为两轮草稿预测。先看第一轮的标准下三角，再看后两轮新增的块：每一个原始位置启动一条自己的递归链，同一训练样本里存在多条并行的模拟分支。</p>
+<p>例如原序列位置 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>j</mi></mrow></math></span> 的下一轮 query 可以看原始前缀 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>0</mn><mi>…</mi><mi>j</mi></mrow></math></span>，还可以看<strong>同一个锚点</strong>先前产生的状态。它不应该看到另一个锚点的生成状态，否则会把本不属于该推理路径的信息泄漏进来。对应的生成状态块是对角结构，而不是一个新的完整下三角。</p>
+<p>下面可以切换轮次与锚点，观察哪些 key 被开放。亮格表示当前 query 可见；每个 key 标签都写出原始位置或生成轮次。示例仅画 4 个锚点，保留 Figure 6 的连接规则。</p>
+<section aria-labelledby="mask-title" class="mechanism" id="mask-explorer"><p class="eyebrow">AGENT-CREATED / TRAINING MASK EXPLORER</p><h3 id="mask-title">原始前缀可见，生成分支不能串线</h3><p>灰色 key 未开放；蓝色为教师前缀，金色为当前锚点的生成状态。选择原始轮时没有生成状态；选择后续轮时仅添加同锚点 key。</p>
+<div class="controls"><label>Query round<select id="mask-round"><option value="0">Native step (round 1)</option><option selected="" value="1">Simulated step (round 2)</option><option value="2">Simulated step (round 3)</option></select></label><label>Original anchor<select id="mask-anchor"><option value="0">Position 0</option><option value="1">Position 1</option><option selected="" value="2">Position 2</option><option value="3">Position 3</option></select></label></div>
+<div aria-label="Visible and blocked attention keys" class="mask-keys" id="mask-keys"></div><div aria-live="polite" class="readout" id="mask-status" role="status"></div><button class="control-button" id="mask-reset" type="button">Reset</button>
+<p class="hint">只展示一个 query 的连接关系；矩阵整体是原始 causal 块与各轮 diagonal 块，不是所有生成 token 混成一条新序列。</p></section>
+<p><strong>训练和推理的差距减少到什么程度？</strong> 这套设计对齐了自生成隐藏状态的暴露。它不自动保证 token 采样、长上下文、所有树拓扑都与真实推理同分布。当前实现仍将教师 token 向左移位作为后续 embedding 输入，不能称为完全自由的 sampled-token rollout。</p>
+<p><strong>代价是什么？</strong> 多轮训练增加 drafter forward 和反向计算；冻结目标后可预提取特征，但特征存储和 IO 也有成本。将生成块的稀疏对角关系专门实现，可避免在所有锚点间计算大量最终被 mask 掉的交叉分数。</p>
+<h2 id="section-14">4. Experiments：把加速、接受长度和框架收益分别核对</h2>
+<h3 id="section-15">实验设置与评测口径</h3>
+<p>目标包括 Vicuna-13B、LLaMA-Instruct 3.1 8B、LLaMA-Instruct 3.3 70B、DeepSeek-R1-Distill-LLaMA 8B。数据集包括 MT-bench（对话）、HumanEval（代码）、GSM8K（数学）、Alpaca（指令）和 CNN/Daily Mail（摘要）。Temperature=0 与 1 分开展示。</p>
+<p>训练使用 ShareGPT 约 68K 条、UltraChat-200K 约 464K 条，回答由 target 重新生成；推理模型额外加入 OpenThoughts-114k-math。约 532K/68K=7.82，可解释图中的 8× 条目规模。AdamW 的 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>β</mi><mo>=</mo><mo stretchy="false">(</mo><mn>0.9</mn><mo>,</mo><mn>0.95</mn><mo stretchy="false">)</mo></mrow></math></span>，梯度裁剪 0.5，学习率 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>5</mn><mo>×</mo><msup><mn>10</mn><mrow><mo>−</mo><mn>5</mn></mrow></msup></mrow></math></span>。v3 对训练 token 总量、完整 epoch/算力预算、主表精度、逐项硬件及重复实验方差的交代不足。</p>
+<p><strong>Speedup↑</strong> 是相对普通自回归的速度比；<strong><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>τ</mi></mrow></math></span>↑</strong> 描述每个 draft–verify 周期的平均推进长度。原文有时把它简写为 acceptance length；官方更新逻辑使用 <code>accept_length + 1</code>，包含根/纠正/bonus 所对应的那一格。它不是草稿节点总数，也不是接受百分比。</p>
+<p>若任务是判断分类预测，可计算 TP/FP/TN/FN、Precision、Recall、F1；本任务的核心是条件采样与吞吐，没有定义自然的正负标签。强行把 rejected token 当 FP 会掩盖路径依赖。应报告逐位置条件接受率、拒绝位置分布、平均提交长度、wall time、吞吐与 tail latency。</p>
+<h3 id="section-16">4.1 Effectiveness：完整 Table 1 与最大值的真实范围</h3>
+<figure class="original-figure" id="original-table-1">
+<a aria-label="Open original table 1 at full resolution" class="zoom-link" data-zoom="Original Paper · Table 1" href="assets/original/table-01.png"><img alt="Table 1: Speedup ratios and average acceptance lengths \tau of different methods. V represents Vicuna, L31 represents LLaMA-Instruct 3.1, L33 represents LLaMA-Instruct 3.3, and DSL represents DeepSeek-R1-Distill-LLaMA. SpS denotes standard speculative sampling, with its draft model being Vicuna-68M. Methods like Medusa relax acceptance conditions under non-greedy settings, which do not guarantee lossless acceleration. Therefore, we do not compare EAGLE-3 with these methods when temperature=1." height="1672" loading="lazy" src="assets/original/table-01.png" width="1852"/></a>
+<figcaption><strong>Original Paper · Table 1 · arXiv v3</strong><br/>Table 1: Speedup ratios and average acceptance lengths \tau of different methods. V represents Vicuna, L31 represents LLaMA-Instruct 3.1, L33 represents LLaMA-Instruct 3.3, and DSL represents DeepSeek-R1-Distill-LLaMA. SpS denotes standard speculative sampling, with its draft model being Vicuna-68M. Methods like Medusa relax acceptance conditions under non-greedy settings, which do not guarantee lossless acceleration. Therefore, we do not compare EAGLE-3 with these methods when temperature=1.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p class="table-title">Table 1 · 完整转录：原始行列、分组与加粗保留；横向滚动查看所有列。</p>
+<div aria-label="Table 1, horizontally scrollable" class="table-scroll" role="region" tabindex="0"><table aria-label="Table 1: complete original transcription" class="original-table" id="S4.T1.2.1">
+<tbody>
+<tr>
+<th scope="col"></th>
+<th scope="col"></th>
+<th colspan="2" scope="col">MT-bench</th>
+<th colspan="2" scope="col">HumanEval</th>
+<th colspan="2" scope="col">GSM8K</th>
+<th colspan="2" scope="col">Alpaca</th>
+<th colspan="2" scope="col">CNN/DM</th>
+<th colspan="2" scope="col">Mean</th></tr>
+<tr>
+<th scope="col">Model</th>
+<th scope="col">Method</th>
+<th scope="col">Speedup</th>
+<th scope="col"><math><semantics><mi>τ</mi><annotation>\tau</annotation></semantics></math></th>
+<th scope="col">Speedup</th>
+<th scope="col"><math><semantics><mi>τ</mi><annotation>\tau</annotation></semantics></math></th>
+<th scope="col">Speedup</th>
+<th scope="col"><math><semantics><mi>τ</mi><annotation>\tau</annotation></semantics></math></th>
+<th scope="col">Speedup</th>
+<th scope="col"><math><semantics><mi>τ</mi><annotation>\tau</annotation></semantics></math></th>
+<th scope="col">Speedup</th>
+<th scope="col"><math><semantics><mi>τ</mi><annotation>\tau</annotation></semantics></math></th>
+<th scope="col">Speedup</th>
+<th scope="col"><math><semantics><mi>τ</mi><annotation>\tau</annotation></semantics></math></th></tr>
+<tr>
+<td colspan="14">Temperature=0</td></tr>
+<tr>
+<td rowspan="8"><span>V 13B</span></td>
+<td>SpS</td>
+<td>1.93x</td>
+<td>2.27</td>
+<td>2.23x</td>
+<td>2.57</td>
+<td>1.77x</td>
+<td>2.01</td>
+<td>1.76x</td>
+<td>2.03</td>
+<td>1.93x</td>
+<td>2.33</td>
+<td>1.92x</td>
+<td>2.24</td></tr>
+<tr>
+<td>PLD</td>
+<td>1.58x</td>
+<td>1.63</td>
+<td>1.85x</td>
+<td>1.93</td>
+<td>1.68x</td>
+<td>1.73</td>
+<td>1.16x</td>
+<td>1.19</td>
+<td>2.42x</td>
+<td>2.50</td>
+<td>1.74x</td>
+<td>1.80</td></tr>
+<tr>
+<td>Medusa</td>
+<td>2.07x</td>
+<td>2.59</td>
+<td>2.50x</td>
+<td>2.78</td>
+<td>2.23x</td>
+<td>2.64</td>
+<td>2.08x</td>
+<td>2.45</td>
+<td>1.71x</td>
+<td>2.09</td>
+<td>2.12x</td>
+<td>2.51</td></tr>
+<tr>
+<td>Lookahead</td>
+<td>1.65x</td>
+<td>1.69</td>
+<td>1.71x</td>
+<td>1.75</td>
+<td>1.81x</td>
+<td>1.90</td>
+<td>1.46x</td>
+<td>1.51</td>
+<td>1.46x</td>
+<td>1.50</td>
+<td>1.62x</td>
+<td>1.67</td></tr>
+<tr>
+<td>Hydra</td>
+<td>2.88x</td>
+<td>3.65</td>
+<td>3.28x</td>
+<td>3.87</td>
+<td>2.93x</td>
+<td>3.66</td>
+<td>2.86x</td>
+<td>3.53</td>
+<td>2.05x</td>
+<td>2.81</td>
+<td>2.80x</td>
+<td>3.50</td></tr>
+<tr>
+<td>EAGLE</td>
+<td>3.07x</td>
+<td>3.98</td>
+<td>3.58x</td>
+<td>4.39</td>
+<td>3.08x</td>
+<td>3.97</td>
+<td>3.03x</td>
+<td>3.95</td>
+<td>2.49x</td>
+<td>3.52</td>
+<td>3.05x</td>
+<td>3.96</td></tr>
+<tr>
+<td>EAGLE-2</td>
+<td>4.26x</td>
+<td>4.83</td>
+<td>4.96x</td>
+<td>5.41</td>
+<td>4.22x</td>
+<td>4.79</td>
+<td>4.25x</td>
+<td>4.89</td>
+<td>3.40x</td>
+<td>4.21</td>
+<td>4.22x</td>
+<td>4.83</td></tr>
+<tr>
+<td>EAGLE-3</td>
+<td><strong>5.58x</strong></td>
+<td><strong>6.65</strong></td>
+<td><strong>6.47x</strong></td>
+<td><strong>7.54</strong></td>
+<td><strong>5.32x</strong></td>
+<td><strong>6.29</strong></td>
+<td><strong>5.16x</strong></td>
+<td><strong>6.17</strong></td>
+<td><strong>5.01x</strong></td>
+<td><strong>6.47</strong></td>
+<td><strong>5.51x</strong></td>
+<td><strong>6.62</strong></td></tr>
+<tr>
+<td rowspan="2"><span>L31 8B</span></td>
+<td>EAGLE-2</td>
+<td>3.16x</td>
+<td>4.05</td>
+<td>3.66x</td>
+<td>4.71</td>
+<td>3.39x</td>
+<td>4.24</td>
+<td>3.28x</td>
+<td>4.12</td>
+<td>2.65x</td>
+<td>3.45</td>
+<td>3.23x</td>
+<td>4.11</td></tr>
+<tr>
+<td>EAGLE-3</td>
+<td><strong>4.40x</strong></td>
+<td><strong>6.13</strong></td>
+<td><strong>4.85x</strong></td>
+<td><strong>6.74</strong></td>
+<td><strong>4.48x</strong></td>
+<td><strong>6.23</strong></td>
+<td><strong>4.82x</strong></td>
+<td><strong>6.70</strong></td>
+<td><strong>3.65x</strong></td>
+<td><strong>5.34</strong></td>
+<td><strong>4.44x</strong></td>
+<td><strong>6.23</strong></td></tr>
+<tr>
+<td rowspan="2"><span>L33 70B</span></td>
+<td>EAGLE-2</td>
+<td>2.83x</td>
+<td>3.67</td>
+<td>3.12x</td>
+<td>4.09</td>
+<td>2.83x</td>
+<td>3.69</td>
+<td>3.03x</td>
+<td>3.92</td>
+<td>2.44x</td>
+<td>3.55</td>
+<td>2.85x</td>
+<td>3.78</td></tr>
+<tr>
+<td>EAGLE-3</td>
+<td><strong>4.11x</strong></td>
+<td><strong>5.63</strong></td>
+<td><strong>4.79x</strong></td>
+<td><strong>6.52</strong></td>
+<td><strong>4.34x</strong></td>
+<td><strong>6.15</strong></td>
+<td><strong>4.30x</strong></td>
+<td><strong>6.09</strong></td>
+<td><strong>3.27x</strong></td>
+<td><strong>5.02</strong></td>
+<td><strong>4.12x</strong></td>
+<td><strong>5.88</strong></td></tr>
+<tr>
+<td rowspan="2"><span>DSL 8B</span></td>
+<td>EAGLE-2</td>
+<td>2.92x</td>
+<td>3.80</td>
+<td>3.42x</td>
+<td>4.29</td>
+<td>3.40x</td>
+<td>4.40</td>
+<td>3.01x</td>
+<td>3.80</td>
+<td>3.53x</td>
+<td>3.33</td>
+<td>3.26x</td>
+<td>3.92</td></tr>
+<tr>
+<td>EAGLE-3</td>
+<td><strong>4.05x</strong></td>
+<td><strong>5.58</strong></td>
+<td><strong>4.59x</strong></td>
+<td><strong>6.38</strong></td>
+<td><strong>5.01x</strong></td>
+<td><strong>6.93</strong></td>
+<td><strong>3.65x</strong></td>
+<td><strong>5.37</strong></td>
+<td><strong>3.52x</strong></td>
+<td><strong>4.92</strong></td>
+<td><strong>4.16x</strong></td>
+<td><strong>5.84</strong></td></tr>
+<tr>
+<td colspan="14">Temperature=1</td></tr>
+<tr>
+<td rowspan="4"><span>V 13B</span></td>
+<td>SpS</td>
+<td>1.62x</td>
+<td>1.84</td>
+<td>1.72x</td>
+<td>1.97</td>
+<td>1.46x</td>
+<td>1.73</td>
+<td>1.52x</td>
+<td>1.78</td>
+<td>1.66x</td>
+<td>1.89</td>
+<td>1.60x</td>
+<td>1.84</td></tr>
+<tr>
+<td>EAGLE</td>
+<td>2.32x</td>
+<td>3.20</td>
+<td>2.65x</td>
+<td>3.63</td>
+<td>2.57x</td>
+<td>3.60</td>
+<td>2.45x</td>
+<td>3.57</td>
+<td>2.23x</td>
+<td>3.26</td>
+<td>2.44x</td>
+<td>3.45</td></tr>
+<tr>
+<td>EAGLE-2</td>
+<td>3.80x</td>
+<td>4.40</td>
+<td>4.22x</td>
+<td>4.89</td>
+<td>3.77x</td>
+<td>4.41</td>
+<td>3.78x</td>
+<td>4.37</td>
+<td>3.25x</td>
+<td>3.97</td>
+<td>3.76x</td>
+<td>4.41</td></tr>
+<tr>
+<td>EAGLE-3</td>
+<td><strong>4.57x</strong></td>
+<td><strong>5.42</strong></td>
+<td><strong>5.15x</strong></td>
+<td><strong>6.22</strong></td>
+<td><strong>4.71x</strong></td>
+<td><strong>5.58</strong></td>
+<td><strong>4.49x</strong></td>
+<td><strong>5.39</strong></td>
+<td><strong>4.33x</strong></td>
+<td><strong>5.72</strong></td>
+<td><strong>4.65x</strong></td>
+<td><strong>5.67</strong></td></tr>
+<tr>
+<td rowspan="2"><span>L31 8B</span></td>
+<td>EAGLE-2</td>
+<td>2.44x</td>
+<td>3.16</td>
+<td>3.39x</td>
+<td>4.39</td>
+<td>2.86x</td>
+<td>3.74</td>
+<td>2.83x</td>
+<td>3.65</td>
+<td>2.44x</td>
+<td>3.14</td>
+<td>2.80x</td>
+<td>3.62</td></tr>
+<tr>
+<td>EAGLE-3</td>
+<td><strong>3.07x</strong></td>
+<td><strong>4.24</strong></td>
+<td><strong>4.13x</strong></td>
+<td><strong>5.82</strong></td>
+<td><strong>3.32x</strong></td>
+<td><strong>4.59</strong></td>
+<td><strong>3.90x</strong></td>
+<td><strong>5.56</strong></td>
+<td><strong>2.99x</strong></td>
+<td><strong>4.39</strong></td>
+<td><strong>3.45x</strong></td>
+<td><strong>4.92</strong></td></tr>
+<tr>
+<td rowspan="2"><span>L33 70B</span></td>
+<td>EAGLE-2</td>
+<td>2.73x</td>
+<td>3.51</td>
+<td>2.89x</td>
+<td>3.81</td>
+<td>2.52x</td>
+<td>3.36</td>
+<td>2.77x</td>
+<td>3.73</td>
+<td>2.32x</td>
+<td>3.27</td>
+<td>2.65x</td>
+<td>3.54</td></tr>
+<tr>
+<td>EAGLE-3</td>
+<td><strong>3.96x</strong></td>
+<td><strong>5.45</strong></td>
+<td><strong>4.36x</strong></td>
+<td><strong>6.16</strong></td>
+<td><strong>4.17x</strong></td>
+<td><strong>5.95</strong></td>
+<td><strong>4.14x</strong></td>
+<td><strong>5.87</strong></td>
+<td><strong>3.11x</strong></td>
+<td><strong>4.88</strong></td>
+<td><strong>3.95x</strong></td>
+<td><strong>5.66</strong></td></tr>
+<tr>
+<td rowspan="2"><span>DSL 8B</span></td>
+<td>EAGLE-2</td>
+<td>2.69x</td>
+<td>3.41</td>
+<td>3.01x</td>
+<td>3.82</td>
+<td>3.16x</td>
+<td>4.05</td>
+<td>2.64x</td>
+<td>3.29</td>
+<td>2.35x</td>
+<td>3.13</td>
+<td>2.77x</td>
+<td>3.54</td></tr>
+<tr>
+<td>EAGLE-3</td>
+<td><strong>3.20x</strong></td>
+<td><strong>4.49</strong></td>
+<td><strong>3.77x</strong></td>
+<td><strong>5.28</strong></td>
+<td><strong>4.38x</strong></td>
+<td><strong>6.10</strong></td>
+<td><strong>3.16x</strong></td>
+<td><strong>4.30</strong></td>
+<td><strong>3.08x</strong></td>
+<td><strong>4.27</strong></td>
+<td><strong>3.52x</strong></td>
+<td><strong>4.89</strong></td></tr>
+</tbody>
+</table></div>
+<p><strong>表格导航。</strong> V=Vicuna，L31=LLaMA-Instruct 3.1，L33=LLaMA-Instruct 3.3，DSL=DeepSeek-R1-Distill-LLaMA。每个任务和 Mean 各有 Speedup、<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>τ</mi></mrow></math></span> 两列。共 24 条模型/方法数据行，其中 T=0 有 14 行，T=1 有 10 行。HTML 的 28 行还包括 2 行表头和 2 行温度分组，不能混作实验条目。</p>
+<p>greedy 下主要 Mean 比较：</p>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Target</th>
+<th style="text-align: right;">EAGLE-2 speed</th>
+<th style="text-align: right;">EAGLE-3 speed</th>
+<th style="text-align: right;">速度比增加</th>
+<th style="text-align: right;">相对 E2 的耗时减少</th>
+<th style="text-align: right;"><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>τ</mi></mrow></math></span>：E2 → E3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vicuna 13B</td>
+<td style="text-align: right;">4.22×</td>
+<td style="text-align: right;">5.51×</td>
+<td style="text-align: right;">30.57%</td>
+<td style="text-align: right;">23.41%</td>
+<td style="text-align: right;">4.83 → 6.62</td>
+</tr>
+<tr>
+<td>L31 8B</td>
+<td style="text-align: right;">3.23×</td>
+<td style="text-align: right;">4.44×</td>
+<td style="text-align: right;">37.46%</td>
+<td style="text-align: right;">27.25%</td>
+<td style="text-align: right;">4.11 → 6.23</td>
+</tr>
+<tr>
+<td>L33 70B</td>
+<td style="text-align: right;">2.85×</td>
+<td style="text-align: right;">4.12×</td>
+<td style="text-align: right;">44.56%</td>
+<td style="text-align: right;">30.83%</td>
+<td style="text-align: right;">3.78 → 5.88</td>
+</tr>
+<tr>
+<td>DSL 8B</td>
+<td style="text-align: right;">3.26×</td>
+<td style="text-align: right;">4.16×</td>
+<td style="text-align: right;">27.61%</td>
+<td style="text-align: right;">21.63%</td>
+<td style="text-align: right;">3.92 → 5.84</td>
+</tr>
+</tbody>
+</table></div>
+<p>以上是本篇根据表中 rounded Mean 推算；“速度比增加”算 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>S</mi><mn>3</mn></msub><mo>/</mo><msub><mi>S</mi><mn>2</mn></msub><mo>−</mo><mn>1</mn></mrow></math></span>，耗时减少算 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>1</mn><mo>−</mo><msub><mi>S</mi><mn>2</mn></msub><mo>/</mo><msub><mi>S</mi><mn>3</mn></msub></mrow></math></span>。两者分母不同。不能把 37.46% 的速度比增加写成延迟减少 37.46%。</p>
+<p>Temperature=1 的 Mean 分别从 3.76→4.65、2.80→3.45、2.65→3.95、2.77→3.52。L33 70B 的速度比提升约 49.06%，因此正文的“20%–40%”只能作为粗略描述，未覆盖所有主表结果。</p>
+<p><strong>最高值。</strong> 6.47× 和 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>τ</mi><mo>=</mo><mn>7.54</mn></mrow></math></span> 同时出现在 Vicuna-13B + HumanEval + T=0。它是相对普通自回归的最大单项值，不是跨任务平均，不是相对 EAGLE-2，更不是任意 serving 框架都达到的收益。</p>
+<aside class="callout limitation"><strong>表格与叙述的冲突。</strong> DSL 8B + CNN/DM + T=0：EAGLE-2 为 3.53×，EAGLE-3 为 3.52×；<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>τ</mi></mrow></math></span> 却从 3.33 增为 4.92。原表仍将 EAGLE-3 的 3.52 加粗，本文保留原始加粗，同时指出它不是该组最大值。0.01× 的差异无方差支撑，不能解释为显著退化；但足以限制“所有任务都有最高 speedup”的字面断言。</aside>
+<p>下方选择器使用完整 Table 1 的原始数值，能够比较任一目标、温度和任务的 EAGLE-2 / EAGLE-3，派生百分比不属于新增 benchmark。</p>
+<section aria-labelledby="result-title" class="mechanism" id="result-explorer"><p class="eyebrow">ORIGINAL DATA / AGENT-CREATED RESULT SELECTOR</p><h3 id="result-title">同一条件下，速度与接受长度各变化多少？</h3><p>仅使用 Table 1 的原始数值；条形按 7× 固定刻度显示，百分比为本篇计算。</p>
+<div class="controls"><label>Target model<select id="result-model"><option>V 13B</option><option selected="">L31 8B</option><option>L33 70B</option><option>DSL 8B</option></select></label><label>Temperature<select id="result-temp"><option value="0">0 · greedy</option><option value="1">1 · stochastic</option></select></label><label>Dataset<select id="result-task"><option value="0">MT-bench</option><option value="1">HumanEval</option><option value="2">GSM8K</option><option value="3">Alpaca</option><option value="4">CNN/DM</option><option selected="" value="5">Mean</option></select></label></div>
+<div class="result-bars"><div class="result-row"><span>EAGLE-2</span><div class="bar-track"><span class="bar-fill" id="result-bar-e2"></span></div><span id="result-e2"></span></div><div class="result-row"><span>EAGLE-3</span><div class="bar-track"><span class="bar-fill selected" id="result-bar-e3"></span></div><span id="result-e3"></span></div></div>
+<div aria-live="polite" class="readout" id="result-status" role="status"></div><button class="control-button" id="result-reset" type="button">Reset</button></section>
+<p><strong>baseline 公平性。</strong> Vicuna 上方法更完整，其余模型主要比较 EAGLE-2 / 3。Medusa 等方法在非 greedy 条件下可能放松接受标准，不能保证相同目标分布，所以原文 T=1 不比较这些方法。这个选择合理，但意味着表里缺行不能解读成该方法无法运行。</p>
+<p>实验支持多模型、多任务的总体收益；主表仍缺测量方差、长上下文 sweep、输出长度分布与 per-op 时间。EAGLE-3 的训练数据更大，树深度也从 6 改为 8；同节点预算并不等于相同 drafter 串行成本。数据、训练策略和推理配置的贡献没有被完全隔离。</p>
+<h3 id="section-18">Figure 7：条件接受率不等于整条链存活率</h3>
+<figure class="original-figure" id="original-figure-7">
+<a aria-label="Open original figure 7 at full resolution" class="zoom-link" data-zoom="Original Paper · Figure 7" href="assets/original/fig-07.png"><img alt="Figure 7: Acceptance rate of EAGLE and EAGLE-3 on MT-bench, with the target model being LLaMA-Instruct 3.1 8B. Hereby, n - \alpha refers to the acceptance rate when the input contains n estimated features, under the condition that the previous estimated tokens are all accepted by the target model." height="1080" loading="lazy" src="assets/original/fig-07.png" width="2160"/></a>
+<figcaption><strong>Original Paper · Figure 7 · arXiv v3</strong><br/>Figure 7: Acceptance rate of EAGLE and EAGLE-3 on MT-bench, with the target model being LLaMA-Instruct 3.1 8B. Hereby, n - \alpha refers to the acceptance rate when the input contains n estimated features, under the condition that the previous estimated tokens are all accepted by the target model.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p>横轴为估计特征递归步数，纵轴为对应步的接受率。图注的 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>n</mi><mo>−</mo><mi>α</mi></mrow></math></span> 明确以“前面的估计 token 都已被接受”为条件。EAGLE 的条件接受率随连续估计步数下降；EAGLE-3 更平稳，说明它更能利用自己的状态。</p>
+<p>若第 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>i</mi></mrow></math></span> 步条件接受率为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>α</mi><mi>i</mi></msub></mrow></math></span>，整条前 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>i</mi></mrow></math></span> 步均存活的概率是 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msubsup><mo>∏</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>i</mi></mrow></msubsup><msub><mi>α</mi><mi>j</mi></msub></mrow></math></span>，仍会随着深度下降。以固定 0.8 为例，单步条件接受率始终 80%，第 6 步链存活率只有 26.21%。因此 Figure 7 的“曲线更平”不是“无限走深还都能接受”。</p>
+<div class="formula"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi mathvariant="double-struck">E</mi><mo stretchy="false">[</mo><mi>K</mi><mo stretchy="false">]</mo><mo>=</mo><msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>d</mi></mrow></msubsup><msubsup><mo>∏</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>i</mi></mrow></msubsup><msub><mi>α</mi><mi>j</mi></msub><mo>,</mo><mspace width="2em"></mspace><msub><mi>τ</mi><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">h</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi></mrow></mrow></msub><mo>=</mo><mn>1</mn><mo>+</mo><mi mathvariant="double-struck">E</mi><mo stretchy="false">[</mo><mi>K</mi><mo stretchy="false">]</mo></mrow></math><span class="formula-label">Agent-created reconstruction · not an original numbered equation</span><details><summary>Copy LaTeX</summary><pre><code>\mathbb E[K]=\sum_{i=1}^{d}\prod_{j=1}^{i}\alpha_j,\qquad \tau_{\mathrm{chain}}=1+\mathbb E[K]</code></pre></details></div>
+<p>这是<strong>单链解析重构</strong>：<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>K</mi></mrow></math></span> 为被连续接受的草稿 token 数，<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>d</mi></mrow></math></span> 为草稿深度，额外 1 表示目标根/纠正/bonus 的推进；EOS、最大长度等截断会改变计数。对 EAGLE 的动态树，不能直接把该式当成论文 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>τ</mi></mrow></math></span> 的精确拟合。</p>
+<h3 id="section-19">4.2 Ablation Study：两项改变都有效，但尚未完全分离</h3>
+<figure class="original-figure" id="original-table-2">
+<a aria-label="Open original table 2 at full resolution" class="zoom-link" data-zoom="Original Paper · Table 2" href="assets/original/table-02.png"><img alt="Table 2: Ablation study results with LLaMA-Instruct 3.1 8B as the target model. “Remove fea con” refers to the first improvement of EAGLE-3, which removes the feature prediction constraint. “Fused features” refers to the second improvement of EAGLE-3, where low, middle, and high-level feature fusion replaces the use of top-layer features." height="648" loading="lazy" src="assets/original/table-02.png" width="908"/></a>
+<figcaption><strong>Original Paper · Table 2 · arXiv v3</strong><br/>Table 2: Ablation study results with LLaMA-Instruct 3.1 8B as the target model. “Remove fea con” refers to the first improvement of EAGLE-3, which removes the feature prediction constraint. “Fused features” refers to the second improvement of EAGLE-3, where low, middle, and high-level feature fusion replaces the use of top-layer features.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p class="table-title">Table 2 · 完整转录：原始行列、分组与加粗保留；横向滚动查看所有列。</p>
+<div aria-label="Table 2, horizontally scrollable" class="table-scroll" role="region" tabindex="0"><table aria-label="Table 2: complete original transcription" class="original-table" id="S4.T2.2.1">
+<tbody>
+<tr>
+<th scope="col"></th>
+<th colspan="2">MT-bench</th>
+<th colspan="2">GSM8K</th></tr>
+<tr>
+<th>Method</th>
+<th>Speedup</th>
+<th><math><semantics><mi>τ</mi><annotation>\tau</annotation></semantics></math></th>
+<th>Speedup</th>
+<th><math><semantics><mi>τ</mi><annotation>\tau</annotation></semantics></math></th></tr>
+<tr>
+<td>EAGLE-2</td>
+<td>3.16x</td>
+<td>4.05</td>
+<td>3.39x</td>
+<td>4.24</td></tr>
+<tr>
+<td>+ remove fea con</td>
+<td>3.82x</td>
+<td>5.37</td>
+<td>3.77x</td>
+<td>5.22</td></tr>
+<tr>
+<td>+ fused features (ours)</td>
+<td>4.40x</td>
+<td>6.13</td>
+<td>4.48x</td>
+<td>6.23</td></tr>
+</tbody>
+</table></div>
+<p>目标是 L31 8B，表分 MT-bench 与 GSM8K。EAGLE-2 的 speedup 为 3.16 / 3.39；去掉特征约束后为 3.82 / 3.77；再融合多层后为 4.40 / 4.48。接受长度同步从 4.05 / 4.24，增至 5.37 / 5.22，再到 6.13 / 6.23。</p>
+<p>第一阶段的速度比增益约 20.89% / 11.21%，第二阶段相对上一阶段约 15.18% / 18.83%。所以多层融合不是只有视觉上的复杂度，它对应明确的增量收益。</p>
+<p>不过这是<strong>顺序消融</strong>，不是全因子实验。<code>Remove fea con</code> 同时涉及去回归与适配递归训练，不能把整段增益全部归于“删除一个 loss”。表中没有“旧约束 + 融合”的组合，也没有单独控制 rollout 轮数、取层位置或等计算预算。最稳妥的结论是这组组合设计有效，而不是每项独立贡献已被唯一确定。</p>
+<h3 id="section-20">4.3 SGLang：相对强 serving baseline 的收益更小，也更有工程意义</h3>
+<figure class="original-figure" id="original-table-3">
+<a aria-label="Open original table 3 at full resolution" class="zoom-link" data-zoom="Original Paper · Table 3" href="assets/original/table-03.png"><img alt="Table 3: Throughput improvement under different batch sizes on H100 and LLaMA-Instruct 3.1 8B for the MT-Bench dataset, with SGLang without speculative sampling as the baseline (1.00x). The experiments were conducted by the SGLang team." height="412" loading="lazy" src="assets/original/table-03.png" width="912"/></a>
+<figcaption><strong>Original Paper · Table 3 · arXiv v3</strong><br/>Table 3: Throughput improvement under different batch sizes on H100 and LLaMA-Instruct 3.1 8B for the MT-Bench dataset, with SGLang without speculative sampling as the baseline (1.00x). The experiments were conducted by the SGLang team.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p class="table-title">Table 3 · 完整转录：原始行列、分组与加粗保留；横向滚动查看所有列。</p>
+<div aria-label="Table 3, horizontally scrollable" class="table-scroll" role="region" tabindex="0"><table aria-label="Table 3: complete original transcription" class="original-table" id="S4.T3.2.1">
+<thead>
+<tr>
+<th>Batch size</th>
+<th>2</th>
+<th>4</th>
+<th>8</th>
+<th>16</th>
+<th>24</th>
+<th>32</th>
+<th>48</th>
+<th>56</th>
+<th>64</th></tr>
+</thead>
+<tbody>
+<tr>
+<th>EAGLE</th>
+<td>1.40x</td>
+<td>1.38x</td>
+<td>1.23x</td>
+<td>1.02x</td>
+<td>0.93x</td>
+<td>0.94x</td>
+<td>0.88x</td>
+<td>0.99x</td>
+<td>0.99x</td></tr>
+<tr>
+<th>EAGLE-3</th>
+<td>1.81x</td>
+<td>1.82x</td>
+<td>1.62x</td>
+<td>1.48x</td>
+<td>1.39x</td>
+<td>1.32x</td>
+<td>1.38x</td>
+<td>1.34x</td>
+<td>1.38x</td></tr>
+</tbody>
+</table></div>
+<p>H100 单 GPU、SGLang 0.4.4、L31 8B、MT-bench，chain length=3，baseline 为不做 speculative decoding 的同框架（1.00×）。比较对象是 <strong>EAGLE 第一代与 EAGLE-3</strong>，不是 EAGLE-2。</p>
+<p>batch=2 / 4 时 EAGLE-3 为 1.81 / 1.82×；batch=64 仍为 1.38×。EAGLE 第一代在 batch≥24 多数点低于 1×。高 batch 让 target 本身更接近算力瓶颈，额外 draft 与 verify 工作更难被权重搬运收益抵消；本文结果说明 EAGLE-3 扩大了仍有净收益的区间，但没有证明所有高并发工作负载都保持这一范围。</p>
+<figure class="original-figure" id="original-table-4">
+<a aria-label="Open original table 4 at full resolution" class="zoom-link" data-zoom="Original Paper · Table 4" href="assets/original/table-04.png"><img alt="Table 4: Throughput at batch size = 1 on H100 when the target model is LLaMA-Instruct 3.1 8B and the testing dataset is MT-bench. The experiments were conducted by the SGLang team." height="472" loading="lazy" src="assets/original/table-04.png" width="912"/></a>
+<figcaption><strong>Original Paper · Table 4 · arXiv v3</strong><br/>Table 4: Throughput at batch size = 1 on H100 when the target model is LLaMA-Instruct 3.1 8B and the testing dataset is MT-bench. The experiments were conducted by the SGLang team.<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p class="table-title">Table 4 · 完整转录：原始行列、分组与加粗保留；横向滚动查看所有列。</p>
+<div aria-label="Table 4, horizontally scrollable" class="table-scroll" role="region" tabindex="0"><table aria-label="Table 4: complete original transcription" class="original-table" id="S4.T4.2.1">
+<thead>
+<tr>
+<th>Method</th>
+<th>Throughput (bs=1)</th></tr>
+</thead>
+<tbody>
+<tr>
+<th>SGLang (w/o speculative, 1x H100)</th>
+<td>158.34 tokens/s</td></tr>
+<tr>
+<th>SGLang + EAGLE-2 (1x H100)</th>
+<td>244.10 tokens/s</td></tr>
+<tr>
+<th>SGLang + EAGLE-3 (1x H100)</th>
+<td>373.25 tokens/s</td></tr>
+</tbody>
+</table></div>
+<p>batch=1 的实测吞吐分别为 vanilla 158.34、EAGLE-2 244.10、EAGLE-3 373.25 tokens/s。EAGLE-3 相对 vanilla 为约 2.3573×，相对 EAGLE-2 为约 1.5291×，绝对增加 129.15 tokens/s。</p>
+<p>将吞吐取倒数得到约 6.3168、4.097、2.6792 ms/token，只是聚合平均的换算。它不能替代 TTFT、逐 token TPOT 分布、P95 延迟，也不能展示一轮验证后多个 token 集中输出的节奏。原表由 SGLang 团队测量，后续官方文档复述同一组数字，不算独立复现实验。</p>
+<h3 id="section-21">4.4 vLLM：原文的硬件与“最大吞吐”措辞都要保留边界</h3>
+<figure class="original-figure" id="original-table-5">
+<a aria-label="Open original table 5 at full resolution" class="zoom-link" data-zoom="Original Paper · Table 5" href="assets/original/table-05.png"><img alt="Table 5: Throughput improvement under different batch sizes on A100 and LLaMA-Instruct 3.1 8B for the MT-Bench dataset, with vLLM without speculative sampling as the baseline (1.00x)." height="392" loading="lazy" src="assets/original/table-05.png" width="912"/></a>
+<figcaption><strong>Original Paper · Table 5 · arXiv v3</strong><br/>Table 5: Throughput improvement under different batch sizes on A100 and LLaMA-Instruct 3.1 8B for the MT-Bench dataset, with vLLM without speculative sampling as the baseline (1.00x).<br/>Click to zoom · <a href="assets/original/2503.01840v3.pdf">Full PDF</a></figcaption></figure>
+<p class="table-title">Table 5 · 完整转录：原始行列、分组与加粗保留；横向滚动查看所有列。</p>
+<div aria-label="Table 5, horizontally scrollable" class="table-scroll" role="region" tabindex="0"><table aria-label="Table 5: complete original transcription" class="original-table" id="S4.T5.2.1">
+<thead>
+<tr>
+<th>Batch size</th>
+<th>2</th>
+<th>4</th>
+<th>8</th>
+<th>16</th>
+<th>24</th>
+<th>32</th>
+<th>48</th>
+<th>56</th></tr>
+</thead>
+<tbody>
+<tr>
+<th>EAGLE</th>
+<td>1.30x</td>
+<td>1.25x</td>
+<td>1.21x</td>
+<td>1.10x</td>
+<td>1.03x</td>
+<td>0.93x</td>
+<td>0.82x</td>
+<td>0.71x</td></tr>
+<tr>
+<th>EAGLE-3</th>
+<td>1.75x</td>
+<td>1.68x</td>
+<td>1.58x</td>
+<td>1.49x</td>
+<td>1.42x</td>
+<td>1.36x</td>
+<td>1.21x</td>
+<td>1.01x</td></tr>
+</tbody>
+</table></div>
+<p>baseline 为 vLLM 普通解码，L31 8B、MT-bench、chain length=2。EAGLE-3 从 batch=2 的 1.75× 逐渐到 batch=56 的 1.01×；第一代从 1.30× 到 0.71×。这是另一个强框架下的净收益证据。</p>
+<aside class="callout limitation"><strong>原文内部不一致。</strong> §4.4 正文写 RTX 3090，Table 5 图注写 A100。v3 未给出足够信息消解冲突，本文同时保留，不能自行选择一个硬件作为确定结论。vLLM 版本也未明确。</aside>
+<p>正文说 EAGLE / EAGLE-3 分别在 batch 24 / 56 达到 maximum throughput improvement，但表中<strong>速度比最大值都在 batch=2</strong>。24 / 56 更像“已测试点里最后仍超过 1× 的 batch”。表给的是比值而非绝对 tokens/s，因此既不能将 24 / 56 当成比值最优点，也不能反推出总吞吐的最优 batch。</p>
+<h3 id="section-22">接受长度如何变成实际速度？</h3>
+<div class="formula"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>S</mi><mo>≈</mo><mfrac><mrow><mi>τ</mi><mspace width="0.167em"></mspace><msub><mi>t</mi><mrow><mrow><mi mathvariant="normal">A</mi><mi mathvariant="normal">R</mi></mrow></mrow></msub></mrow><mrow><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">d</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi></mrow></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">y</mi></mrow></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mrow><mi mathvariant="normal">m</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">c</mi></mrow></mrow></msub></mrow></mfrac></mrow></math><span class="formula-label">Agent-created reconstruction · not an original numbered equation</span><details><summary>Copy LaTeX</summary><pre><code>S\approx\frac{\tau\,t_{\mathrm{AR}}}{T_{\mathrm{draft}}+T_{\mathrm{verify}}+T_{\mathrm{misc}}}</code></pre></details></div>
+<p><strong>解析成本模型，非论文实测公式。</strong> <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>t</mi><mrow><mrow><mi mathvariant="normal">A</mi><mi mathvariant="normal">R</mi></mrow></mrow></msub></mrow></math></span> 为普通自回归推进一 token 的时间，分母是一轮 draft、target verify 和采样/索引/KV 整理的总时间。单位都必须统一为 ms。即使 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>τ</mi></mrow></math></span> 增长，只要串行 draft、更大验证树或数据搬运增长更多，速度也可能下降。</p>
+<p>下面把条件接受率曲线、串行草稿深度和成本拆开调整。选择“衰减”时，第 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>i</mi></mrow></math></span> 步按 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>α</mi><mn>1</mn></msub><msup><mi>λ</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msup></mrow></math></span> 计算。模型仅解释单链机制，没有拟合本文任何 GPU 数据。</p>
+<section aria-labelledby="cost-title" class="mechanism" id="cost-explorer"><p class="eyebrow">AGENT-CREATED / ANALYTICAL CHAIN MODEL · NOT A BENCHMARK</p><h3 id="cost-title">条件接受率平稳，链存活率仍会下降</h3>
+<div class="controls"><label>Draft depth <output id="depth-value">6</output><input id="cost-depth" max="12" min="1" type="range" value="6"/></label><label>First-step acceptance <output id="alpha-value">80%</output><input id="cost-alpha" max="1" min="0" step=".01" type="range" value=".8"/></label><label>Acceptance decay λ <output id="decay-value">1.00</output><input id="cost-decay" max="1" min="0" step=".01" type="range" value="1"/></label><label>AR time (ms/token)<input id="cost-ar" max="1000" min=".01" step="any" type="number" value="10"/></label><label>Draft time (ms/step)<input id="cost-draft" max="1000" min="0" step="any" type="number" value=".5"/></label><label>Verify time (ms/cycle)<input id="cost-verify" max="10000" min=".01" step="any" type="number" value="12"/></label><label>Misc time (ms/cycle)<input id="cost-misc" max="1000" min="0" step="any" type="number" value="1"/></label></div>
+<div class="table-scroll"><table><thead><tr><th>Draft step</th><th>Conditional acceptance</th><th>Chain survival</th></tr></thead><tbody id="cost-rows"></tbody></table></div>
+<div aria-live="polite" class="readout" id="cost-status" role="status"></div><button class="control-button" id="cost-reset" type="button">Reset</button><p class="hint">单链模型；不含 EOS 截断、树分支、动态 batch 或 cache hit。输入的时间是假设值，不能解释为 GPU/NPU 测量。</p></section>
+<p>默认 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>d</mi><mo>=</mo><mn>6</mn><mo>,</mo><mi>α</mi><mo>=</mo><mn>0.8</mn></mrow></math></span> 时，期望接受约 2.9514 个草稿，推进约 3.9514 个 token；若普通一步 10ms，draft 每步 0.5ms，verify 12ms、misc 1ms，则一轮 16ms，解析速度约 2.4696×。这展示的是分子和分母如何同时变化。</p>
+<h2 id="section-24">5. Related Work：把 EAGLE-3 放回论文发表时的技术分工</h2>
+<p>原文相关工作大致分三组：提供候选的机制、提高候选准确性的训练、把候选变成更有效验证批次的调度。</p>
+<p>标准 speculative sampling 用独立小语言模型，token 分布清楚，但额外模型的全部层都有成本。PLD 从已有文本寻找可复用片段，代码或摘要中的重复特别有利；Lookahead 用并行候选减少串行等待。Medusa 在目标隐藏状态上接多个未来 token 头，Hydra 引入头之间的序列依赖；它们把“同时预测多步”做得便宜，但训练与随机验证的语义需要逐项比较。</p>
+<p>EAGLE 的特征路线缩短 drafter，EAGLE-2 的树路线分配验证预算。HASS 通过训练上下文对齐提高多步稳定性，但仍保留特征预测约束。EAGLE-3 进一步让状态摆脱教师表示回归，同时在训练中承担后续反馈。FRSpec 则关注大词表 head 的开销：提高接受率之外，削减每一步候选打分成本也是另一条有效轴线。</p>
+<p>原文还把量化、蒸馏与验证式加速区分：前两者可能改变模型精度，推测采样保留 target 验证。GLIDE / CAPE 复用 target KV；Draft &amp; Verify、LayerSkip 等路线借助早退、跳层或部分目标权重降低草稿成本。它们优化的是“候选怎样得到”，与 EAGLE-3 的多步状态训练可以互相参照，但是否组合有效仍需专门实验。</p>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Work / date</th>
+<th>核心设计</th>
+<th>优势</th>
+<th>局限与 EAGLE-3 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speculative Sampling · 2022–2023</td>
+<td>草稿采样 + 接受/残差纠正</td>
+<td>精确目标分布的基础</td>
+<td>独立 drafter 可能昂贵；EAGLE 仍依赖验证原理</td>
+</tr>
+<tr>
+<td>Medusa · 2024</td>
+<td>多头提出未来 token</td>
+<td>并行、接入直接</td>
+<td>多步依赖与随机接受条件要区别；主表 T=1 排除放宽规则的方法</td>
+</tr>
+<tr>
+<td>EAGLE · 2024-01</td>
+<td>特征预测 + 向前移位 token</td>
+<td>轻量 decoder、利用 target 信息</td>
+<td>特征回归形成约束</td>
+</tr>
+<tr>
+<td>EAGLE-2 · 2024-06</td>
+<td>置信度驱动动态树</td>
+<td>有限节点下提升候选覆盖</td>
+<td>不独自解决递归状态漂移</td>
+</tr>
+<tr>
+<td>HASS · 2024-08</td>
+<td>训练上下文对齐</td>
+<td>减少多步输入偏差</td>
+<td>仍保留 feature constraint</td>
+</tr>
+<tr>
+<td>FRSpec · 2025-02</td>
+<td>频率感知词表约简</td>
+<td>减少 LM head 成本</td>
+<td>优化成本轴，不等价于 training-time test</td>
+</tr>
+<tr>
+<td>EAGLE-3 · 2025-03</td>
+<td>自由状态 + rollout + 多层融合</td>
+<td>多步接受更稳、可用更多数据</td>
+<td>训练/特征接入/树执行更复杂</td>
+</tr>
+</tbody>
+</table></div>
+<p>表是本篇总结，前六行是原文上下文和已核验先行工作。后续 DFlash 与 EAGLE-4 放在下面的日期化扩展部分，避免让读者误以为 2025 v3 已比较了 2026 方法。</p>
+<h2 id="section-25">6. Conclusion：论文真正证明了什么？</h2>
+<p>EAGLE-3 的主要贡献是<strong>更适合递归使用的 drafter 训练方式</strong>。特征回归不再是唯一的状态稳定手段：将自由状态暴露给后续训练，再从目标多层特征起步，可以提高多步可接受性。在本文覆盖的模型和任务中，整体速度与推进长度都有明显提升；服务框架实验说明收益能进入真实软件栈。</p>
+<p>这不是关于目标模型质量提升的论文，也未给出 TTFT、能耗、端侧 NPU 或长期并发 tail latency 的结论。目标分布等价来自正确验证算法，drafter 的好坏决定节省多少工作，而不是放弃验证后的最终质量。</p>
+<p>原文致谢与参考文献可在完整 PDF 和 TeX 中核对，致谢并不构成独立复现证据；本文不把参考列表本身当成逐篇精读结论。</p>
+<h2 id="section-26">Appendix A. Implementation Details：复现实验需要哪些具体配置？</h2>
+<p><strong>原文基准实现。</strong> 基于 Hugging Face Transformers + PyTorch，预分配 KV cache；PLD、Lookahead、Medusa、Hydra 用默认权重和设置。针对 LLaMA 3 的第一代 EAGLE 用 ShareGPT 训练。EAGLE-2 的候选节点预算为 8B→60、13B→50、70B→48，树深 6，每轮 top-10 扩展；EAGLE-3 保留对应总节点数，树深增至 8。</p>
+<p>节点预算相同能限制 target 候选数，却没有固定 drafter 的串行轮数。加大数据与加深树也同时发生，所以主表是最终系统的性能对比，不是严格隔离单个 loss 改动的成本控制实验。</p>
+<p><strong>未覆盖项。</strong> 405B、671B 级目标模型因 GPU 资源限制未测试。没有完整长上下文曲线、不同 dtype/量化校准、训练预算匹配、不同 target 家族 feature hook 的泛化、持续并发请求分布与能耗统计。复制一个训练 config 的 FP16 字段，不足以证明每项原论文测量都使用该精度。</p>
+<p><strong>复现的最小记录。</strong> 固定 target 与 drafter checkpoint、仓库 commit、框架/内核版本；固定 dataset prompt 与 output cap、temperature/top-p、batch 或并发模型；区分冷启动、prefill、decode；同时记录 draft/verify/misc 时间与接受长度。随机采样需验证分布正确，greedy 需验证目标 token 一致。论文未提供的测量项，应补测并注明来源。</p>
+<h2 id="section-27">扩展调研：从 2025 的多步状态，走到 2026 的硬件适配</h2>
+<p class="dated">External Sources · 检索截止 2026-10-27 · 以下内容不属于原论文 v3</p>
+<figure class="generated-figure"><div class="diagram-scroll"><img alt="Agent-created simplified evolution diagram" loading="lazy" src="assets/generated/evolution.svg"/></div><figcaption>Agent-created / Simplified Mermaid diagram · <a href="assets/generated/evolution.mmd">Mermaid source</a> · <a href="assets/generated/evolution.svg">Full SVG</a></figcaption></figure>
+<h3 id="section-28">工程采用：SGLang、SpecForge 与 vLLM 生态</h3>
+<p>SGLang 当前文档已经覆盖 EAGLE-2/3、MTP、DFlash 和相关调度选项；它证明机制进入成熟服务栈，但不是一个涵盖所有硬件与 workload 的“最佳方法”排行榜。原表的 H100 数字被文档引用，不能重复计为第二次独立验证。</p>
+<p>EAGLE 官方仓库自 2025-07-23 推荐 SpecForge 训练工具。它改善在线/离线特征获取与 drafter 训练工程，减少接入成本。本篇核对的是代码路径，没有在 GPU 上重训，也没有生成新的实测加速数字。</p>
+<p>2026-05-28 的 Speculators v0.5.0 官方生态文章介绍 vLLM 原生隐藏状态提取和 DFlash 等训练路线，文中对应 vLLM≥0.20。<strong>vLLM 支持一类接口，不代表任意 checkpoint 和任意版本自动兼容。</strong> 需要核对 vocab map、feature layers、position、验证实现与模型头部结构。</p>
+<h3 id="section-29">DFlash：减少草稿路径的串行深度</h3>
+<p><a href="https://arxiv.org/abs/2602.06036v2">DFlash v2（2026-05-28）</a> 走 block diffusion 路线：典型配置用多层 drafter 在一次前向内产生一个 token block，并注入目标上下文 KV。EAGLE-3 的轻量单层模型通常串行走多步，DFlash 则把更大 drafter 的并行能力换取更少轮次。两者都利用目标中间信息，但状态演进与候选生成方式不同。</p>
+<p>作者报告相对 EAGLE-3 可达约 2.5× 的设置内优势，必须连同条件阅读：SGLang 实验是单 B200、FA4 等优化；Transformers 路径用 H200。EAGLE-3 baseline 的 checkpoint 来源也不同，Llama 采用官方权重，Qwen 比较使用 AngelSlim 提供的版本。不能把 2.5× 再乘原论文 6.47×，拼出一个从未实测的结果。</p>
+<p>判断并行 block 是否值得，要比较 <code>block drafter cost + target verify cost</code>，并看该 block 最终提交多少 token。层数变多增加参数和计算，减少串行 round 却可能更适合 GPU。对于 NPU，单次较大的静态块与许多小调用的差别也可能很大，必须实测。</p>
+<h3 id="section-30">EAGLE-4：刚发布的新结果应以可比设置呈现</h3>
+<p>2026-10-20 的<a href="https://blog.eagle.ai/blog/introducing-eagle-4">官方发布</a>及源代码论文提出 <em>One Flexible Drafter for All Batch Sizes and Hardware</em>。其关注点转向候选 head 与调度：低秩候选检索后做精确候选打分，运行时按硬件/batch 成本 profile，动态组织候选树（EAGLEHarness）。这是 2026 的新作者结果，本篇未确认独立同行复现，也不预设许可证是 Apache。</p>
+<p>其 Qwen3.8-27B、4×B300、TP=4、T=0、SPEED-Bench 且 MegaKernel 关闭的同表比较：</p>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Concurrency</th>
+<th style="text-align: right;">Vanilla</th>
+<th style="text-align: right;">DSpark</th>
+<th style="text-align: right;">DFlash2</th>
+<th style="text-align: right;">EAGLE-4</th>
+<th style="text-align: right;">E4 / DFlash2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 · tokens/s</td>
+<td style="text-align: right;">240.5</td>
+<td style="text-align: right;">618.6</td>
+<td style="text-align: right;">672.6</td>
+<td style="text-align: right;">863.8</td>
+<td style="text-align: right;">1.2843×</td>
+</tr>
+<tr>
+<td>512 · aggregate tokens/s</td>
+<td style="text-align: right;">21203</td>
+<td style="text-align: right;">14229</td>
+<td style="text-align: right;">16641</td>
+<td style="text-align: right;">28340</td>
+<td style="text-align: right;">1.7030×</td>
+</tr>
+</tbody>
+</table></div>
+<p>数字来自 EAGLE-4 作者报告；DFlash2 的版本与引擎条件不同于 ICML DFlash 原表。batch/concurrency=512 时 drafter 的额外工作可使部分方法比 vanilla 更慢，这与 EAGLE-3 本文高 batch 的成本逻辑一致。表支持该系统设置中的领先，不支持跨硬件通用 SOTA 宣称。</p>
+<p><strong>端侧资料的边界。</strong> 同一作者材料报告，4-bit Gemma4 E2B 在 AWS c5.xlarge（4 vCPU / 8GB）上平均约 2.71×；Snapdragon 8 Elite 的 Razr 70 Ultra、6 线程、HumanEval，从 22.8 增到 82.6 tokens/s，长文本 USB 能耗从 356 到 166 mJ/token。它们是后续论文的 llama.cpp CPU 路径与作者测量，不是 EAGLE-3 在 QNN/HTP 上的证据。温度、线程、模型权重与测能边界必须连同结果保存。</p>
+<h3 id="section-31">当前应怎样选择路线？</h3>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>场景 / 轴线</th>
+<th>优先比较什么</th>
+<th>不足以决定的单个数字</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>低 batch、目标权重搬运重</td>
+<td>EAGLE-3 的接受长度 / 轻 drafter 成本</td>
+<td>最高 6.47×</td>
+</tr>
+<tr>
+<td>GPU 串行 draft 成为瓶颈</td>
+<td>DFlash block 一次前向的成本与提交率</td>
+<td>单步接受率</td>
+</tr>
+<tr>
+<td>高并发、验证计算已饱和</td>
+<td>调度、candidate head、硬件 profile，含 E4</td>
+<td>batch=1 tokens/s</td>
+</tr>
+<tr>
+<td>大词表</td>
+<td>FRSpec / draft vocab / head 代价</td>
+<td>decoder 层数</td>
+</tr>
+<tr>
+<td>CPU / NPU / 混合设备</td>
+<td>接口调用、数据驻留、静态形状、回滚成本</td>
+<td>GPU speedup</td>
+</tr>
+</tbody>
+</table></div>
+<p>截至检索日，EAGLE-3 是成熟且广泛集成的路线之一；后续并行草稿和自适应调度在指定设置中有更强结果。<strong>当前 SOTA 必须绑定模型、数据集、硬件、并发、框架、验证语义和度量</strong>，不能仅按发表日期排名。</p>
+<h2 id="section-32">官方代码审计：论文示意图与当前实现分别是什么？</h2>
+<p class="dated">External Source · SafeAILab/EAGLE commit cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b · 检查日 2026-10-27。此 commit 并非已证实的原论文 benchmark commit。</p>
+<h3 id="section-33">从 target feature 到最终提交的调用链</h3>
+<p><code>ea_model.py</code> 驱动 target forward 和草稿树；<code>modeling_llama_kv.py</code> 暴露选定层隐藏状态；<code>cnets.py</code> 执行融合、草稿 decoder、词表投影及候选构造；<code>utils.py</code> 处理树验证后的路径、接受长度和 KV 更新。</p>
+<p>对于有 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>L</mi></mrow></math></span> 个 decoder block 的 target，hook 在进入零基 block <code>2</code>、<code>L//2</code>、<code>L-3</code> <strong>之前</strong>截取状态。L=32 时就是完成 2、16、29 个 block 后的隐藏状态。把它写成“第 2、16、29 个 block 的输出”会偏移一层。返回 tuple 中可能还有最终状态，融合使用前三个选定状态。</p>
+<pre><code class="language-python"># Reconstruction of inspected code, names simplified
+teacher_features = concat(selected_hidden_states[:3], dim=-1)  # 3k
+state = fusion_fc(teacher_features)                            # k
+token_embed = frozen_target_embedding(next_input_token)       # k
+joined = concat(norm(token_embed), norm(state), dim=-1)        # 2k
+q = q_proj(joined)   # 2k -&gt; k
+k_cache = k_proj(joined)  # 2k -&gt; h_kv * d_h
+v_cache = v_proj(joined)
+raw_state = one_decoder_layer(q, k_cache, v_cache, residual=state)
+draft_logits = draft_head(final_norm(raw_state))              # k -&gt; V_d
+# recurrence uses raw_state; final_norm is for the output head
+</code></pre>
+<p><strong>与论文图的差别。</strong> 论文描述拼接后还有 <code>2k→k</code> FC；当前 <code>cnets.py</code> 对应 FC 被注释，Q/K/V 直接接受 <code>2k</code>。<code>3k→k</code> 融合 FC 仍在。不能按论文图推断每个实际 Linear 的输入宽度，也不能拿图中的轻量结构估算当前代码的精确参数。</p>
+<p>当前草稿使用独立可训练 <code>lm_head</code>，Llama 配置的 draft vocab=32000，而 target vocab=128256。embedding 从 target 复制并冻结；有 <code>d2t</code> / <code>t2d</code> 词表映射。<strong>它不是简单共享一个冻结 target LM head。</strong> 出词表覆盖之外的训练位置如何 mask、映射是否一致，都能直接影响接受率。</p>
+<h3 id="section-34">训练代码：反馈的是 raw state，token 仍沿教师序列移位</h3>
+<p><a href="https://github.com/SafeAILab/EAGLE/blob/cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b/eagle/traineagle3/cnets.py#L497-L501"><code>eagle/traineagle3/cnets.py</code></a> 设 <code>self.length=7</code>，<a href="https://github.com/SafeAILab/EAGLE/blob/cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b/eagle/traineagle3/main.py#L279-L285"><code>main.py</code></a> 的多轮 CE 用 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msup><mn>0.8</mn><mi>r</mi></msup></mrow></math></span> 权重。target / embedding 冻结，教师 logits 转成限制在 draft vocab 的 soft target；教师 argmax 不在该子集的部分位置会被训练 mask 排除。代码没有 feature regression loss。</p>
+<p>raw <code>hidden_states_out</code> 赋给下一轮 <code>hidden_states</code>，没有 detach；后轮损失可沿状态递归回传。最终 Norm 后的向量用于 LM head，递归反馈仍是 Norm 之前的状态。冻结教师特征在 <code>no_grad</code> 下提取，这与切断 drafter 自反馈梯度不是一回事。</p>
+<p>每轮将 <code>input_ids</code>、目标 logits 和 mask 向左移动，下一轮 embedding 来自移位教师数据，不是采样出的 draft token。它是<strong>隐藏状态上的 rollout 暴露 + 教师 token 路径</strong>。这个区分有助于评估残余 exposure bias，也说明训练 Figure 6 的“预测 token”画法不能被逐字等同为完全自由采样实现。</p>
+<p>attention 实现对原始 key 计算 dense causal score，对先前模拟轮次的同锚点 key 计算对角 score，再进行<strong>同一个联合 softmax</strong>。如果先各自 softmax 后相加，相当于给不同块任意分配概率质量，已不是原 attention 语义。</p>
+<h3 id="section-35">参数量：一层不等于只有一个很小的矩阵</h3>
+<p>以下是上述 config 与代码结构的<strong>解析计数</strong>，不是原论文测量。取 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>k</mi><mo>=</mo><mn>4096</mn><mo>,</mo><msub><mi>h</mi><mi>q</mi></msub><mo>=</mo><mn>32</mn><mo>,</mo><msub><mi>h</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub><mo>=</mo><mn>8</mn><mo>,</mo><msub><mi>d</mi><mi>h</mi></msub><mo>=</mo><mn>128</mn><mo>,</mo><mi>m</mi><mo>=</mo><mn>14336</mn><mo>,</mo><mi>V</mi><mo>=</mo><mn>128256</mn><mo>,</mo><msub><mi>V</mi><mi>d</mi></msub><mo>=</mo><mn>32000</mn></mrow></math></span>，忽略非参数的映射 buffer：</p>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Module</th>
+<th style="text-align: right;">参数表达式</th>
+<th style="text-align: right;">参数个数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Feature fusion</td>
+<td style="text-align: right;"><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>3</mn><msup><mi>k</mi><mn>2</mn></msup></mrow></math></span></td>
+<td style="text-align: right;">50,331,648</td>
+</tr>
+<tr>
+<td>Q projection</td>
+<td style="text-align: right;"><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>2</mn><msup><mi>k</mi><mn>2</mn></msup></mrow></math></span></td>
+<td style="text-align: right;">33,554,432</td>
+</tr>
+<tr>
+<td>K projection</td>
+<td style="text-align: right;"><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>2</mn><mi>k</mi><mo stretchy="false">(</mo><msub><mi>h</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub><msub><mi>d</mi><mi>h</mi></msub><mo stretchy="false">)</mo></mrow></math></span></td>
+<td style="text-align: right;">8,388,608</td>
+</tr>
+<tr>
+<td>V projection</td>
+<td style="text-align: right;">同上</td>
+<td style="text-align: right;">8,388,608</td>
+</tr>
+<tr>
+<td>O projection</td>
+<td style="text-align: right;"><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msup><mi>k</mi><mn>2</mn></msup></mrow></math></span></td>
+<td style="text-align: right;">16,777,216</td>
+</tr>
+<tr>
+<td>SwiGLU gate / up / down</td>
+<td style="text-align: right;"><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>3</mn><mi>k</mi><mi>m</mi></mrow></math></span></td>
+<td style="text-align: right;">176,160,768</td>
+</tr>
+<tr>
+<td>Draft LM head</td>
+<td style="text-align: right;"><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>k</mi><msub><mi>V</mi><mi>d</mi></msub></mrow></math></span></td>
+<td style="text-align: right;">131,072,000</td>
+</tr>
+<tr>
+<td>Four RMSNorm weights</td>
+<td style="text-align: right;"><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>4</mn><mi>k</mi></mrow></math></span></td>
+<td style="text-align: right;">16,384</td>
+</tr>
+<tr>
+<td>Trainable subtotal</td>
+<td style="text-align: right;">上述之和</td>
+<td style="text-align: right;"><strong>424,689,664</strong></td>
+</tr>
+<tr>
+<td>Frozen target embedding copy</td>
+<td style="text-align: right;"><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>k</mi><mi>V</mi></mrow></math></span></td>
+<td style="text-align: right;">525,336,576</td>
+</tr>
+<tr>
+<td>Unique loaded draft total</td>
+<td style="text-align: right;">若 embedding 单独驻留</td>
+<td style="text-align: right;"><strong>950,026,240</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>FP16 / BF16、每参数 2 bytes 时，单独加载约 <strong>1.76956 GiB</strong>，尚不含 KV、激活、allocator、临时 logits 与 target。共享 embedding 实体会降低额外驻留，但“同源权重”不等于同一 storage；需检查 data pointer 和设备 placement。训练 optimizer 状态另算，冻结 embedding 不需要它自己的梯度与 Adam moment。</p>
+<h3 id="section-36">KV、特征 buffer 与峰值内存</h3>
+<p>单层 draft 的 KV 解析量为：</p>
+<div class="formula"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>M</mi><mrow><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi><mo>,</mo><mi mathvariant="normal">d</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi></mrow></mrow></msub><mo>=</mo><mn>2</mn><mi>B</mi><mi>S</mi><mspace width="0.167em"></mspace><msub><mi>h</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub><msub><mi>d</mi><mi>h</mi></msub><mspace width="0.167em"></mspace><mi>b</mi></mrow></math><span class="formula-label">Agent-created reconstruction · not an original numbered equation</span><details><summary>Copy LaTeX</summary><pre><code>M_{\mathrm{KV,draft}}=2BS\,h_{kv}d_h\,b</code></pre></details></div>
+<p><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>b</mi></mrow></math></span> 为每元素 bytes，2 表示 K 和 V；shape 为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><mi>B</mi><mo>,</mo><msub><mi>h</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub><mo>,</mo><mi>S</mi><mo>,</mo><msub><mi>d</mi><mi>h</mi></msub><mo stretchy="false">]</mo></mrow></math></span>。默认 GQA、FP16 时，每个序列位置 4096 bytes。<span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>B</mi><mo>=</mo><mn>1</mn><mo>,</mo><mi>S</mi><mo>=</mo><mn>4096</mn></mrow></math></span> 时约 16 MiB；同结构 32 层 target 对应约 512 MiB。真实 target dtype、布局和 KV 量化要另行核对。</p>
+<p>三路原始特征 buffer 为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>3</mn><mi>B</mi><mi>S</mi><mi>k</mi><mi>b</mi></mrow></math></span>，融合状态为 <span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>B</mi><mi>S</mi><mi>k</mi><mi>b</mi></mrow></math></span>。不用保存所有层；但树验证的新节点 KV、gather/scatter 中间区、候选索引与回滚副本会推高峰值。上述 16 MiB 是线性序列 KV，不能当成包含整棵候选树的运行峰值。</p>
+<p>对端侧物理占用，CPU 的 VmHWM 与 HTP 的 ION/dma-buf 应分开统计，并说明是否重复映射。EAGLE-3 原文没有这一数据，本篇也没有在设备上产生测量。参数字节与实际物理峰值不是同一个指标。</p>
+<h3 id="section-37">Per-op 成本：真正容易漏掉的额外工作</h3>
+<div aria-label="Horizontally scrollable comparison table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>路径阶段</th>
+<th>必要工作</th>
+<th>可能成为瓶颈的条件</th>
+<th>应记录的证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Target feature extraction</td>
+<td>hook、三路状态采集</td>
+<td>device copy、未融合 concat、保留过多激活</td>
+<td>bytes、同步次数、feature extraction 时间</td>
+</tr>
+<tr>
+<td>Drafter</td>
+<td>Norm、QKV、GQA、SwiGLU</td>
+<td>小 GEMM 低利用率、串行 round 多</td>
+<td>每轮时间、kernel launch 数</td>
+</tr>
+<tr>
+<td>Output head</td>
+<td><span class="inline-math"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>k</mi><mo>×</mo><msub><mi>V</mi><mi>d</mi></msub></mrow></math></span> 投影、top-k、映射</td>
+<td>大词表、CPU top-k、device roundtrip</td>
+<td>head / sampling 时间</td>
+</tr>
+<tr>
+<td>Target verification</td>
+<td>tree mask、位置、候选 forward</td>
+<td>高 batch、树宽大、内核不支持树形 mask</td>
+<td>verify 时间、节点数、KV 读写</td>
+</tr>
+<tr>
+<td>Commit / rollback</td>
+<td>接受路径、KV gather、索引更新</td>
+<td>cache compact、异步生命周期、跨设备同步</td>
+<td>misc 时间、内存峰值、P95</td>
+</tr>
+</tbody>
+</table></div>
+<p>融合单位置约 50.3M MAC，SwiGLU 权重约 176.2M，draft head 投影约 131.1M MAC/位置；这些数量帮助判断相对成本，但 MAC 不等于 ms。共享/缓存、精度、算子融合和内存层级共同决定实际耗时。</p>
+<p>在 QNN/HTP 或 Native C++ Runner 上，接入的首要问题是 target 是否能提供稳定的中间特征接口、任意树 mask 是否落在高效内核、KV 是否能事务式提交/回滚。CPU drafter 与 NPU target 混合执行若每步搬运特征，可能吃掉收益。静态链或 block 可以是工程候选，但应由 profiling 决定。</p>
+<p>若量化后接受率变差，先核对特征抽取、归一化、词表映射、导出算子的尺度与 logits 漂移，保持目标验证分布的口径一致。不能未经对照就归因于“草稿太小”。Prefill / decode 两条路径尤其要对齐首 token 的生成与状态更新，避免第一格就出现不同的 logits。</p>
+<h2 id="section-38">My Interpretation：优势、隐含代价与下一步实验</h2>
+<p><strong>Novelty 与正确性。</strong> 最有价值的创新是自由状态和多轮监督共同改变 drafter 学习对象；多层融合提供更好起点。分布等价依赖原有推测采样原理，不是这篇重新证明了任意快速验证规则都无损。接受率图和消融为设计提供支持，但“顶层只包含 token 信息”的论证应保持经验性。</p>
+<p><strong>实验与泛化。</strong> 多任务、多目标及两种服务栈是强项；逐行审计揭示总体改善仍包含例外。数据与训练计算、树深度、精度和系统优化未完全控制；没有独立复现或方差信息。跨架构特征层选择、长上下文、低精度和端侧只是开放问题。</p>
+<p><strong>工程和资源。</strong> 单层 drafter 很适合减少递归成本，但融合矩阵、宽 QKV、SwiGLU、32K head 和 embedding 都有驻留成本。提高接受长度也可能扩大 draft 串行路径。部署要共同衡量接受概率与每轮花费，不能只优化一个离线 loss。</p>
+<h3 id="section-39">如果我是 reviewer，最想补的五组实验</h3>
+<ol>
+<li><strong>全因子消融。</strong> feature loss、rollout、multi-layer fusion 独立开关，固定训练 token/FLOPs、相同树深度；区分目标变化与额外训练预算。</li>
+<li><strong>真实 token rollout 对照。</strong> 当前教师移位 embedding 与 sampled-token embedding 对比；看逐步条件接受率、拒绝位置及训练稳定性。</li>
+<li><strong>取层与表示压缩。</strong> 固定层组合、可学习加权、低秩融合，报告接受收益与特征 IO，验证中间层信息是否值得额外读取。</li>
+<li><strong>系统分解。</strong> batch / context / output length sweep，测 TTFT、TPOT P50/P95、draft/head/verify/misc，比较固定链、固定树、动态树与并行 block。</li>
+<li><strong>量化与跨设备。</strong> 保持目标 checkpoint 不变，逐模块量化，测接受率和误差来源；Native C++ 常驻路径测 VmHWM、dma-buf 峰值、温升和每 token 能耗。</li>
+</ol>
+<h3 id="section-40">两个可继续研究的方向</h3>
+<p><strong>把训练权重对准“最终能省几毫秒”。</strong> 当前按轮衰减的 token loss 不直接知道硬件成本。后轮即使更准，也可能增加很少的链存活概率；可将条件接受收益与 profile 成本结合，学习何时停止或展开。验证规则仍保持精确，变化发生在候选预算分配。</p>
+<p><strong>只搬运真正需要的信息。</strong> 多层融合有用，不代表三份完整特征每轮都必须跨设备传输。target 端提前融合、按层低秩压缩或保留共享驻留区，可能降低数据搬运。但需要分别验证压缩后的接受率与同步成本，不能从参数少直接推断速度快。</p>
+<p>我的最终判断是：EAGLE-3 给出了一个可迁移的训练原则——<strong>状态的好坏应由它是否支持未来决策来衡量，而非是否复原教师内部坐标</strong>。让它进入实际业务，还必须把这种学习收益落实为更少 target 循环和足够低的额外执行成本。</p>
+<h2 id="section-41">References、来源与下载</h2>
+<p>正文原文引文统一指向 <a href="assets/original/2503.01840v3.pdf">EAGLE-3 v3 PDF</a> 与 <a href="sources/paper-v3.tex">TeX</a>，外部结果另标检索日期。以下给出可点击链接及完整 URL，方便在其他阅读器中访问。</p>
+<ol>
+<li><strong>EAGLE-3</strong> · arXiv 2503.01840v3 · <a href="https://arxiv.org/abs/2503.01840v3">https://arxiv.org/abs/2503.01840v3</a></li>
+<li><strong>Fast Inference from Transformers via Speculative Decoding</strong> · Leviathan et al. · ICML 2023 · <a href="https://arxiv.org/abs/2211.17192">https://arxiv.org/abs/2211.17192</a></li>
+<li><strong>Accelerating Large Language Model Decoding with Speculative Sampling</strong> · Chen et al. · 2023 · <a href="https://arxiv.org/abs/2302.01318">https://arxiv.org/abs/2302.01318</a></li>
+<li><strong>EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty</strong> · Li et al. · ICML 2024 · <a href="https://arxiv.org/abs/2401.15077">https://arxiv.org/abs/2401.15077</a></li>
+<li><strong>EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees</strong> · Li et al. · EMNLP 2024 · <a href="https://arxiv.org/abs/2406.16858">https://arxiv.org/abs/2406.16858</a></li>
+<li><strong>Learning Harmonized Representations for Speculative Sampling（HASS）</strong> · ICLR 2025 · <a href="https://arxiv.org/abs/2408.15766">https://arxiv.org/abs/2408.15766</a></li>
+<li><strong>FRSpec: Accelerating Large-Vocabulary Language Models with Frequency-Ranked Speculative Sampling</strong> · 2025 · <a href="https://arxiv.org/abs/2502.14856">https://arxiv.org/abs/2502.14856</a></li>
+<li><strong>DFlash: Block Diffusion for Flash Speculative Decoding</strong> · ICML 2026 · <a href="https://arxiv.org/abs/2602.06036v2">https://arxiv.org/abs/2602.06036v2</a> · <a href="https://dflash.z-lab.ai/">https://dflash.z-lab.ai/</a> · <a href="https://github.com/z-lab/dflash">https://github.com/z-lab/dflash</a></li>
+<li><strong>EAGLE-4: One Flexible Drafter for All Batch Sizes and Hardware</strong> · 2026-10-20 author release · <a href="https://blog.eagle.ai/blog/introducing-eagle-4">https://blog.eagle.ai/blog/introducing-eagle-4</a> · <a href="https://github.com/eagle-hq/EAGLE-4">https://github.com/eagle-hq/EAGLE-4</a></li>
+<li><strong>Official EAGLE code</strong> · <a href="https://github.com/SafeAILab/EAGLE/tree/cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b">https://github.com/SafeAILab/EAGLE/tree/cb7e0841fe0c206c6ed74a197ad5e2a1f13f5a2b</a></li>
+<li><strong>SpecForge</strong> · <a href="https://github.com/sgl-project/SpecForge">https://github.com/sgl-project/SpecForge</a></li>
+<li><strong>SGLang speculative decoding</strong> · <a href="https://docs.sglang.ai/advanced_features/speculative_decoding.html">https://docs.sglang.ai/advanced_features/speculative_decoding.html</a></li>
+<li><strong>Speculators v0.5.0</strong> · 2026-05-28 · <a href="https://vllm-project.github.io/2026/05/28/speculators-v050.html">https://vllm-project.github.io/2026/05/28/speculators-v050.html</a></li>
+<li><strong>NeurIPS 2025 record</strong> · <a href="https://openreview.net/forum?id=4exx1hUffq">https://openreview.net/forum?id=4exx1hUffq</a></li>
+</ol>
+<p class="downloads"><strong>Evidence downloads</strong> · <a href="sources/asset-inventory.json">Asset inventory</a> · <a href="sources/provenance.json">Source provenance</a> · <a href="sources/captions.json">Original captions</a> · <a href="sources/paper-v3.bib">Original bibliography</a> · <a href="notes/research-dossier.md">Research dossier</a> · <a href="notes/review.md">Review &amp; QA</a> · <a href="index.md">Reading Markdown</a></p>
+<nav aria-label="Related readings" class="related-readings"><p class="eyebrow">RELATED READINGS</p><a href="../eagle2/">EAGLE-2 · 置信度、动态树与验证预算 →</a><a href="../medusa/">Medusa · 多头候选与一次验证的有效工作量 →</a><a href="../flashattention/">FlashAttention · attention 的算术与 IO 成本 →</a><a href="../gqa/">GQA · 多个 query 如何共享 KV →</a><a href="../rmsnorm/">RMSNorm · 草稿 norm 的数值与执行成本 →</a><a href="../glu-variants/">GLU Variants · SwiGLU 的参数与计算预算 →</a><a href="../dflash/">DFlash：并行扩散草稿与目标特征 KV →</a><a href="../">All Paper Readings →</a></nav>
+<p class="changelog"><strong>Changelog · 2026-10-27。</strong> 指定 v3 全文与附录精读；7 张原图、5 个完整原表；多轮 mask、结果选择器与解析成本交互；官方代码审计及截至当日的后续研究。更新后续进展时保持原论文历史结果与新来源分开。</p></main><footer class="site-footer"><span>© 2026 Howie Yin</span><a href="../">Back to Paper Readings</a></footer></div>
+<dialog id="image-modal" class="image-modal" aria-label="Original paper visual, full resolution"><div class="modal-top"><p id="zoom-caption"></p><button type="button" id="zoom-close">Close · Esc</button></div><div class="zoom-scroll"><img id="zoom-image" alt=""></div><a id="zoom-original" target="_blank" rel="noopener">Open full resolution ↗</a></dialog>
+<script src="assets/results.js"></script><script src="assets/reading.js"></script><script src="shared/assets/article-navigation.js"></script></body></html>

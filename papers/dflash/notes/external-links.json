@@ -1,0 +1,102 @@
+[
+  {
+    "url": "https://arxiv.org/abs/2211.17192",
+    "status": 200,
+    "title": "Fast Inference from Transformers via Speculative Decoding"
+  },
+  {
+    "url": "https://arxiv.org/abs/2503.01840",
+    "status": 200,
+    "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test"
+  },
+  {
+    "url": "https://arxiv.org/abs/2503.09573",
+    "status": 200,
+    "title": "Block Diffusion: Interpolating Between Autoregressive and Diffusion Language Models"
+  },
+  {
+    "url": "https://arxiv.org/abs/2504.18583",
+    "status": 200,
+    "title": "PARD: Accelerating LLM Inference with Low-Cost PARallel Draft Model Adaptation"
+  },
+  {
+    "url": "https://arxiv.org/abs/2507.11851",
+    "status": 200,
+    "title": "Your LLM Knows the Future: Uncovering Its Multi-Token Prediction Potential"
+  },
+  {
+    "url": "https://arxiv.org/abs/2510.02358",
+    "status": 200,
+    "title": "DiffuSpec: Unlocking Diffusion Language Models for Speculative Decoding"
+  },
+  {
+    "url": "https://arxiv.org/abs/2511.00606",
+    "status": 200,
+    "title": "SpecDiff-2: Scaling Diffusion Drafter Alignment For Faster Speculative Decoding"
+  },
+  {
+    "url": "https://arxiv.org/abs/2602.06036",
+    "status": 200,
+    "title": "DFlash: Block Diffusion for Flash Speculative Decoding"
+  },
+  {
+    "url": "https://arxiv.org/abs/2605.29707",
+    "status": 200,
+    "title": "Domino: Decoupling Causal Modeling from Autoregressive Drafting in Speculative Decoding"
+  },
+  {
+    "url": "https://arxiv.org/abs/2607.05147",
+    "status": 200,
+    "title": "DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation"
+  },
+  {
+    "url": "https://arxiv.org/abs/2610.07659",
+    "status": 200,
+    "title": "DLoop: Looped Speculative Decoding"
+  },
+  {
+    "url": "https://arxiv.org/abs/2610.13708",
+    "status": 200,
+    "title": "Adaptive DHiSparse: Speculative Decoding over a Load-Adaptive KV Hierarchy"
+  },
+  {
+    "url": "https://arxiv.org/html/2602.06036v2",
+    "status": 200,
+    "title": "DFlash: Block Diffusion for Flash Speculative Decoding"
+  },
+  {
+    "url": "https://arxiv.org/html/2602.06036v2#S5.SS5",
+    "status": 200,
+    "title": "DFlash: Block Diffusion for Flash Speculative Decoding"
+  },
+  {
+    "url": "https://github.com/z-lab/dflash",
+    "status": 200,
+    "title": "GitHub - z-lab/dflash: DFlash: Block Diffusion for Flash Speculative Decoding · GitHub"
+  },
+  {
+    "url": "https://github.com/z-lab/dflash/blob/94e4abc5e0c31b67bc1a9d30f1cc34ece28a8756/dflash/model.py",
+    "status": 200,
+    "title": "dflash/dflash/model.py at 94e4abc5e0c31b67bc1a9d30f1cc34ece28a8756 · z-lab/dflash · GitHub"
+  },
+  {
+    "url": "https://github.com/z-lab/dflash/tree/94e4abc5e0c31b67bc1a9d30f1cc34ece28a8756",
+    "status": 200,
+    "title": "GitHub - z-lab/dflash at 94e4abc5e0c31b67bc1a9d30f1cc34ece28a8756 · GitHub"
+  },
+  {
+    "url": "https://huggingface.co/collections/z-lab/dflash",
+    "status": 200,
+    "title": "DFlash - a z-lab Collection"
+  },
+  {
+    "url": "https://inco.ai/blog/dflash2/",
+    "status": 200,
+    "title": "DFlash 2: Keep Drafting Parallel — Inco AI"
+  },
+  {
+    "url": "https://vllm-project.github.io/2026/08/23/speculative-decoding-amd-gpus.html",
+    "status": 200,
+    "title": "Exploring Speculative Decoding in vLLM on AMD GPUs | vLLM Blog"
+  }
+]

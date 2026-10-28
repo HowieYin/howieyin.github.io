@@ -1,0 +1,21 @@
+title: "DFlash: Block Diffusion for Flash Speculative Decoding"
+reading_title: "DFlash：让目标模型提供上下文，让扩散模型并行起草"
+slug: dflash
+authors: [Jian Chen, Yesheng Liang, Zhijian Liu]
+institution: University of California, San Diego
+venue: ICML 2026
+arxiv: 2602.06036
+version: v2
+first_published: 2026-02-05
+version_published: 2026-05-28
+reading_date: 2026-10-27
+last_updated: 2026-10-27
+research_cutoff: 2026-10-27
+url: https://howieyin.github.io/papers/dflash/
+code: https://github.com/z-lab/dflash
+models: https://huggingface.co/collections/z-lab/dflash
+tags: [LLM, Inference, Systems, Diffusion, Speculative Decoding]
+original_figures: 5
+original_tables: 13
+original_numbered_equations: 4
+license_original_paper: CC BY 4.0

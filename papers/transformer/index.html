@@ -20,9 +20,9 @@
 <p>用内容决定信息流：从 Transformer 原论文，到训练并行与逐 Token 推理。</p>
 <h2 id="section-1">Paper Metadata</h2>
 <p><strong>作者</strong>：Ashish Vaswani、Noam Shazeer、Niki Parmar、Jakob Uszkoreit、Llion Jones、Aidan N. Gomez、Łukasz Kaiser、Illia Polosukhin。<strong>机构</strong>：Google Brain、Google Research、University of Toronto。<strong>会议</strong>：NIPS 2017（现称 NeurIPS）。</p>
-<p><strong>首次提交</strong>：2017-06-12。<strong>本文阅读版本</strong>：1706.03762v7，2023-08-02，15 页，包括 References 与 Attention Visualizations。2017 是论文发表年，2023 是这个修订版本的日期。阅读与更新日期：<strong>2026-10-27</strong>。</p>
+<p><strong>首次提交</strong>：2017-06-12。<strong>本文阅读版本</strong>：1706.03762v7，2023-08-02，15 页，包括 References 与 Attention Visualizations。2017 是论文发表年，2023 是这个修订版本的日期。阅读日期：<strong>2026-10-27</strong>；排版更新日期：<strong>2026-10-28</strong>。</p>
 <p><a href="assets/original/1706.03762v7.pdf">原论文 PDF</a> · <a href="https://arxiv.org/abs/1706.03762" rel="noopener noreferrer">arXiv</a> · <a href="https://arxiv.org/html/1706.03762v7" rel="noopener noreferrer">arXiv HTML v7</a> · <a href="https://doi.org/10.48550/arXiv.1706.03762" rel="noopener noreferrer">DOI</a> · <a href="https://github.com/tensorflow/tensor2tensor" rel="noopener noreferrer">官方 Tensor2Tensor</a></p>
-<p>本文按 Abstract → §1–7 → Attention Visualizations 的顺序精读，再展开实现、后续研究与当前评测。<strong>原论文</strong>表示 PDF 内证据；<strong>外部来源</strong>表示后续论文或官方资料；<strong>分析 / 推导</strong>表示本文重建。原图 5 张、原表 4 张全部保留，原表提供可选择文字的版本与 PDF 原貌；额外图示和交互均标明来源。</p>
+<p>本文按 Abstract → §1–7 → Attention Visualizations 的顺序精读，再展开实现、后续研究与当前评测。<strong>原论文</strong>表示 PDF 内证据；<strong>外部来源</strong>表示后续论文或官方资料；<strong>分析 / 推导</strong>表示本文重建。原图 5 张、原表 4 张全部保留，图题、表题和原文说明均以可选择文字放在图片外，图片保留完整图形、组件标签与表格内容；原表还提供可选择文字的版本。额外图示和交互均标明来源。</p>
 <h2 id="section-2">Abstract / TL;DR：先建立全局</h2>
 <p><strong>一句话</strong>：Transformer 把序列内的信息交换改成注意力，把每个位置的特征加工交给 FFN，在翻译任务上证明了无需循环和卷积也能构建有效的 encoder–decoder。</p>
 <p><strong>一段话</strong>：以前的翻译模型通常逐位置运行 RNN，或者堆叠卷积扩大感受野，再通过 attention 读取源句。Transformer 让每个位置直接根据 Q 与 K 的相似度选择 V，以多头机制同时保留多种读取关系，用位置编码表达顺序。训练时已知整条目标句，右移输入加因果 mask 可以并行计算各位置；生成时下一个词还未知，仍需一步步产生。原论文在 WMT14 英德上得到 28.4 BLEU；英法表格为 41.8，但正文有 41.0 的冲突。它的历史贡献是建立一种通用序列架构，不能由这些实验推出今天所有模型或硬件上的性能结论。</p>
@@ -49,8 +49,8 @@
 <h3>3.1 Encoder and Decoder Stacks</h3>
 <figure class="original-figure" id="figure-1">
 <button aria-label="放大原论文 Figure 1" data-zoom="" type="button">
-<img alt="Figure 1: The Transformer - model architecture." height="1416" loading="lazy" src="assets/original/fig-01-architecture.png" width="1608"/></button>
-<figcaption><strong>Original paper · Figure 1 · PDF p.3</strong> · 点击放大<br/>Figure 1: The Transformer - model architecture.</figcaption>
+<img alt="Figure 1: The Transformer - model architecture." height="1336" loading="lazy" src="assets/original/fig-01-architecture.png" width="928"/></button>
+<figcaption id="figure-1-caption"><strong>Original paper · Figure 1 · PDF p.3</strong> · 点击放大<br/>Figure 1: The Transformer - model architecture.</figcaption>
 <a href="assets/original/fig-01-architecture.png">查看完整高分辨率原图</a></figure>
 <p><strong>这张图解决什么问题？</strong> Figure 1 说明 encoder 如何产生源句表示，以及 decoder 如何同时读取目标历史与源句。阅读时从左右下方的 embedding 开始，沿纵向箭头向上，再跟随 encoder 输出通往 decoder 中间 attention 的横向箭头。</p>
 <p><strong>组件与数据流</strong>：左边是 6 层 encoder，每层为 self-attention → Add &amp; Norm → FFN → Add &amp; Norm。右边是 6 层 decoder，每层先 masked self-attention，再 encoder–decoder attention，最后 FFN，每个子层后都有残差与归一化。右下角的 <strong>Outputs (shifted right)</strong> 是训练时的目标前缀输入，右上角才是预测分布，不能把两者当作同一条未右移序列。</p>
@@ -116,8 +116,8 @@
 <h4>3.2.1 Scaled Dot-Product Attention — 式 (1)</h4>
 <figure class="original-figure" id="figure-2">
 <button aria-label="放大原论文 Figure 2" data-zoom="" type="button">
-<img alt="Figure 2: (left) Scaled Dot-Product Attention. (right) Multi-Head Attention consists of several attention layers running in parallel." height="936" loading="lazy" src="assets/original/fig-02-attention.png" width="1608"/></button>
-<figcaption><strong>Original paper · Figure 2 · PDF p.4</strong> · 点击放大<br/>Figure 2: (left) Scaled Dot-Product Attention. (right) Multi-Head Attention consists of several attention layers running in parallel.</figcaption>
+<img alt="Figure 2: (left) Scaled Dot-Product Attention. (right) Multi-Head Attention consists of several attention layers running in parallel." height="820" loading="lazy" src="assets/original/fig-02-attention.png" width="1336"/></button>
+<figcaption id="figure-2-caption"><strong>Original paper · Figure 2 · PDF p.4</strong> · 点击放大<br/>Figure 2: (left) Scaled Dot-Product Attention. (right) Multi-Head Attention consists of several attention layers running in parallel.</figcaption>
 <a href="assets/original/fig-02-attention.png">查看完整高分辨率原图</a></figure>
 <p><strong>如何读 Figure 2？</strong> 左图从 Q/K 的 MatMul 开始，经 Scale、可选 Mask、SoftMax，最后与 V 做 MatMul。右图把输入分别投影成 h 组 Q/K/V，各组独立 attention，再 concat 与输出 Linear。图中输入排列为 V、K、Q；不要据横向排列误认三个投影的数据来源。</p>
 <div aria-label="原论文式 (1) · p.4" class="formula" id="equation-attention"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo>Attention</mo><mo stretchy="false">(</mo><mi>Q</mi><mo>,</mo><mi>K</mi><mo>,</mo><mi>V</mi><mo stretchy="false">)</mo><mo>=</mo><mo>softmax</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mfrac><mrow><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup></mrow><mrow><msqrt><mrow><msub><mi>d</mi><mi>k</mi></msub></mrow></msqrt></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mi>V</mi></mrow></math><span class="equation-number">原论文式 (1) · p.4</span></div>
@@ -239,7 +239,7 @@
 </tbody>
 </table></div>
 <details><summary>展开 PDF 原表：核对全部单元格、空白与加粗</summary>
-<figure class="original-figure"><button aria-label="放大 PDF Table 1" data-zoom="" type="button"><img alt="Table 1: Maximum path lengths, per-layer complexity and minimum number of sequential operations for different layer types. n is the sequence length, d is the representation dimension, k is the kernel size of convolutions and r the size of the neighborhood in restricted self-attention." loading="lazy" src="assets/original/table-01.png"/></button><figcaption>PDF 原貌 · 完整表格与原 caption</figcaption></figure></details>
+<figure class="original-figure"><button aria-label="放大 PDF Table 1" data-zoom="" type="button"><img alt="Table 1: Maximum path lengths, per-layer complexity and minimum number of sequential operations for different layer types. n is the sequence length, d is the representation dimension, k is the kernel size of convolutions and r the size of the neighborhood in restricted self-attention." loading="lazy" src="assets/original/table-01.png"/></button><figcaption>PDF 原表 · 完整单元格、空白与加粗；表题与说明见图外文字。</figcaption></figure></details>
 </section>
 <p><strong>比较对象与指标</strong>：Table 1 比较不同层类型的每层复杂度、最低串行操作数量与最大信息路径。n 是序列长，d 是表示宽度，k 是卷积核宽度，r 是局部 attention 邻域。它不是 BLEU 表，也不是测量出的 kernel 耗时表。</p>
 <p>Self-attention 给出 <code>O(n²d)</code>、<code>O(1)</code> 串行阶段和 <code>O(1)</code> 路径；RNN 为 <code>O(nd²)</code>、<code>O(n)</code> 阶段和 <code>O(n)</code> 路径。因此当 n &lt; d 时，混合部分的理论计算量有利；更核心的区别是所有位置能在一层直接联系。</p>
@@ -351,7 +351,7 @@
 </tbody>
 </table></div>
 <details><summary>展开 PDF 原表：核对全部单元格、空白与加粗</summary>
-<figure class="original-figure"><button aria-label="放大 PDF Table 2" data-zoom="" type="button"><img alt="Table 2: The Transformer achieves better BLEU scores than previous state-of-the-art models on the English-to-German and English-to-French newstest2014 tests at a fraction of the training cost." loading="lazy" src="assets/original/table-02.png"/></button><figcaption>PDF 原貌 · 完整表格与原 caption</figcaption></figure></details>
+<figure class="original-figure"><button aria-label="放大 PDF Table 2" data-zoom="" type="button"><img alt="Table 2: The Transformer achieves better BLEU scores than previous state-of-the-art models on the English-to-German and English-to-French newstest2014 tests at a fraction of the training cost." loading="lazy" src="assets/original/table-02.png"/></button><figcaption>PDF 原表 · 完整单元格、空白与加粗；表题与说明见图外文字。</figcaption></figure></details>
 </section>
 <p><strong>读表方式</strong>：数据为 WMT14，测试集 <strong>newstest2014</strong>；BLEU 越高越好，Training Cost 的 FLOPs 越低越好。原表没画 ↑/↓，本文只解释方向而不改原貌。空白表示未报告，不是 0。single 与 ensemble 是不同成本设置。base 用最后 <strong>5 个 checkpoint</strong> 的权重平均，big 用最后 <strong>20 个</strong>；权重平均产生单个模型，不等于运行多个模型再集成预测。</p>
 <p>解码采用 <strong>beam size 4</strong>、length penalty <strong>α = 0.6</strong>，在 dev 上选择；最长输出设为输入长 + 50，允许提前结束。BLEU 是翻译与参考文本的 n-gram 匹配指标，并带 brevity penalty；不能称为“28.4% 翻译准确率”。tokenization 与评测脚本会影响分数，后续 SacreBLEU [R13] 强调可复现的评测签名。</p>
@@ -696,7 +696,7 @@ big</td>
 </tbody>
 </table></div>
 <details><summary>展开 PDF 原表：核对全部单元格、空白与加粗</summary>
-<figure class="original-figure"><button aria-label="放大 PDF Table 3" data-zoom="" type="button"><img alt="Table 3: Variations on the Transformer architecture. Unlisted values are identical to those of the base model. All metrics are on the English-to-German translation development set, newstest2013. Listed perplexities are per-wordpiece, according to our byte-pair encoding, and should not be compared to per-word perplexities." loading="lazy" src="assets/original/table-03.png"/></button><figcaption>PDF 原貌 · 完整表格与原 caption</figcaption></figure></details>
+<figure class="original-figure"><button aria-label="放大 PDF Table 3" data-zoom="" type="button"><img alt="Table 3: Variations on the Transformer architecture. Unlisted values are identical to those of the base model. All metrics are on the English-to-German translation development set, newstest2013. Listed perplexities are per-wordpiece, according to our byte-pair encoding, and should not be compared to per-word perplexities." loading="lazy" src="assets/original/table-03.png"/></button><figcaption>PDF 原表 · 完整单元格、空白与加粗；表题与说明见图外文字。</figcaption></figure></details>
 </section>
 <p><strong>设置</strong>：英德 <strong>newstest2013 开发集</strong>，beam 同 §6.1，但<strong>没有 checkpoint averaging</strong>。PPL 为 <strong>per-wordpiece</strong>，不能与按词统计的 perplexity 直接比较。未列设置继承 base；big 的空白 d_k / d_v 因而为 <strong>64 / 64</strong>。Table 3 base dev 25.8 与 Table 2 test 27.3 不是同一评测设置。</p>
 <p><strong>(A) Head 数</strong>：保持总宽度与主要计算量，h = 1 / 4 / 8 / 16 / 32 时 BLEU 为 24.9 / 25.5 / 25.8 / 25.8 / 25.4。单头低 <strong>0.9</strong>，16 头没有再提高，32 头退 <strong>0.4</strong>。支持多头有效和每头宽度存在 trade-off，不支持“头数越多越好”。</p>
@@ -766,7 +766,7 @@ big</td>
 </tbody>
 </table></div>
 <details><summary>展开 PDF 原表：核对全部单元格、空白与加粗</summary>
-<figure class="original-figure"><button aria-label="放大 PDF Table 4" data-zoom="" type="button"><img alt="Table 4: The Transformer generalizes well to English constituency parsing (Results are on Section 23 of WSJ)" loading="lazy" src="assets/original/table-04.png"/></button><figcaption>PDF 原貌 · 完整表格与原 caption</figcaption></figure></details>
+<figure class="original-figure"><button aria-label="放大 PDF Table 4" data-zoom="" type="button"><img alt="Table 4: The Transformer generalizes well to English constituency parsing (Results are on Section 23 of WSJ)" loading="lazy" src="assets/original/table-04.png"/></button><figcaption>PDF 原表 · 完整单元格、空白与加粗；表题与说明见图外文字。</figcaption></figure></details>
 </section>
 <p><strong>任务与设置</strong>：将英语句子转换成线性化的 constituency tree，输出有强结构约束且往往比输入长。4 层 Transformer，D = <strong>1024</strong>；WSJ 约 <strong>40k 训练句</strong>、<strong>16k</strong> 词表；半监督高置信语料约 <strong>17M 句</strong>、<strong>32k</strong> 词表。WSJ Section 22 调 dropout、学习率和 beam，Section 23 测试；解析任务最大输出设为输入长 + <strong>300</strong>，beam <strong>21</strong>、length penalty <strong>0.3</strong>（p.10）。</p>
 <p><strong>读表与结论</strong>：F1 衡量 labeled constituents / spans 匹配，越高越好。WSJ-only 的 Transformer <strong>91.3</strong>，低于 Dyer <strong>91.7</strong>，差 <strong>−0.4 F1</strong>；semi-supervised <strong>92.7</strong>，比表内其他同组最高 <strong>92.1</strong> 高 <strong>+0.6</strong>，但低于 multi-task Luong <strong>93.0</strong> 和 generative Dyer <strong>93.3</strong>。训练范式、额外语料不同，不能合成一个公平的纯架构排行榜。</p>
@@ -779,8 +779,8 @@ big</td>
 <h3>Figure 3 — making … more difficult：一跳连接长依赖</h3>
 <figure class="original-figure" id="figure-3">
 <button aria-label="放大原论文 Figure 3" data-zoom="" type="button">
-<img alt="Figure 3: An example of the attention mechanism following long-distance dependencies in the encoder self-attention in layer 5 of 6. Many of the attention heads attend to a distant dependency of the verb ‘making’, completing the phrase ‘making…more difficult’. Attentions here shown only for the word ‘making’. Different colors represent different heads. Best viewed in color." height="1044" loading="lazy" src="assets/original/fig-03-long-distance.png" width="1608"/></button>
-<figcaption><strong>Original paper · Figure 3 · PDF p.13</strong> · 点击放大<br/>Figure 3: An example of the attention mechanism following long-distance dependencies in the encoder self-attention in layer 5 of 6. Many of the attention heads attend to a distant dependency of the verb ‘making’, completing the phrase ‘making…more difficult’. Attentions here shown only for the word ‘making’. Different colors represent different heads. Best viewed in color.</figcaption>
+<img alt="Figure 3: An example of the attention mechanism following long-distance dependencies in the encoder self-attention in layer 5 of 6. Many of the attention heads attend to a distant dependency of the verb ‘making’, completing the phrase ‘making…more difficult’. Attentions here shown only for the word ‘making’. Different colors represent different heads. Best viewed in color." height="836" loading="lazy" src="assets/original/fig-03-long-distance.png" width="1608"/></button>
+<figcaption id="figure-3-caption"><strong>Original paper · Figure 3 · PDF p.13</strong> · 点击放大<br/>Figure 3: An example of the attention mechanism following long-distance dependencies in the encoder self-attention in layer 5 of 6. Many of the attention heads attend to a distant dependency of the verb ‘making’, completing the phrase ‘making…more difficult’. Attentions here shown only for the word ‘making’. Different colors represent different heads. Best viewed in color.</figcaption>
 <a href="assets/original/fig-03-long-distance.png">查看完整高分辨率原图</a></figure>
 <p><strong>目的与阅读顺序</strong>：这张图展示 encoder 第 <strong>5/6 层</strong>中，query <strong>making</strong> 的注意力。上、下两排是同一句 token；从上排 making 沿彩色连线看下排被读取位置。不同颜色为不同 head，透明度和色块显示注意力强弱；句末 <code>&lt;EOS&gt;</code> / <code>&lt;pad&gt;</code> 也属于原图内容。</p>
 <p><strong>观察</strong>：多个头指向远处 <strong>more / difficult</strong>，对应 “making … more difficult” 的关系，也有头指向自己或较近位置。其价值是直观说明不同 head 可以跨越插入的短语，在一层直接联系远处词项。</p>
@@ -788,8 +788,8 @@ big</td>
 <h3>Figure 4 — its：指代与不同读取关系</h3>
 <figure class="original-figure" id="figure-4">
 <button aria-label="放大原论文 Figure 4" data-zoom="" type="button">
-<img alt="Figure 4: Two attention heads, also in layer 5 of 6, apparently involved in anaphora resolution. Top: Full attentions for head 5. Bottom: Isolated attentions from just the word ‘its’ for attention heads 5 and 6. Note that the attentions are very sharp for this word." height="2000" loading="lazy" src="assets/original/fig-04-anaphora.png" width="1608"/></button>
-<figcaption><strong>Original paper · Figure 4 · PDF p.14</strong> · 点击放大<br/>Figure 4: Two attention heads, also in layer 5 of 6, apparently involved in anaphora resolution. Top: Full attentions for head 5. Bottom: Isolated attentions from just the word ‘its’ for attention heads 5 and 6. Note that the attentions are very sharp for this word.</figcaption>
+<img alt="Figure 4: Two attention heads, also in layer 5 of 6, apparently involved in anaphora resolution. Top: Full attentions for head 5. Bottom: Isolated attentions from just the word ‘its’ for attention heads 5 and 6. Note that the attentions are very sharp for this word." height="1840" loading="lazy" src="assets/original/fig-04-anaphora.png" width="1608"/></button>
+<figcaption id="figure-4-caption"><strong>Original paper · Figure 4 · PDF p.14</strong> · 点击放大<br/>Figure 4: Two attention heads, also in layer 5 of 6, apparently involved in anaphora resolution. Top: Full attentions for head 5. Bottom: Isolated attentions from just the word ‘its’ for attention heads 5 and 6. Note that the attentions are very sharp for this word.</figcaption>
 <a href="assets/original/fig-04-anaphora.png">查看完整高分辨率原图</a></figure>
 <p><strong>如何读</strong>：上半部分保留 head <strong>5</strong> 的整句 attention；下半部分只保留 <strong>its</strong> 发出的关系，并展示 head <strong>5 / 6</strong>。原句是 “The Law will never be perfect, but its application should be just …”。跟随 its 的连线，看它与 <strong>Law / application</strong> 的联系；不要把下半部分误当成整个 layer 的所有 heads。</p>
 <p><strong>观察与意义</strong>：两个头对 its 都很尖锐，但关注的关联不同，符合指代与名词短语结构的直觉。原 caption 使用 “apparently involved”，是定性描述。</p>
@@ -797,8 +797,8 @@ big</td>
 <h3>Figure 5 — 结构相关模式：不同头并不重复</h3>
 <figure class="original-figure" id="figure-5">
 <button aria-label="放大原论文 Figure 5" data-zoom="" type="button">
-<img alt="Figure 5: Many of the attention heads exhibit behaviour that seems related to the structure of the sentence. We give two such examples above, from two different heads from the encoder self-attention at layer 5 of 6. The heads clearly learned to perform different tasks." height="1892" loading="lazy" src="assets/original/fig-05-syntax.png" width="1608"/></button>
-<figcaption><strong>Original paper · Figure 5 · PDF p.15</strong> · 点击放大<br/>Figure 5: Many of the attention heads exhibit behaviour that seems related to the structure of the sentence. We give two such examples above, from two different heads from the encoder self-attention at layer 5 of 6. The heads clearly learned to perform different tasks.</figcaption>
+<img alt="Figure 5: Many of the attention heads exhibit behaviour that seems related to the structure of the sentence. We give two such examples above, from two different heads from the encoder self-attention at layer 5 of 6. The heads clearly learned to perform different tasks." height="1728" loading="lazy" src="assets/original/fig-05-syntax.png" width="1608"/></button>
+<figcaption id="figure-5-caption"><strong>Original paper · Figure 5 · PDF p.15</strong> · 点击放大<br/>Figure 5: Many of the attention heads exhibit behaviour that seems related to the structure of the sentence. We give two such examples above, from two different heads from the encoder self-attention at layer 5 of 6. The heads clearly learned to perform different tasks.</figcaption>
 <a href="assets/original/fig-05-syntax.png">查看完整高分辨率原图</a></figure>
 <p><strong>组件与阅读</strong>：上下两个完整面板来自 encoder 第 <strong>5/6 层</strong>的不同头，上面绿色、下面红色。同一原句的源/目标 token 排列、标点、EOS/PAD 全部保留。对比每个位置发出的线，而不是只比较颜色。</p>
 <p><strong>观察</strong>：上图可见跨词组、偏向 Law、application、missing 等位置的聚合；下图不少位置保持较强自连接，也出现较局部的其他联系。它说明两个头学到不同分布，不证明每条边等同于句法树依存边。</p>
@@ -1012,6 +1012,7 @@ loss = smoothed_cross_entropy(logits, labels)
 <p>两轮审校分别检查“读者能否按 Q/K/V、右移和表格复算主结论”与“逐项回到 PDF/官方源核对数字和限定条件”。确认全部 15 页、5 图、4 表；保留 41.8/41.0 冲突，修正解析表 claim 范围，区分 dev/test 和平均 checkpoint，标记 FLOPs/KV 推导与当前评测口径。交互模型还独立验证已知矩阵结果、因果第一行、稳定 softmax、MiB 换算和 per-op FLOPs。</p>
 <p><a href="assets/evidence/research-audit.md">研究与审校记录</a> · <a href="assets/evidence/manifest.json">来源检索清单</a> · <a href="assets/evidence/inventory.json">图表完整性清单</a> · <a href="assets/evidence/model-checks.json">交互模型校验</a> · <a href="assets/evidence/reading-source.md">Markdown 讲解源稿</a> · <a href="assets/evidence/paper.bib">BibTeX</a></p>
 <p><strong>更新记录</strong>：2026-10-27，首次精读发布，按 v7 逐页核对并补充 WMT26 官方评测与工程推导。</p>
+<p>2026-10-28，重新裁切全部 5 张原图与 4 张原表截图，移除图片中的图题、表题及说明；原文 caption 和中文解读以图外文字呈现，放大查看也显示可选择的说明。保留全部面板、连线、token 标签、表头、单元格及表格边线。</p>
 <p>相关精读：<a href="../scaling-laws/">Scaling Laws：规模、训练与预算分配</a>。在 dense Transformer 数据流之上，进一步区分参数量、唯一数据、处理 token、训练 FLOPs 与临界 batch；平均 loss 的规模规律仍需与推理延迟和内存账本分别评估。</p>
 <p><strong>Related Reading：</strong><a href="../rmsnorm/">RMSNorm：保留尺度约束，拿掉均值中心化</a>。原始 Transformer 的 LayerNorm 同时中心化与缩放；这篇精读拆开验证两种作用，并审计归约、融合和端到端耗时。</p>
 <h2 id="section-16">References：原论文、后续论文与官方资料</h2>
@@ -1036,6 +1037,6 @@ loss = smoothed_cross_entropy(logits, labels)
 </ul>
 <p>上述扩展来源在本轮研究中实际检索，URL、状态、日期与内容哈希见清单。对原论文所有引用的完整书目，请见 PDF pp.10–12 的 References；本文只列对讲解与扩展调研直接使用的来源。</p>
 <p>相关阅读：<a href="../layer-normalization/">Layer Normalization 精读</a>，继续核对归一化轴、Pre/Post-LN 的区别、RNN 分支与推理 IO 成本。</p></article></main></div>
-<footer class="site-footer"><span>© 2026 Howie Yin · Updated October 27, 2026</span><div class="footer-links"><a href="../">Paper Readings</a><a href="#main">Back to top ↑</a></div></footer></div>
-<dialog id="figure-dialog" aria-label="论文原图高分辨率查看"><button type="button" id="close-dialog">Close / 关闭</button><a id="full-figure" target="_blank" rel="noopener">Open original ↗</a><img id="zoom-image" alt=""></dialog>
+<footer class="site-footer"><span>© 2026 Howie Yin · Updated October 28, 2026</span><div class="footer-links"><a href="../">Paper Readings</a><a href="#main">Back to top ↑</a></div></footer></div>
+<dialog id="figure-dialog" aria-label="论文原图高分辨率查看"><button type="button" id="close-dialog">Close / 关闭</button><a id="full-figure" target="_blank" rel="noopener">Open original ↗</a><img id="zoom-image" alt="" aria-describedby="zoom-caption"><p id="zoom-caption"></p></dialog>
 <script type="module" src="assets/reading.js"></script></body></html>

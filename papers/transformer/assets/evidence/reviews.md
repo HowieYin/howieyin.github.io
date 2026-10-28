@@ -4,7 +4,7 @@
 
 Reviewed the chapter-ordered narrative from Abstract through original §1–7 and the Attention Visualizations appendix. The method defines Q/K/V, key-axis softmax, source/target shapes, right-shift and teacher forcing before extending to caches. Five original figures sit beside their explanations; four complete tables include the paper's row/column spans, blank cells and bold, with original PDF views available for comparison. Ten formula panels contain eleven selectable MathML expressions. Four additional SVG diagrams and two interactive components are explicitly marked agent-created.
 
-Reviewed actual Chromium screenshots for desktop and mobile hero, original architecture, attention interaction, long ablation table, positional equation, cache/FLOPs and ending sections. Wide formulas and tables remain locally scrollable; page width remains constrained. Original white-background figures are not inverted or cropped. Changed TOC highlighting to track the last passed heading, so jumping into the middle of a section still identifies the active section. Corrected QA's screenshot scroll behavior to instant; the original site uses smooth scrolling.
+Reviewed actual Chromium screenshots for desktop and mobile hero, original architecture, attention interaction, long ablation table, positional equation, cache/FLOPs and ending sections. Wide formulas and tables remain locally scrollable; page width remains constrained. Original white-background figures are not inverted; all diagram content is retained. On 2026-10-28 the surrounding PDF captions were removed from image crops and retained as selectable external text. Changed TOC highlighting to track the last passed heading, so jumping into the middle of a section still identifies the active section. Corrected QA's screenshot scroll behavior to instant; the original site uses smooth scrolling.
 
 ## Primary-source accuracy
 
@@ -19,3 +19,7 @@ WMT26 sources are dated and separate human cESA from self-reported GEMBA, single
 ## Supplemental Feishu verification
 
 Created a chapter-ordered document with five original images, nine tables (four original plus five explanatory), four whiteboards and a final insights section. Readback confirms resource counts and source order. The XML importer reported removing an unsupported outer article wrapper while retaining content; readback confirmed all substantive content. Email resolution matched yinhongyi@bytedance.com to the current account. Member listing shows full_access; edit and manage_public checks returned true. Website publication remains the primary requested deliverable.
+
+## Caption correction review — 2026-10-28
+
+Inspected all nine caption-free PDF crops and checked the source raster/vector bounds. Figures 3–4 retain the complete lower color bands, not only the token labels. Figures 4–5 retain both panels; Table 3 includes the full right border. Figure/table numbers, original captions and Chinese explanations remain outside the images. Reviewed the desktop and mobile rendered captions, expanded table image and zoom-dialog caption. The source PDF is unchanged. Local five-width QA passed and all existing related-reading links and table structures are preserved.

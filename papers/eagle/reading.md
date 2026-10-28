@@ -1,0 +1,892 @@
+# EAGLE：先知道下一个 token，再外推它的特征
+
+<p class="reading-meta">PAPER READING · ICML 2024 · arXiv 2401.15077v3 · READ 2026-10-27</p>
+
+EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty
+
+Yuhui Li、Fangyun Wei、Chao Zhang、Hongyang Zhang。机构：北京大学、微软研究院、滑铁卢大学、Vector Institute。首次提交 **2024-01-26**；本文阅读版本 **v3，2025-03-04**；正式发表在 ICML 2024，PMLR 235:28935–28948。
+
+[Original PDF](assets/original/2401.15077v3.pdf) · [arXiv](https://arxiv.org/abs/2401.15077) · [PMLR](https://proceedings.mlr.press/v235/li24bt.html) · [Official code · v1](https://github.com/SafeAILab/EAGLE/tree/v1) · [Reading source](index.md)
+
+> **来源约定。** Paper 表示原论文；Code 表示固定 v1 commit `4a9cf3a1f6cd4a294e6d30a4e7c77cba246d7ca5` 的源码；External 表示独立扩展资料；Interpretation 表示本文推导与评议。全部 **9 张原图、8 张完整原表、Algorithm 1** 保留；三组交互和三张简化图均为 Agent-created Visualization。最新资料检索截至 **2026-10-27**。
+
+## TL;DR：一句话、一段话、五个关键点
+
+**一句话：** EAGLE 用“目标模型的历史特征 + 提前一个位置的已采样 token”，训练一个小 decoder 外推下一特征，再用冻结 LM head 起草候选树，让目标模型一次并行校验多个候选。
+
+**一段话：** token 从分布中采样，下一步 hidden state 因采样分支而改变；只外推 feature 会把不同分支混在一起。EAGLE 把已经选定的下一 token 作为输入，消除这部分条件不确定性。draft 提供便宜的候选，target 的 tree attention 提供真实分布，精确接受／残差采样保障输出分布。收益取决于接受长度和整个起草、校验、cache 提交周期的成本。原文在 MT-Bench 的 T=0/1 范围为 **2.13–3.07×**；其他任务最高 **3.76×**。这些是作者测试环境中的 decode 加速，不是通用 TTFT 或服务容量结论。
+
+1. **Problem：** 大模型逐 token decode 重复搬运权重；完整小模型 draft 又可能太贵。
+2. **Observation：** 同一 `f_I` 可采样出 “am” 或 “always”，二者的下一特征不同。
+3. **Core insight：** 预测 `f_(i+1)` 时，让 draft 看见 `t_(i+1)`；特征与 token 的序列错位一格。
+4. **Method：** 冻结 target embedding/head，训练 FC + 单 decoder；生成树、批量验证、仅提交接受路径。
+5. **Boundary：** lossless 来自正确的 verifier；draft 准确不等于 verifier 正确；接受更长也不必然更快。
+
+## 1. Introduction：加速的两个变量
+
+**What / Why。** 作者希望减少每个输出 token 的 walltime，同时保持原 target 的输出分布。传统 speculative decoding 需要一个足够便宜、词表及模板兼容、又能贴近 target 的 draft。LLaMA2 最小正式模型就是 7B，拿 7B 起草 13B 时成本可能吞掉收益。
+
+**How。** 作者不训练另一个完整语言模型，而是复用 target 已经计算的高层特征、embedding、LM head，只学习廉价的 feature transition。质量与速度要拆开：接受率越高可以减少浪费，但每次 draft 或 target verification 越贵，也会减少收益。
+
+<figure id="figure-1" class="original-figure"><button type="button" data-zoom="assets/original/figure-01.png" aria-label="放大 Figure 1"><img src="assets/original/figure-01.png" alt="Figure 1: Figure 1 : Speedup ratio of Vicuna and LLaMA2-Chat inference latency on the MT-bench for greedy (temperature=0) settings. Speedup ratio of Medusa and Lookahead are copied from their original technical reports. With speculative sampling, there is a lack of suitable draft models to accelerate the 7B model. Employing a 7B model as the draft model for a 13B model results in slow speeds due to the high overhead of the 7B model, rendering it less efficient than vanilla autoregressive decoding. These scenarios are marked as N/A. In this paper, we only compare with speculative sampling based methods that do not need to finetune the backbone models, ensuring the output text distribution remains constant." loading="lazy"></button><figcaption>Figure 1 · Original Paper v3 · PDF p.1 · <a href="assets/original/2401.15077v3.pdf#page=1">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Figure 1 : Speedup ratio of Vicuna and LLaMA2-Chat inference latency on the MT-bench for greedy (temperature=0) settings. Speedup ratio of Medusa and Lookahead are copied from their original technical reports. With speculative sampling, there is a lack of suitable draft models to accelerate the 7B model. Employing a 7B model as the draft model for a 13B model results in slow speeds due to the high overhead of the 7B model, rendering it less efficient than vanilla autoregressive decoding. These scenarios are marked as N/A. In this paper, we only compare with speculative sampling based methods that do not need to finetune the backbone models, ensuring the output text distribution remains constant.</p></details></figure>
+
+**Figure 1 如何读。** 横轴是六个模型，纵轴是相对 vanilla 的 walltime speedup，灰色虚线 1× 是无收益。先读 EAGLE，再看同模型其他方法。Vicuna 7/13/33B 的 EAGLE 为 2.90/3.07/2.95×；LLaMA2-Chat 7/13/70B 为 2.78/3.03/3.01×。N/A 表示没有适配的 draft 或无合适加速方案，不是零速度。Medusa、Lookahead 数字来自其技术报告，原图不是所有 baseline 在相同软件栈上的统一复测。
+
+**Interpretation。** Figure 1 支持这组模型、MT-Bench、greedy、主要 batch=1 的收益。它不能证明全平台一致倍数；也不能把“2–4B training tokens”直接解释成去重后独有训练数据量。ShareGPT 多轮重复训练会增加处理过的 token 暴露量。
+
+<figure id="figure-2" class="original-figure"><button type="button" data-zoom="assets/original/figure-02.png" aria-label="放大 Figure 2"><img src="assets/original/figure-02.png" alt="Figure 2: Figure 2 : Speedup ratio on the MT-bench for non-greedy (temperature=1) settings. Lookahead is confined to greedy decoding, and the non-greedy generation of Medusa does not guarantee lossless performance. Therefore, EAGLE is not compared with these methods." loading="lazy"></button><figcaption>Figure 2 · Original Paper v3 · PDF p.2 · <a href="assets/original/2401.15077v3.pdf#page=2">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Figure 2 : Speedup ratio on the MT-bench for non-greedy (temperature=1) settings. Lookahead is confined to greedy decoding, and the non-greedy generation of Medusa does not guarantee lossless performance. Therefore, EAGLE is not compared with these methods.</p></details></figure>
+
+**Figure 2 如何读。** T=1 时 EAGLE 六个模型分别为 2.13/2.32/2.40/2.22/2.68/2.67×。更分散的 target 分布增加 draft 不匹配的机会；图只展示 exact speculative 路线，排除不保证该分布的 non-greedy 方案。LLaMA2-Chat 70B 对常规 speculative 的 2.06×，EAGLE 相对再提升约 29.6%；这个比值不是 EAGLE 对 vanilla 的 2.67×。
+
+## 2. Preliminaries：符号与精确 speculative sampling
+
+原文先定义符号：小写 t 是 token、e 是 embedding、f 是 head 前 feature、p 是分布；大写 T、E、F 是序列，T_(i:j) 包含端点 i 与 j。普通 AR 链路是 `T_(1:j) → E_(1:j) → f_j → p_(j+1) → t_(j+1)`。draft 起草 γ 个 token 及各位置 proposal，target 单次 forward 得到对应真实分布，然后逐个接受；首个拒绝点之后的链全部丢弃，并用正部残差重新采样。
+
+Leviathan / Chen 的接受及残差校正说明，draft 可以不同于 target，最终输出仍可精确来自 target。EAGLE 沿用这个保证。后文的 SpecInfer 树验证把多条链共享 prefix，新增点主要在 **起草的条件输入与特征外推**，不是首次提出 lossless 校验。
+
+**Caveat。** “不用改业务输出质量”只在 exact sampler、logit processors、position、mask、EOS 和 KV 提交都正确时成立。不能用理论一句话替代真实实现一致性验证。
+
+## 3.1 Drafting：特征的不确定性与错位输入
+
+### Figure 3：为什么只预测 feature 不够
+
+<figure id="figure-3" class="original-figure"><button type="button" data-zoom="assets/original/figure-03.png" aria-label="放大 Figure 3"><img src="assets/original/figure-03.png" alt="Figure 3: Figure 3 : Uncertainty in feature sequences. The next feature following f I f_{I} is contingent on the sampling outcome and cannot be determined solely based on f I f_{I} , where both “always” and “am” are possible to follow the token “I” and lead to two branches." loading="lazy"></button><figcaption>Figure 3 · Original Paper v3 · PDF p.2 · <a href="assets/original/2401.15077v3.pdf#page=2">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Figure 3 : Uncertainty in feature sequences. The next feature following f I f_{I} is contingent on the sampling outcome and cannot be determined solely based on f I f_{I} , where both “always” and “am” are possible to follow the token “I” and lead to two branches.</p></details></figure>
+
+**目的与组件。** 图中的 `f_I` 是 target 处理 “I” 后、LM head 前的 feature。head 给出 “am” 的 0.6 与 “always” 的 0.4；采样结果决定走哪条分支，再生成各自 feature。
+
+**数据流。** `f_I → logits → sampled token → next feature`。单独从 `f_I` 外推一个 feature，没有告诉 draft 走的是哪个 token 分支。回归会面对一个多峰条件目标；把两种分支平均并不能自然代表任何真实分支。
+
+**关键观察。** 先采样 `t_(i+1)`，再把它和 `f_i` 合起来，就可以预测该分支上的 `f_(i+1)`。这里消除的是“尚未知采样结果”的不确定性，模型逼近误差仍存在。
+
+<figure id="figure-4" class="original-figure"><button type="button" data-zoom="assets/original/figure-04.png" aria-label="放大 Figure 4"><img src="assets/original/figure-04.png" alt="Figure 4: Figure 4 : Accuracy and speedup ratio of draft models based on tokens, features and feature&amp;shifted-token at temperature=0, tested on MT-bench with Vicuna 7B as the original LLM. Feature&amp;shifted-token refers to using a feature sequence and a token sequence advanced by one time step as inputs." loading="lazy"></button><figcaption>Figure 4 · Original Paper v3 · PDF p.3 · <a href="assets/original/2401.15077v3.pdf#page=3">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Figure 4 : Accuracy and speedup ratio of draft models based on tokens, features and feature&amp;shifted-token at temperature=0, tested on MT-bench with Vicuna 7B as the original LLM. Feature&amp;shifted-token refers to using a feature sequence and a token sequence advanced by one time step as inputs.</p></details></figure>
+
+**Figure 4。** 左图比较 walltime speedup，右图比较 draft accuracy，横轴都是训练 epoch；token、feature、feature & shifted-token 是三种输入／预测路线。阅读顺序是同一方法跨两项指标，再比较方法间差异。增加 shifted token 的方案同时改善两项，支持条件输入的重要性。它是 Vicuna 7B / MT-Bench / T=0 的消融，不足以断言所有高维特征都比 token 更容易学习。
+
+### Tensor shape：不要把 feature 理解错一层
+
+论文称 “second-to-top-layer feature”，实际意思是 **LM head 前的 hidden state**，不是“倒数第二个 Transformer block 的输出”。v1 `ge_data.py` 取 `hidden_states[-1]`；`ea_model.py` 取 target decoder 的 `outputs[0]`，需结合模型的 final norm 路径理解。
+
+| 对象 | Shape | 在当前位置的含义 |
+|---|---|---|
+| target 历史 `F_(1:i)` | B × i × D | token 1 至 i 对应的 head 前特征 |
+| shifted tokens `T_(2:i+1)` | B × i | 比特征序列提前一位置，最后 token 已采样 |
+| embedding `E(T)` | B × i × D | 冻结 target embedding |
+| concat | B × i × 2D | 每位置拼 feature 与下一 token embedding |
+| FC | 2D → D | 学习融合，不等价于增加 target 层 |
+| 单 decoder 输出 `f_hat_(i+1)` | B × D | 对下一位置真实 feature 的估计 |
+| 冻结 head `W` | V × D | `W f_hat` 得到下下个 token logits |
+| draft 分布 `q_(i+2)` | B × V | 对 token i+2 起草，而非 i+1 |
+
+<figure class="generated-figure"><div class="svg-scroll" tabindex="0" role="region" aria-label="错位一格的起草输入；可横向滚动"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 468" role="img" aria-label="错位一格的起草输入"><title>错位一格的起草输入</title><rect width="720" height="468" rx="8" fill="#101823"/><text x="24" y="30" fill="#dbe6f4" font-size="16">错位一格的起草输入</text><path d="M40 97v58m-5 -5l5 5 5 -5" stroke="#779dcc" fill="none"/><circle cx="40" cy="80" r="15" fill="#274664"/><text x="40" y="85" fill="#e8f2ff" text-anchor="middle" font-size="14">1</text><text x="70" y="67" fill="#e3bd80" font-size="12">历史 target feature</text><text x="70" y="93" fill="#dbe6f4" font-size="16">F1:i</text><text x="70" y="121" fill="#a8bdd6" font-size="13">B × i × D</text><line x1="70" x2="695" y1="139" y2="139" stroke="#293a50"/><path d="M40 199v58m-5 -5l5 5 5 -5" stroke="#779dcc" fill="none"/><circle cx="40" cy="182" r="15" fill="#274664"/><text x="40" y="187" fill="#e8f2ff" text-anchor="middle" font-size="14">2</text><text x="70" y="169" fill="#e3bd80" font-size="12">下一 token 已选</text><text x="70" y="195" fill="#dbe6f4" font-size="16">T2:i+1 → frozen embedding</text><text x="70" y="223" fill="#a8bdd6" font-size="13">B × i × D</text><line x1="70" x2="695" y1="241" y2="241" stroke="#293a50"/><path d="M40 301v58m-5 -5l5 5 5 -5" stroke="#779dcc" fill="none"/><circle cx="40" cy="284" r="15" fill="#274664"/><text x="40" y="289" fill="#e8f2ff" text-anchor="middle" font-size="14">3</text><text x="70" y="271" fill="#e3bd80" font-size="12">融合与预测</text><text x="70" y="297" fill="#dbe6f4" font-size="16">concat → FC → single decoder</text><text x="70" y="325" fill="#a8bdd6" font-size="13">2D → D → predicted f_i+1</text><line x1="70" x2="695" y1="343" y2="343" stroke="#293a50"/><circle cx="40" cy="386" r="15" fill="#274664"/><text x="40" y="391" fill="#e8f2ff" text-anchor="middle" font-size="14">4</text><text x="70" y="373" fill="#e3bd80" font-size="12">转换为 proposal</text><text x="70" y="399" fill="#dbe6f4" font-size="16">f_i+1 → frozen head → q_i+2</text><text x="70" y="427" fill="#a8bdd6" font-size="13">输出对齐下一 feature、下下 token</text><line x1="70" x2="695" y1="445" y2="445" stroke="#293a50"/></svg></div><figcaption>Agent-created / Simplified Diagram · <a href="assets/generated/alignment.mmd">Mermaid source</a> · <a href="assets/generated/alignment.svg">SVG</a></figcaption></figure>
+
+<figure id="figure-5" class="original-figure"><button type="button" data-zoom="assets/original/figure-05.png" aria-label="放大 Figure 5"><img src="assets/original/figure-05.png" alt="Figure 5: Figure 5 : A comparison of the methods for drafting the fourth and fifth tokens, t 4 t_{4} and t 5 t_{5} . t t (represented by blue blocks) denotes tokens, and f f ( orange blocks) signifies the features, with subscripts indicating their positions in the sequence. The red border indicates the predictions of the draft model. For simplicity, the n n in the n n -gram for Lookahead, as shown in the figure, has been set to 2." loading="lazy"></button><figcaption>Figure 5 · Original Paper v3 · PDF p.4 · <a href="assets/original/2401.15077v3.pdf#page=4">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Figure 5 : A comparison of the methods for drafting the fourth and fifth tokens, t 4 t_{4} and t 5 t_{5} . t t (represented by blue blocks) denotes tokens, and f f ( orange blocks) signifies the features, with subscripts indicating their positions in the sequence. The red border indicates the predictions of the draft model. For simplicity, the n n in the n n -gram for Lookahead, as shown in the figure, has been set to 2.</p></details></figure>
+
+**Figure 5。** 蓝块是 token，橙块是 feature，红框是 draft 预测。先沿各方法读取第 4 token 的输入，再看第 5 token 能否依赖第 4 token 的分支。完整小模型在 token 层 autoregress；Medusa 并列头预测多个 offset；Lookahead 图中 n 被简化为 2；EAGLE 则由 feature + 已选下一 token 预测下一 feature，然后通过 target head 预测 token。
+
+**Why it matters。** 红框在 feature 而非 token 上，是方法与 Medusa 的根本区别；未来 token 仍由 head 转换得到。共享 target head 带来词表兼容与省参数，却也留下每步 `D×V` 的计算与带宽开销。
+
+<figure id="figure-6" class="original-figure"><button type="button" data-zoom="assets/original/figure-06.png" aria-label="放大 Figure 6"><img src="assets/original/figure-06.png" alt="Figure 6: Figure 6 : Pipeline of EAGLE. The upper section illustrates the computational process, while the lower section displays the corresponding generation results for each step. In the upper section, green blocks represent token embeddings, orange blocks represent features, red boxes indicate the predictions of the draft model, and blue modules with snowflake icons represent the use of target LLM parameters, which are not subject to training." loading="lazy"></button><figcaption>Figure 6 · Original Paper v3 · PDF p.4 · <a href="assets/original/2401.15077v3.pdf#page=4">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Figure 6 : Pipeline of EAGLE. The upper section illustrates the computational process, while the lower section displays the corresponding generation results for each step. In the upper section, green blocks represent token embeddings, orange blocks represent features, red boxes indicate the predictions of the draft model, and blue modules with snowflake icons represent the use of target LLM parameters, which are not subject to training.</p></details></figure>
+
+**Figure 6 阅读顺序。** 先看左上 draft：绿色 embedding、橙色 feature、红框可训练预测；雪花蓝模块是冻结 target 参数。再看下方树从 root 扩展；最后看右侧 target 一次 tree forward，并把接受分支的真实 feature 回传。
+
+**组件与数据流。** draft 的 decoder 也可通过 tree mask 在同一深度处理多个分支；target 用共享前缀 + 树 ancestry 验证这些 token。两者都有 mask，但 cache、参数和计算成本独立。图中的 **10 个节点、3 次 draft forward 是讲解例子**；论文附录实验为 5 次 draft forward，不能从图推断实际默认预算。
+
+<section class="mechanism" id="tree-widget"><p class="reading-meta">AGENT-CREATED VISUALIZATION · ANALYTICAL, NOT BENCHMARK</p><h3>选一条分支，看哪些节点可见</h3><div class="controls"><label>选择 query 节点<select id="tree-node"><option value="0">0 · I</option><option value="1">1 · am</option><option value="2">2 · always</option><option value="3">3 · ready</option><option value="4">4 · excited</option><option value="5">5 · learning</option><option value="6">6 · today</option></select></label><label>已提交 prefix tokens<input id="tree-prefix" type="range" min="0" max="128" step="1" value="8"><output id="tree-prefix-out"></output></label></div><div class="svg-scroll" tabindex="0" role="region" aria-label="候选树、当前祖先与 attention row；可横向滚动"><svg id="tree-svg" viewBox="0 0 640 355" role="img" aria-label="候选树、当前祖先与 attention row"></svg></div><div class="actions"><button id="tree-step" type="button">Next branch</button><button id="tree-reset" type="button">Reset</button></div><div class="readout" id="tree-widget-readout" aria-live="polite"></div><p class="hint">示例树仅 7 节点；positions=prefix+depth。浅色是可见祖先，橙色是 query；非真实模型 logits。</p><noscript><p>节点6的祖先是[0,1,3,6]；depth=3，prefix=8时position=11。sibling 2/4/5 不可见。</p></noscript></section>
+
+**Code 重建。** v1 `choices.py` 的 `mc_sim_7b_63` 名字含 63，列表实际只有 **25 个非 root 节点**，分层数为 4/8/8/3/2；加 target 已采样 root anchor，verification packed 序列是 **26 个位置**。用数组长度与 maximum depth核对，不能靠变量名配置性能实验。
+
+## 3.2 Training：feature 回归与 soft target 分类
+
+<div class="formula" data-latex="\mathcal L_{\mathrm{reg}}=\operatorname{SmoothL1}(f_{i+1},\operatorname{Draft}(T_{2:i+1},F_{1:i}))"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">r</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">g</mi></mrow></mrow></msub><mo>&#x0003D;</mo><mo /><mrow><mi>S</mi><mi>m</mi><mi>o</mi><mi>o</mi><mi>t</mi><mi>h</mi><mi>L</mi><mn>1</mn></mrow><mo stretchy="false">&#x00028;</mo><msub><mi>f</mi><mrow><mi>i</mi><mo>&#x0002B;</mo><mn>1</mn></mrow></msub><mo>&#x0002C;</mo><mo>Draft</mo><mo stretchy="false">&#x00028;</mo><msub><mi>T</mi><mrow><mn>2</mn><mi>:</mi><mi>i</mi><mo>&#x0002B;</mo><mn>1</mn></mrow></msub><mo>&#x0002C;</mo><msub><mi>F</mi><mrow><mn>1</mn><mi>:</mi><mi>i</mi></mrow></msub><mo stretchy="false">&#x00029;</mo><mo stretchy="false">&#x00029;</mo></mrow></math><p class="equation-number">Paper · feature regression · 原文无编号</p><details><summary>LaTeX source</summary><code>\mathcal L_{\mathrm{reg}}=\operatorname{SmoothL1}(f_{i+1},\operatorname{Draft}(T_{2:i+1},F_{1:i}))</code></details></div>
+
+`F_(1:i)`、`T_(2:i+1)` 是上述 B×i×D 与 B×i；draft 输出对齐 `f_(i+1)`。Smooth L1 按 feature 维度计算：小误差用二次项，大误差用线性项，降低异常误差的影响。其 reduction、beta 和 feature norm 会改变尺度，复现应核对实现，不能仅记录 loss 名称。
+
+<div class="formula" data-latex="p_{i+2}=\operatorname{Softmax}(Wf_{i+1}),\quad q_{i+2}=\operatorname{Softmax}(W\hat f_{i+1})\\ \mathcal L_{\mathrm{cls}}=-\sum_{v=1}^{V}p_{i+2}(v)\log q_{i+2}(v)"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>p</mi><mrow><mi>i</mi><mo>&#x0002B;</mo><mn>2</mn></mrow></msub><mo>&#x0003D;</mo><mo>Softmax</mo><mo stretchy="false">&#x00028;</mo><mi>W</mi><msub><mi>f</mi><mrow><mi>i</mi><mo>&#x0002B;</mo><mn>1</mn></mrow></msub><mo stretchy="false">&#x00029;</mo><mo>&#x0002C;</mo><mspace width="1em" /><msub><mi>q</mi><mrow><mi>i</mi><mo>&#x0002B;</mo><mn>2</mn></mrow></msub><mo>&#x0003D;</mo><mo>Softmax</mo><mo stretchy="false">&#x00028;</mo><mi>W</mi><msub><mover accent="true"><mi>f</mi><mo>&#x0005E;</mo></mover><mrow><mi>i</mi><mo>&#x0002B;</mo><mn>1</mn></mrow></msub><mo stretchy="false">&#x00029;</mo></mrow></math><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">s</mi></mrow></mrow></msub><mo>&#x0003D;</mo><mo>&#x02212;</mo><munderover><mo>&#x02211;</mo><mrow><mi>v</mi><mo>&#x0003D;</mo><mn>1</mn></mrow><mrow><mi>V</mi></mrow></munderover><msub><mi>p</mi><mrow><mi>i</mi><mo>&#x0002B;</mo><mn>2</mn></mrow></msub><mo stretchy="false">&#x00028;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo><mi>log</mi><msub><mi>q</mi><mrow><mi>i</mi><mo>&#x0002B;</mo><mn>2</mn></mrow></msub><mo stretchy="false">&#x00028;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo></mrow></math><p class="equation-number">Paper · soft classification; q denotes original hat-p · 原文无编号</p><details><summary>LaTeX source</summary><code>p_{i+2}=\operatorname{Softmax}(Wf_{i+1}),\quad q_{i+2}=\operatorname{Softmax}(W\hat f_{i+1})\\ \mathcal L_{\mathrm{cls}}=-\sum_{v=1}^{V}p_{i+2}(v)\log q_{i+2}(v)</code></details></div>
+
+这里的 `p_(i+2)` 与 `q_(i+2)` 都是 B×V 分布。soft Cross Entropy 是 `−Σ p(v) log q(v)`，目标是 target 的整个词表分布，**不是下一个 ground-truth token 的 hard-label CE**。target 分布固定时，最小化该项等价于最小化 forward KL（差一个常数熵）。head 参数冻结，梯度仍可通过 head 传到 draft feature。
+
+<div class="formula" data-latex="\mathcal L=\mathcal L_{\mathrm{reg}}+0.1\mathcal L_{\mathrm{cls}}"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi mathvariant="script">L</mi><mo>&#x0003D;</mo><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">r</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">g</mi></mrow></mrow></msub><mo>&#x0002B;</mo><mn>0.1</mn><msub><mi mathvariant="script">L</mi><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">s</mi></mrow></mrow></msub></mrow></math><p class="equation-number">Paper · combined objective · 原文无编号</p><details><summary>LaTeX source</summary><code>\mathcal L=\mathcal L_{\mathrm{reg}}+0.1\mathcal L_{\mathrm{cls}}</code></details></div>
+
+作者设置 0.1，因为分类 loss 数值通常大一个量级；这个权重是经验平衡，不能解释成严格优化最终 acceptance。相同 feature MSE 也可能对应不同 head/logit 偏差：`Δlogits=WΔf`，对 head 敏感方向的小 feature 误差可能改变候选排名。
+
+**训练链路。** 固定 target → ShareGPT forward 采集对齐 feature/token → shift 与 loss mask → 给 feature 加噪 → FC + decoder → frozen head → 两项 loss → 只更新 draft。生成阶段输入会包含自己预测的不精确 feature，噪声增强帮助处理这种偏移，但训练时噪声不完全等于真实 rollout 错误。
+
+**Paper 与 Code 的差异。** 论文写 `U(−0.1,0.1)`。固定 v1 `train.py` 的噪声 half-range 是 `0.1×512/S`，S=2048 时变成 ±0.025；当前文件使用 BF16、max length 2048、batch 4、20 epochs。这些是该源码设置，不能倒填成所有论文实验的统一精度和训练配置。
+
+## 3.3 Verification：精确性到底来自哪里
+
+target 对候选树一次 forward，必须让每个节点只看到已提交 prefix、自身及祖先。RoPE position 按 **prefix position + depth** 编号；packed index 只是内存位置，不是分支语义位置。若节点能看 sibling 或位置取错，获得的 `p` 就不是原 target 在该路径上的条件分布。
+
+<div class="formula" data-latex="x\sim q,\quad a(x)=\min(1,p(x)/q(x))"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>x</mi><mi>&#x0007E;</mi><mi>q</mi><mo>&#x0002C;</mo><mspace width="1em" /><mi>a</mi><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0003D;</mo><mo>min</mo><mo stretchy="false">&#x00028;</mo><mn>1</mn><mo>&#x0002C;</mo><mi>p</mi><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0002F;</mo><mi>q</mi><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo stretchy="false">&#x00029;</mo><mo stretchy="false">&#x00029;</mo></mrow></math><p class="equation-number">Paper · acceptance probability · 原文无编号</p><details><summary>LaTeX source</summary><code>x\sim q,\quad a(x)=\min(1,p(x)/q(x))</code></details></div>
+
+`p(v)` 是 target 分布，`q(v)` 是当前 proposal 分布，`x~q`；接受概率 `a(x)` 是 scalar。接受后落在 token v 的无条件概率质量是 `min(p(v),q(v))`。
+
+<div class="formula" data-latex="r(v)=\frac{[p(v)-q(v)]_+}{\sum_{u=1}^{V}[p(u)-q(u)]_+}\\ \Pr(\mathrm{output}=v)=\min(p(v),q(v))+(1-\sum_u\min(p(u),q(u)))r(v)=p(v)"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>r</mi><mo stretchy="false">&#x00028;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0003D;</mo><mfrac><mrow><mo stretchy="false">[</mo><mi>p</mi><mo stretchy="false">&#x00028;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo><mo>&#x02212;</mo><mi>q</mi><mo stretchy="false">&#x00028;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo><msub><mo stretchy="false">]</mo><mo>&#x0002B;</mo></msub></mrow><mrow><msubsup><mo>&#x02211;</mo><mrow><mi>u</mi><mo>&#x0003D;</mo><mn>1</mn></mrow><mrow><mi>V</mi></mrow></msubsup><mo stretchy="false">[</mo><mi>p</mi><mo stretchy="false">&#x00028;</mo><mi>u</mi><mo stretchy="false">&#x00029;</mo><mo>&#x02212;</mo><mi>q</mi><mo stretchy="false">&#x00028;</mo><mi>u</mi><mo stretchy="false">&#x00029;</mo><msub><mo stretchy="false">]</mo><mo>&#x0002B;</mo></msub></mrow></mfrac></mrow></math><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo movablelimits="true">Pr</mo><mo stretchy="false">&#x00028;</mo><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">t</mi></mrow><mo>&#x0003D;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0003D;</mo><mo>min</mo><mo stretchy="false">&#x00028;</mo><mi>p</mi><mo stretchy="false">&#x00028;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0002C;</mo><mi>q</mi><mo stretchy="false">&#x00028;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo><mo stretchy="false">&#x00029;</mo><mo>&#x0002B;</mo><mo stretchy="false">&#x00028;</mo><mn>1</mn><mo>&#x02212;</mo><munder><mo>&#x02211;</mo><mi>u</mi></munder><mo>min</mo><mo stretchy="false">&#x00028;</mo><mi>p</mi><mo stretchy="false">&#x00028;</mo><mi>u</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0002C;</mo><mi>q</mi><mo stretchy="false">&#x00028;</mo><mi>u</mi><mo stretchy="false">&#x00029;</mo><mo stretchy="false">&#x00029;</mo><mo stretchy="false">&#x00029;</mo><mi>r</mi><mo stretchy="false">&#x00028;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo><mo>&#x0003D;</mo><mi>p</mi><mo stretchy="false">&#x00028;</mo><mi>v</mi><mo stretchy="false">&#x00029;</mo></mrow></math><p class="equation-number">Paper residual + Interpretation mass proof · 原文无编号</p><details><summary>LaTeX source</summary><code>r(v)=\frac{[p(v)-q(v)]_+}{\sum_{u=1}^{V}[p(u)-q(u)]_+}\\ \Pr(\mathrm{output}=v)=\min(p(v),q(v))+(1-\sum_u\min(p(u),q(u)))r(v)=p(v)</code></details></div>
+
+残差是 **V 维向量**，`[·]+` 逐元素截到非负，分母是其总质量。接受质量和“拒绝概率 × residual”之和恰好等于 `p(v)`。p=q 时全接受，残差零质量不需要采样；q 在 p 的零概率区有质量时必须拒绝。T=0 使用 greedy 校验路径，不能直接将一个不存在的 q 支持比值当实现。
+
+<section class="mechanism" id="mass-widget"><p class="reading-meta">AGENT-CREATED VISUALIZATION · ANALYTICAL, NOT BENCHMARK</p><h3>移动 proposal，看拒绝质量如何补回 target</h3><div class="controls"><label>Target/proposal examples<select id="mass-preset"><option value="toy">p=.6/.3/.1</option><option value="equal">p=q</option><option value="disjoint">disjoint support</option></select></label><label>proposal q(A)<input id="mass-q0" type="range" min="0" max="1" step="0.01" value="0.2"><output id="mass-q0-out"></output></label><label>剩余 proposal 中 B 的比例<input id="mass-q1" type="range" min="0" max="1" step="0.01" value="0.625"><output id="mass-q1-out"></output></label></div><div class="svg-scroll" tabindex="0" role="region" aria-label="target、proposal、接受质量与补回质量；可横向滚动"><svg id="mass-svg" viewBox="0 0 640 300" role="img" aria-label="target、proposal、接受质量与补回质量"></svg></div><div class="readout" id="mass-widget-readout" aria-live="polite"></div><p class="hint">每行三个 token A/B/C；qB=(1−qA)×比例。展示全分布的解析质量，不产生虚拟模型测量。</p><noscript><p>p=[.6,.3,.1]、q=[.2,.5,.3]；接受=.6，拒绝=.4，residual=[1,0,0]；最终输出=p。</p></noscript></section>
+
+**Toy example。** p=[0.6,0.3,0.1]、q=[0.2,0.5,0.3]，接受质量 [0.2,0.3,0.1] 总计 0.6；拒绝总概率 0.4，残差 [1,0,0]。补回 [0.4,0,0] 后正好重建 p。feature 不准确只会降低接受与速度，正确 sampler 仍保障 target 分布。
+
+<figure class="generated-figure"><div class="svg-scroll" tabindex="0" role="region" aria-label="验证、提交与下一轮反馈；可横向滚动"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 468" role="img" aria-label="验证、提交与下一轮反馈"><title>验证、提交与下一轮反馈</title><rect width="720" height="468" rx="8" fill="#101823"/><text x="24" y="30" fill="#dbe6f4" font-size="16">验证、提交与下一轮反馈</text><path d="M40 97v58m-5 -5l5 5 5 -5" stroke="#779dcc" fill="none"/><circle cx="40" cy="80" r="15" fill="#274664"/><text x="40" y="85" fill="#e8f2ff" text-anchor="middle" font-size="14">1</text><text x="70" y="67" fill="#e3bd80" font-size="12">起点</text><text x="70" y="93" fill="#dbe6f4" font-size="16">committed prefix + sampled anchor</text><text x="70" y="121" fill="#a8bdd6" font-size="13">draft token tree + conditional q</text><line x1="70" x2="695" y1="139" y2="139" stroke="#293a50"/><path d="M40 199v58m-5 -5l5 5 5 -5" stroke="#779dcc" fill="none"/><circle cx="40" cy="182" r="15" fill="#274664"/><text x="40" y="187" fill="#e8f2ff" text-anchor="middle" font-size="14">2</text><text x="70" y="169" fill="#e3bd80" font-size="12">真实分布</text><text x="70" y="195" fill="#dbe6f4" font-size="16">target ancestor mask + depth positions</text><text x="70" y="223" fill="#a8bdd6" font-size="13">一次 forward 得各候选 p</text><line x1="70" x2="695" y1="241" y2="241" stroke="#293a50"/><path d="M40 301v58m-5 -5l5 5 5 -5" stroke="#779dcc" fill="none"/><circle cx="40" cy="284" r="15" fill="#274664"/><text x="40" y="289" fill="#e8f2ff" text-anchor="middle" font-size="14">3</text><text x="70" y="271" fill="#e3bd80" font-size="12">概率校正</text><text x="70" y="297" fill="#dbe6f4" font-size="16">accept min(1,p/q)；reject [p−q]+</text><text x="70" y="325" fill="#a8bdd6" font-size="13">只保留接受分支的真实 features / KV</text><line x1="70" x2="695" y1="343" y2="343" stroke="#293a50"/><circle cx="40" cy="386" r="15" fill="#274664"/><text x="40" y="391" fill="#e8f2ff" text-anchor="middle" font-size="14">4</text><text x="70" y="373" fill="#e3bd80" font-size="12">下一轮</text><text x="70" y="399" fill="#dbe6f4" font-size="16">fallback token 作为 anchor</text><text x="70" y="427" fill="#a8bdd6" font-size="13">处理后补齐 feature；siblings 不提交</text><line x1="70" x2="695" y1="445" y2="445" stroke="#293a50"/></svg></div><figcaption>Agent-created / Simplified Diagram · <a href="assets/generated/verification.mmd">Mermaid source</a> · <a href="assets/generated/verification.svg">SVG</a></figcaption></figure>
+
+**KV / feature 提交。** target 验证时的树 KV 是临时分支状态；只把接受路径 gather／copy 到连续 prefix，discard sibling。真实 feature 同样只保留接受路径，防止下一轮用错分支。拒绝后的 fallback token 刚采样时没有自身的 target feature；下一轮 target 处理这个 anchor 才补齐它。异步实现必须约束 verify 完成、gather 完成、长度更新、draft 读取的依赖顺序。
+
+```python
+# Interpretation: exact verifier skeleton, not production implementation.
+while not done:
+    tree = draft(prefix_features, sampled_anchor)
+    p, target_features, tmp_kv = target(tree, ancestor_mask, depth_positions)
+    path, fallback = exact_verify(tree, p, conditional_proposals)
+    commit_tokens_features_kv(path)   # siblings are not committed
+    sampled_anchor = fallback        # feature arrives when target evaluates it
+```
+
+**精确性边界。** 温度、top-k/top-p、repetition penalty、禁用 token、停止条件必须在 draft proposal 与 target 分布中一致记录；`q_i` 是实际产生候选的分布。固定 v1 `utils.py` 末端 non-greedy 未调整分支对 `sample_p` 使用 raw Softmax，值得对 logit processors 做一致性测试。这是源码审查的待验证点，本文没有运行模型或宣称已观测分布偏差。
+
+## 4. Experiments：设置、指标与公平性审计
+
+| 项目 | 论文明确报告 | 未充分给出的内容 |
+|---|---|---|
+| Models | Vicuna 7/13/33B；LLaMA2-Chat 7/13/70B；Mixtral 8×7B Instruct | 每表完整软件版本、TP layout、kernel 配置 |
+| Tasks | MT-Bench、HumanEval、GSM8K、Alpaca | 所有请求长度、输出长度与逐项原始 timing |
+| Batch | 大多数 batch=1；§4.4 额外测试 | continuous batching、在线 scheduler 及 P99 |
+| Training data | 68,000 ShareGPT dialogue iterations；处理暴露 2–4B tokens | unique token 数、所有 data filter 与重复度 |
+| Optimizer | AdamW，LR 3e−5，β=(0.9,0.95)，clip=0.5 | 所有模型的统一训练日志与 variance |
+| Trainable parameters | 7/13/33/70B 对应 0.24/0.37/0.56/0.99B；Mixtral 0.28B | residency、optimizer peak 及完整进程峰值 |
+| Hardware | 70B draft 约 4×A100 40GB、1–2 天；3090 gpt-fast 对比 | 每个结果完全对应的设备、时钟、稳态功耗 |
+| Metrics | walltime speedup、τ、chain 测得 n-α | TTFT、TPOT 分位、任务 pass@1 或准确率实测 |
+
+τ 是每 target forward 接受／推进的平均 token 数；应复核 root 与 bonus 的具体计数约定。α 使用 **chain draft** 测，树上某位置有多个候选只接受一个，不能直接用“所有树节点接受数 / 总节点数”当同一个 α。`n-α` 统计已有 n 个预测 feature 可能不精确时的接受，不是 TP/FP 分类指标。
+
+作者说理论保持分布，所以评估生成质量 “unnecessary and meaningless”。**Interpretation：** 数学理想算法可以这样论证；真实 FP16/BF16、量化 target、不同 attention kernel、sampling processor、cache 管理仍需要质量与一致性验证。未给任务 Accuracy / F1 / pass@1，就不能补造。对于 exact sampling，更适合验证分布与随机／greedy 路径；任务分数再作为部署回归。
+
+## 4.1 Effectiveness：主结果及其范围
+
+<div class="table-scroll original-table" id="table-1" tabindex="0" role="region" aria-label="Table 1 全部原始数据；横向滚动"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<th class="ltx_td ltx_th ltx_th_column ltx_border_tt"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="2">HumanEval</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="2">GSM8K</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="2">Alpaca</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_t"></td>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Model</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Speedup</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><math alttext="\tau" class="ltx_Math" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Speedup</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><math alttext="\tau" class="ltx_Math" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Speedup</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><math alttext="\tau" class="ltx_Math" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="6"><span class="ltx_text">T=0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">V 7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.33x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">4.29</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.01x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">4.00</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.79x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.86</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">V13B</td>
+<td class="ltx_td ltx_align_center">3.58x</td>
+<td class="ltx_td ltx_align_center">4.39</td>
+<td class="ltx_td ltx_align_center">3.08x</td>
+<td class="ltx_td ltx_align_center">3.97</td>
+<td class="ltx_td ltx_align_center">3.03x</td>
+<td class="ltx_td ltx_align_center">3.95</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">V 33B</td>
+<td class="ltx_td ltx_align_center">3.67x</td>
+<td class="ltx_td ltx_align_center">4.28</td>
+<td class="ltx_td ltx_align_center">3.25x</td>
+<td class="ltx_td ltx_align_center">3.94</td>
+<td class="ltx_td ltx_align_center">2.97x</td>
+<td class="ltx_td ltx_align_center">3.61</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LC 7B</td>
+<td class="ltx_td ltx_align_center">3.17x</td>
+<td class="ltx_td ltx_align_center">4.24</td>
+<td class="ltx_td ltx_align_center">2.91x</td>
+<td class="ltx_td ltx_align_center">3.82</td>
+<td class="ltx_td ltx_align_center">2.78x</td>
+<td class="ltx_td ltx_align_center">3.71</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LC 13B</td>
+<td class="ltx_td ltx_align_center">3.76x</td>
+<td class="ltx_td ltx_align_center">4.52</td>
+<td class="ltx_td ltx_align_center">3.20x</td>
+<td class="ltx_td ltx_align_center">4.03</td>
+<td class="ltx_td ltx_align_center">3.01x</td>
+<td class="ltx_td ltx_align_center">3.83</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LC 70B</td>
+<td class="ltx_td ltx_align_center">3.52x</td>
+<td class="ltx_td ltx_align_center">4.42</td>
+<td class="ltx_td ltx_align_center">3.03x</td>
+<td class="ltx_td ltx_align_center">3.93</td>
+<td class="ltx_td ltx_align_center">2.97x</td>
+<td class="ltx_td ltx_align_center">3.77</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" rowspan="6"><span class="ltx_text">T=1</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">V 7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.39x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.43</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.34x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.29</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.21x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.30</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">V13B</td>
+<td class="ltx_td ltx_align_center">2.65x</td>
+<td class="ltx_td ltx_align_center">3.63</td>
+<td class="ltx_td ltx_align_center">2.57x</td>
+<td class="ltx_td ltx_align_center">3.60</td>
+<td class="ltx_td ltx_align_center">2.45x</td>
+<td class="ltx_td ltx_align_center">3.57</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">V 33B</td>
+<td class="ltx_td ltx_align_center">2.76x</td>
+<td class="ltx_td ltx_align_center">3.62</td>
+<td class="ltx_td ltx_align_center">2.77x</td>
+<td class="ltx_td ltx_align_center">3.60</td>
+<td class="ltx_td ltx_align_center">2.52x</td>
+<td class="ltx_td ltx_align_center">3.32</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LC 7B</td>
+<td class="ltx_td ltx_align_center">2.61x</td>
+<td class="ltx_td ltx_align_center">3.79</td>
+<td class="ltx_td ltx_align_center">2.40x</td>
+<td class="ltx_td ltx_align_center">3.52</td>
+<td class="ltx_td ltx_align_center">2.29x</td>
+<td class="ltx_td ltx_align_center">3.33</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LC 13B</td>
+<td class="ltx_td ltx_align_center">2.89x</td>
+<td class="ltx_td ltx_align_center">3.78</td>
+<td class="ltx_td ltx_align_center">2.82x</td>
+<td class="ltx_td ltx_align_center">3.67</td>
+<td class="ltx_td ltx_align_center">2.66x</td>
+<td class="ltx_td ltx_align_center">3.55</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">LC 70B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">2.92x</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.76</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">2.74x</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.58</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">2.65x</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.47</td></tr>
+</tbody>
+</table></div><details><summary>Table 1 原 PDF 完整排版（粗体、标题与脚注）</summary><figure id="pdf-table-1" class="original-figure"><button type="button" data-zoom="assets/original/table-01.png" aria-label="放大 Table 1"><img src="assets/original/table-01.png" alt="Table 1: Table 1 : Speedup ratio and average acceptance length τ \tau on HumanEval, GSM8K, and Alpaca. T denotes temperature, V represents Vicuna, and LC stands for LLaMA2-Chat." loading="lazy"></button><figcaption>Table 1 · Original Paper v3 · PDF p.6 · <a href="assets/original/2401.15077v3.pdf#page=6">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Table 1 : Speedup ratio and average acceptance length τ \tau on HumanEval, GSM8K, and Alpaca. T denotes temperature, V represents Vicuna, and LC stands for LLaMA2-Chat.</p></details></figure></details>
+
+**Table 1。** 完整比较六个模型、三任务、T=0 与 T=1 的 speedup 和 τ，向上更好。LLaMA2-Chat 70B 在 T=0 的 HumanEval/GSM8K/Alpaca 为 3.52/3.03/2.97×，τ=4.42/3.93/3.77；T=1 为 2.92/2.74/2.65×。最高 3.76× 是 LLaMA2-Chat 13B / HumanEval / T=0。代码模板可预测是作者解释；没有按模板密度干预的因果实验。
+
+**Fairness。** 传统 speculative 对 draft length 2–10 搜索最优；DistillSpec 用同 ShareGPT 数据并选 forward KL。这样部分控制了数据及长度，却没有控制所有模型训练历史、优化程度、硬件与 kernel。Medusa、Lookahead 的部分图值为引用，不能据此建立严格统一的排行榜。
+
+<div class="table-scroll original-table" id="table-2" tabindex="0" role="region" aria-label="Table 2 全部原始数据；横向滚动"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Model</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="\tau" class="ltx_Math" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="0\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>0</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">0\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="1\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>1</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">1\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="2\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">2\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="3\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>3</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">3\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="4\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>4</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">4\text{-}\alpha</annotation></semantics></math></th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="6"><span class="ltx_text">T=0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Vicuna 7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.94</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.79</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.74</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.72</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.73</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.67</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna 13B</td>
+<td class="ltx_td ltx_align_center">3.98</td>
+<td class="ltx_td ltx_align_center">0.79</td>
+<td class="ltx_td ltx_align_center">0.74</td>
+<td class="ltx_td ltx_align_center">0.72</td>
+<td class="ltx_td ltx_align_center">0.74</td>
+<td class="ltx_td ltx_align_center">0.70</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna 33B</td>
+<td class="ltx_td ltx_align_center">3.68</td>
+<td class="ltx_td ltx_align_center">0.74</td>
+<td class="ltx_td ltx_align_center">0.69</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.66</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 7B</td>
+<td class="ltx_td ltx_align_center">3.62</td>
+<td class="ltx_td ltx_align_center">0.76</td>
+<td class="ltx_td ltx_align_center">0.69</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.68</td>
+<td class="ltx_td ltx_align_center">0.68</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 13B</td>
+<td class="ltx_td ltx_align_center">3.90</td>
+<td class="ltx_td ltx_align_center">0.77</td>
+<td class="ltx_td ltx_align_center">0.69</td>
+<td class="ltx_td ltx_align_center">0.69</td>
+<td class="ltx_td ltx_align_center">0.70</td>
+<td class="ltx_td ltx_align_center">0.71</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 70B</td>
+<td class="ltx_td ltx_align_center">3.81</td>
+<td class="ltx_td ltx_align_center">0.75</td>
+<td class="ltx_td ltx_align_center">0.69</td>
+<td class="ltx_td ltx_align_center">0.65</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.64</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" rowspan="6"><span class="ltx_text">T=1</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Vicuna 7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.17</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.71</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.68</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.66</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.66</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.65</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna 13B</td>
+<td class="ltx_td ltx_align_center">3.20</td>
+<td class="ltx_td ltx_align_center">0.73</td>
+<td class="ltx_td ltx_align_center">0.68</td>
+<td class="ltx_td ltx_align_center">0.68</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.69</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna 33B</td>
+<td class="ltx_td ltx_align_center">3.22</td>
+<td class="ltx_td ltx_align_center">0.71</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.64</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 7B</td>
+<td class="ltx_td ltx_align_center">3.30</td>
+<td class="ltx_td ltx_align_center">0.71</td>
+<td class="ltx_td ltx_align_center">0.66</td>
+<td class="ltx_td ltx_align_center">0.66</td>
+<td class="ltx_td ltx_align_center">0.66</td>
+<td class="ltx_td ltx_align_center">0.64</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 13B</td>
+<td class="ltx_td ltx_align_center">3.45</td>
+<td class="ltx_td ltx_align_center">0.73</td>
+<td class="ltx_td ltx_align_center">0.69</td>
+<td class="ltx_td ltx_align_center">0.66</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.67</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">LLaMA2-Chat 70B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.46</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.73</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.67</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.64</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.66</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.65</td></tr>
+</tbody>
+</table></div><details><summary>Table 2 原 PDF 完整排版（粗体、标题与脚注）</summary><figure id="pdf-table-2" class="original-figure"><button type="button" data-zoom="assets/original/table-02.png" aria-label="放大 Table 2"><img src="assets/original/table-02.png" alt="Table 2: Table 2 : Average acceptance length τ \tau and acceptance rate α \alpha on MT-bench. T denotes temperature." loading="lazy"></button><figcaption>Table 2 · Original Paper v3 · PDF p.6 · <a href="assets/original/2401.15077v3.pdf#page=6">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Table 2 : Average acceptance length τ \tau and acceptance rate α \alpha on MT-bench. T denotes temperature.</p></details></figure></details>
+
+**Table 2。** τ 是 tree drafting，n-α 是 chain drafting，分开阅读。Vicuna 7B / T=0 τ=3.94，0–4 α 为 .79/.74/.72/.73/.67；LLaMA2-Chat 70B τ=3.81，α=.75/.69/.65/.64/.64。误差累积总体降低 α，局部非单调不能解释成多预测一步会改善所有样本。正文一处把这里指到 Figure 2，正确证据是 Table 2。
+
+<div class="table-scroll original-table" id="table-3" tabindex="0" role="region" aria-label="Table 3 全部原始数据；横向滚动"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_tt">Speedup</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="\tau" class="ltx_Math" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="0\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>0</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">0\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="1\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>1</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">1\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="2\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">2\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="3\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>3</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">3\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="4\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>4</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">4\text{-}\alpha</annotation></semantics></math></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_t">1.50x</th>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">3.25</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">0.67</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">0.62</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">0.61</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">0.64</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">0.63</td></tr>
+</tbody>
+</table></div><details><summary>Table 3 原 PDF 完整排版（粗体、标题与脚注）</summary><figure id="pdf-table-3" class="original-figure"><button type="button" data-zoom="assets/original/table-03.png" aria-label="放大 Table 3"><img src="assets/original/table-03.png" alt="Table 3: Table 3 : Speedup ratio, average acceptance length τ \tau , and acceptance rate α \alpha on MT-bench at temperature=0. The target LLM is Mixtral 8x7B Instruct-v0.1." loading="lazy"></button><figcaption>Table 3 · Original Paper v3 · PDF p.6 · <a href="assets/original/2401.15077v3.pdf#page=6">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Table 3 : Speedup ratio, average acceptance length τ \tau , and acceptance rate α \alpha on MT-bench at temperature=0. The target LLM is Mixtral 8x7B Instruct-v0.1.</p></details></figure></details>
+
+**Table 3。** Mixtral 8×7B / MT-Bench / T=0 为 1.50×、τ=3.25、α=.67/.62/.61/.64/.63。它支持“可以应用于 MoE”，而非“MoE 与 dense 获益相同”。并行验证多分支时，各 token 的 top-2 expert 不一定一样，expert union 可超过 2；routing、dispatch、通信成本会增加，原文没有 per-expert breakdown 可用来证明原因。
+
+## 4.2 Case study: EAGLE + gpt-fast：量化与编译叠加
+
+<div class="table-scroll original-table" id="table-4" tabindex="0" role="region" aria-label="Table 4 全部原始数据；横向滚动"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Precision</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">FP16</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">int4</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">Vanilla (Huggingface)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">24.5 tokens/s</td>
+<td class="ltx_td ltx_align_center ltx_border_t">N/A</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">gpt-fast</td>
+<td class="ltx_td ltx_align_center">55.1 tokens/s</td>
+<td class="ltx_td ltx_align_center">106.9 tokens/s</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">EAGLE + gpt-fast</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">100.2 tokens/s</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">160.4 tokens/s</td></tr>
+</tbody>
+</table></div><details><summary>Table 4 原 PDF 完整排版（粗体、标题与脚注）</summary><figure id="pdf-table-4" class="original-figure"><button type="button" data-zoom="assets/original/table-04.png" aria-label="放大 Table 4"><img src="assets/original/table-04.png" alt="Table 4: Table 4 : Generation speed of EAGLE combined with gpt-fast, evaluated on MT-bench with LLaMA2-Chat 7B at temperature=0." loading="lazy"></button><figcaption>Table 4 · Original Paper v3 · PDF p.6 · <a href="assets/original/2401.15077v3.pdf#page=6">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Table 4 : Generation speed of EAGLE combined with gpt-fast, evaluated on MT-bench with LLaMA2-Chat 7B at temperature=0.</p></details></figure></details>
+
+**Table 4。** RTX 3090 / LLaMA2-Chat 7B / MT-Bench / T=0；单位 tokens/s，向上更好。HF FP16 24.5；gpt-fast FP16 55.1、INT4 106.9；EAGLE + gpt-fast FP16 100.2、INT4 160.4。公平增量应各自除以相同 gpt-fast baseline：**1.82× FP16、1.50× INT4**。160.4/24.5=6.55× 是量化、编译、EAGLE 的合并结果。
+
+从平均 generation TPS 可导出 token 间隔代理：FP16 18.15→9.98 ms，INT4 9.35→6.23 ms；这是倒数换算，**不是新的 TPOT 测量或分位数**。表中没有 TTFT；也没有证明所有 prefill、NPU 或高并发同样加速。正文 “Figure 4” 的此处引用实际应为 Table 4。
+
+### 成本模型：接受长不等于快
+
+<div class="formula" data-latex="S=\frac{\tau C_{\mathrm{AR}}}{C_{\mathrm{verify}}+mC_{\mathrm{draft}}+C_{\mathrm{other}}}=\frac{\tau}{r+md+c}"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>S</mi><mo>&#x0003D;</mo><mfrac><mrow><mi>&#x003C4;</mi><msub><mi>C</mi><mrow><mrow><mi mathvariant="normal">A</mi><mi mathvariant="normal">R</mi></mrow></mrow></msub></mrow><mrow><msub><mi>C</mi><mrow><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">y</mi></mrow></mrow></msub><mo>&#x0002B;</mo><mi>m</mi><msub><mi>C</mi><mrow><mrow><mi mathvariant="normal">d</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi></mrow></mrow></msub><mo>&#x0002B;</mo><msub><mi>C</mi><mrow><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">h</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi></mrow></mrow></msub></mrow></mfrac><mo>&#x0003D;</mo><mfrac><mrow><mi>&#x003C4;</mi></mrow><mrow><mi>r</mi><mo>&#x0002B;</mo><mi>m</mi><mi>d</mi><mo>&#x0002B;</mo><mi>c</mi></mrow></mfrac></mrow></math><p class="equation-number">Interpretation · steady-state cost model · 原文无编号</p><details><summary>LaTeX source</summary><code>S=\frac{\tau C_{\mathrm{AR}}}{C_{\mathrm{verify}}+mC_{\mathrm{draft}}+C_{\mathrm{other}}}=\frac{\tau}{r+md+c}</code></details></div>
+
+这里把 baseline 单 token decode 归一为 `C_AR=1`；r 是一次树 verification 相对成本，d 是一次 draft 相对成本，m 是串行 draft 深度，c 包含 sampling、tree 构造、mask、KV gather、同步等。`τ/(r+md+c)` 是稳态分析，不是假设 target 批量 forward 免费。
+
+draft 的 FC 每 token 约 `2D²` multiply-accumulate；decoder attention 在给定树节点数 N 下还受祖先长度影响；head 约 `DV`。dense target verification 线性层约随 N 增长，但权重可复用成更高效矩阵乘，因而耗时通常不等于 N 次 scalar decode。TP 时 embedding/head、attention、all-reduce 与 cache 搬运也要单独记录。
+
+KV 树暂存容量 `2BNL H_KV d_h b`，共享 prefix 为 `2BTL H_KV d_h b`；features 约 `BND b`。这些不含 allocator、logits `BNV`、workspace、draft 自己的 KV、unquantized layers 或 padding。不是 VmHWM / dma-buf 实测。INT4 target weights 也不代表 KV 变成 INT4。
+
+<section class="mechanism" id="cost-widget"><p class="reading-meta">AGENT-CREATED VISUALIZATION · ANALYTICAL, NOT BENCHMARK</p><h3>把论文速度与理想缓存分开计算</h3><div class="controls"><label>Table 4 same-engine baseline<select id="cost-mode"><option value="fp16">gpt-fast FP16</option><option value="int4">gpt-fast INT4</option></select></label><label>假设 τ<input id="cost-tau" type="range" min="1" max="8" step="0.1" value="4"><output id="cost-tau-out"></output></label><label>假设 verify / AR<input id="cost-verify" type="range" min="1" max="4" step="0.05" value="1.2"><output id="cost-verify-out"></output></label><label>单次 draft / AR<input id="cost-draft" type="range" min="0" max="0.5" step="0.01" value="0.08"><output id="cost-draft-out"></output></label><label>串行 draft 次数<input id="cost-steps" type="range" min="1" max="10" step="1" value="5"><output id="cost-steps-out"></output></label><label>其他成本 / AR<input id="cost-other" type="range" min="0" max="1" step="0.01" value="0.1"><output id="cost-other-out"></output></label><label>假设 KV heads<select id="kv-heads"><option value="32">32 · MHA</option><option value="8">8 · GQA</option><option value="1">1 · MQA</option></select></label><label>Context tokens<select id="kv-context"><option value="4096">4K</option><option value="8192">8K</option><option value="32768">32K</option></select></label><label>含 anchor 的 verification 节点<input id="kv-nodes" type="range" min="1" max="128" step="1" value="26"><output id="kv-nodes-out"></output></label></div><div class="svg-scroll" tabindex="0" role="region" aria-label="速度增量、归一成本与理想KV容量；可横向滚动"><svg id="cost-svg" viewBox="0 0 640 250" role="img" aria-label="速度增量、归一成本与理想KV容量"></svg></div><div class="readout" id="cost-widget-readout" aria-live="polite"></div><p class="hint">Table4行是作者实测；倒数与比值是推导。下方成本可调，不绑定硬件。缓存固定B=1/L=32/head_dim128/D4096/FP16；GB与GiB都显示，未计draft KV/logits/workspace。</p><noscript><p>Table4 FP16 55.1→100.2 TPS，增量1.82×；分析模型τ4/(1.2+5×.08+.1)=2.35×；默认prefix KV=2GiB，tree KV=13MiB。</p></noscript></section>
+
+## 4.3.1 Ablation：树的收益与代价
+
+<figure id="figure-7" class="original-figure"><button type="button" data-zoom="assets/original/figure-07.png" aria-label="放大 Figure 7"><img src="assets/original/figure-07.png" alt="Figure 7: Figure 7 : Speedup ratios of EAGLE with and without the use of tree attention. The evaluation dataset is MT-bench, with the temperature parameter set to 0." loading="lazy"></button><figcaption>Figure 7 · Original Paper v3 · PDF p.7 · <a href="assets/original/2401.15077v3.pdf#page=7">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Figure 7 : Speedup ratios of EAGLE with and without the use of tree attention. The evaluation dataset is MT-bench, with the temperature parameter set to 0.</p></details></figure>
+
+**Figure 7。** 先同模型对比 chain 与 tree，再跨模型；T=0 / MT-Bench。tree 扩展候选提高命中机会，图展示额外 walltime 收益。但多个候选也增加 head、验证 token、mask 与 KV gather 的成本，所以宽度不能无限加。
+
+<div class="table-scroll original-table" id="table-5" tabindex="0" role="region" aria-label="Table 5 全部原始数据；横向滚动"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3">Vicuna</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3">LLaMA2-Chat</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Size</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Chain</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Tree</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Size</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Chain</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Tree</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.20</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.94 (+0.74)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.00</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.62 (+0.62)</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">13B</td>
+<td class="ltx_td ltx_align_center">3.23</td>
+<td class="ltx_td ltx_align_center">3.98 (+0.75)</td>
+<td class="ltx_td ltx_align_center">13B</td>
+<td class="ltx_td ltx_align_center">3.18</td>
+<td class="ltx_td ltx_align_center">3.90 (+0.68)</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">33B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">2.97</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.68 (+0.71)</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">70B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.12</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.81 (+0.69)</td></tr>
+</tbody>
+</table></div><details><summary>Table 5 原 PDF 完整排版（粗体、标题与脚注）</summary><figure id="pdf-table-5" class="original-figure"><button type="button" data-zoom="assets/original/table-05.png" aria-label="放大 Table 5"><img src="assets/original/table-05.png" alt="Table 5: Table 5 : Average acceptance length τ \tau of EAGLE with and without the use of tree attention. The evaluation dataset is MT-bench, with the temperature parameter set to 0." loading="lazy"></button><figcaption>Table 5 · Original Paper v3 · PDF p.7 · <a href="assets/original/2401.15077v3.pdf#page=7">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Table 5 : Average acceptance length τ \tau of EAGLE with and without the use of tree attention. The evaluation dataset is MT-bench, with the temperature parameter set to 0.</p></details></figure></details>
+
+**Table 5。** τ 的完整 chain/tree 对照：Vicuna 7B 3.20→3.94（+0.74、+23.13%），LLaMA2-Chat 70B 3.12→3.81（+0.69、+22.12%）。这是接受长度的提升，不能直接当速度同比例提升；Figure 7 才是 walltime 证据。表没有 target 单次 verify 成本，因此不足以确定最优树预算。
+
+## 4.3.2 Ablation：shifted token 与误差反馈
+
+<figure id="figure-8" class="original-figure"><button type="button" data-zoom="assets/original/figure-08.png" aria-label="放大 Figure 8"><img src="assets/original/figure-08.png" alt="Figure 8: Figure 8 : Performance of draft models with varying inputs. The target LLM is Vicuna 7B, and the test dataset is MT-bench. Speed refers to the walltime speedup ratio, τ \tau denotes the average acceptance length, 0 ​ - ​ α 0\text{-}\alpha represents the acceptance rate with entirely precise inputs, 1 ​ - ​ α 1\text{-}\alpha indicates the acceptance rate when the input includes one imprecise feature, and T T refers to the temperature." loading="lazy"></button><figcaption>Figure 8 · Original Paper v3 · PDF p.8 · <a href="assets/original/2401.15077v3.pdf#page=8">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Figure 8 : Performance of draft models with varying inputs. The target LLM is Vicuna 7B, and the test dataset is MT-bench. Speed refers to the walltime speedup ratio, τ \tau denotes the average acceptance length, 0 ​ - ​ α 0\text{-}\alpha represents the acceptance rate with entirely precise inputs, 1 ​ - ​ α 1\text{-}\alpha indicates the acceptance rate when the input includes one imprecise feature, and T T refers to the temperature.</p></details></figure>
+
+**Figure 8 如何读。** 四类输入为 feature & shifted-token、feature & unshifted-token、token、feature；两排分别是 T=0 与 T=1。按同一列对齐 speed、τ、0-α、1-α。真实 feature 输入下的 0-α 与含预测 feature 的 1-α 之间差距，说明训练／推理输入分布偏移。看清各曲线和柱对应的颜色，不能把 0-α 当 rollout 全程接受率。
+
+**Interpretation。** feature 比 token 略好；feature & unshifted-token 的 0-α 与 feature-only 接近，1-α 更好，支持无误差离散 token 缓解 feature 误差累积；再把 token 提前一格，消除采样分支未知，收益最大。Figure 8 比较输入，没有分别移除 classification loss 或噪声，不能将其写成这两项的独立消融证据。
+
+## 4.3.3 Ablation：训练数据敏感性
+
+<div class="table-scroll original-table" id="table-6" tabindex="0" role="region" aria-label="Table 6 全部原始数据；横向滚动"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Training data</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Speedup</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="\tau" class="ltx_Math" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">Fixed dataset</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.78x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.62</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">Data generated by target LLM</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">2.88x</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.75</td></tr>
+</tbody>
+</table></div><details><summary>Table 6 原 PDF 完整排版（粗体、标题与脚注）</summary><figure id="pdf-table-6" class="original-figure"><button type="button" data-zoom="assets/original/table-06.png" aria-label="放大 Table 6"><img src="assets/original/table-06.png" alt="Table 6: Table 6 : The speedup ratios and average acceptance length τ \tau using different training datasets evaluated on the MT-bench, with the target LLM being LLaMA2-Chat 7B and the temperature set to 0. “Fixed dataset” refers to both questions and answers originating from the ShareGPT dataset. “Data generated by target LLM” denotes that while questions are sourced from the ShareGPT dataset, the answers are generated by the target LLM." loading="lazy"></button><figcaption>Table 6 · Original Paper v3 · PDF p.7 · <a href="assets/original/2401.15077v3.pdf#page=7">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Table 6 : The speedup ratios and average acceptance length τ \tau using different training datasets evaluated on the MT-bench, with the target LLM being LLaMA2-Chat 7B and the temperature set to 0. “Fixed dataset” refers to both questions and answers originating from the ShareGPT dataset. “Data generated by target LLM” denotes that while questions are sourced from the ShareGPT dataset, the answers are generated by the target LLM.</p></details></figure></details>
+
+**Table 6。** LLaMA2-Chat 7B / T=0 / MT-Bench，固定 ShareGPT 答案为 2.78×、τ=3.62；问题相同、target 生成答案为 2.88×、τ=3.75。绝对 +0.10 speedup unit / +0.13 token，相对均约 +3.6%。它支持这个设置中昂贵 target answer generation 的收益有限，不足以支持跨领域、跨模型、低资源、OCR 或长上下文都“不敏感”。
+
+## 4.4 Batching：延迟收益与容量收益
+
+<div class="table-scroll original-table" id="table-7" tabindex="0" role="region" aria-label="Table 7 全部原始数据；横向滚动"><table class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Batch size</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">1</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">2</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">3</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">4</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Throughput</th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">Vicuna 7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.90x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.87x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.65x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.76x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.97x</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">LLaMA2-Chat 70B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.01x</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">2.81x</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">2.50x</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">2.40x</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1.99x</td></tr>
+</tbody>
+</table></div><details><summary>Table 7 原 PDF 完整排版（粗体、标题与脚注）</summary><figure id="pdf-table-7" class="original-figure"><button type="button" data-zoom="assets/original/table-07.png" aria-label="放大 Table 7"><img src="assets/original/table-07.png" alt="Table 7: Table 7 : Speedup ratios at different batch sizes and throughput of EAGLE. The evaluation dataset is MT-bench, with the temperature parameter set to 0." loading="lazy"></button><figcaption>Table 7 · Original Paper v3 · PDF p.8 · <a href="assets/original/2401.15077v3.pdf#page=8">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Table 7 : Speedup ratios at different batch sizes and throughput of EAGLE. The evaluation dataset is MT-bench, with the temperature parameter set to 0.</p></details></figure></details>
+
+**Table 7。** batch=1/2/3/4：Vicuna 7B 为 2.90/2.87/2.65/2.76×；LLaMA2-Chat 70B 为 3.01/2.81/2.50/2.40×。高 batch 相对收益总体下降，因为 vanilla 已更好摊薄权重搬运成本；Vicuna 的小幅非单调不支持每次 batch 增长必然单调恶化。
+
+**Throughput audit。** 作者报告最大 throughput 1.97/1.99×，是在显存容量约束下比较：3090 24GB 的 Vicuna vanilla max batch=8、EAGLE=7；70B 在 4×A100 40GB vanilla=5、EAGLE=4。不是同 batch 下的每请求 decode speedup。高 batch=7 时还关闭 tree 以增 throughput；附录“全部相同树结构”应加这个例外。
+
+**需要的新增实验。** 相同 engine、请求长度、量化 target、continuous batching 下，测 TTFT/P50/P99 TPOT、draft/verify/head/gather/sync 分项、有效 output tokens/s、拒绝浪费节点、KV 峰值。端侧再分 CPU VmHWM 与 HTP ION/dma-buf，连续压测温升、频率及 mJ/token；本文没有该数据。
+
+## 5. Related Work：减少一次 forward，与减少 forward 次数
+
+原文把蒸馏、量化、剪枝、架构设计归为减少单次 forward 成本；speculative 方法则让一次 target forward 提交更多 token。早期 blockwise greedy 路线后来扩展为严格 non-greedy sampling。宽松接受、距离阈值等 lossy 路线可以进一步提速，但目标分布保证不同。
+
+draft 路线还包括 skip target layers 的 self-speculative、多个小模型并行的 SpecInfer、多级 cascade、online draft training、REST 检索、LLMA 从输入重叠片段取候选。Lookahead 使用 n-gram/Jacobi，Medusa 使用多预测头。Medusa-1 冻结 backbone，Medusa-2 联合训练改变 backbone；不同版本不能混成原 target 固定的同一对象。
+
+**Interpretation：成本迁移。** 0.24–0.99B trainable draft 比完整 7B 小，但并非免费：增加 checkpoint、feature capture、scheduler integration、cache 生命周期和训练数据生产。
+
+70B draft 用 4×A100 40GB 训练 1–2 天，可粗算 96–192 GPU-hours；这是区间算术，不是实际作业账单。训练 tokens、optimizer state、特征落盘 IO 与 target feature extraction 也要计入预算。多 target / 多版本维护意味着每个 target head、feature distribution 改变后都可能重新训练。
+
+**工程复杂度。** 业务层可以继续维持普通 token stream，但 native runner 必须实现树暂存、接受路径提交、fallback anchor 和结束状态；prefill/decode 分离时应统一首 token 与 logit processors，避免不同首 token 路径引入 logits 漂移。target 的抽样分布才是精确性参照，不能只比较文本长度。
+
+## 6. Conclusion：论文成立的部分与措辞修正
+
+EAGLE 的确提出了低成本、高接受 draft 的有效设计：用下一 token 明确采样分支，在 feature 层 autoregress，再复用 exact tree verification。dense、MoE、gpt-fast/INT4 与 batch 实验说明它具有一定组合性。
+
+**原文范围修正。** Conclusion 写 MT-Bench “2.1×–3.8×”；原图 Figure 1/2 的 MT-Bench 范围是 **2.13–3.07×**，接近 3.8× 的 **3.76× 来自 HumanEval**。因此本文保留原始证据，并以任务与温度分开报告，不照抄为统一 headline。
+
+## Appendix A.1：树布局与实现复核
+
+<figure id="figure-9" class="original-figure"><button type="button" data-zoom="assets/original/figure-09.png" aria-label="放大 Figure 9"><img src="assets/original/figure-09.png" alt="Figure 9: Figure 9 : Structure of EAGLE’s draft. The left side shows the draft structure when tree attention is employed, while the right side depicts the draft structure without the use of tree attention." loading="lazy"></button><figcaption>Figure 9 · Original Paper v3 · PDF p.12 · <a href="assets/original/2401.15077v3.pdf#page=12">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Figure 9 : Structure of EAGLE’s draft. The left side shows the draft structure when tree attention is employed, while the right side depicts the draft structure without the use of tree attention.</p></details></figure>
+
+**Figure 9。** 左图是 tree draft，右图 chain draft。阅读层次、每节点 parent，再对照哪些同深度节点可并行；左图的并行不表示 siblings 可以互相 attention。右图省去额外分支，但接受机会减少。图的节点选择用来解释配置，不应替代真实 `choices.py`。
+
+**实现核查清单。** 确认 shifted embedding 与 feature 的长度及 mask 同步；根据 ancestry 生成 mask；positions 用 depth；candidate proposal 概率对应 actual without-replacement sampling；target features 与 KV 使用同一路径索引；接受长度、EOS、max new tokens 不越界；异步采样与 cache copy 有正确生命周期。
+
+## Appendix A.2：多轮采样与原算法排印问题
+
+<figure id="algorithm-1" class="original-figure"><button type="button" data-zoom="assets/original/algorithm-01.png" aria-label="放大 Algorithm 1"><img src="assets/original/algorithm-01.png" alt="Algorithm 1: Algorithm 1 Multi-round speculative sampling" loading="lazy"></button><figcaption>Algorithm 1 · Original Paper v3 · PDF p.13 · <a href="assets/original/2401.15077v3.pdf#page=13">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Algorithm 1 Multi-round speculative sampling</p></details></figure>
+
+**原 Algorithm 1 的重要问题。** 图中拒绝后写 `p←norm(max(0,p(t_i)−q_i(t_i)))`，右侧是一个 scalar，不能正规化成全词表残差分布。正确形式是 **`p←normalize([p−q_i]+)`**，p 与 q_i 都为 V 维。本文保留完整原图，并明确标出修正；v1 `utils.py` 396–405 实际做 vector subtraction，支持此判断。
+
+**无放回不能用原 q 重复验证。** 一位置取多个候选时，后续 proposal 必须把之前候选的 support 置零，并除以剩余质量。例 q=[.2,.5,.3]，首个取到中间 token，则后续 q_2=[.4,0,.6]。按原 q 的 .2/.3 而不是条件 q 的 .4/.6 校验，会改变接受与残差。v1 `cnets.py` 708–724 和 `utils.py` 398–405 分别处理条件 proposal 与残差。
+
+算法保证是一层层递归应用精确校正；树越宽并不改变目标分布，但增加计算。条件分布支持耗尽或残差为零时，应停止该位置 proposal 并走正确的终止／fallback 逻辑，而非除零。
+
+## Appendix B：完整跨任务接受数据
+
+<div class="table-scroll original-table" id="table-8" tabindex="0" role="region" aria-label="Table 8 全部原始数据；横向滚动"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Dataset</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Model</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Speedup</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="\tau" class="ltx_Math" intent=":literal"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="0\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>0</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">0\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="1\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>1</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">1\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="2\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">2\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="3\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>3</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">3\text{-}\alpha</annotation></semantics></math></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math alttext="4\text{-}\alpha" class="ltx_Math" intent=":literal"><semantics><mrow><mn>4</mn><mo lspace="0em" rspace="0em">​</mo><mtext>-</mtext><mo lspace="0em" rspace="0em">​</mo><mi>α</mi></mrow><annotation encoding="application/x-tex">4\text{-}\alpha</annotation></semantics></math></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="6"><span class="ltx_text">HumanEval</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Vicuna 7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.33x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">4.29</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.82</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.77</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.72</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.69</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.71</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna13B</td>
+<td class="ltx_td ltx_align_center">3.58x</td>
+<td class="ltx_td ltx_align_center">4.39</td>
+<td class="ltx_td ltx_align_center">0.85</td>
+<td class="ltx_td ltx_align_center">0.78</td>
+<td class="ltx_td ltx_align_center">0.74</td>
+<td class="ltx_td ltx_align_center">0.72</td>
+<td class="ltx_td ltx_align_center">0.73</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna 33B</td>
+<td class="ltx_td ltx_align_center">3.67x</td>
+<td class="ltx_td ltx_align_center">4.28</td>
+<td class="ltx_td ltx_align_center">0.83</td>
+<td class="ltx_td ltx_align_center">0.77</td>
+<td class="ltx_td ltx_align_center">0.74</td>
+<td class="ltx_td ltx_align_center">0.70</td>
+<td class="ltx_td ltx_align_center">0.70</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 7B</td>
+<td class="ltx_td ltx_align_center">3.17x</td>
+<td class="ltx_td ltx_align_center">4.24</td>
+<td class="ltx_td ltx_align_center">0.81</td>
+<td class="ltx_td ltx_align_center">0.76</td>
+<td class="ltx_td ltx_align_center">0.73</td>
+<td class="ltx_td ltx_align_center">0.74</td>
+<td class="ltx_td ltx_align_center">0.72</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 13B</td>
+<td class="ltx_td ltx_align_center">3.76x</td>
+<td class="ltx_td ltx_align_center">4.52</td>
+<td class="ltx_td ltx_align_center">0.85</td>
+<td class="ltx_td ltx_align_center">0.80</td>
+<td class="ltx_td ltx_align_center">0.78</td>
+<td class="ltx_td ltx_align_center">0.76</td>
+<td class="ltx_td ltx_align_center">0.75</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 70B</td>
+<td class="ltx_td ltx_align_center">3.52x</td>
+<td class="ltx_td ltx_align_center">4.42</td>
+<td class="ltx_td ltx_align_center">0.84</td>
+<td class="ltx_td ltx_align_center">0.79</td>
+<td class="ltx_td ltx_align_center">0.75</td>
+<td class="ltx_td ltx_align_center">0.73</td>
+<td class="ltx_td ltx_align_center">0.74</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t" rowspan="6"><span class="ltx_text">GSM8K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Vicuna 7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.01x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">4.00</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.79</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.71</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.70</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.71</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.70</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna13B</td>
+<td class="ltx_td ltx_align_center">3.08x</td>
+<td class="ltx_td ltx_align_center">3.97</td>
+<td class="ltx_td ltx_align_center">0.79</td>
+<td class="ltx_td ltx_align_center">0.71</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.68</td>
+<td class="ltx_td ltx_align_center">0.64</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna 33B</td>
+<td class="ltx_td ltx_align_center">3.25x</td>
+<td class="ltx_td ltx_align_center">3.94</td>
+<td class="ltx_td ltx_align_center">0.79</td>
+<td class="ltx_td ltx_align_center">0.71</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.67</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 7B</td>
+<td class="ltx_td ltx_align_center">2.91x</td>
+<td class="ltx_td ltx_align_center">3.82</td>
+<td class="ltx_td ltx_align_center">0.75</td>
+<td class="ltx_td ltx_align_center">0.69</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.65</td>
+<td class="ltx_td ltx_align_center">0.63</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 13B</td>
+<td class="ltx_td ltx_align_center">3.20x</td>
+<td class="ltx_td ltx_align_center">4.03</td>
+<td class="ltx_td ltx_align_center">0.80</td>
+<td class="ltx_td ltx_align_center">0.70</td>
+<td class="ltx_td ltx_align_center">0.70</td>
+<td class="ltx_td ltx_align_center">0.68</td>
+<td class="ltx_td ltx_align_center">0.66</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 70B</td>
+<td class="ltx_td ltx_align_center">3.03x</td>
+<td class="ltx_td ltx_align_center">3.93</td>
+<td class="ltx_td ltx_align_center">0.77</td>
+<td class="ltx_td ltx_align_center">0.71</td>
+<td class="ltx_td ltx_align_center">0.66</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.60</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" rowspan="6"><span class="ltx_text">Alpaca</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Vicuna 7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.79x</td>
+<td class="ltx_td ltx_align_center ltx_border_t">3.86</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.74</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.68</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.66</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.66</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.67</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna13B</td>
+<td class="ltx_td ltx_align_center">3.03x</td>
+<td class="ltx_td ltx_align_center">3.95</td>
+<td class="ltx_td ltx_align_center">0.72</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.63</td>
+<td class="ltx_td ltx_align_center">0.64</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">Vicuna 33B</td>
+<td class="ltx_td ltx_align_center">2.97x</td>
+<td class="ltx_td ltx_align_center">3.61</td>
+<td class="ltx_td ltx_align_center">0.70</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.63</td>
+<td class="ltx_td ltx_align_center">0.64</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 7B</td>
+<td class="ltx_td ltx_align_center">2.78x</td>
+<td class="ltx_td ltx_align_center">3.71</td>
+<td class="ltx_td ltx_align_center">0.73</td>
+<td class="ltx_td ltx_align_center">0.66</td>
+<td class="ltx_td ltx_align_center">0.62</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.62</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LLaMA2-Chat 13B</td>
+<td class="ltx_td ltx_align_center">3.01x</td>
+<td class="ltx_td ltx_align_center">3.83</td>
+<td class="ltx_td ltx_align_center">0.75</td>
+<td class="ltx_td ltx_align_center">0.67</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_align_center">0.63</td>
+<td class="ltx_td ltx_align_center">0.63</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">LLaMA2-Chat 70B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">2.97x</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.77</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.76</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.68</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.65</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.61</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.62</td></tr>
+</tbody>
+</table></div><details><summary>Table 8 原 PDF 完整排版（粗体、标题与脚注）</summary><figure id="pdf-table-8" class="original-figure"><button type="button" data-zoom="assets/original/table-08.png" aria-label="放大 Table 8"><img src="assets/original/table-08.png" alt="Table 8: Table 8 : Speedup ratio, average acceptance length τ \tau and acceptance rate α \alpha on HumanEval, GSM8K, and Alpaca at temperature = 0." loading="lazy"></button><figcaption>Table 8 · Original Paper v3 · PDF p.13 · <a href="assets/original/2401.15077v3.pdf#page=13">原页</a> · Click to zoom</figcaption><details><summary>Original caption / 完整原文图注</summary><p>Table 8 : Speedup ratio, average acceptance length τ \tau and acceptance rate α \alpha on HumanEval, GSM8K, and Alpaca at temperature = 0.</p></details></figure></details>
+
+**Table 8。** 保留六个模型、HumanEval/GSM8K/Alpaca 的全部 speedup、τ、0–4 α，T=0。它为正文 Table 1 补上 chain 接受率，展示不同任务的误差传播。代码任务 τ 较长不等于准确率更高；这些 α 不是任务正确率，不能用来计算 TP、FP、TN、FN 或 F1。跨任务应对照 τ、walltime 与每项额外成本，原表未提供 per-op timing。
+
+## Critique：创新、证据与隐藏成本
+
+| 维度 | 判断 | 依据或未回答的问题 |
+|---|---|---|
+| Novelty | 条件 feature 外推是核心增量 | exact sampler 和 tree verification 已有先行工作 |
+| Correctness | 理想算法保证充分；实现仍须审计 | residual vector、conditional q、mask/position/KV 是关键 |
+| Experiment quality | 多模型、多任务、消融较完整 | baseline 来源、完整 runtime setup 与 variance 不足 |
+| Engineering | 复用 head 降低模型体量 | head 成本、cache 反馈、并发 scheduler 复杂 |
+| Scalability | bs≤4 有收益，不能代表服务规模 | 高并发、大树、MoE union、TP 通信尚缺分项数据 |
+| Generalization | 多个 LLM families 支持可迁移概念 | 新 head、VLM feature、OCR 数据仍可能需重新训练 |
+| Memory | draft 小于完整 7B | 临时 tree KV、draft KV、logits、features 会增 residency |
+| Hardware dependency | memory-bound decode 最有机会 | 强 baseline、更高 batch、NPU gather/dispatch 可削弱收益 |
+| Reproducibility | 官方源码和权重是优势 | main 是后续版本；固定 v1 与论文设置仍存在差异 |
+
+**Strengths。** 找到 feature uncertainty 中一个可明确消除的条件变量；保持 target 冻结；把学习问题和正确性校验分开；同时测 walltime 和接受行为。
+
+**Weaknesses / Hidden trade-offs。** 自回归 draft 深度限制并行；共享完整 LM head 仍频繁计算；候选宽度与 KV 暂存增加；接受长度可能“花更多成本买来”；多个 target checkpoint 与量化/导出版本需要适配。
+
+**Unanswered questions / Improvements。** 给每个组件采样 trace，测对 TTFT/TPOT 的真实影响；训练时加入 autoregressive feedback；按负载和硬件调树预算；验证所有 processors 与 fallback 路径；按真实业务 prompt、OCR/视觉 token、长上下文做 target feature 分布回归。
+
+## 技术演进与相关工作矩阵
+
+下面是 **External**，不能补写成 2024 原论文结果。
+
+<figure class="generated-figure"><div class="svg-scroll" tabindex="0" role="region" aria-label="从接受正确性到每个有效 token 的成本；可横向滚动"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 468" role="img" aria-label="从接受正确性到每个有效 token 的成本"><title>从接受正确性到每个有效 token 的成本</title><rect width="720" height="468" rx="8" fill="#101823"/><text x="24" y="30" fill="#dbe6f4" font-size="16">从接受正确性到每个有效 token 的成本</text><path d="M40 97v58m-5 -5l5 5 5 -5" stroke="#779dcc" fill="none"/><circle cx="40" cy="80" r="15" fill="#274664"/><text x="40" y="85" fill="#e8f2ff" text-anchor="middle" font-size="14">1</text><text x="70" y="67" fill="#e3bd80" font-size="12">2022 → 2024</text><text x="70" y="93" fill="#dbe6f4" font-size="16">Exact sampling / SpecInfer</text><text x="70" y="121" fill="#a8bdd6" font-size="13">概率保证 + tree verification</text><line x1="70" x2="695" y1="139" y2="139" stroke="#293a50"/><path d="M40 199v58m-5 -5l5 5 5 -5" stroke="#779dcc" fill="none"/><circle cx="40" cy="182" r="15" fill="#274664"/><text x="40" y="187" fill="#e8f2ff" text-anchor="middle" font-size="14">2</text><text x="70" y="169" fill="#e3bd80" font-size="12">2024-01 → 2024-06</text><text x="70" y="195" fill="#dbe6f4" font-size="16">EAGLE → EAGLE-2</text><text x="70" y="223" fill="#a8bdd6" font-size="13">条件 feature 起草 → 动态预算</text><line x1="70" x2="695" y1="241" y2="241" stroke="#293a50"/><path d="M40 301v58m-5 -5l5 5 5 -5" stroke="#779dcc" fill="none"/><circle cx="40" cy="284" r="15" fill="#274664"/><text x="40" y="289" fill="#e8f2ff" text-anchor="middle" font-size="14">3</text><text x="70" y="271" fill="#e3bd80" font-size="12">2025-03 → 2026-02</text><text x="70" y="297" fill="#dbe6f4" font-size="16">EAGLE-3 / DFlash</text><text x="70" y="325" fill="#a8bdd6" font-size="13">训练反馈 / 并行 block draft</text><line x1="70" x2="695" y1="343" y2="343" stroke="#293a50"/><circle cx="40" cy="386" r="15" fill="#274664"/><text x="40" y="391" fill="#e8f2ff" text-anchor="middle" font-size="14">4</text><text x="70" y="373" fill="#e3bd80" font-size="12">2026-10-20</text><text x="70" y="399" fill="#dbe6f4" font-size="16">EAGLE-4 author release</text><text x="70" y="427" fill="#a8bdd6" font-size="13">硬件成本调度 / LM head shortlist</text><line x1="70" x2="695" y1="445" y2="445" stroke="#293a50"/></svg></div><figcaption>Agent-created / Simplified Diagram · <a href="assets/generated/timeline.mmd">Mermaid source</a> · <a href="assets/generated/timeline.svg">SVG</a></figcaption></figure>
+
+| 工作 | 日期 | 核心路线 | 优势与限制 | 与 EAGLE 的关系 |
+|---|---|---|---|---|
+| [Speculative Decoding](https://arxiv.org/abs/2211.17192) | 2022 preprint / ICML 2023 | 小模型 proposal + 精确校验 | 无需改变 target；需要便宜且贴近的 draft | 提供接受／残差基础 |
+| [SpecInfer](https://arxiv.org/abs/2305.09781) | 2023 / ASPLOS 2024 | token tree + 并行 verification | 复用 prefix；有 mask/cache 成本 | EAGLE 继承的树验证 |
+| [Medusa](https://arxiv.org/abs/2401.10774) | 2024-01 | 多预测头 | 低 draft latency；版本与采样保证不同 | 同期替代 draft 路线 |
+| [EAGLE](https://arxiv.org/abs/2401.15077) | 2024-01 / ICML 2024 | feature + shifted token | 高接受；串行 draft 与 head 仍有成本 | 本篇 |
+| [EAGLE-2](https://arxiv.org/abs/2406.16858) | 2024-06 / EMNLP 2024 | 置信度校准、动态候选树 | 同 draft weights，动态分配预算；增加控制逻辑 | 作者报告比 EAGLE 再快 20–40% |
+| [EAGLE-3](https://arxiv.org/abs/2503.01840) | 2025-03 / NeurIPS 2025 | 低/中/高 feature 融合、training-time rollout feedback | 移除 feature regression，贴近真实误差；需训练新 draft | 改变训练目标而非只加树宽 |
+| [DFlash v2](https://arxiv.org/html/2602.06036v2) | 2026-02；v2 2026-05-28 | 一次 block diffusion draft、target feature KV 注入 | 降串行起草延迟；依赖模型、硬件与实现 | feature-assisted 的并行替代 |
+| [EAGLE-4](https://blog.eagle.ai/blog/introducing-eagle-4) | 2026-10-20 | hardware cost-aware scheduler、低秩 head shortlist | 控制 draft/head 成本；需预热成本与准确 sampler | 系统成本优化，最新作者报告 |
+
+**EAGLE-2 → EAGLE-3。** EAGLE-2 根据置信度与 path score 动态扩展、重排候选；EAGLE-3 去掉 next-feature regression，融合多层 feature 并在训练中反馈 draft rollout。它们分别处理固定树预算和训练／推理 feature 偏移，不能把 EAGLE-3 的配置直接拿来复现 EAGLE-1。
+
+## Current State：截至 2026-10-27 能比较什么
+
+### 可控 benchmark：EAGLE 不是永远固定倍数
+
+[Spec-Bench leaderboard](https://github.com/hemingkx/Spec-Bench/blob/main/Leaderboard.md) 在 A100 80GB、CUDA 11.5、PyTorch 2.5.1、Vicuna 13B FP16、T=0、bs=1、三次重复的总体结果：EAGLE **2.16× / τ3.64**，EAGLE-2 **2.46× / τ4.43**，EAGLE-3 **3.02× / τ5.71**。EAGLE-3 相对 EAGLE +39.8%。这和原论文 MT-Bench 的 3.07× 不能直接相减判定退化，任务集合与系统条件不同。
+
+**DFlash v2。** Qwen3-8B / H200 / T=0 / output limit 2K / thinking off：Table 1 的平均 EAGLE-3(60) 2.02×，DFlash(16) 4.86×，相对约 2.41×。更有说明力的是同训练数据的 LLaMA3.1-8B / SGLang Spec v1、无 overlap / B200 / GSM：bs1 EAGLE-3(60) 为 1.9×、τ4.55，DFlash(10) 为 2.4×、τ4.32；bs32 分别 .6× 与 1.6×。**更短接受长度仍可能更快**，起草成本与并行性解释了 τ 不是唯一目标。
+
+### EAGLE-4：最新报告与严格比较边界
+
+已读取作者 2026-10-20 公告与[正式发布 PDF](https://github.com/eagle-hq/EAGLE-4/blob/main/EAGLE4_Paper.pdf)。截至本次检索，未核实它的 arXiv 编号或同行评审 venue，不补造。
+
+**Head 优化。** 先用低秩近似从完整词表召回候选，再 gather 少量原 head rows 精算，仍保存原 head 权重。复杂度从 head 的 `O(VD)` 变为近似 `O(Dr+Vr+KD)` 加 top-k/gather；Figure 2 报告 baseline draft step 574 μs（head 65.4%），rank512 为 326 μs（37.9%），rank128 为 255 μs（17.9%），总步时减少 43.2% / 55.6%。这是作者测量，本文未复测。
+
+**Cost-aware tree。** warmup 查硬件成本表，在当前负载下决定宽度、深度与 verify budget。随机采样的 round depth 需在本轮采样前确定；若根据本轮已采样 token 动态决定是否停，会引入 selection bias。公告/PDF 对 T>0 的轮深度使用上一轮信息决策，这个条件属于 lossless 边界。
+
+**同 engine SPEED 表。** Qwen3.8-27B、4×B300、TP4、T=0、max output 4096、关闭 MegaKernel，concurrency1/512：vanilla 240.5/21,203 tokens/s，EAGLE-4 863.8/28,340，DFlash2 672.6/16,641。EAGLE-4 相对 vanilla 为 3.59/1.34×，相对 DFlash2 为 1.28/1.70×；T=1 相对 vanilla 约 2.59/1.03×。**这里的 DFlash2 不是前段 DFlash 论文 v2**。HumanEval 的另一张完整 engine 对比涉及不同 backend，只能比较部署系统，不能纯归因算法。
+
+**端侧。** 作者报告 llama.cpp CPU 4bit Gemma4 E2B：AWS c5.xlarge 四核 8GB，GSM 17.2→49.3 TPS、HumanEval 16.6→45.8 TPS；Motorola Razr 70 Ultra / Snapdragon 8 Elite / 16GB / 六 CPU 线程 / 冷机 T=0，HumanEval 22.8→82.6 TPS。USB 356→166 mJ/token，下降 53.4%。不是 NPU/HTP 结果，没有 dmabuf 或 VmHWM 峰值、稳态温升报告。draft 文件约 134MB、额外 resident 约 .26/.27GB，不等于完整进程峰值。
+
+**当前选型。** [SGLang](https://docs.sglang.ai/advanced_features/speculative_decoding.html) 与 [vLLM](https://docs.vllm.ai/en/latest/features/speculative_decoding/) 已有 speculative 集成，具体支持依版本、checkpoint、scheduler 与 backend。应固定 target/draft、精度、sampling processors、并发、TP、输出预算、GPU 与 kernel，再比 TTFT/TPOT/throughput/peak memory。以上资料不足以给跨平台统一 SOTA 排名。
+
+## My Insights：面向真实推理链路的迁移
+
+**1. 先复核 sampler，再优化 draft。** mask、positions、conditional q、fallback、cache 提交是正确性地基。只有通过这些检查，feature learning 才能安全地作为速度优化。target 量化后，exactness 对齐的是量化 target 的分布，不能倒推出它与 FP16 target 精度相同。
+
+**2. per-op 目标应是“每个有效 token 的总成本”。** 记录 draft FC/attention/head、tree 构造、target verify、sampling、KV gather、同步及通信；除以真实提交 token。EAGLE-4 的 head 压缩和 DFlash 的并行 draft 都说明，优化接受率本身可能选错方向。
+
+**3. 端侧 Native Runner 应保持上层流式接口稳定。** 内部管理 raw cache buffers、draft session、临时树和提交长度，JNI 只传参数／输出 token；量化、prefill/decode 的首 token 路径保持一致。HTP 的额外 dispatch 与 host gather 可能抵消模型计算收益，需要实际 trace，不能从 GPU 倍数推断。
+
+**4. VLM/OCR 需要真实标定与分支数据。** 图像 prefix 本身可能很长、特征分布和文字对话不同；训练数据应包含真实图像理解、OCR token、不同语言与输出格式。长 context 下 prefix KV 主导内存；高宽树可能增加临时 KV 峰值，需要结合 VmHWM 与 dma-buf 分项测量。
+
+**5. 最值得做的实验。** 同 target 依次比较普通 AR、EAGLE v1 chain、固定 tree、cost-aware tree、并行 draft；固定 processors 和首 token 路径，分别测冷启动／steady state、T=0/1、batch/concurrency、输出长度。按真实有效输出归一 timing 与能耗，用统一 source checkpoint 检查 logits/任务回归，不把环境差异混入算法收益。
+
+## References 与复现入口
+
+1. [EAGLE v3 PDF](https://arxiv.org/pdf/2401.15077v3)；[ICML 2024 publisher](https://proceedings.mlr.press/v235/li24bt.html)。所有原图／原表来源。
+2. [固定 v1 source commit](https://github.com/SafeAILab/EAGLE/tree/4a9cf3a1f6cd4a294e6d30a4e7c77cba246d7ca5)；重点 `ge_data.py`、`train.py`、`cnets.py`、`choices.py`、`utils.py`、`ea_model.py`。
+3. [Leviathan et al., Speculative Decoding](https://arxiv.org/abs/2211.17192)；[Chen et al., Accelerating LLM Decoding](https://arxiv.org/abs/2302.01318)。
+4. [SpecInfer](https://arxiv.org/abs/2305.09781)；[Medusa](https://arxiv.org/abs/2401.10774)。
+5. [EAGLE-2 v2](https://arxiv.org/html/2406.16858v2)；[EAGLE-3 v3](https://arxiv.org/html/2503.01840v3)。
+6. [Spec-Bench](https://github.com/hemingkx/Spec-Bench/blob/main/Leaderboard.md)。
+7. [DFlash v2](https://arxiv.org/html/2602.06036v2)。
+8. [EAGLE-4 announcement](https://blog.eagle.ai/blog/introducing-eagle-4)；[PDF and source](https://github.com/eagle-hq/EAGLE-4)。
+9. [SGLang speculative docs](https://docs.sglang.ai/advanced_features/speculative_decoding.html)；[vLLM speculative docs](https://docs.vllm.ai/en/latest/features/speculative_decoding/)。
+10. [Visual manifest](sources/visual-manifest.json)；[Math verification tests](interactive/math.test.cjs)；[Method audit](notes/research-dossier.md)。
+
+相关精读：[EAGLE-2](../eagle2/) · [Medusa](../medusa/) · [FlashAttention](../flashattention/) · [MQA](../mqa/) · [GQA](../gqa/) · [Sparse MoE](../sparse-moe/) · [AWQ](../awq/)。
+
+阅读完成于 2026-10-27。原论文与外部更新分开标记；本文交互为分析工具，未运行模型性能 benchmark。

@@ -1,0 +1,42 @@
+{
+  "source": "2305.13245v3.pdf and original LaTeX source",
+  "presentation": "Images contain only the original graphic or table. Captions are selectable text outside images.",
+  "updated": "2026-10-28",
+  "captions": [
+    {
+      "id": "figure-1",
+      "en": "Overview of conversion from multi-head to multi-query attention. Key and value projection matrices from all heads are mean pooled into a single head.",
+      "zh": "从 multi-head 转换到 multi-query attention 的流程。所有 head 的 Key 和 Value 投影矩阵分别取均值，合并成单个 head。"
+    },
+    {
+      "id": "figure-2",
+      "en": "Overview of grouped-query method. Multi-head attention has H query, key, and value heads. Multi-query attention shares single key and value heads across all query heads. Grouped-query attention instead shares single key and value heads for each group of query heads, interpolating between multi-head and multi-query attention.",
+      "zh": "Grouped-query 方法概览。MHA 有 H 个 Query、Key 和 Value heads；MQA 的全部 Query 共享单个 Key head 和 Value head；GQA 则让每组 Query 共享单个 Key head 和 Value head，在 MHA 与 MQA 之间提供不同的共享粒度。"
+    },
+    {
+      "id": "figure-3",
+      "en": "Uptrained MQA yields a favorable tradeoff compared to MHA with higher quality and faster speed than MHA-Large, and GQA achieves even better performance with similar speed gains and comparable quality to MHA-XXL. Average performance on all tasks as a function of average inference time per sample for T5-Large and T5-XXL with multi-head attention, and 5% uptrained T5-XXL with MQA and GQA-8 attention.",
+      "zh": "作者报告：uptrained MQA 相比 MHA-Large 质量更高、推理更快；GQA 在获得相近速度收益的同时进一步提升质量，接近 MHA-XXL。横轴是每个样本的平均推理时间，纵轴是全部任务的平均表现；比较 MHA T5-Large、MHA T5-XXL，以及经过 5% uptraining 的 MQA 和 GQA-8 T5-XXL。原图横轴单位与 Table 1 冲突，见下文勘误。"
+    },
+    {
+      "id": "table-1",
+      "en": "Inference time and average dev set performance comparison of T5 Large and XXL models with multi-head attention, and 5% uptrained T5-XXL models with multi-query and grouped-query attention on summarization datasets CNN/Daily Mail, arXiv, PubMed, MediaSum, and MultiNews, translation dataset WMT, and question-answering dataset TriviaQA.",
+      "zh": "推理时间与开发集平均表现的完整对比：MHA T5-Large、MHA T5-XXL，以及经过 5% uptraining 的 MQA 和 GQA T5-XXL。任务覆盖 CNN/Daily Mail、arXiv、PubMed、MediaSum、MultiNews 摘要，WMT 翻译与 TriviaQA 问答。全部行列、指标和单位保留；原表没有结果单元格粗体、下划线、箭头或脚注。"
+    },
+    {
+      "id": "figure-4",
+      "en": "Performance comparison of different checkpoint conversion methods for T5-Large uptrained to MQA with proportion α=0.05. ‘Mean’ mean-pools key and value heads, ‘First’ selects the first head and ‘Random’ initializes heads from scratch.",
+      "zh": "T5-Large 转换为 MQA 并进行 α=0.05 uptraining 后，不同 checkpoint 转换方法的表现对比。Mean 对 Key 和 Value heads 分别取均值；First 选择第一个 head；Random 从随机初始化开始。"
+    },
+    {
+      "id": "figure-5",
+      "en": "Performance as a function of uptraining proportion for T5 XXL models with MQA and GQA-8.",
+      "zh": "MQA 与 GQA-8 T5-XXL 的表现随 uptraining 比例的变化。图中的三任务子集平均与主表七任务平均不直接比较。"
+    },
+    {
+      "id": "figure-6",
+      "en": "Time per sample for GQA-XXL as a function of the number of GQA groups with input length 2048 and output length 512. Going from 1 (MQA) to 8 groups adds modest inference overhead, with increasing cost to adding more groups.",
+      "zh": "输入长度 2048、输出长度 512 时，GQA-XXL 的每样本推理时间随 GQA groups 数量的变化。从 1 个 group（MQA）增加到 8 个，新增开销较小；继续增加 groups，成本上升。纵轴单位为秒；这不是 Table 1 的跨任务平均耗时。"
+    }
+  ]
+}

@@ -6,11 +6,11 @@
 
 **作者**：Ashish Vaswani、Noam Shazeer、Niki Parmar、Jakob Uszkoreit、Llion Jones、Aidan N. Gomez、Łukasz Kaiser、Illia Polosukhin。**机构**：Google Brain、Google Research、University of Toronto。**会议**：NIPS 2017（现称 NeurIPS）。
 
-**首次提交**：2017-06-12。**本文阅读版本**：1706.03762v7，2023-08-02，15 页，包括 References 与 Attention Visualizations。2017 是论文发表年，2023 是这个修订版本的日期。阅读与更新日期：**2026-10-27**。
+**首次提交**：2017-06-12。**本文阅读版本**：1706.03762v7，2023-08-02，15 页，包括 References 与 Attention Visualizations。2017 是论文发表年，2023 是这个修订版本的日期。阅读日期：**2026-10-27**；排版更新日期：**2026-10-28**。
 
 [原论文 PDF](assets/original/1706.03762v7.pdf) · [arXiv](https://arxiv.org/abs/1706.03762) · [arXiv HTML v7](https://arxiv.org/html/1706.03762v7) · [DOI](https://doi.org/10.48550/arXiv.1706.03762) · [官方 Tensor2Tensor](https://github.com/tensorflow/tensor2tensor)
 
-本文按 Abstract → §1–7 → Attention Visualizations 的顺序精读，再展开实现、后续研究与当前评测。**原论文**表示 PDF 内证据；**外部来源**表示后续论文或官方资料；**分析 / 推导**表示本文重建。原图 5 张、原表 4 张全部保留，原表提供可选择文字的版本与 PDF 原貌；额外图示和交互均标明来源。
+本文按 Abstract → §1–7 → Attention Visualizations 的顺序精读，再展开实现、后续研究与当前评测。**原论文**表示 PDF 内证据；**外部来源**表示后续论文或官方资料；**分析 / 推导**表示本文重建。原图 5 张、原表 4 张全部保留，图题、表题和原文说明均以可选择文字放在图片外，图片保留完整图形、组件标签与表格内容；原表还提供可选择文字的版本。额外图示和交互均标明来源。
 
 ## Abstract / TL;DR：先建立全局
 
@@ -364,6 +364,10 @@ loss = smoothed_cross_entropy(logits, labels)
 
 ## Related Work & Technology Evolution
 
+相关精读：[Sparsely-Gated MoE：容量可以稀疏激活，成本仍在整条链路](../sparse-moe/)。2017 年的原始 MoE 放在 LSTM 中；后续与 Transformer 结合时，专家容量、路由通信与 attention / KV 成本需要分别计算。
+
+相关精读：[EAGLE-2：把验证预算分给更可能走通的路径](../eagle2/)。多候选并行验证仍依赖因果 attention、按树深度确定的位置，以及只提交被接受路径的 KV；一维展平不能让兄弟分支互相可见。
+
 [[DIAGRAM:evolution]]
 
 以下是外部研究与本文分析。时间线分成架构、位置、KV 与 IO 多条路线；它们解决不同问题，没有形成一个每一步都“取代上一代”的单一排行。
@@ -432,6 +436,12 @@ loss = smoothed_cross_entropy(logits, labels)
 
 **更新记录**：2026-10-27，首次精读发布，按 v7 逐页核对并补充 WMT26 官方评测与工程推导。
 
+2026-10-28，重新裁切全部 5 张原图与 4 张原表截图，移除图片中的图题、表题及说明；原文 caption 和中文解读以图外文字呈现，放大查看也显示可选择的说明。保留全部面板、连线、token 标签、表头、单元格及表格边线。
+
+相关精读：[Scaling Laws：规模、训练与预算分配](../scaling-laws/)。在 dense Transformer 数据流之上，进一步区分参数量、唯一数据、处理 token、训练 FLOPs 与临界 batch；平均 loss 的规模规律仍需与推理延迟和内存账本分别评估。
+
+**Related Reading：**[RMSNorm：保留尺度约束，拿掉均值中心化](../rmsnorm/)。原始 Transformer 的 LayerNorm 同时中心化与缩放；这篇精读拆开验证两种作用，并审计归约、融合和端到端耗时。
+
 ## References：原论文、后续论文与官方资料
 
 - **[R1]** Vaswani et al. *Attention Is All You Need*, NIPS 2017，1706.03762v7。[PDF](assets/original/1706.03762v7.pdf)，https://arxiv.org/abs/1706.03762 。全篇主证据；图 1–5、表 1–4、式 (1)–(3)。
@@ -453,3 +463,5 @@ loss = smoothed_cross_entropy(logits, labels)
 - **[R17]** *North Small Translate* 论文，2026，2609.13916v1，Table 1 / 4。https://arxiv.org/html/2609.13916v1
 
 上述扩展来源在本轮研究中实际检索，URL、状态、日期与内容哈希见清单。对原论文所有引用的完整书目，请见 PDF pp.10–12 的 References；本文只列对讲解与扩展调研直接使用的来源。
+
+相关阅读：[Layer Normalization 精读](../layer-normalization/)，继续核对归一化轴、Pre/Post-LN 的区别、RNN 分支与推理 IO 成本。

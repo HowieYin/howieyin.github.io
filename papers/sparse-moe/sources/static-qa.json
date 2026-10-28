@@ -58,55 +58,55 @@
   "figures": [
     {
       "name": "fig-01-architecture",
-      "hash": "d0f54c12a32dfb084d2ed4508a07ae8117fb7ab8e5dfed353910f3a756929a68"
+      "hash": "245225748c7cb44afdfb9bf59b5c345cc41f0ebe465997292baaf805e9e39a05"
     },
     {
       "name": "fig-02-capacity-compute",
-      "hash": "085ce2747cf464bd34ab2544a3f58b0166ccec914bfd26bca87ac177a745c5d1"
+      "hash": "4f1057784457e60c6b9705f76e82ac781359014dedadcce1da1994271f88b4a0"
     },
     {
       "name": "fig-03-news-scaling",
-      "hash": "4cc4dc9ccf828bde5e6f036a918014eb56b1777186e20f53f86aefac323cbed1"
+      "hash": "7a33bdb0ddd784c920002ccdb1fb9429fbd7b5b3af575d26bb8613f818841ab8"
     },
     {
       "name": "fig-04-translation-learning",
-      "hash": "c719ebc86a23ac27f723726a4c4f8282f0489a528910c5f913d6ebcfc015492e"
+      "hash": "da07877fdffd7c4dbc1a6fc02677d267961db82c61a89da16ab719c89836222d"
     },
     {
       "name": "table-01-high-capacity-lm",
-      "hash": "c0bff05f1a7311d1a5fd84ce1866c871081eaf79d85e8090c88dbf47fc3a1df7"
+      "hash": "90dfd6d50ceec59d453d7a84da18a94bf62b1c3fba30dfa2468854c9dfa913ac"
     },
     {
       "name": "table-02-wmt-en-fr",
-      "hash": "d6cc3f04d9268c8b1f6644aebeb713acc6d9d5448899e3079f2d1a72c12dc1b9"
+      "hash": "96a3e62728c842effeee8f69cc17ddef81b2670adcd7a0ca37f302022ee9bd6d"
     },
     {
       "name": "table-03-wmt-en-de",
-      "hash": "6bc670a9d13f50421638826f9aaa92fd1c3b28464200d6f7596856ea4a8ec0ab"
+      "hash": "6286c19369c5e425a494f8ed6266beff6071f96cc8fa32afe1bc937f3105c4c1"
     },
     {
       "name": "table-04-production-en-fr",
-      "hash": "686554af9eeb40dc62f586199668705c14c0cecae532076501ad065fbd63863a"
+      "hash": "55399676e04fa4e6e7fef3891fbd8d4cdbac60f66a2af1c687106b85947fd30c"
     },
     {
       "name": "table-05-multilingual",
-      "hash": "ba8b4606fa115a7c77176603d554502796abc44fdcc24366c97fb12b32331967"
+      "hash": "5f14d3f2ab85ba0feb832cd6cc16edbee6df34e263e2f647c7f300c53a23326e"
     },
     {
       "name": "table-06-balancing-ablation",
-      "hash": "5491dd76256e2c3f3d85a0f3585402f45ccf3fbd81179ba13fd19c04f5d57f7b"
+      "hash": "20e256c0ff175899fc21b4961107b311d616d243ad379ceba936cd0f816201f1"
     },
     {
       "name": "table-07-complete-lm",
-      "hash": "e54f28dff634ceba29250042a95ba6ee4637f21208d8f9c5ed16846bb6f98de9"
+      "hash": "2d9c46e8dd2947f91a78e562b4b615af6aea147f528bd40027fd8eab68dc70ad"
     },
     {
       "name": "table-08-complete-news",
-      "hash": "f65592fd962c90211b6d568b80f18fa3c57986dca4ecef37444a75cb8c5c6b43"
+      "hash": "6dc9cf4d86a2aa2c821ddd5f65c9d94e2b2ddd346769ddc0b231b63d0357381e"
     },
     {
       "name": "table-09-specialization",
-      "hash": "64114b0737f71dda15d88c117ec4dea87334d4dc6181bec7e31396d1af93b750"
+      "hash": "e46624c9efc5f7e7d4b0a6ece607a3e5c10d779f9612ae2d44ddcf34d673b4f5"
     }
   ],
   "equations": 22,
