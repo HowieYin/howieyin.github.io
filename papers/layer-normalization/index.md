@@ -6,7 +6,7 @@
 
 这篇 2016 年论文的主要实验对象是 RNN，而今天读者最熟悉的使用场景是 Transformer。把这两个时代接起来，需要同时看清三个问题：**统计量沿哪个轴计算，归一化放在网络的什么位置，以及它在硬件上花了多少代价。**它们分别属于算子定义、架构设计和系统实现，不能互相替代。
 
-本文按原论文 Abstract、§1–7、Supplementary Material 的顺序精读，再补现代实现、技术演进与个人判断。6 张原 Figure、3 张完整 Table 和 35 个编号公式均保留；原图附 caption，表格另附原始截图。标为 **Paper** 的内容来自原论文；**External Source** 来自相关论文或官方实现；**Interpretation / 推导** 是本文解释。所有工程容量计算都是分析模型，未运行 GPU/NPU 性能基准。
+本文按原论文 Abstract、§1–7、Supplementary Material 的顺序精读，再补现代实现、技术演进与个人判断。6 张原 Figure、3 张完整 Table 和 35 个编号公式均保留；图注以可复制文字放在图外，表格另附原始截图。标为 **Paper** 的内容来自原论文；**External Source** 来自相关论文或官方实现；**Interpretation / 推导** 是本文解释。所有工程容量计算都是分析模型，未运行 GPU/NPU 性能基准。
 
 | 元数据 | 已核验信息 |
 |---|---|
@@ -472,7 +472,7 @@ GroupNorm 仅 1 group 时，在特定 axes 下统计可与 LayerNorm 相同，�
 14. **[S14]** Hugging Face Transformers，Qwen3 modeling 官方实现。[固定 commit](https://github.com/huggingface/transformers/blob/a672eb5f474b8b30173e9f96eab66adf292da635/src/transformers/models/qwen3/modeling_qwen3.py)。
 15. **[S15]** Qwen Team. *Qwen3.8-Flash-Next*, 2026-08-26。[官方介绍](https://qwen.ai/blog?id=qwen3.8-flash-next)；于 2026-10-27 用正文抓取与 Chrome DOM 双核对，[归一化证据存档](sources/qwen38-normalization-evidence.json)。
 
-原图与表截图来源为 supplied `1607.06450v1.pdf`，288 dpi，保留原 caption；[visual manifest](sources/visual-manifest.json) 记录页码和 bbox。[全部公式 MathML/TeX](sources/equations.json) 按编号保存；[原始 TeX](sources/paper.tex) 与 [bibliography](sources/paper.bbl) 用于二次核对。现代工程图均为 Agent-created Simplified Diagram，Mermaid source 可下载，不替代原 Figure。
+原图与表截图来源为 supplied `1607.06450v1.pdf`，288 dpi；图像保留坐标轴、图例和面板标签，原 caption 与中文图注以文字放在图外。[visual manifest](sources/visual-manifest.json) 记录页码、图像与图注各自的 bbox，以及完整图注文本。[全部公式 MathML/TeX](sources/equations.json) 按编号保存；[原始 TeX](sources/paper.tex) 与 [bibliography](sources/paper.bbl) 用于二次核对。现代工程图均为 Agent-created Simplified Diagram，Mermaid source 可下载，不替代原 Figure。
 
 ## My insights / future directions — 把三个边界分别测清楚
 
