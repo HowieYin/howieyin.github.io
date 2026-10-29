@@ -78,3 +78,6 @@
 .reading .diagram-scroll img{width:auto;min-width:0!important;max-width:none!important;max-height:900px;object-fit:contain;margin:auto}.reading .diagram-scroll{padding-bottom:8px}.reading .original-table td:first-child{min-width:0!important;width:auto!important}.reading .original-table td:not(:first-child){min-width:68px}.reading .original-table table{width:max-content!important;table-layout:auto}.reading .original-table td .ltx_parbox{width:auto!important}.reading .original-table .ltx_p{margin:0}.reading .original-table td:first-child{max-width:350px} @media(max-width:800px){.reading .diagram-scroll img{max-height:850px;max-width:none!important}.reading .diagram-scroll{overflow-x:auto}}
 
 .reading .original-table table table{min-width:0!important;width:auto!important;margin:0;border:0}.reading .original-table table table td{padding:2px 0!important;border:0!important;background:transparent!important;min-width:0!important;font-weight:inherit}.reading .original-table table table tr{border:0}.reading .original-table table table td:first-child{max-width:none}
+
+/* Keep every async participant visible before opening the optional zoom. */
+.reading #diagram-async .diagram-scroll img{width:100%;max-width:100%!important;height:auto;max-height:none;object-fit:contain}
