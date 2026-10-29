@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "flashattention-2",
+      "title": "FlashAttention-2：把 Attention 的工作，分给真正合适的线程",
+      "metadata": "2023 · ICLR 2024 · arXiv v1 · Read October 29, 2026 · Attention / GPU Systems",
+      "readDate": "2026-10-29",
+      "description": "All 7 original figures, the complete training table, 2 algorithms and 9 equation groups; online softmax corrections, CTA and warp ownership, three interactive explainers, FLOPs and training audits, and dated follow-up research.",
+      "category": "attention-kv-cache"
+    },
+    {
       "slug": "stepped-moe",
       "title": "Stepped MoE：让专家驻留一段，让路由提前发生",
       "metadata": "2026 · Apple · arXiv v1 · Read October 29, 2026 · MoE / Edge Inference / Systems",

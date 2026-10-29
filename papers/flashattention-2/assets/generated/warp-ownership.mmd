@@ -1,0 +1,12 @@
+flowchart TB
+  subgraph K["FA1: sliced-K, same output rows"]
+    K1["Warp 0: KV slice 0"] --> P1["Partial output rows"]
+    K2["Warp 1-3: other KV slices"] --> P2["Other partial outputs"]
+    P1 --> R["Shared memory + sum reduction"]
+    P2 --> R
+    R --> OK["Complete output rows"]
+  end
+  subgraph Q["FA2: sliced-Q, different output rows"]
+    Q1["Warp 0: Q rows 0"] --> O1["Complete output rows 0"]
+    Q2["Warp 1-3: other Q rows"] --> O2["Complete other output rows"]
+  end

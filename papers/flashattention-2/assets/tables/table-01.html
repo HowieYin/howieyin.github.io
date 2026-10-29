@@ -1,0 +1,38 @@
+<figure class="ltx_table" id="S4.T1">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 1</span>: </span><span class="ltx_text">Training speed (TFLOPs/s/GPU) of GPT-style
+models on 8<math alttext="\times" class="ltx_Math" display="inline"><semantics><mo>×</mo></semantics></math>A100 GPUs.
+<span class="ltx_text ltx_font_smallcaps">FlashAttention-2</span> reaches up to 225 TFLOPs/s (72% model FLOPs utilization).
+We compare against a baseline running without <span class="ltx_text ltx_font_smallcaps">FlashAttention</span>.
+</span></figcaption>
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r">Model</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column">Without <span class="ltx_text ltx_font_smallcaps">FlashAttention</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column"><span class="ltx_text ltx_font_smallcaps">FlashAttention</span></th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column"><span class="ltx_text ltx_font_smallcaps">FlashAttention-2</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">GPT3-1.3B 2k context</th>
+<td class="ltx_td ltx_align_center ltx_border_t">142 TFLOPs/s</td>
+<td class="ltx_td ltx_align_center ltx_border_t">189 TFLOPs/s</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">196 TFLOPs/s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">GPT3-1.3B 8k context</th>
+<td class="ltx_td ltx_align_center">72 TFLOPS/s</td>
+<td class="ltx_td ltx_align_center">170 TFLOPs/s</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">220 TFLOPs/s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">GPT3-2.7B 2k context</th>
+<td class="ltx_td ltx_align_center">149 TFLOPs/s</td>
+<td class="ltx_td ltx_align_center">189 TFLOPs/s</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">205 TFLOPs/s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">GPT3-2.7B 8k context</th>
+<td class="ltx_td ltx_align_center">80 TFLOPs/s</td>
+<td class="ltx_td ltx_align_center">175 TFLOPs/s</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">225 TFLOPs/s</td></tr>
+</tbody>
+</table>
+</figure>

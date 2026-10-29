@@ -1,0 +1,1385 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>FlashAttention-2：把 Attention 的工作，分给真正合适的线程 — Paper Readings · Howie Yin</title><meta name="description" content="FlashAttention-2 v1逐章精读：7张原图、1张完整表、2个算法、9组公式，在线softmax笔误校正、CTA和sliced-Q分工、FLOPs审计与三组交互。"><link rel="canonical" href="https://howieyin.github.io/papers/flashattention-2/"><meta property="og:title" content="FlashAttention-2：把 Attention 的工作，分给真正合适的线程"><meta property="og:type" content="article"><meta property="og:description" content="精确 Attention 的算法状态、GPU 工作分配与原实验审计。"><meta property="og:image" content="https://howieyin.github.io/papers/flashattention-2/assets/original/flash2_partitioning.png"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="page-tools"><span>7 FIGURES · 1 TABLE · 2 ALGORITHMS · ARXIV V1</span><button type="button" id="theme-toggle">Light mode</button></div><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents</summary><ol><li><a href="#section-1">Abstract — 一句话、一段话、五个要点</a></li><li><a href="#section-2">1 Introduction — FA1 已减少 IO，Tensor Core 为何仍没吃满</a></li><li><a href="#section-3">2 Background — 运算、内存与旧版算法</a></li><li><a href="#section-4">3 FlashAttention-2 — 算法、并行与 warp 所有权</a></li><li><a href="#section-5">4 Empirical Validation — 先区分内核吞吐与训练 MFU</a></li><li><a href="#section-6">5 Discussion and Future Directions — 历史承诺及其适用条件</a></li><li><a href="#section-7">6 Experiment Audit — 证据强在哪里，缺口在哪里</a></li><li><a href="#section-8">7 Engineering Interpretation — 从 per-op 迁移到完整调用链</a></li><li><a href="#section-9">8 Related Work & Technology Evolution — 扩展研究</a></li><li><a href="#section-10">9 My Takeaways — 优势、代价与未解问题</a></li><li><a href="#section-11">10 References — 原论文与一手资料</a></li></ol></details></aside><main id="main" class="reading"><p class="eyebrow">PAPER READING · ATTENTION / GPU SYSTEMS · ARXIV V1</p>
+<h1>FlashAttention-2：把 Attention 的工作，分给真正合适的线程</h1>
+<p><strong>FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning</strong><br/>
+Tri Dao · Princeton University / Stanford University · arXiv v1，2023-07-17；PDF 标题页日期为 2023-07-18。后续发表于 ICLR 2024，本篇按指定 v1 的正文、图表和算法分析。精读与扩展研究截止：<strong>2026-10-29</strong>。</p>
+<div class="source-downloads"><a href="https://arxiv.org/pdf/2307.08691v1" rel="noopener">Paper PDF · v1</a><a href="https://arxiv.org/abs/2307.08691" rel="noopener">arXiv</a><a href="https://github.com/Dao-AILab/flash-attention" rel="noopener">Official code</a><a href="https://tridao.me/publications/flash2/flash2.pdf" rel="noopener">Author publication</a><a href="sources/2307.08691v1.pdf">Local source PDF</a></div>
+<p>本篇面向已理解 Q/K/V 和矩阵乘法、希望继续理解 GPU 内核成本的读者。阅读目标是能够从 softmax 状态、线程块所有权、warp 归约和 FLOPs 口径解释 FA2 的速度，而不是把“2×”当作所有模型、硬件和推理阶段的承诺。</p>
+<p>阅读范围为指定 v1 的全部 14 页：Abstract、§1–5、两份算法与 References；该版本没有独立附录。原图 caption 以文字放在图外，公式保留可复制的数学排版。</p>
+<h2 id="section-1">Abstract — 一句话、一段话、五个要点</h2>
+<p><strong>一句话：</strong>FA2 保持精确 dense attention 的数学定义，把 softmax 归一化推迟到最后，沿 Query 序列分配更多独立线程块，再让 warp 分别拥有完整的输出行，以减少标量运算和通信。[1]</p>
+<p><strong>一段话：</strong>FA1 已通过 tiling 和重计算避免把完整 N×N 的 S/P 写到 HBM，但 GPU 的 Tensor Core 仍会等待 softmax、同步和不足的并行任务。FA2 不改变模型参数与 attention pattern，而是重新组织相同运算：保存未归一化的输出分子、只存 logsumexp；前向按 Q 行块并行、后向按 KV 列块并行；线程块内部从 sliced-K 转为 sliced-Q。A100 内核实验报告相对 FA1 1.7–3.0×，端到端训练的收益更小且依赖上下文长度。吞吐数字来自原文，本篇没有运行模型训练或 GPU benchmark。[1]</p>
+<ol>
+<li><strong>算法层：</strong>少做 O 的重复除法与缩放，让矩阵乘法占用更多时间；并未消除 rowmax、exp、rowsum。</li>
+<li><strong>线程块层：</strong>前向让每个 CTA 拥有一段 Q 和对应 O；更长序列自然产生更多任务，尤其适合小 batch。</li>
+<li><strong>warp 层：</strong>让不同 warp 拥有不同输出行，避免为了同一 O 合并多个 KV 分片的部分和。</li>
+<li><strong>数值层：</strong>“exact”意味着没有稀疏化或近似 attention；浮点运算重排和原子加不承诺 bitwise 一致。</li>
+<li><strong>实验层：</strong>73% 是特定 A100 kernel FLOPs 口径，72% 是另一套训练 MFU 口径；Table 1 的端到端增益需逐行计算。</li>
+</ol>
+<div class="callout warning"><b>v1 原文审计：</b>正文与 Algorithm 1 多次把旧 softmax 分子的重标定因子写成逆矩阵，§2.2 的 dK 和 Algorithm 2 的 D 形状也有笔误。原式和原算法完整保留在正文，旁边标明正确推导与适用范围。不能直接将有误的伪代码复制为实现。</div>
+<h2 id="section-2">1 Introduction — FA1 已减少 IO，Tensor Core 为何仍没吃满</h2>
+<p><strong>论文问题。</strong>长序列 dense attention 的计算量随 N² 增长。近似、稀疏、低秩路线改变计算图；FA1 选择保留 full attention，通过片上计算和反向重计算减少 HBM 读写。2023 年引言中的 GPT-4 32k、MPT 65k、Claude 100k 是历史背景，不作为今天的能力上限。[1]</p>
+<p><strong>新观察。</strong>FA1 的内核已经比标准 attention 快，但矩阵乘法吞吐远低于设备峰值。引言写前向约 30–50%、后向约 25–35%；摘要的 25–40% 是概括范围，不能混作同一个实验配置。作者把原因归于 non-matmul 工作、线程块并行不足和 warp 间共享内存通信。[1]</p>
+<p><strong>重构理解。</strong>相同 FLOPs 不代表相同时间。对 A100，低精度 Tensor Core GEMM 和 FP32 标量算术的峰值能力差异很大。即使 exp/归一化只占少量逻辑运算，也可能成为无法被 GEMM 隐藏的串行部分。一个内核还会受任务数量、寄存器、shared memory、同步和数据依赖共同制约。</p>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>层次</th>
+<th>FA2 改变什么</th>
+<th>为什么有用</th>
+<th>没有改变什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>算法状态</td>
+<td>保存分子 U，最后除以 ℓ；保存 L</td>
+<td>减少重复 output normalization 与统计量保存</td>
+<td>dense softmax attention</td>
+</tr>
+<tr>
+<td>CTA 调度</td>
+<td>前向 B×Hq×ceil(N/Br) 个任务</td>
+<td>小 batch/长序列有更多 SM 可运行任务</td>
+<td>每个 Q 仍依赖全部允许的 KV</td>
+</tr>
+<tr>
+<td>warp 分工</td>
+<td>不同 warp 拥有不同 Q/O 行</td>
+<td>避免跨 warp 合并同一输出的部分和</td>
+<td>数据加载仍可能需要同步</td>
+</tr>
+<tr>
+<td>反向</td>
+<td>列块拥有 dK/dV，dQ 使用 atomic add</td>
+<td>减少 dK/dV 跨 CTA 通信</td>
+<td>dQ 归约、数值顺序问题仍存在</td>
+</tr>
+</tbody>
+</table></div>
+<figure class="generated"><img alt="Agent-created ownership diagram: forward rows private, backward dQ reduced" src="assets/generated/ownership.svg"/><figcaption>Agent-created Visualization · dependencies and result ownership. <a href="assets/generated/ownership.mmd">Mermaid source</a></figcaption></figure>
+<p>此图是 Agent-created Visualization，解释“谁拥有最终结果”。前向行块完全独立，后向列块仍需合并 dQ；这两种依赖关系不能用同一句“无需通信”概括。</p>
+<h2 id="section-3">2 Background — 运算、内存与旧版算法</h2>
+<h3 id="subsection-1">2.1 Hardware characteristics — 三种通信距离</h3>
+<p>A100 的例子是 40–80 GB HBM、约 1.5–2.0 TB/s 带宽、108 个 SM，每 SM 192 KB 的片上 SRAM 资源池；原文使用约 19 TB/s 的 SRAM 带宽估计。192 KB 不能理解为每个 CTA 都可以不受配置限制地申请 192 KB shared memory。寄存器分配、shared/L1 配置和单块上限共同决定实际驻留。[1]</p>
+<p>一个 warp 为 32 threads。warp 内可使用 shuffle；warp 间通常通过 shared memory 加同步通信；不同 CTA 之间无法靠普通块内 barrier 协调，需要原子、额外内核或其他全局机制。图中的“worker”是 CTA，不是一个 thread；把这三层混淆就会误读 sliced-Q 的作用。</p>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>对象</th>
+<th>保存内容</th>
+<th>FA2 对它的处理</th>
+<th>主要代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HBM</td>
+<td>Q/K/V、O、L、梯度</td>
+<td>不保存全局 N×N S/P；最终结果落盘</td>
+<td>全局带宽与访问粒度</td>
+</tr>
+<tr>
+<td>shared memory</td>
+<td>KV tile、协作数据</td>
+<td>降低 output 的跨 warp 暂存/归约</td>
+<td>带宽、同步、容量</td>
+</tr>
+<tr>
+<td>registers</td>
+<td>warp 私有累加器、m/ℓ/U</td>
+<td>尽量让输出的所有权留在本地</td>
+<td>寄存器占用、spill、低驻留</td>
+</tr>
+<tr>
+<td>Tensor Core</td>
+<td>QKᵀ、PV 及反向 GEMM</td>
+<td>提高有效矩阵工作比例</td>
+<td>tile 利用率、布局和调度</td>
+</tr>
+<tr>
+<td>FP32/SFU 路径</td>
+<td>max、exp、sum、缩放</td>
+<td>减少不必要的重复运算</td>
+<td>吞吐与串行依赖</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="subsection-2">2.2 Standard Attention Implementation — 原式与正确梯度</h3>
+<p>单头输入 Q/K/V 均为 N×d，输出 O 也是 N×d；batch 和 heads 在外层独立。原文为讲解省略 scale、mask 和 dropout。</p>
+<div class="equation original-equation" id="equation-1"><span class="equation-label">ORIGINAL FORMULA GROUP 1 · UNNUMBERED IN V1</span><div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table class="equation-original" id="S2.Ex1">
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math alttext="\mathbf{S}=\mathbf{Q}\mathbf{K}^{\top}\in\mathbb{R}^{N\times N},\quad\mathbf{P}=\mathrm{softmax}(\mathbf{S})\in\mathbb{R}^{N\times N},\quad\mathbf{O}=\mathbf{P}\mathbf{V}\in\mathbb{R}^{N\times d}," class="ltx_Math" display="block"><semantics><mrow><mrow><mrow><mi>𝐒</mi><mo>=</mo><msup><mi>𝐐𝐊</mi><mo>⊤</mo></msup><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>N</mi></mrow></msup></mrow><mo rspace="1.167em">,</mo><mrow><mi>𝐏</mi><mo>=</mo><mrow><mi>softmax</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝐒</mi><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>N</mi></mrow></msup></mrow><mo rspace="1.167em">,</mo><mrow><mi>𝐎</mi><mo>=</mo><mi>𝐏𝐕</mi><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></mrow><mo>,</mo></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+</table></div><details class="latex-source"><summary>Original LaTeX</summary><code>\mathbf{S}=\mathbf{Q}\mathbf{K}^{\top}\in\mathbb{R}^{N\times N},\quad\mathbf{P}=\mathrm{softmax}(\mathbf{S})\in\mathbb{R}^{N\times N},\quad\mathbf{O}=\mathbf{P}\mathbf{V}\in\mathbb{R}^{N\times d},</code></details></div>
+<p>QKᵀ 把 d 维归约成 N×N 分数；softmax 沿 KV 列归一化，每个 Query 行的概率和为 1；PV 再把值向量加权成 N×d。标准实现写回 S/P，因而需要二次方大小的中间张量。</p>
+<div class="equation original-equation" id="equation-2"><span class="equation-label">ORIGINAL FORMULA GROUP 2 · UNNUMBERED IN V1</span><div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table class="equation-original" id="S2.EGx1">
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{dV}" class="ltx_Math" display="inline"><semantics><mi>𝐝𝐕</mi></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathbf{P}^{\top}\mathbf{dO}\in\mathbb{R}^{N\times d}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><msup><mi>𝐏</mi><mo>⊤</mo></msup><mo lspace="0em" rspace="0em">​</mo><mi>𝐝𝐎</mi></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{dP}" class="ltx_Math" display="inline"><semantics><mi>𝐝𝐏</mi></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathbf{dO}\mathbf{V}^{\top}\in\mathbb{R}^{N\times N}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><msup><mi>𝐝𝐎𝐕</mi><mo>⊤</mo></msup><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>N</mi></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{dS}" class="ltx_Math" display="inline"><semantics><mi>𝐝𝐒</mi></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{dsoftmax}(\mathbf{dP})\in\mathbb{R}^{N\times N}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>dsoftmax</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>𝐝𝐏</mi><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>N</mi></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{dQ}" class="ltx_Math" display="inline"><semantics><mi>𝐝𝐐</mi></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathbf{dS}\mathbf{K}\in\mathbb{R}^{N\times d}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mi>𝐝𝐒𝐊</mi><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{dK}" class="ltx_Math" display="inline"><semantics><mi>𝐝𝐊</mi></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathbf{Q}\mathbf{dS}^{\top}\in\mathbb{R}^{N\times d}," class="ltx_Math" display="inline"><semantics><mrow><mrow><mphantom></mphantom><mo>=</mo><msup><mi>𝐐𝐝𝐒</mi><mo>⊤</mo></msup><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow><mo>,</mo></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+</table></div><details class="latex-source"><summary>Original LaTeX</summary><code>\displaystyle\mathbf{dV}
+\displaystyle=\mathbf{P}^{\top}\mathbf{dO}\in\mathbb{R}^{N\times d}
+\displaystyle\mathbf{dP}
+\displaystyle=\mathbf{dO}\mathbf{V}^{\top}\in\mathbb{R}^{N\times N}
+\displaystyle\mathbf{dS}
+\displaystyle=\mathrm{dsoftmax}(\mathbf{dP})\in\mathbb{R}^{N\times N}
+\displaystyle\mathbf{dQ}
+\displaystyle=\mathbf{dS}\mathbf{K}\in\mathbb{R}^{N\times d}
+\displaystyle\mathbf{dK}
+\displaystyle=\mathbf{Q}\mathbf{dS}^{\top}\in\mathbb{R}^{N\times d},</code></details></div>
+<p><strong>原文笔误：</strong>最后一行 dK=Q dSᵀ 不满足上述 N×d 布局。正确式为：</p>
+<div class="equation corrected-equation"><span class="equation-label">AGENT DERIVATION / CORRECTION</span><span class="katex"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi><mi>V</mi><mo>=</mo><msup><mi>P</mi><mi mathvariant="normal">⊤</mi></msup><mi>d</mi><mi>O</mi><mo separator="true">,</mo><mspace width="1em"></mspace><mi>d</mi><mi>P</mi><mo>=</mo><mi>d</mi><mi>O</mi><msup><mi>V</mi><mi mathvariant="normal">⊤</mi></msup><mo separator="true">,</mo><mspace width="1em"></mspace><mi>D</mi><mo>=</mo><mi mathvariant="normal">rowsum</mi><mo>⁡</mo><mo stretchy="false">(</mo><mi>d</mi><mi>P</mi><mo>⊙</mo><mi>P</mi><mo stretchy="false">)</mo><mo>=</mo><mi mathvariant="normal">rowsum</mi><mo>⁡</mo><mo stretchy="false">(</mo><mi>d</mi><mi>O</mi><mo>⊙</mo><mi>O</mi><mo stretchy="false">)</mo><mo separator="true">,</mo><mspace width="1em"></mspace><mi>d</mi><mi>S</mi><mo>=</mo><mi>P</mi><mo>⊙</mo><mo stretchy="false">(</mo><mi>d</mi><mi>P</mi><mo>−</mo><mi>D</mi><mo stretchy="false">)</mo><mo separator="true">,</mo><mspace width="1em"></mspace><mi>d</mi><mi>Q</mi><mo>=</mo><mi>d</mi><mi>S</mi><mi>K</mi><mo separator="true">,</mo><mspace width="1em"></mspace><mi>d</mi><mi>K</mi><mo>=</mo><mi>d</mi><msup><mi>S</mi><mi mathvariant="normal">⊤</mi></msup><mi>Q</mi><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">
+dV=P^\top dO,\quad dP=dO V^\top,\quad
+D=\operatorname{rowsum}(dP\odot P)=\operatorname{rowsum}(dO\odot O),
+\quad dS=P\odot(dP-D),\quad dQ=dS K,\quad dK=dS^\top Q.
+</annotation></semantics></math></span><details class="latex-source"><summary>LaTeX</summary><code>dV=P^\top dO,\quad dP=dO V^\top,\quad
+D=\operatorname{rowsum}(dP\odot P)=\operatorname{rowsum}(dO\odot O),
+\quad dS=P\odot(dP-D),\quad dQ=dS K,\quad dK=dS^\top Q.</code></details></div>
+<p>D 为 N 维，沿行广播到 N×N。softmax Jacobian diag(p)−ppᵀ 可以化简成 p⊙(dp−Σp·dp)，不需要显式构造 Jacobian。恒等式 D=rowsum(dO⊙O) 允许先用 O 和 dO 计算一行一个标量，后续在 tile 中直接扣除。[1]</p>
+<p>原文脚注把常见缩放写作 1/d；标准 scaled dot-product attention 的 scale 为 <strong>1/√d</strong>。实现若 S=sQKᵀ，则 dQ、dK 也必须乘 s，且 scale、mask、dropout 的位置需与前向一致。这里保留 v1 脚注事实，不用它替代模型的实际定义。</p>
+<h3 id="subsection-3">2.3.1 FlashAttention forward — online softmax 的不变量</h3>
+<p>考虑两块 S¹/S²∈R^(Br×Bc) 和 V¹/V²∈R^(Bc×d)。原文先给完整计算，再说明在线合并。</p>
+<div class="equation original-equation" id="equation-3"><span class="equation-label">ORIGINAL FORMULA GROUP 3 · UNNUMBERED IN V1</span><div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table class="equation-original" id="S2.EGx2">
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle m" class="ltx_Math" display="inline"><semantics><mi>m</mi></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\max(\mathrm{rowmax}(\mathbf{S}^{(1)}),\mathrm{rowmax}(\mathbf{S}^{(2)}))\in\mathbb{R}^{B_{r}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>max</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mi>rowmax</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo>,</mo><mrow><mi>rowmax</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\ell" class="ltx_Math" display="inline"><semantics><mi mathvariant="normal">ℓ</mi></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m})+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m})\in\mathbb{R}^{B_{r}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo>+</mo><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{P}" class="ltx_Math" display="inline"><semantics><mi>𝐏</mi></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\begin{bmatrix}\mathbf{P}^{(1)}&amp;\mathbf{P}^{(2)}\end{bmatrix}=\mathrm{diag}(\ell)^{-1}\begin{bmatrix}e^{\mathbf{S}^{(1)}-m}&amp;e^{\mathbf{S}^{(2)}-m}\end{bmatrix}\in\mathbb{R}^{B_{r}\times 2B_{c}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mo>[</mo><mtable columnspacing="5pt"><mtr><mtd><msup><mi>𝐏</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mtd><mtd><msup><mi>𝐏</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mtd></mtr></mtable><mo>]</mo></mrow><mo>=</mo><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><mi mathvariant="normal">ℓ</mi><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><mrow><mo>[</mo><mtable columnspacing="5pt"><mtr><mtd><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup></mtd><mtd><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup></mtd></mtr></mtable><mo>]</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mn>2</mn></mrow><mo lspace="0em" rspace="0em">​</mo><msub><mi>B</mi><mi>c</mi></msub></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{O}" class="ltx_Math" display="inline"><semantics><mi>𝐎</mi></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\begin{bmatrix}\mathbf{P}^{(1)}&amp;\mathbf{P}^{(2)}\end{bmatrix}\begin{bmatrix}\mathbf{V}^{(1)}\\
+\mathbf{V}^{(2)}\end{bmatrix}=\mathrm{diag}(\ell)^{-1}e^{\mathbf{S}^{(1)}-m}\mathbf{V}^{(1)}+e^{\mathbf{S}^{(2)}-m}\mathbf{V}^{(2)}\in\mathbb{R}^{B_{r}\times d}." class="ltx_Math" display="inline"><semantics><mrow><mrow><mphantom></mphantom><mo>=</mo><mrow><mrow><mo>[</mo><mtable columnspacing="5pt"><mtr><mtd><msup><mi>𝐏</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mtd><mtd><msup><mi>𝐏</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mtd></mtr></mtable><mo>]</mo></mrow><mo lspace="0em" rspace="0em">​</mo><mrow><mo>[</mo><mtable rowspacing="0pt"><mtr><mtd><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mtd></mtr><mtr><mtd><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mtd></mtr></mtable><mo>]</mo></mrow></mrow><mo>=</mo><mrow><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><mi mathvariant="normal">ℓ</mi><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>+</mo><mrow><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow><mo lspace="0em">.</mo></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+</table></div><details class="latex-source"><summary>Original LaTeX</summary><code>\displaystyle m
+\displaystyle=\max(\mathrm{rowmax}(\mathbf{S}^{(1)}),\mathrm{rowmax}(\mathbf{S}^{(2)}))\in\mathbb{R}^{B_{r}}
+\displaystyle\ell
+\displaystyle=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m})+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m})\in\mathbb{R}^{B_{r}}
+\displaystyle\mathbf{P}
+\displaystyle=\begin{bmatrix}\mathbf{P}^{(1)}&amp;\mathbf{P}^{(2)}\end{bmatrix}=\mathrm{diag}(\ell)^{-1}\begin{bmatrix}e^{\mathbf{S}^{(1)}-m}&amp;e^{\mathbf{S}^{(2)}-m}\end{bmatrix}\in\mathbb{R}^{B_{r}\times 2B_{c}}
+\displaystyle\mathbf{O}
+\displaystyle=\begin{bmatrix}\mathbf{P}^{(1)}&amp;\mathbf{P}^{(2)}\end{bmatrix}\begin{bmatrix}\mathbf{V}^{(1)}\\
+\mathbf{V}^{(2)}\end{bmatrix}=\mathrm{diag}(\ell)^{-1}e^{\mathbf{S}^{(1)}-m}\mathbf{V}^{(1)}+e^{\mathbf{S}^{(2)}-m}\mathbf{V}^{(2)}\in\mathbb{R}^{B_{r}\times d}.</code></details></div>
+<p>m 和 ℓ 都为 Br 向量；exp(S−m) 的 m 沿列广播。m 选择整个已见区域的最大分数，保证指数不超过 1；ℓ 是这个共同坐标系下的指数和。O 的分子与 ℓ 必须使用同一个 m。</p>
+<p><strong>原式展开遗漏：</strong>上面原式 O 的第二个分子项漏写 diag(ℓ)⁻¹。正确完整表达为 diag(ℓ)⁻¹[e^(S¹−m)V¹+e^(S²−m)V²]；两个块都必须除以同一全局分母。这个问题与后面在线更新中的比例方向错误分别记录。</p>
+<div class="equation original-equation" id="equation-4"><span class="equation-label">ORIGINAL FORMULA GROUP 4 · UNNUMBERED IN V1</span><div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table class="equation-original" id="S2.EGx3">
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle m^{(1)}" class="ltx_Math" display="inline"><semantics><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{rowmax}(\mathbf{S}^{(1)})\in\mathbb{R}^{B_{r}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>rowmax</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\ell^{(1)}" class="ltx_Math" display="inline"><semantics><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m^{(1)}})\in\mathbb{R}^{B_{r}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\tilde{\mathbf{P}}^{(1)}" class="ltx_Math" display="inline"><semantics><msup><mover accent="true"><mi>𝐏</mi><mo>~</mo></mover><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{diag}(\ell^{(1)})^{-1}e^{\mathbf{S}^{(1)}-m^{(1)}}\in\mathbb{R}^{B_{r}\times B_{c}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><msub><mi>B</mi><mi>c</mi></msub></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{O}^{(1)}" class="ltx_Math" display="inline"><semantics><msup><mi>𝐎</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\tilde{\mathbf{P}}^{(1)}\mathbf{V}^{(1)}=\mathrm{diag}(\ell^{(1)})^{-1}e^{\mathbf{S}^{(1)}-m^{(1)}}\mathbf{V}^{(1)}\in\mathbb{R}^{B_{r}\times d}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><msup><mover accent="true"><mi>𝐏</mi><mo>~</mo></mover><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>=</mo><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle m^{(2)}" class="ltx_Math" display="inline"><semantics><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\max(m^{(1)},\mathrm{rowmax}(\mathbf{S}^{(2)}))=m" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>max</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>,</mo><mrow><mi>rowmax</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mi>m</mi></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\ell^{(2)}" class="ltx_Math" display="inline"><semantics><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=e^{m^{(1)}-m^{(2)}}\ell^{(1)}+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m^{(2)}})=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m})+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m})=\ell" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mrow><msup><mi>e</mi><mrow><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>+</mo><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>=</mo><mrow><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo>+</mo><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>=</mo><mi mathvariant="normal">ℓ</mi></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\tilde{\mathbf{P}}^{(2)}" class="ltx_Math" display="inline"><semantics><msup><mover accent="true"><mi>𝐏</mi><mo>~</mo></mover><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{diag}(\ell^{(2)})^{-1}e^{\mathbf{S}^{(2)}-m^{(2)}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup></mrow></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{O}^{(2)}" class="ltx_Math" display="inline"><semantics><msup><mi>𝐎</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{diag}(\ell^{(1)}/\ell^{(2)})^{-1}\mathbf{O}^{(1)}+\tilde{\mathbf{P}}^{(2)}\mathbf{V}^{(2)}=\mathrm{diag}(\ell^{(2)})^{-1}e^{s^{(1)}-m}\mathbf{V}^{(1)}+\mathrm{diag}(\ell^{(2)})^{-1}e^{s^{(2)}-m}\mathbf{V}^{(2)}=\mathbf{O}." class="ltx_Math" display="inline"><semantics><mrow><mrow><mphantom></mphantom><mo>=</mo><mrow><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><mrow><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>/</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐎</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>+</mo><mrow><msup><mover accent="true"><mi>𝐏</mi><mo>~</mo></mover><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></mrow><mo>=</mo><mrow><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><msup><mi>s</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>+</mo><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><msup><mi>s</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></mrow><mo>=</mo><mi>𝐎</mi></mrow><mo lspace="0em">.</mo></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+</table></div><details class="latex-source"><summary>Original LaTeX</summary><code>\displaystyle m^{(1)}
+\displaystyle=\mathrm{rowmax}(\mathbf{S}^{(1)})\in\mathbb{R}^{B_{r}}
+\displaystyle\ell^{(1)}
+\displaystyle=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m^{(1)}})\in\mathbb{R}^{B_{r}}
+\displaystyle\tilde{\mathbf{P}}^{(1)}
+\displaystyle=\mathrm{diag}(\ell^{(1)})^{-1}e^{\mathbf{S}^{(1)}-m^{(1)}}\in\mathbb{R}^{B_{r}\times B_{c}}
+\displaystyle\mathbf{O}^{(1)}
+\displaystyle=\tilde{\mathbf{P}}^{(1)}\mathbf{V}^{(1)}=\mathrm{diag}(\ell^{(1)})^{-1}e^{\mathbf{S}^{(1)}-m^{(1)}}\mathbf{V}^{(1)}\in\mathbb{R}^{B_{r}\times d}
+\displaystyle m^{(2)}
+\displaystyle=\max(m^{(1)},\mathrm{rowmax}(\mathbf{S}^{(2)}))=m
+\displaystyle\ell^{(2)}
+\displaystyle=e^{m^{(1)}-m^{(2)}}\ell^{(1)}+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m^{(2)}})=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m})+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m})=\ell
+\displaystyle\tilde{\mathbf{P}}^{(2)}
+\displaystyle=\mathrm{diag}(\ell^{(2)})^{-1}e^{\mathbf{S}^{(2)}-m^{(2)}}
+\displaystyle\mathbf{O}^{(2)}
+\displaystyle=\mathrm{diag}(\ell^{(1)}/\ell^{(2)})^{-1}\mathbf{O}^{(1)}+\tilde{\mathbf{P}}^{(2)}\mathbf{V}^{(2)}=\mathrm{diag}(\ell^{(2)})^{-1}e^{s^{(1)}-m}\mathbf{V}^{(1)}+\mathrm{diag}(\ell^{(2)})^{-1}e^{s^{(2)}-m}\mathbf{V}^{(2)}=\mathbf{O}.</code></details></div>
+<p><strong>校正并推导。</strong>原文最后一行的 diag(ℓ¹/ℓ²)⁻¹ 少了 max 改变的指数因子且比例方向错误。若 O¹ 已归一化，正确合并是：</p>
+<div class="equation corrected-equation"><span class="equation-label">AGENT DERIVATION / CORRECTION</span><span class="katex"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>α</mi><mo>=</mo><msup><mi>e</mi><mrow><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo separator="true">,</mo><mspace width="2em"></mspace><msup><mi>O</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>=</mo><mi mathvariant="normal">diag</mi><mo>⁡</mo><mtext> ⁣</mtext><mrow><mo fence="true">(</mo><mi>α</mi><mfrac><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mfrac><mo fence="true">)</mo></mrow><msup><mi>O</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>+</mo><mi mathvariant="normal">diag</mi><mo>⁡</mo><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><msup><mo stretchy="false">)</mo><mrow><mo>−</mo><mn>1</mn></mrow></msup><msup><mi>e</mi><mrow><msup><mi>S</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><msup><mi>V</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">
+\alpha=e^{m^{(1)}-m^{(2)}},\qquad
+O^{(2)}=\operatorname{diag}\!\left(\alpha\frac{\ell^{(1)}}{\ell^{(2)}}\right)O^{(1)}
++\operatorname{diag}(\ell^{(2)})^{-1}e^{S^{(2)}-m^{(2)}}V^{(2)}.
+</annotation></semantics></math></span><details class="latex-source"><summary>LaTeX</summary><code>\alpha=e^{m^{(1)}-m^{(2)}},\qquad
+O^{(2)}=\operatorname{diag}\!\left(\alpha\frac{\ell^{(1)}}{\ell^{(2)}}\right)O^{(1)}
++\operatorname{diag}(\ell^{(2)})^{-1}e^{S^{(2)}-m^{(2)}}V^{(2)}.</code></details></div>
+<p>直觉上，新块出现更大分数后，旧块的分子和分母都要缩小 α≤1，才能改用新的最大值作为坐标原点。直接把两个局部 softmax 输出相加会把两块各自的概率和都当作 1；那不是全局 softmax。</p>
+<figure class="original" id="figure-1"><div class="figure-grid"><div class="figure-panel"><img alt='Original Figure 1: &lt;span class="ltx_tag ltx_tag_figure"&gt;&lt;span class="ltx_text"&gt;Figure 1&lt;/span&gt;: &lt;/s' loading="lazy" src="assets/original/flash_attention_diagram.png"/></div></div><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 1</span>: </span><span class="ltx_text">Diagram of how <span class="ltx_text ltx_font_smallcaps">FlashAttention</span> forward
+pass is performed, when the key <math alttext="\mathbf{K}" class="ltx_Math" display="inline"><semantics><mi>𝐊</mi></semantics></math> is partitioned into two blocks and the
+value <math alttext="\mathbf{V}" class="ltx_Math" display="inline"><semantics><mi>𝐕</mi></semantics></math> is also partitioned into two blocks.
+By computing attention with respect to each block and rescaling the output,
+we get the right answer at the end, while avoiding expensive memory
+reads/writes of the intermediate matrices <math alttext="\mathbf{S}" class="ltx_Math" display="inline"><semantics><mi>𝐒</mi></semantics></math> and <math alttext="\mathbf{P}" class="ltx_Math" display="inline"><semantics><mi>𝐏</mi></semantics></math>.
+We simplify the diagram, omitting the step in softmax that subtracts each
+element by the row-wise max.</span><br/>Source: Original paper · Figure 1. Author PNG / author vector PDF render. Click or press Enter to zoom.</figcaption></figure>
+<p><strong>Figure 1 如何读。</strong>从左到右看 K/V 的两个分块：先由 QK¹ᵀ 计算局部权重和输出，再处理 K²/V²，最后把两块结果放回共同归一化尺度。模块中的 diag 与缩放连接就是全局概率质量的合并。图有意省略减去 rowmax 的步骤，不能据此认为实现不需要数值稳定性。图的意义是说明 tiling 为什么能保持原 attention；它属于 FA1 背景图，不是 FA2 的 warp 分工图。[1]</p>
+<h3 id="subsection-4">2.3.2 FlashAttention backward — 多做一次 GEMM，少保存 N²</h3>
+<p>前向不保存 P，反向重新算 QKᵀ 和 exp(S−L)。它增加重计算，但避免在 HBM 保存和加载 N×N 概率。反向依次涉及 QKᵀ、PᵀdO、dOVᵀ、dSK、dSᵀQ 五个 GEMM，依赖和片上状态比前向两个 GEMM 更复杂。[1]</p>
+<p>“线性内存”指随 N 线性增长的全局输入/输出和保存状态，不代表计算量线性，也不代表每个 CTA 的 shared memory 常数为零。FA2 的存储改进不能直接推导为 KV cache 压缩。</p>
+<h2 id="section-4">3 FlashAttention-2 — 算法、并行与 warp 所有权</h2>
+<h3 id="subsection-5">3.1 Algorithm — 将归一化移出内层循环</h3>
+<p>A100 的理论数字为 BF16/FP16 matmul 312 TFLOPs/s 与 FP32 non-matmul 19.5 TFLOPs/s，比例为 16。这个比例是峰值能力对照，不能解读成每条 exp、load 或 barrier 都精确等价于 16 次 GEMM FLOP。FA2 的工程目标是减少不能被矩阵乘法有效隐藏的工作。[1]</p>
+<h4 id="subsection-6">3.1.1 Forward pass — 保存 U、m、ℓ</h4>
+<p>下面两式是 v1 的原始陈述，保留其笔误以方便对照。</p>
+<div class="equation original-equation" id="equation-5"><span class="equation-label">ORIGINAL FORMULA GROUP 5 · UNNUMBERED IN V1</span><div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table class="equation-original" id="S3.Ex19">
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math alttext="\mathbf{O}^{(2)}=\mathrm{diag}(\ell^{(1)}/\ell^{(2)})^{-1}\mathbf{O}^{(1)}+\mathrm{diag}(\ell^{(2)})^{-1}e^{\mathbf{S}^{(2)}-m^{(2)}}\mathbf{V}^{(2)}." class="ltx_Math" display="block"><semantics><mrow><mrow><msup><mi>𝐎</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>=</mo><mrow><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><mrow><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>/</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐎</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>+</mo><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+</table></div><details class="latex-source"><summary>Original LaTeX</summary><code>\mathbf{O}^{(2)}=\mathrm{diag}(\ell^{(1)}/\ell^{(2)})^{-1}\mathbf{O}^{(1)}+\mathrm{diag}(\ell^{(2)})^{-1}e^{\mathbf{S}^{(2)}-m^{(2)}}\mathbf{V}^{(2)}.</code></details></div>
+<div class="equation original-equation" id="equation-6"><span class="equation-label">ORIGINAL FORMULA GROUP 6 · UNNUMBERED IN V1</span><div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table class="equation-original" id="S3.Ex20">
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math alttext="\tilde{\mathbf{O}}^{(2)}=\mathrm{diag}(\ell^{(1)})^{-1}\mathbf{O}^{(1)}+e^{\mathbf{S}^{(2)}-m^{(2)}}\mathbf{V}^{(2)}." class="ltx_Math" display="block"><semantics><mrow><mrow><msup><mover accent="true"><mi>𝐎</mi><mo>~</mo></mover><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>=</mo><mrow><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐎</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>+</mo><mrow><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+</table></div><details class="latex-source"><summary>Original LaTeX</summary><code>\tilde{\mathbf{O}}^{(2)}=\mathrm{diag}(\ell^{(1)})^{-1}\mathbf{O}^{(1)}+e^{\mathbf{S}^{(2)}-m^{(2)}}\mathbf{V}^{(2)}.</code></details></div>
+<p>原文“un-scaled”式的 diag(ℓ¹)⁻¹O¹ 也不正确。如果 O¹ 已归一化，应先恢复分子 ℓ¹O¹，再乘 α；如果状态已经是未归一化的 U¹，则只需乘 α。</p>
+<div class="equation original-equation" id="equation-7"><span class="equation-label">ORIGINAL FORMULA GROUP 7 · UNNUMBERED IN V1</span><div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table class="equation-original" id="S3.EGx4">
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle m^{(1)}" class="ltx_Math" display="inline"><semantics><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{rowmax}(\mathbf{S}^{(1)})\in\mathbb{R}^{B_{r}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>rowmax</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\ell^{(1)}" class="ltx_Math" display="inline"><semantics><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m^{(1)}})\in\mathbb{R}^{B_{r}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\tilde{\mathbf{O}^{(1)}}" class="ltx_Math" display="inline"><semantics><mover accent="true"><msup><mi>𝐎</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>~</mo></mover></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=e^{\mathbf{S}^{(1)}-m^{(1)}}\mathbf{V}^{(1)}\in\mathbb{R}^{B_{r}\times d}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle m^{(2)}" class="ltx_Math" display="inline"><semantics><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\max(m^{(1)},\mathrm{rowmax}(\mathbf{S}^{(2)}))=m" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>max</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>,</mo><mrow><mi>rowmax</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mi>m</mi></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\ell^{(2)}" class="ltx_Math" display="inline"><semantics><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=e^{m^{(1)}-m^{(2)}}\ell^{(1)}+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m^{(2)}})=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m})+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m})=\ell" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mrow><msup><mi>e</mi><mrow><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>+</mo><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>=</mo><mrow><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo stretchy="false">)</mo></mrow></mrow><mo>+</mo><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>=</mo><mi mathvariant="normal">ℓ</mi></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\tilde{\mathbf{P}}^{(2)}" class="ltx_Math" display="inline"><semantics><msup><mover accent="true"><mi>𝐏</mi><mo>~</mo></mover><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{diag}(\ell^{(2)})^{-1}e^{\mathbf{S}^{(2)}-m^{(2)}}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup></mrow></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\tilde{\mathbf{O}}^{(2)}" class="ltx_Math" display="inline"><semantics><msup><mover accent="true"><mi>𝐎</mi><mo>~</mo></mover><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{diag}(e^{m^{(1)}-m^{(2)}})^{-1}\tilde{\mathbf{O}}^{(1)}+e^{\mathbf{S}^{(2)}-m^{(2)}}\mathbf{V}^{(2)}=e^{s^{(1)}-m}\mathbf{V}^{(1)}+e^{s^{(2)}-m}\mathbf{V}^{(2)}" class="ltx_Math" display="inline"><semantics><mrow><mphantom></mphantom><mo>=</mo><mrow><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mover accent="true"><mi>𝐎</mi><mo>~</mo></mover><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>+</mo><mrow><msup><mi>e</mi><mrow><msup><mi>𝐒</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><msup><mi>m</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></mrow><mo>=</mo><mrow><mrow><msup><mi>e</mi><mrow><msup><mi>s</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>+</mo><mrow><msup><mi>e</mi><mrow><msup><mi>s</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo>−</mo><mi>m</mi></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mi>𝐕</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow></mrow></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math alttext="\displaystyle\mathbf{O}^{(2)}" class="ltx_Math" display="inline"><semantics><msup><mi>𝐎</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math alttext="\displaystyle=\mathrm{diag}(\ell^{(2)})^{-1}\tilde{\mathbf{O}}^{(2)}=\mathbf{O}." class="ltx_Math" display="inline"><semantics><mrow><mrow><mphantom></mphantom><mo>=</mo><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi mathvariant="normal">ℓ</mi><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msup><mover accent="true"><mi>𝐎</mi><mo>~</mo></mover><mrow><mo stretchy="false">(</mo><mn>2</mn><mo stretchy="false">)</mo></mrow></msup></mrow><mo>=</mo><mi>𝐎</mi></mrow><mo lspace="0em">.</mo></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+</table></div><details class="latex-source"><summary>Original LaTeX</summary><code>\displaystyle m^{(1)}
+\displaystyle=\mathrm{rowmax}(\mathbf{S}^{(1)})\in\mathbb{R}^{B_{r}}
+\displaystyle\ell^{(1)}
+\displaystyle=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m^{(1)}})\in\mathbb{R}^{B_{r}}
+\displaystyle\tilde{\mathbf{O}^{(1)}}
+\displaystyle=e^{\mathbf{S}^{(1)}-m^{(1)}}\mathbf{V}^{(1)}\in\mathbb{R}^{B_{r}\times d}
+\displaystyle m^{(2)}
+\displaystyle=\max(m^{(1)},\mathrm{rowmax}(\mathbf{S}^{(2)}))=m
+\displaystyle\ell^{(2)}
+\displaystyle=e^{m^{(1)}-m^{(2)}}\ell^{(1)}+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m^{(2)}})=\mathrm{rowsum}(e^{\mathbf{S}^{(1)}-m})+\mathrm{rowsum}(e^{\mathbf{S}^{(2)}-m})=\ell
+\displaystyle\tilde{\mathbf{P}}^{(2)}
+\displaystyle=\mathrm{diag}(\ell^{(2)})^{-1}e^{\mathbf{S}^{(2)}-m^{(2)}}
+\displaystyle\tilde{\mathbf{O}}^{(2)}
+\displaystyle=\mathrm{diag}(e^{m^{(1)}-m^{(2)}})^{-1}\tilde{\mathbf{O}}^{(1)}+e^{\mathbf{S}^{(2)}-m^{(2)}}\mathbf{V}^{(2)}=e^{s^{(1)}-m}\mathbf{V}^{(1)}+e^{s^{(2)}-m}\mathbf{V}^{(2)}
+\displaystyle\mathbf{O}^{(2)}
+\displaystyle=\mathrm{diag}(\ell^{(2)})^{-1}\tilde{\mathbf{O}}^{(2)}=\mathbf{O}.</code></details></div>
+<p><strong>正确状态更新。</strong>用 U 表示算法中的未归一化 O 累加器，避免与最终输出混淆。设已处理的全部 KV 集合为 J：</p>
+<div class="equation corrected-equation"><span class="equation-label">AGENT DERIVATION / CORRECTION</span><span class="katex"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>m</mi><mo>=</mo><munder><mrow><mi>max</mi><mo>⁡</mo></mrow><mrow><mi>j</mi><mo>∈</mo><mi>J</mi></mrow></munder><msub><mi>S</mi><mi>j</mi></msub><mo separator="true">,</mo><mspace width="2em"></mspace><mi mathvariant="normal">ℓ</mi><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mi>J</mi></mrow></munder><msup><mi>e</mi><mrow><msub><mi>S</mi><mi>j</mi></msub><mo>−</mo><mi>m</mi></mrow></msup><mo separator="true">,</mo><mspace width="2em"></mspace><mi>U</mi><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mi>J</mi></mrow></munder><msup><mi>e</mi><mrow><msub><mi>S</mi><mi>j</mi></msub><mo>−</mo><mi>m</mi></mrow></msup><msub><mi>V</mi><mi>j</mi></msub><mo separator="true">,</mo><mspace width="2em"></mspace><mi>O</mi><mo>=</mo><mi>U</mi><mi mathvariant="normal">/</mi><mi mathvariant="normal">ℓ</mi><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">
+m=\max_{j\in J}S_j,\qquad
+\ell=\sum_{j\in J}e^{S_j-m},\qquad
+U=\sum_{j\in J}e^{S_j-m}V_j,\qquad O=U/\ell.
+</annotation></semantics></math></span><details class="latex-source"><summary>LaTeX</summary><code>m=\max_{j\in J}S_j,\qquad
+\ell=\sum_{j\in J}e^{S_j-m},\qquad
+U=\sum_{j\in J}e^{S_j-m}V_j,\qquad O=U/\ell.</code></details></div>
+<div class="equation corrected-equation"><span class="equation-label">AGENT DERIVATION / CORRECTION</span><span class="katex"><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>m</mi><mo lspace="0em" mathvariant="normal" rspace="0em">′</mo></msup><mo>=</mo><mi>max</mi><mo>⁡</mo><mo stretchy="false">(</mo><mi>m</mi><mo separator="true">,</mo><mi mathvariant="normal">rowmax</mi><mo>⁡</mo><mo stretchy="false">(</mo><msub><mi>S</mi><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">e</mi></mrow></msub><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mo separator="true">,</mo><mspace width="1em"></mspace><mi>α</mi><mo>=</mo><msup><mi>e</mi><mrow><mi>m</mi><mo>−</mo><msup><mi>m</mi><mo lspace="0em" mathvariant="normal" rspace="0em">′</mo></msup></mrow></msup><mo separator="true">,</mo><mspace width="1em"></mspace><mi>E</mi><mo>=</mo><msup><mi>e</mi><mrow><msub><mi>S</mi><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">e</mi></mrow></msub><mo>−</mo><msup><mi>m</mi><mo lspace="0em" mathvariant="normal" rspace="0em">′</mo></msup></mrow></msup><mo separator="true">,</mo><mspace width="1em"></mspace><msup><mi mathvariant="normal">ℓ</mi><mo lspace="0em" mathvariant="normal" rspace="0em">′</mo></msup><mo>=</mo><mi>α</mi><mi mathvariant="normal">ℓ</mi><mo>+</mo><mi mathvariant="normal">rowsum</mi><mo>⁡</mo><mo stretchy="false">(</mo><mi>E</mi><mo stretchy="false">)</mo><mo separator="true">,</mo><mspace width="1em"></mspace><msup><mi>U</mi><mo lspace="0em" mathvariant="normal" rspace="0em">′</mo></msup><mo>=</mo><mi>α</mi><mi>U</mi><mo>+</mo><mi>E</mi><msub><mi>V</mi><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">e</mi></mrow></msub><mo separator="true">,</mo><mspace width="1em"></mspace><mi>L</mi><mo>=</mo><mi>m</mi><mo>+</mo><mi>log</mi><mo>⁡</mo><mi mathvariant="normal">ℓ</mi><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">
+m'=\max(m,\operatorname{rowmax}(S_{\rm tile})),\quad
+\alpha=e^{m-m'},\quad E=e^{S_{\rm tile}-m'},\quad
+\ell'=\alpha\ell+\operatorname{rowsum}(E),\quad
+U'=\alpha U+EV_{\rm tile},\quad
+L=m+\log\ell.
+</annotation></semantics></math></span><details class="latex-source"><summary>LaTeX</summary><code>m'=\max(m,\operatorname{rowmax}(S_{\rm tile})),\quad
+\alpha=e^{m-m'},\quad E=e^{S_{\rm tile}-m'},\quad
+\ell'=\alpha\ell+\operatorname{rowsum}(E),\quad
+U'=\alpha U+EV_{\rm tile},\quad
+L=m+\log\ell.</code></details></div>
+<p>U 是 Br×d；E 为 Br×Bc；m/ℓ/α/L 都为 Br；向量乘法按行广播。除法只在遍历允许的 KV 后执行一次。每次新最大值改变仍需缩放 U；FA2 并未取消在线重标定，而是取消循环中的完整归一化。</p>
+<p><strong>正确性不变量。</strong>将旧指数 e^(S−m) 乘 e^(m−m')，恰好得到 e^(S−m')。新块也以 m' 表示，因此加和后的 ℓ' 与 U' 是全部已见 KV 在同一坐标系下的分母和分子。最后 U/ℓ 与直接 softmax 完全相同（实数算术）；浮点顺序改变可有微小差异。</p>
+<section class="interactive" id="softmax-explorer">
+<p class="component-label">AGENT-CREATED VISUALIZATION · MATHEMATICAL INPUT</p>
+<h4 id="subsection-7">每见一块 KV，哪些状态必须一起缩放？</h4>
+<p>解释性输入：一条 Query，两个 KV 块。操作只展示精确数学状态，不预测硬件性能。</p>
+<label for="softmax-case">Scores
+<select id="softmax-case"><option value="rise">Second block raises the max · [0, 1] → [4, 3]</option><option value="same">Max unchanged · [4, 3] → [0, 1]</option><option value="large">Large scores · [1000, 1001] → [1004, 1003]</option></select></label>
+<div class="button-row"><button id="softmax-next" type="button">Next block</button><button id="softmax-reset" type="button">Reset</button></div>
+<ol class="step-track" id="softmax-track"><li>Initial</li><li>KV block 1</li><li>KV block 2</li><li>Normalize once</li></ol>
+<div class="metric-bars" id="softmax-bars"></div><output aria-live="polite" id="softmax-result">Initial: m=−∞, l=0, U=0. Values are [1,2,3,4].</output>
+<p class="fine">No autoplay. Space/Enter activates buttons. At the final step, U/l equals a stable full softmax. Original v1's inverse alpha would break this invariant.</p>
+</section>
+<p>组件只演示数学状态，使用明确标记的解释性输入，不模拟硬件延迟。切换“更大的新最大值”时，注意旧 U、ℓ 同时缩小；这正是原文逆因子笔误会破坏的地方。</p>
+<div class="algorithm-wrap" id="algorithm-1"><figure class="original-algorithm" id="alg1">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_float"><span class="ltx_text ltx_font_bold">Algorithm 1</span> </span> <span class="ltx_text ltx_font_smallcaps">FlashAttention-2<span class="ltx_text ltx_font_upright"> forward pass</span></span></figcaption>
+<div class="ltx_listing ltx_framed ltx_framed_topbottom ltx_listing">
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">0:</span></span>
+
+
+               Matrices <math alttext="\mathbf{Q},\mathbf{K},\mathbf{V}\in\mathbb{R}^{N\times d}" class="ltx_Math" display="inline"><semantics><mrow><mi>𝐐</mi><mo>,</mo><mi>𝐊</mi><mo>,</mo><mrow><mi>𝐕</mi><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></mrow></semantics></math> in HBM, block sizes <math alttext="B_{c}" class="ltx_Math" display="inline"><semantics><msub><mi>B</mi><mi>c</mi></msub></semantics></math>, <math alttext="B_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>B</mi><mi>r</mi></msub></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">1:</span></span>
+
+
+                Divide <math alttext="\mathbf{Q}" class="ltx_Math" display="inline"><semantics><mi>𝐐</mi></semantics></math> into <math alttext="T_{r}=\left\lceil\frac{N}{B_{r}}\right\rceil" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>T</mi><mi>r</mi></msub><mo>=</mo><mrow><mo>⌈</mo><mfrac><mi>N</mi><msub><mi>B</mi><mi>r</mi></msub></mfrac><mo>⌉</mo></mrow></mrow></semantics></math> blocks <math alttext="\mathbf{Q}_{1},\dots,\mathbf{Q}_{T_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐐</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐐</mi><msub><mi>T</mi><mi>r</mi></msub></msub></mrow></semantics></math> of size <math alttext="B_{r}\times d" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></semantics></math> each,
+and divide <math alttext="\mathbf{K},\mathbf{V}" class="ltx_Math" display="inline"><semantics><mrow><mi>𝐊</mi><mo>,</mo><mi>𝐕</mi></mrow></semantics></math> in to <math alttext="T_{c}=\left\lceil\frac{N}{B_{c}}\right\rceil" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>T</mi><mi>c</mi></msub><mo>=</mo><mrow><mo>⌈</mo><mfrac><mi>N</mi><msub><mi>B</mi><mi>c</mi></msub></mfrac><mo>⌉</mo></mrow></mrow></semantics></math> blocks <math alttext="\mathbf{K}_{1},\dots,\mathbf{K}_{T_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐊</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐊</mi><msub><mi>T</mi><mi>c</mi></msub></msub></mrow></semantics></math> and
+<math alttext="\mathbf{V}_{1},\dots,\mathbf{V}_{T_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐕</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐕</mi><msub><mi>T</mi><mi>c</mi></msub></msub></mrow></semantics></math>, of size <math alttext="B_{c}\times d" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>B</mi><mi>c</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></semantics></math> each.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">2:</span></span>
+
+
+               Divide the output <math alttext="\mathbf{O}\in\mathbb{R}^{N\times d}" class="ltx_Math" display="inline"><semantics><mrow><mi>𝐎</mi><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></semantics></math> into <math alttext="T_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>T</mi><mi>r</mi></msub></semantics></math> blocks <math alttext="\mathbf{O}_{i},\dots,\mathbf{O}_{T_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐎</mi><mi>i</mi></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐎</mi><msub><mi>T</mi><mi>r</mi></msub></msub></mrow></semantics></math> of size
+<math alttext="B_{r}\times d" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></semantics></math> each, and divide the logsumexp <math alttext="L" class="ltx_Math" display="inline"><semantics><mi>L</mi></semantics></math> into <math alttext="T_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>T</mi><mi>r</mi></msub></semantics></math> blocks <math alttext="L_{i},\dots,L_{T_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>L</mi><mi>i</mi></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>L</mi><msub><mi>T</mi><mi>r</mi></msub></msub></mrow></semantics></math> of size
+<math alttext="B_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>B</mi><mi>r</mi></msub></semantics></math> each.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">3:</span></span>
+
+
+               <span class="ltx_text ltx_font_bold">for</span> <math alttext="1\leq i\leq T_{r}" class="ltx_Math" display="inline"><semantics><mrow><mn>1</mn><mo>≤</mo><mi>i</mi><mo>≤</mo><msub><mi>T</mi><mi>r</mi></msub></mrow></semantics></math> <span class="ltx_text ltx_font_bold">do</span>
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">4:</span></span>
+
+
+                 Load <math alttext="\mathbf{Q}_{i}" class="ltx_Math" display="inline"><semantics><msub><mi>𝐐</mi><mi>i</mi></msub></semantics></math> from HBM to on-chip SRAM.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">5:</span></span>
+
+
+                 On chip, initialize <math alttext="\mathbf{O}_{i}^{(0)}=(0)_{B_{r}\times d}\in\mathbb{R}^{B_{r}\times d},\ell_{i}^{(0)}=(0)_{B_{r}}\in\mathbb{R}^{B_{r}},m_{i}^{(0)}=(-\infty)_{B_{r}}\in\mathbb{R}^{B_{r}}" class="ltx_Math" display="inline"><semantics><mrow><mrow><msubsup><mi>𝐎</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><msub><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msub><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow><mo>,</mo><mrow><msubsup><mi mathvariant="normal">ℓ</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><msub><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow><msub><mi>B</mi><mi>r</mi></msub></msub><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow><mo>,</mo><mrow><msubsup><mi>m</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><msub><mrow><mo stretchy="false">(</mo><mrow><mo>−</mo><mi mathvariant="normal">∞</mi></mrow><mo stretchy="false">)</mo></mrow><msub><mi>B</mi><mi>r</mi></msub></msub><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">6:</span></span>
+
+
+                <span class="ltx_text ltx_font_bold">for</span> <math alttext="1\leq j\leq T_{c}" class="ltx_Math" display="inline"><semantics><mrow><mn>1</mn><mo>≤</mo><mi>j</mi><mo>≤</mo><msub><mi>T</mi><mi>c</mi></msub></mrow></semantics></math> <span class="ltx_text ltx_font_bold">do</span>
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">7:</span></span>
+
+
+                  Load <math alttext="\mathbf{K}_{j},\mathbf{V}_{j}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐊</mi><mi>j</mi></msub><mo>,</mo><msub><mi>𝐕</mi><mi>j</mi></msub></mrow></semantics></math> from HBM to on-chip SRAM.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">8:</span></span>
+
+
+                  On chip, compute <math alttext="\mathbf{S}_{i}^{(j)}=\mathbf{Q}_{i}\mathbf{K}_{j}^{T}\in\mathbb{R}^{B_{r}\times B_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msubsup><mi>𝐒</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><msub><mi>𝐐</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>𝐊</mi><mi>j</mi><mi>T</mi></msubsup></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><msub><mi>B</mi><mi>c</mi></msub></mrow></msup></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">9:</span></span>
+
+
+                  On chip, compute
+<math alttext="m_{i}^{(j)}=\mathrm{max}(m_{i}^{(j-1)},\mathrm{rowmax}(\mathbf{S}_{i}^{(j)}))\in\mathbb{R}^{B_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msubsup><mi>m</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><mi>max</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msubsup><mi>m</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mrow><mi>j</mi><mo>−</mo><mn>1</mn></mrow><mo stretchy="false">)</mo></mrow></msubsup><mo>,</mo><mrow><mi>rowmax</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msubsup><mi>𝐒</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow></semantics></math>, <math alttext="\tilde{\mathbf{P}}_{i}^{(j)}=\exp(\mathbf{S}_{i}^{(j)}-m_{i}^{(j)})\in\mathbb{R}^{B_{r}\times B_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msubsup><mover accent="true"><mi>𝐏</mi><mo>~</mo></mover><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><mi>exp</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><msubsup><mi>𝐒</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>−</mo><msubsup><mi>m</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><msub><mi>B</mi><mi>c</mi></msub></mrow></msup></mrow></semantics></math> (pointwise),
+<math alttext="\ell_{i}^{(j)}=e^{m_{i}^{j-1}-m_{i}^{(j)}}\ell_{i}^{(j-1)}+\mathrm{rowsum}(\tilde{\mathbf{P}}_{i}^{(j)})\in\mathbb{R}^{B_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msubsup><mi mathvariant="normal">ℓ</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><mrow><msup><mi>e</mi><mrow><msubsup><mi>m</mi><mi>i</mi><mrow><mi>j</mi><mo>−</mo><mn>1</mn></mrow></msubsup><mo>−</mo><msubsup><mi>m</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msubsup><mi mathvariant="normal">ℓ</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mrow><mi>j</mi><mo>−</mo><mn>1</mn></mrow><mo stretchy="false">)</mo></mrow></msubsup></mrow><mo>+</mo><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msubsup><mover accent="true"><mi>𝐏</mi><mo>~</mo></mover><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><msub><mi>B</mi><mi>r</mi></msub></msup></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">10:</span></span>
+
+
+                  On chip, compute
+<math alttext="\mathbf{O}_{i}^{(j)}=\mathrm{diag}(e^{m_{i}^{(j-1)}-m_{i}^{(j)}})^{-1}\mathbf{O}_{i}^{(j-1)}+\tilde{\mathbf{P}}_{i}^{(j)}\mathbf{V}_{j}" class="ltx_Math" display="inline"><semantics><mrow><msubsup><mi>𝐎</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi>e</mi><mrow><msubsup><mi>m</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mrow><mi>j</mi><mo>−</mo><mn>1</mn></mrow><mo stretchy="false">)</mo></mrow></msubsup><mo>−</mo><msubsup><mi>m</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>𝐎</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mrow><mi>j</mi><mo>−</mo><mn>1</mn></mrow><mo stretchy="false">)</mo></mrow></msubsup></mrow><mo>+</mo><mrow><msubsup><mover accent="true"><mi>𝐏</mi><mo>~</mo></mover><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐕</mi><mi>j</mi></msub></mrow></mrow></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">11:</span></span>
+
+
+                <span class="ltx_text ltx_font_bold">end</span> <span class="ltx_text ltx_font_bold">for</span>
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">12:</span></span>
+
+
+                On chip, compute <math alttext="\mathbf{O}_{i}=\mathrm{diag}(\ell_{i}^{(T_{c})})^{-1}\mathbf{O}_{i}^{(T_{c})}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐎</mi><mi>i</mi></msub><mo>=</mo><mrow><mi>diag</mi><mo lspace="0em" rspace="0em">​</mo><msup><mrow><mo stretchy="false">(</mo><msubsup><mi mathvariant="normal">ℓ</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><msub><mi>T</mi><mi>c</mi></msub><mo stretchy="false">)</mo></mrow></msubsup><mo stretchy="false">)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>𝐎</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><msub><mi>T</mi><mi>c</mi></msub><mo stretchy="false">)</mo></mrow></msubsup></mrow></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">13:</span></span>
+
+
+                On chip, compute <math alttext="L_{i}=m_{i}^{(T_{c})}+\log(\ell_{i}^{(T_{c})})" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>L</mi><mi>i</mi></msub><mo>=</mo><mrow><msubsup><mi>m</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><msub><mi>T</mi><mi>c</mi></msub><mo stretchy="false">)</mo></mrow></msubsup><mo>+</mo><mrow><mi>log</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msubsup><mi mathvariant="normal">ℓ</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><msub><mi>T</mi><mi>c</mi></msub><mo stretchy="false">)</mo></mrow></msubsup><mo stretchy="false">)</mo></mrow></mrow></mrow></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">14:</span></span>
+
+
+                Write <math alttext="\mathbf{O}_{i}" class="ltx_Math" display="inline"><semantics><msub><mi>𝐎</mi><mi>i</mi></msub></semantics></math> to HBM as the <math alttext="i" class="ltx_Math" display="inline"><semantics><mi>i</mi></semantics></math>-th block of <math alttext="\mathbf{O}" class="ltx_Math" display="inline"><semantics><mi>𝐎</mi></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">15:</span></span>
+
+
+                Write <math alttext="L_{i}" class="ltx_Math" display="inline"><semantics><msub><mi>L</mi><mi>i</mi></msub></semantics></math> to HBM as the <math alttext="i" class="ltx_Math" display="inline"><semantics><mi>i</mi></semantics></math>-th block of <math alttext="L" class="ltx_Math" display="inline"><semantics><mi>L</mi></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">16:</span></span>
+
+
+               <span class="ltx_text ltx_font_bold">end</span> <span class="ltx_text ltx_font_bold">for</span>
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">17:</span></span>
+
+
+               Return the output <math alttext="\mathbf{O}" class="ltx_Math" display="inline"><semantics><mi>𝐎</mi></semantics></math> and the logsumexp <math alttext="L" class="ltx_Math" display="inline"><semantics><mi>L</mi></semantics></math>.
+
+</div>
+</div>
+</figure><p class="fine">Original v1 algorithm · preserved without correcting the source. Corrections are explained in adjacent prose.</p></div>
+<p><strong>Algorithm 1 按行解释。</strong>第 1–2 行分块与输出布局；第 3–5 行给一个 Q 块建立私有状态；第 6–10 行流式扫描 KV；第 12 行做最终归一化；第 13 行存 L；第 14–15 行分别写 O/L。v1 第 10 行的 diag(exp(m_old−m_new))⁻¹ 必须改为 <strong>diag(exp(m_old−m_new))</strong>。初始 m=−∞、ℓ=0、U=0；第一块有效时 α=0，逆因子会发散，不能按原式执行。</p>
+<div class="code-frame"><div class="code-head"><span>AGENT RECONSTRUCTION</span><button class="copy-button" type="button">Copy</button></div><pre><code class="language-python"># Agent-created reconstruction, correcting v1's inverse-factor typo.
+# One CTA owns Q_i and output rows; scale/mask are explicit model choices.
+m, l, U = -inf, 0, zeros((Br, d))
+for K_j, V_j in allowed_kv_tiles:
+    S = scale * Q_i @ K_j.T
+    S = apply_boundary_and_causal_mask(S)
+    m_new = maximum(m, rowmax(S))
+    alpha = exp(m - m_new)
+    E = exp(S - m_new[:, None])
+    U = alpha[:, None] * U + E @ V_j
+    l = alpha * l + rowsum(E)
+    m = m_new
+O_i = U / l[:, None]
+L_i = m + log(l)
+</code></pre></div>
+<p>伪代码省略 Tensor Core 排布、padding、dropout、异步加载与 warp 指令。若一整行没有任何有效 KV，则 m_new=−∞，exp(−∞−(−∞)) 会成为 NaN；标准 causal self-attention 保留自身可避免该情况，通用 mask 仍需明确零输出等边界约定。不能用此简化代码直接替代生产内核。</p>
+<p><strong>Causal masking。</strong>对于 j&gt;i 的 token 位置，上三角应置 −∞。方形块时：完全位于上三角的块可跳过，完全位于下三角的块无需逐元素 mask，跨对角线的块才做 mask。原文第二点写“row indices strictly less than column indices 时无需 mask”方向颠倒；它描述的其实是应跳过的上三角区域。1.7–1.8× 是作者给出的 causal 相对 non-causal 的运行收益范围，不是所有配置常数。[1]</p>
+<p>复杂度仍为 O(N²d)；在不含输入/输出的前向全局保存状态中，只需 O(N) 的 L。片上工作状态约为 O((Br+Bc)d+BrBc)，具体布局与缓冲数量决定真实资源占用。</p>
+<h4 id="subsection-8">3.1.2 Backward pass — L 重构 P，D 消去全行归约</h4>
+<div class="algorithm-wrap" id="algorithm-2"><figure class="original-algorithm" id="alg2">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_float"><span class="ltx_text ltx_font_bold">Algorithm 2</span> </span> <span class="ltx_text ltx_font_smallcaps">FlashAttention-2<span class="ltx_text ltx_font_upright"> Backward Pass</span></span></figcaption>
+<div class="ltx_listing ltx_framed ltx_framed_topbottom ltx_listing">
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">0:</span></span>
+
+
+               Matrices <math alttext="\mathbf{Q},\mathbf{K},\mathbf{V},\mathbf{O},\mathbf{dO}\in\mathbb{R}^{N\times d}" class="ltx_Math" display="inline"><semantics><mrow><mi>𝐐</mi><mo>,</mo><mi>𝐊</mi><mo>,</mo><mi>𝐕</mi><mo>,</mo><mi>𝐎</mi><mo>,</mo><mrow><mi>𝐝𝐎</mi><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></mrow></semantics></math> in HBM,
+vector <math alttext="L\in\mathbb{R}^{N}" class="ltx_Math" display="inline"><semantics><mrow><mi>L</mi><mo>∈</mo><msup><mi>ℝ</mi><mi>N</mi></msup></mrow></semantics></math> in HBM, block sizes <math alttext="B_{c}" class="ltx_Math" display="inline"><semantics><msub><mi>B</mi><mi>c</mi></msub></semantics></math>, <math alttext="B_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>B</mi><mi>r</mi></msub></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">1:</span></span>
+
+
+               Divide <math alttext="\mathbf{Q}" class="ltx_Math" display="inline"><semantics><mi>𝐐</mi></semantics></math> into <math alttext="T_{r}=\left\lceil\frac{N}{B_{r}}\right\rceil" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>T</mi><mi>r</mi></msub><mo>=</mo><mrow><mo>⌈</mo><mfrac><mi>N</mi><msub><mi>B</mi><mi>r</mi></msub></mfrac><mo>⌉</mo></mrow></mrow></semantics></math> blocks <math alttext="\mathbf{Q}_{1},\dots,\mathbf{Q}_{T_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐐</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐐</mi><msub><mi>T</mi><mi>r</mi></msub></msub></mrow></semantics></math> of size <math alttext="B_{r}\times d" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></semantics></math> each,
+and divide <math alttext="\mathbf{K},\mathbf{V}" class="ltx_Math" display="inline"><semantics><mrow><mi>𝐊</mi><mo>,</mo><mi>𝐕</mi></mrow></semantics></math> in to <math alttext="T_{c}=\left\lceil\frac{N}{B_{c}}\right\rceil" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>T</mi><mi>c</mi></msub><mo>=</mo><mrow><mo>⌈</mo><mfrac><mi>N</mi><msub><mi>B</mi><mi>c</mi></msub></mfrac><mo>⌉</mo></mrow></mrow></semantics></math> blocks <math alttext="\mathbf{K}_{1},\dots,\mathbf{K}_{T_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐊</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐊</mi><msub><mi>T</mi><mi>c</mi></msub></msub></mrow></semantics></math> and
+<math alttext="\mathbf{V}_{1},\dots,\mathbf{V}_{T_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐕</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐕</mi><msub><mi>T</mi><mi>c</mi></msub></msub></mrow></semantics></math>, of size <math alttext="B_{c}\times d" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>B</mi><mi>c</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></semantics></math> each.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">2:</span></span>
+
+
+               Divide <math alttext="\mathbf{O}" class="ltx_Math" display="inline"><semantics><mi>𝐎</mi></semantics></math> into <math alttext="T_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>T</mi><mi>r</mi></msub></semantics></math> blocks <math alttext="\mathbf{O}_{i},\dots,\mathbf{O}_{T_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐎</mi><mi>i</mi></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐎</mi><msub><mi>T</mi><mi>r</mi></msub></msub></mrow></semantics></math> of size
+<math alttext="B_{r}\times d" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></semantics></math> each, divide <math alttext="\mathbf{dO}" class="ltx_Math" display="inline"><semantics><mi>𝐝𝐎</mi></semantics></math> into <math alttext="T_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>T</mi><mi>r</mi></msub></semantics></math> blocks <math alttext="\mathbf{dO}_{i},\dots,\mathbf{dO}_{T_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐝𝐎</mi><mi>i</mi></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐝𝐎</mi><msub><mi>T</mi><mi>r</mi></msub></msub></mrow></semantics></math>
+of size <math alttext="B_{r}\times d" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></semantics></math> each, and divide <math alttext="L" class="ltx_Math" display="inline"><semantics><mi>L</mi></semantics></math> into <math alttext="T_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>T</mi><mi>r</mi></msub></semantics></math> blocks <math alttext="L_{i},\dots,L_{T_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>L</mi><mi>i</mi></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>L</mi><msub><mi>T</mi><mi>r</mi></msub></msub></mrow></semantics></math> of size
+<math alttext="B_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>B</mi><mi>r</mi></msub></semantics></math> each.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">3:</span></span>
+
+
+               Initialize <math alttext="\mathbf{dQ}=(0)_{N\times d}" class="ltx_Math" display="inline"><semantics><mrow><mi>𝐝𝐐</mi><mo>=</mo><msub><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msub></mrow></semantics></math> in HBM and divide it into <math alttext="T_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>T</mi><mi>r</mi></msub></semantics></math> blocks <math alttext="\mathbf{dQ}_{1},\dots,\mathbf{dQ}_{T_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐝𝐐</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐝𝐐</mi><msub><mi>T</mi><mi>r</mi></msub></msub></mrow></semantics></math> of size <math alttext="B_{r}\times d" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></semantics></math> each.
+Divide <math alttext="\mathbf{dK},\mathbf{dV}\in\mathbb{R}^{N\times d}" class="ltx_Math" display="inline"><semantics><mrow><mrow><mi>𝐝𝐊</mi><mo>,</mo><mi>𝐝𝐕</mi></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><mi>N</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></semantics></math> in to <math alttext="T_{c}" class="ltx_Math" display="inline"><semantics><msub><mi>T</mi><mi>c</mi></msub></semantics></math> blocks <math alttext="\mathbf{dK}_{1},\dots,\mathbf{dK}_{T_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐝𝐊</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐝𝐊</mi><msub><mi>T</mi><mi>c</mi></msub></msub></mrow></semantics></math> and
+<math alttext="\mathbf{dV}_{1},\dots,\mathbf{dV}_{T_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐝𝐕</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>𝐝𝐕</mi><msub><mi>T</mi><mi>c</mi></msub></msub></mrow></semantics></math>, of size <math alttext="B_{c}\times d" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>B</mi><mi>c</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></semantics></math> each.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">4:</span></span>
+
+
+               Compute <math alttext="D=\mathrm{rowsum}(\mathbf{dO}\circ\mathbf{O})\in\mathbb{R}^{d}" class="ltx_Math" display="inline"><semantics><mrow><mi>D</mi><mo>=</mo><mrow><mi>rowsum</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><mi>𝐝𝐎</mi><mo lspace="0.222em" rspace="0.222em">∘</mo><mi>𝐎</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mi>d</mi></msup></mrow></semantics></math> (pointwise multiply), write
+<math alttext="D" class="ltx_Math" display="inline"><semantics><mi>D</mi></semantics></math> to HBM and divide it into <math alttext="T_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>T</mi><mi>r</mi></msub></semantics></math> blocks <math alttext="D_{1},\dots,D_{T_{r}}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>D</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><msub><mi>D</mi><msub><mi>T</mi><mi>r</mi></msub></msub></mrow></semantics></math> of size
+<math alttext="B_{r}" class="ltx_Math" display="inline"><semantics><msub><mi>B</mi><mi>r</mi></msub></semantics></math> each.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">5:</span></span>
+
+
+               <span class="ltx_text ltx_font_bold">for</span> <math alttext="1\leq j\leq T_{c}" class="ltx_Math" display="inline"><semantics><mrow><mn>1</mn><mo>≤</mo><mi>j</mi><mo>≤</mo><msub><mi>T</mi><mi>c</mi></msub></mrow></semantics></math> <span class="ltx_text ltx_font_bold">do</span>
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">6:</span></span>
+
+
+                Load <math alttext="\mathbf{K}_{j},\mathbf{V}_{j}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐊</mi><mi>j</mi></msub><mo>,</mo><msub><mi>𝐕</mi><mi>j</mi></msub></mrow></semantics></math> from HBM to on-chip SRAM.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">7:</span></span>
+
+
+                Initialize <math alttext="\mathbf{dK}_{j}=(0)_{B_{c}\times d},\mathbf{dV}_{j}=(0)_{B_{c}\times d}" class="ltx_Math" display="inline"><semantics><mrow><mrow><msub><mi>𝐝𝐊</mi><mi>j</mi></msub><mo>=</mo><msub><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow><mrow><msub><mi>B</mi><mi>c</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msub></mrow><mo>,</mo><mrow><msub><mi>𝐝𝐕</mi><mi>j</mi></msub><mo>=</mo><msub><mrow><mo stretchy="false">(</mo><mn>0</mn><mo stretchy="false">)</mo></mrow><mrow><msub><mi>B</mi><mi>c</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msub></mrow></mrow></semantics></math> on SRAM.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">8:</span></span>
+
+
+                <span class="ltx_text ltx_font_bold">for</span> <math alttext="1\leq i\leq T_{r}" class="ltx_Math" display="inline"><semantics><mrow><mn>1</mn><mo>≤</mo><mi>i</mi><mo>≤</mo><msub><mi>T</mi><mi>r</mi></msub></mrow></semantics></math> <span class="ltx_text ltx_font_bold">do</span>
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">9:</span></span>
+
+
+                 Load <math alttext="\mathbf{Q}_{i},\mathbf{O}_{i},\mathbf{dO}_{i},\mathbf{dQ}_{i},L_{i},D_{i}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐐</mi><mi>i</mi></msub><mo>,</mo><msub><mi>𝐎</mi><mi>i</mi></msub><mo>,</mo><msub><mi>𝐝𝐎</mi><mi>i</mi></msub><mo>,</mo><msub><mi>𝐝𝐐</mi><mi>i</mi></msub><mo>,</mo><msub><mi>L</mi><mi>i</mi></msub><mo>,</mo><msub><mi>D</mi><mi>i</mi></msub></mrow></semantics></math> from HBM to on-chip SRAM.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">10:</span></span>
+
+
+                 On chip, compute <math alttext="\mathbf{S}_{i}^{(j)}=\mathbf{Q}_{i}\mathbf{K}_{j}^{T}\in\mathbb{R}^{B_{r}\times B_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msubsup><mi>𝐒</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><msub><mi>𝐐</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>𝐊</mi><mi>j</mi><mi>T</mi></msubsup></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><msub><mi>B</mi><mi>c</mi></msub></mrow></msup></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">11:</span></span>
+
+
+                 On chip, compute <math alttext="\mathbf{P}_{i}^{(j)}=\exp(\mathbf{S}_{ij}-L_{i})\in\mathbb{R}^{B_{r}\times B_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msubsup><mi>𝐏</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><mi>exp</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mrow><msub><mi>𝐒</mi><mrow><mi>i</mi><mo lspace="0em" rspace="0em">​</mo><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>L</mi><mi>i</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><msub><mi>B</mi><mi>c</mi></msub></mrow></msup></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">12:</span></span>
+
+
+                 On chip, compute
+<math alttext="\mathbf{dV}_{j}\leftarrow\mathbf{dV}_{j}+(\mathbf{P}_{i}^{(j)})^{\top}\mathbf{dO}_{i}\in\mathbb{R}^{B_{c}\times d}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐝𝐕</mi><mi>j</mi></msub><mo stretchy="false">←</mo><mrow><msub><mi>𝐝𝐕</mi><mi>j</mi></msub><mo>+</mo><mrow><msup><mrow><mo stretchy="false">(</mo><msubsup><mi>𝐏</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo stretchy="false">)</mo></mrow><mo>⊤</mo></msup><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐝𝐎</mi><mi>i</mi></msub></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>c</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">13:</span></span>
+
+
+                 On chip, compute
+<math alttext="\mathbf{dP}_{i}^{(j)}=\mathbf{dO}_{i}\mathbf{V}_{j}^{\top}\in\mathbb{R}^{B_{r}\times B_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msubsup><mi>𝐝𝐏</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><msub><mi>𝐝𝐎</mi><mi>i</mi></msub><mo lspace="0em" rspace="0em">​</mo><msubsup><mi>𝐕</mi><mi>j</mi><mo>⊤</mo></msubsup></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><msub><mi>B</mi><mi>c</mi></msub></mrow></msup></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">14:</span></span>
+
+
+                 On chip, compute <math alttext="\mathbf{dS}_{i}^{(j)}=\mathbf{P}_{i}^{(j)}\circ(\mathbf{dP}_{i}^{(j)}-D_{i})\in\mathbb{R}^{B_{r}\times B_{c}}" class="ltx_Math" display="inline"><semantics><mrow><msubsup><mi>𝐝𝐒</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>=</mo><mrow><msubsup><mi>𝐏</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo lspace="0.222em" rspace="0.222em">∘</mo><mrow><mo stretchy="false">(</mo><mrow><msubsup><mi>𝐝𝐏</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>−</mo><msub><mi>D</mi><mi>i</mi></msub></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><msub><mi>B</mi><mi>c</mi></msub></mrow></msup></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">15:</span></span>
+
+
+                 Load <math alttext="\mathbf{dQ}_{i}" class="ltx_Math" display="inline"><semantics><msub><mi>𝐝𝐐</mi><mi>i</mi></msub></semantics></math> from HBM to SRAM, then on chip, update
+<math alttext="\mathbf{dQ}_{i}\leftarrow\mathbf{dQ}_{i}+\mathbf{dS}_{i}^{(j)}\mathbf{K}_{j}\in\mathbb{R}^{B_{r}\times d}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐝𝐐</mi><mi>i</mi></msub><mo stretchy="false">←</mo><mrow><msub><mi>𝐝𝐐</mi><mi>i</mi></msub><mo>+</mo><mrow><msubsup><mi>𝐝𝐒</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow></msubsup><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐊</mi><mi>j</mi></msub></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>r</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></semantics></math>, and write
+back to HBM.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">16:</span></span>
+
+
+                 On chip, compute <math alttext="\mathbf{dK}_{j}\leftarrow\mathbf{dK}_{j}+{\mathbf{dS}_{i}^{(j)}}^{\top}\mathbf{Q}_{i}\in\mathbb{R}^{B_{c}\times d}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐝𝐊</mi><mi>j</mi></msub><mo stretchy="false">←</mo><mrow><msub><mi>𝐝𝐊</mi><mi>j</mi></msub><mo>+</mo><mrow><mmultiscripts><mi>𝐝𝐒</mi><mi>i</mi><mrow><mo stretchy="false">(</mo><mi>j</mi><mo stretchy="false">)</mo></mrow><mrow></mrow><mo>⊤</mo></mmultiscripts><mo lspace="0em" rspace="0em">​</mo><msub><mi>𝐐</mi><mi>i</mi></msub></mrow></mrow><mo>∈</mo><msup><mi>ℝ</mi><mrow><msub><mi>B</mi><mi>c</mi></msub><mo lspace="0.222em" rspace="0.222em">×</mo><mi>d</mi></mrow></msup></mrow></semantics></math>.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">17:</span></span>
+
+
+                <span class="ltx_text ltx_font_bold">end</span> <span class="ltx_text ltx_font_bold">for</span>
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">18:</span></span>
+
+
+                Write <math alttext="\mathbf{dK}_{j},\mathbf{dV}_{j}" class="ltx_Math" display="inline"><semantics><mrow><msub><mi>𝐝𝐊</mi><mi>j</mi></msub><mo>,</mo><msub><mi>𝐝𝐕</mi><mi>j</mi></msub></mrow></semantics></math> to HBM.
+
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">19:</span></span>
+
+
+               <span class="ltx_text ltx_font_bold">end</span> <span class="ltx_text ltx_font_bold">for</span>
+</div>
+<div class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span class="ltx_text">20:</span></span>
+
+
+               Return <math alttext="\mathbf{dQ},\mathbf{dK},\mathbf{dV}" class="ltx_Math" display="inline"><semantics><mrow><mi>𝐝𝐐</mi><mo>,</mo><mi>𝐝𝐊</mi><mo>,</mo><mi>𝐝𝐕</mi></mrow></semantics></math>.
+
+</div>
+</div>
+</figure><p class="fine">Original v1 algorithm · preserved without correcting the source. Corrections are explained in adjacent prose.</p></div>
+<p><strong>第 4 行的形状校正：</strong>D=rowsum(dO⊙O)∈R^N，原文写 R^d。每个 Q 行对应一个 D 标量，分成长度 Br 的块；这与后续广播完全一致。</p>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>运算</th>
+<th>输入形状</th>
+<th>输出形状</th>
+<th>所有权 / 作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sij=QiKjᵀ</td>
+<td>Br×d，d×Bc</td>
+<td>Br×Bc</td>
+<td>重建分数</td>
+</tr>
+<tr>
+<td>Pij=exp(Sij−Li)</td>
+<td>Br×Bc，Br</td>
+<td>Br×Bc</td>
+<td>用 logsumexp 重建概率</td>
+</tr>
+<tr>
+<td>dVj+=PijᵀdOi</td>
+<td>Bc×Br，Br×d</td>
+<td>Bc×d</td>
+<td>列块 CTA 私有累加</td>
+</tr>
+<tr>
+<td>dPij=dOiVjᵀ</td>
+<td>Br×d，d×Bc</td>
+<td>Br×Bc</td>
+<td>输出梯度传到概率</td>
+</tr>
+<tr>
+<td>dSij=Pij⊙(dPij−Di)</td>
+<td>Br×Bc，Br</td>
+<td>Br×Bc</td>
+<td>softmax 梯度；D 按列广播</td>
+</tr>
+<tr>
+<td>dQi+=dSijKj</td>
+<td>Br×Bc，Bc×d</td>
+<td>Br×d</td>
+<td>不同列块贡献需归约</td>
+</tr>
+<tr>
+<td>dKj+=dSijᵀQi</td>
+<td>Bc×Br，Br×d</td>
+<td>Bc×d</td>
+<td>列块 CTA 私有累加</td>
+</tr>
+</tbody>
+</table></div>
+<p>Algorithm 2 的串行伪代码通过读改写 dQ 展示依赖；§3.2 真正并行实现使用 <strong>atomic adds</strong>。它保证加法更新不丢失，却不保证浮点归约顺序相同。确定性模式可使用不同归约策略或额外工作区，代价需要按实际版本评估。后向还需重现 scale、mask 和 dropout；原文简化算法没有完整展示这些路径。[1]</p>
+<p><strong>为什么 L 足够。</strong>exp(S−L)=exp(S−m)/ℓ，直接得到最终概率，而无需把前向 m 和 ℓ 分别存回 HBM。以 FP32 保存统计量时，从每行 8 bytes 的两标量变为 4 bytes 的 L；这是统计量的缩减，不是把所有训练内存减半。</p>
+<p><strong>MQA/GQA。</strong>输入可写为 Q∈B×Nq×Hq×d，K/V∈B×Nk×Hkv×d，Hq 是 Hkv 的整数倍；Query 头 h 映射到 KV 头 floor(h/(Hq/Hkv))。前向通过索引复用 KV，无需显式复制；后向多个 Query 头对同一个 KV 头的 dK/dV 要求和。[1]</p>
+<p>KV bytes=2×B×layers×Nk×Hkv×d×bytes_per_element。FA2 的 kernel 与 GQA 的共享头是可以组合的两个改进。以 B=1、32 layers、N=8192、d=128、BF16 为明确条件，Hkv=32 时 KV=4 GiB，Hkv=8 时为 1 GiB；FA2 本身不改变这个公式，也不压缩历史。数值是容量算术，不是论文模型实测。</p>
+<h3 id="subsection-9">3.2 Parallelism — 切行让前向独立，切列让后向局部累加</h3>
+<p>FA1 原论文采用 KV 外层循环；FA2 让 Q 块成为外层，Q 和 U 留在一个 CTA，KV 内层流过。这交换了全局复用和输出驻留的方式。作者明确把循环交换及沿序列并行的先行建议/实现归功于 Phil Tillet 的 Triton attention；贡献不能描述为 FA2 首次发明序列并行。[1]</p>
+<p>前向任务数约为 B×Hq×ceil(Nq/Br)。例如 B=1、Hq=16、N=8192、Br=128 时，FA1 简化基线为 16 CTA，FA2 为 1024 CTA。相对 A100 的 108 SM，前者有任务不足，后者可以形成多轮调度。<strong>1024/108 是任务供给比，不是硬件 occupancy</strong>；实际 occupancy 是受寄存器、shared memory 和活跃 warp 限制的驻留指标。</p>
+<figure class="original" id="figure-2"><div class="figure-grid"><div class="figure-panel"><img alt='Original Figure 2: &lt;span class="ltx_tag ltx_tag_figure"&gt;&lt;span class="ltx_text"&gt;Figure 2&lt;/span&gt;: &lt;/s' loading="lazy" src="assets/original/flashattention_fwd_bwd_parallel.png"/></div></div><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 2</span>: </span><span class="ltx_text">In the forward pass (left), we parallelize the
+workers (thread blocks) where each worker takes care of a block of rows of
+the attention matrix.
+In the backward pass (right), each worker takes care of a block of columns
+of the attention matrix.</span><br/>Source: Original paper · Figure 2. Author PNG / author vector PDF render. Click or press Enter to zoom.</figcaption></figure>
+<p><strong>Figure 2 如何读。</strong>左图每个 worker 拥有水平的一条 Q 行块，写不同 O，不需要合并；右图拥有垂直的一条 KV 列块，先在块内合并 dK/dV，但水平 dQ 必须跨列块相加。箭头和条带表达依赖范围，不表示把整个 attention 矩阵驻留在 HBM。右侧 atomic add 的全局成本仍是反向的重要约束。[1]</p>
+<section class="interactive" id="parallel-explorer">
+<p class="component-label">AGENT-CREATED VISUALIZATION · ANALYTICAL TASK COUNT</p>
+<h4 id="subsection-10">长序列带来更多 CTA，causal 块究竟怎样跳过？</h4>
+<div class="controls">
+<label for="parallel-batch">Batch<select id="parallel-batch"><option>1</option><option>2</option><option>4</option><option>16</option><option>32</option></select></label>
+<label for="parallel-heads">Query heads<select id="parallel-heads"><option>16</option><option>32</option><option>8</option></select></label>
+<label for="parallel-seq">Sequence length<select id="parallel-seq"><option>8192</option><option>16384</option><option>4096</option><option>1024</option><option>512</option></select></label>
+<label for="parallel-tile">Square tile Br=Bc<select id="parallel-tile"><option>128</option><option>64</option></select></label>
+<label for="parallel-mask">Mask<select id="parallel-mask"><option value="causal">Causal</option><option value="dense">Non-causal</option></select></label>
+<label for="parallel-warp">Warp partition<select id="parallel-warp"><option value="q">Sliced-Q · own output rows</option><option value="k">Sliced-K · reduce partial outputs</option></select></label>
+</div>
+<div class="metric-bars" id="task-bars"></div>
+<div aria-label="Query rows by KV columns; dark skipped, blue full, pale diagonal" id="tile-grid" role="img"></div>
+<output aria-live="polite" id="parallel-result">Default: FA1 16 tasks; FA2 1024 tasks. 2080 active causal tiles per head.</output>
+<p class="fine">Tile counts are exact for the selected divisible square sizes. The grid aggregates to at most 16×16. Task supply relative to 108 A100 SMs is not measured hardware occupancy. Warp accumulator bytes are a logical volume, not actual allocated shared memory.</p>
+</section>
+<p>组件展示真实调度公式及 causal 块分类。SM 指示只是“有多少独立任务可供调度”的示意；不生成 FPS、TFLOPs 或延迟预测。方格对大 N 使用最多 16×16 个聚合格，数字读数按完整 tile 数精确计算。</p>
+<h3 id="subsection-11">3.3 Work Partitioning Between Warps — 分输出行，减少部分和</h3>
+<h4 id="subsection-12">Forward — sliced-K 与 sliced-Q</h4>
+<figure class="original" id="figure-3"><div class="figure-grid multi"><div class="figure-panel"><img alt="Original Figure 3: (a) FlashAttention" loading="lazy" src="assets/original/flash_partitioning.png"/><p class="panel-caption">(a) FlashAttention</p></div><div class="figure-panel"><img alt="Original Figure 3: (b) FlashAttention-2" loading="lazy" src="assets/original/flash2_partitioning.png"/><p class="panel-caption">(b) FlashAttention-2</p></div></div><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 3</span>: </span><span class="ltx_text">Work partitioning between different warps in the forward pass</span><br/>Source: Original paper · Figure 3. Author PNG / author vector PDF render. Click or press Enter to zoom.</figcaption></figure>
+<p><strong>Figure 3 如何读。</strong>(a) 的四种颜色代表四个 warp 各自的 K/V 分片，Q 对各 warp 可见；每个 warp 只拥有一个 Query 输出的部分贡献，需要经 shared memory 暂存、同步并求和。(b) 改为每个 warp 拥有不同 Q 行，K/V 对它们可见，各自得到完整输出行。图中颜色是所有权，不能误认为新的 attention mask。[1]</p>
+<p>用简化的可对比状态算账：若 Br=64、d=128、W=4 且累加器 FP32，sliced-K 四份完整 Br×d 的输出部分和合计 128 KiB；sliced-Q 四份 Br/W×d 总计 32 KiB。这是解释性逻辑体积，<strong>不是内核实测 shared memory 申请量</strong>。真实 MMA fragment、寄存器分布和分阶段归约会改变物理布局。</p>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>分工</th>
+<th>每个 warp 计算</th>
+<th>输出是否需跨 warp 相加</th>
+<th>总逻辑输出累加器</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sliced-K</td>
+<td>全部 Q × 自己的 KV 分片</td>
+<td>需要</td>
+<td>W×Br×d</td>
+</tr>
+<tr>
+<td>sliced-Q</td>
+<td>自己的 Q 行 × 全部当前 KV tile</td>
+<td>输出行互不重叠，无该归约</td>
+<td>Br×d</td>
+</tr>
+</tbody>
+</table></div>
+<figure class="generated"><img alt="Agent-created warp ownership diagram: sliced-K partial sums, sliced-Q independent complete rows" src="assets/generated/warp-ownership.svg"/><figcaption>Agent-created Visualization · output ownership at warp level. <a href="assets/generated/warp-ownership.mmd">Mermaid source</a></figcaption></figure>
+<p>正文的“no need for communication between warps”应理解为消除了该输出归约依赖。它不意味着 KV tile 共享加载、同步和内存屏障全部消失，也不代表每个 warp 都从 HBM 独立加载一份完整 K/V。</p>
+<h4 id="subsection-13">Backward 与 block tuning</h4>
+<p>反向拥有 Q/K/V/O/dO/dQ/dK/dV 的复杂依赖，论文明确仍需一些同步。不能从前向 sliced-Q 图推导“反向无通信”；v1 没有给完整逐 warp 反向布局，应把未披露细节标成实现层待核。[1]</p>
+<p>Br/Bc 常从 {64,128}×{64,128} 中手调。大 tile 减少循环和重复访问，但增加 register/shared memory 需求，可能降低驻留、产生 spill，甚至超出单块资源上限。较大的 d 同样提高状态体积。一个 tile 在 GEMM 上更有效，不一定让整个 attention kernel 更快；需要同时测矩阵吞吐、标量依赖、barrier、spill 和端到端时间。</p>
+<h2 id="section-5">4 Empirical Validation — 先区分内核吞吐与训练 MFU</h2>
+<h3 id="subsection-14">4.1 Benchmarking Attention — 全部原图与可比性</h3>
+<p>原实验使用 <strong>A100 80GB SXM4</strong>；N∈{512,1024,2048,4096,8192,16384}；总 tokens 固定为 16384，因此 B={32,16,8,4,2,1}；hidden=2048；d=64/128 对应 H=32/16；分别测试 causal 和 non-causal。[1]</p>
+<div class="equation original-equation" id="equation-8"><span class="equation-label">ORIGINAL FORMULA GROUP 8 · UNNUMBERED IN V1</span><div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table class="equation-original" id="S4.Ex29">
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math alttext="4\cdot\text{seqlen}^{2}\cdot\text{head dimension}\cdot\text{number of heads}." class="ltx_Math" display="block"><semantics><mrow><mrow><mn>4</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><msup><mtext>seqlen</mtext><mn>2</mn></msup><mo lspace="0.222em" rspace="0.222em">⋅</mo><mtext>head dimension</mtext><mo lspace="0.222em" rspace="0.222em">⋅</mo><mtext>number of heads</mtext></mrow><mo lspace="0em">.</mo></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+</table></div><details class="latex-source"><summary>Original LaTeX</summary><code>4\cdot\text{seqlen}^{2}\cdot\text{head dimension}\cdot\text{number of heads}.</code></details></div>
+<p>两个 GEMM 分别约 2N²d FLOPs，所以前向单样本是 4N²dH。整个 batch 要再乘 B；原文显示公式未显式列 B，不能把单序列工作量直接除以整个 batch 的时间。causal 约乘 1/2，反向按前向×2.5，前后合计为前向×3.5（包含反向重计算 QKᵀ）。</p>
+<p>固定 B×N 后，dense 总 FLOPs=4×16384×N×2048，与 N 线性增长。因此图中序列变长同时改变了矩阵规模、batch、任务供给和单位 token 算术强度；不能把曲线变化归因为“序列长”这一因素。N=8192 的前向 non-causal 全 batch 约 1.0995 TFLOPs，causal 约 0.5498 TFLOPs；这是定义核算，不是实测时间。</p>
+<figure class="original" id="figure-4"><div class="figure-grid multi"><div class="figure-panel"><img alt="Original Figure 4: (a) Without causal mask, head dimension 64" loading="lazy" src="assets/original/flash2_causal_False_hdim_64_fwd_bwd_speed.png"/><p class="panel-caption">(a) Without causal mask, head dimension 64</p></div><div class="figure-panel"><img alt="Original Figure 4: (b) Without causal mask, head dimension 128" loading="lazy" src="assets/original/flash2_causal_False_hdim_128_fwd_bwd_speed.png"/><p class="panel-caption">(b) Without causal mask, head dimension 128</p></div><div class="figure-panel"><img alt="Original Figure 4: (c) With causal mask, head dimension 64" loading="lazy" src="assets/original/flash2_causal_True_hdim_64_fwd_bwd_speed.png"/><p class="panel-caption">(c) With causal mask, head dimension 64</p></div><div class="figure-panel"><img alt="Original Figure 4: (d) With causal mask, head dimension 128" loading="lazy" src="assets/original/flash2_causal_True_hdim_128_fwd_bwd_speed.png"/><p class="panel-caption">(d) With causal mask, head dimension 128</p></div></div><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 4</span>: </span><span class="ltx_text">Attention forward + backward speed on A100 GPU</span><br/>Source: Original paper · Figure 4. Author PNG / author vector PDF render. Click or press Enter to zoom.</figcaption></figure>
+<p><strong>Figure 4 — A100 forward+backward。</strong>按 (a)/(b)/(c)/(d) 比较 mask 和 d，再在同一 panel 的同一 N 比五种实现：PyTorch、FA1、xFormers CUTLASS、Triton FA、FA2。越高越快，指标为作者定义的有效 TFLOPs/s；不是训练 tokens/s。FA2 随长度增加趋于平台，说明主要瓶颈与单纯 HBM 写回不同。PyTorch 的 OOM 标记是失败状态，不能记成 0 TFLOPs/s 参与比值。[1]</p>
+<figure class="original" id="figure-5"><div class="figure-grid multi"><div class="figure-panel"><img alt="Original Figure 5: (a) Without causal mask, head dimension 64" loading="lazy" src="assets/original/flash2_causal_False_hdim_64_fwd_speed.png"/><p class="panel-caption">(a) Without causal mask, head dimension 64</p></div><div class="figure-panel"><img alt="Original Figure 5: (b) Without causal mask, head dimension 128" loading="lazy" src="assets/original/flash2_causal_False_hdim_128_fwd_speed.png"/><p class="panel-caption">(b) Without causal mask, head dimension 128</p></div><div class="figure-panel"><img alt="Original Figure 5: (c) With causal mask, head dimension 64" loading="lazy" src="assets/original/flash2_causal_True_hdim_64_fwd_speed.png"/><p class="panel-caption">(c) With causal mask, head dimension 64</p></div><div class="figure-panel"><img alt="Original Figure 5: (d) With causal mask, head dimension 128" loading="lazy" src="assets/original/flash2_causal_True_hdim_128_fwd_speed.png"/><p class="panel-caption">(d) With causal mask, head dimension 128</p></div></div><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 5</span>: </span><span class="ltx_text">Attention forward speed on A100 GPU</span><br/>Source: Original paper · Figure 5. Author PNG / author vector PDF render. Click or press Enter to zoom.</figcaption></figure>
+<p><strong>Figure 5 — A100 forward。</strong>最清晰地观察 FA2 230 TFLOPs/s 量级的前向结果：non-causal d=128 panel 的图上峰值为 227；正文以“up to 230”概括，227/312=72.76%，与 73% 的四舍五入一致。d=64、d=128 的平台值不同，说明布局/算术强度仍影响利用率。causal 的有效 FLOPs 已折半，因而柱高较低不代表 wall-clock 更慢。[1]</p>
+<figure class="original" id="figure-6"><div class="figure-grid multi"><div class="figure-panel"><img alt="Original Figure 6: (a) Without causal mask, head dimension 64" loading="lazy" src="assets/original/flash2_causal_False_hdim_64_bwd_speed.png"/><p class="panel-caption">(a) Without causal mask, head dimension 64</p></div><div class="figure-panel"><img alt="Original Figure 6: (b) Without causal mask, head dimension 128" loading="lazy" src="assets/original/flash2_causal_False_hdim_128_bwd_speed.png"/><p class="panel-caption">(b) Without causal mask, head dimension 128</p></div><div class="figure-panel"><img alt="Original Figure 6: (c) With causal mask, head dimension 64" loading="lazy" src="assets/original/flash2_causal_True_hdim_64_bwd_speed.png"/><p class="panel-caption">(c) With causal mask, head dimension 64</p></div><div class="figure-panel"><img alt="Original Figure 6: (d) With causal mask, head dimension 128" loading="lazy" src="assets/original/flash2_causal_True_hdim_128_bwd_speed.png"/><p class="panel-caption">(d) With causal mask, head dimension 128</p></div></div><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 6</span>: </span><span class="ltx_text">Attention backward speed on A100 GPU</span><br/>Source: Original paper · Figure 6. Author PNG / author vector PDF render. Click or press Enter to zoom.</figcaption></figure>
+<p><strong>Figure 6 — A100 backward。</strong>重计算、更多 GEMM、dQ 原子更新与片上状态使反向更难优化。图上最大 196 TFLOPs/s，196/312=62.82%，对应引言的“up to 63%”。不能把前向 73% 套给反向；也不能从总吞吐反推出三个设计各自贡献多少，因为没有逐项开关消融。[1]</p>
+<figure class="original" id="figure-7"><div class="figure-grid multi"><div class="figure-panel"><img alt="Original Figure 7: (a) Without causal mask, head dimension 64" loading="lazy" src="assets/original/flash2_h100_causal_False_hdim_64_fwd_bwd_speed.png"/><p class="panel-caption">(a) Without causal mask, head dimension 64</p></div><div class="figure-panel"><img alt="Original Figure 7: (b) Without causal mask, head dimension 128" loading="lazy" src="assets/original/flash2_h100_causal_False_hdim_128_fwd_bwd_speed.png"/><p class="panel-caption">(b) Without causal mask, head dimension 128</p></div><div class="figure-panel"><img alt="Original Figure 7: (c) With causal mask, head dimension 64" loading="lazy" src="assets/original/flash2_h100_causal_True_hdim_64_fwd_bwd_speed.png"/><p class="panel-caption">(c) With causal mask, head dimension 64</p></div><div class="figure-panel"><img alt="Original Figure 7: (d) With causal mask, head dimension 128" loading="lazy" src="assets/original/flash2_h100_causal_True_hdim_128_fwd_bwd_speed.png"/><p class="panel-caption">(d) With causal mask, head dimension 128</p></div></div><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 7</span>: </span><span class="ltx_text">Attention forward + backward speed on H100 GPU</span><br/>Source: Original paper · Figure 7. Author PNG / author vector PDF render. Click or press Enter to zoom.</figcaption></figure>
+<p><strong>Figure 7 — H100 forward+backward。</strong>原 v1 使用同一实现，尚未特化 TMA 和新的 Tensor Core 指令。图上 non-causal d=128、16k 的标注为 <strong>338 TFLOPs/s</strong>，正文写“up to 335”；这里分别保留图值与正文近似陈述，不静默合并成一个精确值。作者预计再特化可有 1.5–2×，在 v1 中这是未来预期，不是已测结果。H100 GPU 峰值/架构与 A100 不同，不能直接用 312 作分母。[1]</p>
+<p><strong>原图保留约定。</strong>Figure 1–3 使用作者 PNG，Figure 4–7 的 16 个 panel 直接由作者 vector PDF 高分辨率无损渲染。坐标轴、legend、数值标签与 OOM 均未裁去；(a)–(d) 标签和原 caption 置于图片外，可复制。正文未制造缺失的细粒度曲线数据。</p>
+<h3 id="subsection-15">4.2 End-to-end Performance — Table 1 与四行重算</h3>
+<p>实验为 8×A100 80GB SXM、GPT-style 1.3B/2.7B、2k/8k context。v1 未在这一节完整披露 optimizer、LR、训练 tokens、global/micro batch、通信配置、软件版本或精度设置；不能把内核微基准参数自动填进训练表。[1]</p>
+<figure class="original-table" id="table-1">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 1</span>: </span><span class="ltx_text">Training speed (TFLOPs/s/GPU) of GPT-style
+models on 8<math alttext="\times" class="ltx_Math" display="inline"><semantics><mo>×</mo></semantics></math>A100 GPUs.
+<span class="ltx_text ltx_font_smallcaps">FlashAttention-2</span> reaches up to 225 TFLOPs/s (72% model FLOPs utilization).
+We compare against a baseline running without <span class="ltx_text ltx_font_smallcaps">FlashAttention</span>.
+</span></figcaption>
+<div aria-label="Original Table 1: training speed" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r">Model</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column">Without <span class="ltx_text ltx_font_smallcaps">FlashAttention</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column"><span class="ltx_text ltx_font_smallcaps">FlashAttention</span></th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column"><span class="ltx_text ltx_font_smallcaps">FlashAttention-2</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">GPT3-1.3B 2k context</th>
+<td class="ltx_td ltx_align_center ltx_border_t">142 TFLOPs/s</td>
+<td class="ltx_td ltx_align_center ltx_border_t">189 TFLOPs/s</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">196 TFLOPs/s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">GPT3-1.3B 8k context</th>
+<td class="ltx_td ltx_align_center">72 TFLOPS/s</td>
+<td class="ltx_td ltx_align_center">170 TFLOPs/s</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">220 TFLOPs/s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">GPT3-2.7B 2k context</th>
+<td class="ltx_td ltx_align_center">149 TFLOPs/s</td>
+<td class="ltx_td ltx_align_center">189 TFLOPs/s</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">205 TFLOPs/s</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">GPT3-2.7B 8k context</th>
+<td class="ltx_td ltx_align_center">80 TFLOPs/s</td>
+<td class="ltx_td ltx_align_center">175 TFLOPs/s</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">225 TFLOPs/s</td></tr>
+</tbody>
+</table></div>
+</figure>
+<p>原表没有加粗/下划线或额外脚注；完整保留 4 行、4 列、TFLOPs/s/GPU 单位和 caption。“TFLOPS/s”在一单元格中的大小写也保留。数值越大越好。</p>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>配置</th>
+<th style="text-align: right;">FA2/FA1 吞吐比</th>
+<th style="text-align: right;">FA2 对 FA1 增量</th>
+<th style="text-align: right;">相同工作量时间下降</th>
+<th style="text-align: right;">FA2/无 FA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1.3B / 2k</td>
+<td style="text-align: right;">196/189=1.0370×</td>
+<td style="text-align: right;">+7，+3.70%</td>
+<td style="text-align: right;">3.57%</td>
+<td style="text-align: right;">1.3803×</td>
+</tr>
+<tr>
+<td>1.3B / 8k</td>
+<td style="text-align: right;">220/170=1.2941×</td>
+<td style="text-align: right;">+50，+29.41%</td>
+<td style="text-align: right;">22.73%</td>
+<td style="text-align: right;">3.0556×</td>
+</tr>
+<tr>
+<td>2.7B / 2k</td>
+<td style="text-align: right;">205/189=1.0847×</td>
+<td style="text-align: right;">+16，+8.47%</td>
+<td style="text-align: right;">7.80%</td>
+<td style="text-align: right;">1.3758×</td>
+</tr>
+<tr>
+<td>2.7B / 8k</td>
+<td style="text-align: right;">225/175=1.2857×</td>
+<td style="text-align: right;">+50，+28.57%</td>
+<td style="text-align: right;">22.22%</td>
+<td style="text-align: right;">2.8125×</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>表格解释。</strong>最强可比基线 FA1 与 FA2 在同一行使用相同的 FLOPs 定义，因此可以用吞吐比表示速度比。2k 时整个训练链路中其他模块占比更大，FA2 增益只有约 4–8%；8k 增益约 29%。正文概括相对无 FA“up to 2.8×”，但表中 1.3B/8k 给出 <strong>3.06×</strong>；“相对 FA2 1.3×”的自比较也是笔误，依上下文应为相对 FA1。[1]</p>
+<div class="equation original-equation" id="equation-9"><span class="equation-label">ORIGINAL FORMULA GROUP 9 · UNNUMBERED IN V1</span><div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table class="equation-original" id="S4.Ex30">
+<tbody><tr class="eq-row">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math alttext="6\cdot\text{seqlen}\cdot\text{number of params}+12\cdot\text{number of
+layers}\cdot\text{hidden dim}\cdot\text{seqlen}^{2}." class="ltx_math_unparsed" display="block"><semantics><mrow><mn>6</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><mtext>seqlen</mtext><mo lspace="0.222em" rspace="0.222em">⋅</mo><mtext>number of params</mtext><mo>+</mo><mn>12</mn><mo lspace="0.222em" rspace="0.222em">⋅</mo><mtext>number of
+layers</mtext><mo lspace="0.222em" rspace="0.222em">⋅</mo><mtext>hidden dim</mtext><mo lspace="0.222em" rspace="0.222em">⋅</mo><mtext>seqlen</mtext><msup><mrow></mrow><mn>2</mn></msup><mo lspace="0em">.</mo></mrow></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td></tr></tbody>
+</table></div><details class="latex-source"><summary>Original LaTeX</summary><code>6\cdot\text{seqlen}\cdot\text{number of params}+12\cdot\text{number of
+layers}\cdot\text{hidden dim}\cdot\text{seqlen}^{2}.</code></details></div>
+<p>P 是参数量；layers 是层数；hidden 是模型宽度。第一项包含参数矩阵的前后向，第二项估算 attention 训练计算；均以单样本为基础，汇总 batch 需相应乘 B。作者为与 Megatron-LM 口径一致，第二项 <strong>不因 causal mask 折半</strong>，并未把 kernel 重计算额外工作都计为模型有效计算。</p>
+<p>225/312=72.12% 是论文口径 MFU，不能推导为硬件全部指令都达到 72% 利用率。若只将 causal 的 attention 项折半，则新口径 MFU=旧 MFU×(6NP+6LH N²)/(6NP+12LH N²)；需要实际 P/L/H/N 才能重算。v1 未提供完整模型配置，本篇不捏造“真实修正后的 MFU”。</p>
+<section class="interactive" id="training-explorer">
+<p class="component-label">ORIGINAL TABLE 1 · DERIVED RATIOS</p>
+<h4 id="subsection-16">训练吞吐增加多少，固定工作量的时间又减少多少？</h4>
+<label for="training-model">Original configuration<select id="training-model"><option value="0">GPT3-1.3B · 2k</option><option value="1">GPT3-1.3B · 8k</option><option value="2">GPT3-2.7B · 2k</option><option value="3">GPT3-2.7B · 8k</option></select></label>
+<div class="metric-bars" id="training-bars"></div>
+<output aria-live="polite" id="training-result">196/189=1.0370×. +3.70% throughput; −3.57% time for fixed work.</output>
+<p class="fine">Source: Original Table 1, TFLOPs/s/GPU. Ratio assumes unchanged work definition within one row. This is training throughput, not TTFT/TPOT. Omitted training settings cannot be inferred here.</p>
+</section>
+<p>组件只引用 Table 1 的 12 个原始吞吐数字，显示吞吐增加与固定工作量耗时减少的区别。解释性 Amdahl 关系为 S_total=1/((1−f)+f/S_attention)；其中 f 是旧系统 attention 时间占比，不能仅从 Table 1 推出一个精确 f，因为 kernel speedup 与训练配置未严格一一对应。</p>
+<h2 id="section-6">5 Discussion and Future Directions — 历史承诺及其适用条件</h2>
+<p>作者展望 H100/TMA、新 Tensor Core、FP8、AMD、编译器支持，以及与 local/dilated/block-sparse attention 组合。这些是 v1 的后续方向。FA2 对 dense attention 的精确性不自动适用于任意近似模式；稀疏模式若改变可见 KV，就必须重新说明模型定义与质量。[1]</p>
+<p>“2× faster allows 16k context for the same price as 8k”需要固定总训练 tokens 等条件：attention 单条样本随 N² 增长，固定 token 数时 attention 成本约随 N 增长；N 翻倍与 attention kernel 2× 加速可互抵。若固定 sequences 数，则工作量约 4×，或若训练其他模块/通信变化明显，就不能直接说价格相同。</p>
+<p>论文没有改变损失函数、参数量和训练数据；“Training pipeline”是在相同 Transformer 的 attention 子图替换内核。推理 prefill 与训练前向共享 dense Q×KV 结构，可从 FA2 的并行分工受益；单 token decode 的 Q 只有一行，不能复用长 Q 序列的同等并行供给。</p>
+<h2 id="section-7">6 Experiment Audit — 证据强在哪里，缺口在哪里</h2>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>审计项</th>
+<th>v1 已给证据</th>
+<th>结论边界 / 缺口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内核条件</td>
+<td>A100 80GB SXM4、N、B、d、H、mask；同 panel 比基线</td>
+<td>未完整给版本、重复次数、误差条和时钟设置</td>
+</tr>
+<tr>
+<td>序列范围</td>
+<td>512–16k，tokens 固定 16k</td>
+<td>长度与 batch 同时变化；更小/不规则长度待测</td>
+</tr>
+<tr>
+<td>实现基线</td>
+<td>PyTorch、FA1、xFormers、Triton</td>
+<td>2023 标准 PyTorch 不等于今天 SDPA 的自动 Flash 后端</td>
+</tr>
+<tr>
+<td>前后向</td>
+<td>分别和合计测；保留 5-GEMM 计算量</td>
+<td>不能把 MFU 与反向重计算 HFU 混为一谈</td>
+</tr>
+<tr>
+<td>端到端</td>
+<td>8 GPU、两模型规模、两长度</td>
+<td>无完整训练超参数、全链路 profiler、质量复现</td>
+</tr>
+<tr>
+<td>消融</td>
+<td>三项改进整体快</td>
+<td>无逐项算法/CTA/warp 开关表，无法量化各自归因</td>
+</tr>
+<tr>
+<td>数值</td>
+<td>精确 attention 的代数重构</td>
+<td>不承诺浮点逐位一致；v1 伪代码有错误</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>不保存全局 S/P；L 线性</td>
+<td>本文无单独完整 memory 实测表，不能借用 FA1 的倍数充作 FA2 实测</td>
+</tr>
+<tr>
+<td>推理</td>
+<td>提及 MQA/GQA、训练/finetune/inference</td>
+<td>无本文专门 TTFT/TPOT、decode、并发/P99 的表</td>
+</tr>
+<tr>
+<td>可复现性</td>
+<td>官方代码及作者素材可获得</td>
+<td>最新主分支不等于论文实验 commit；本次无 GPU 性能复现</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>建议补充实验。</strong>对同一内核分别切换延迟归一化、Q-block 并行、sliced-Q；记录寄存器/shared memory、CTA waves、barrier stalls、Tensor Core active、exp/softmax 时间与 spill。对 q_len=1/多 token prefill 分开测试，覆盖 MQA/GQA、变长 packed、不同 d 和全 mask 边界；端到端分别报告 TTFT、TPOT、吞吐与峰值显存，并明确 warmup、CUDA Graph、batch 与同步策略。</p>
+<p><strong>本次验证范围。</strong>原表、原图、公式和网页交互已作来源核验与数值自检；float64 计算用于检查代数和有限差分梯度，不能称为模型质量或 A100 速度复现。原文吞吐、未来技术结果与本篇算术容量始终分别标注。</p>
+<h2 id="section-8">7 Engineering Interpretation — 从 per-op 迁移到完整调用链</h2>
+<p>真正可迁移的思想是 <strong>结果所有权减少通信</strong>。FA1 先解决全局 HBM 中间结果，FA2 继续解决块内输出部分和与全局任务供给。迁移到不同硬件时，先识别最慢路径，再决定 tiling 和并行轴；NPU/HTP 的 SRAM、DMA、矩阵单元和执行调度与 CUDA 不同，不能照搬“4 warps”或 A100 吞吐。</p>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>Q/KV 结构</th>
+<th>FA2 可能改善</th>
+<th>还需审计的全链路成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Training</td>
+<td>Q/KV 都长，反向重计算</td>
+<td>前向并行、output 归约、HBM 保存</td>
+<td>QKV/FFN GEMM、通信、optimizer、activation checkpoint</td>
+</tr>
+<tr>
+<td>Prefill / TTFT</td>
+<td>多 Query 与完整 prompt KV</td>
+<td>长 Q 块供给、少 S/P 中间写回</td>
+<td>tokenizer、H2D、投影/RoPE、logits、首 token 采样</td>
+</tr>
+<tr>
+<td>Decode / TPOT</td>
+<td>常为一条 Query、历史 KV 长</td>
+<td>具体实现的 KV 流式读取</td>
+<td>KV 带宽、权重读取、batch、launch、split-KV 归约</td>
+</tr>
+<tr>
+<td>端侧 VLM</td>
+<td>图像编码与长图文 prompt</td>
+<td>仅适配后的 attention 子图</td>
+<td>vision encoder、跨设备同步、量化转换、内存峰值</td>
+</tr>
+</tbody>
+</table></div>
+<p>在 prefill/decode 分离的系统里，attention scale、RoPE、mask、KV layout、logsumexp 精度和 logits/采样路径都应统一核对。FA2 改变求和顺序产生的小误差，不应掩盖 KV 索引或掩码方向导致的逻辑错误。可先在 float64 小样本校验，再对真实 dtype 比较分数、输出和 dQ/dK/dV，最后测稳态链路。</p>
+<h2 id="section-9">8 Related Work &amp; Technology Evolution — 扩展研究</h2>
+<p><strong>带日期的技术脉络。</strong>2018-05 online normalizer → 2021-12 分块 attention 与低中间存储 → 2022-05 FA1 的 IO-aware 前后向 → <strong>2023-07 FA2 的算法状态和工作分配</strong> → 2023-10 Flash-Decoding 的 KV 分片 → 2024-07 FA3 的 Hopper 异步流水 → 2026-03 FA4 的 Blackwell 执行优化 → 2026-09 MXFP8/FP4 的精度与训练契约探索。精度路径与推理布局是分支，并非一条统一取代路线。下述来源分别核验各节点。</p>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作</th>
+<th style="text-align: right;">年份</th>
+<th>核心思路</th>
+<th>优势</th>
+<th>限制</th>
+<th>与 FA2 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Online normalizer</td>
+<td style="text-align: right;">2018</td>
+<td>运行 max 与分母可合并</td>
+<td>单遍统计，数值稳定</td>
+<td>不直接完成 attention 全链路</td>
+<td>softmax 状态的前史</td>
+</tr>
+<tr>
+<td>Rabe–Staats attention</td>
+<td style="text-align: right;">2021</td>
+<td>分块与重计算，少中间存储</td>
+<td>避免全局 N² 保存</td>
+<td>算术仍二次，内存口径不同</td>
+<td>memory-efficient 先行路线</td>
+</tr>
+<tr>
+<td>FA1</td>
+<td style="text-align: right;">2022</td>
+<td>IO-aware tiling 与融合</td>
+<td>减少 HBM 中间读写</td>
+<td>标量、任务供给与块内归约仍限制吞吐</td>
+<td>FA2 的直接基础</td>
+</tr>
+<tr>
+<td>FA2</td>
+<td style="text-align: right;">2023</td>
+<td>推迟归一化、切 Q 块、sliced-Q</td>
+<td>保持模型定义，减少执行成本</td>
+<td>A100/形状依赖，后向 dQ 仍需归约</td>
+<td>本篇方法</td>
+</tr>
+<tr>
+<td>Flash-Decoding</td>
+<td style="text-align: right;">2023</td>
+<td>沿 KV 分片并用 LSE 合并</td>
+<td>小 Q 时增加独立任务</td>
+<td>合并与调度开销、布局依赖</td>
+<td>补足 decode 场景</td>
+</tr>
+<tr>
+<td>FA3</td>
+<td style="text-align: right;">2024</td>
+<td>Hopper TMA/WGMMA 与异步重叠</td>
+<td>更高矩阵/softmax 重叠，FP8 前向</td>
+<td>硬件专有，低精度需另验</td>
+<td>在新硬件继续改工作分配</td>
+</tr>
+<tr>
+<td>FlashInfer</td>
+<td style="text-align: right;">2025</td>
+<td>面向服务的 paged/varlen 内核</td>
+<td>适配多种服务 KV 布局</td>
+<td>路径与形状多，不能单个倍率排名</td>
+<td>服务阶段的互补实现</td>
+</tr>
+<tr>
+<td>FA4</td>
+<td style="text-align: right;">2026</td>
+<td>Blackwell TMEM、流水与指数路径</td>
+<td>改善非 matmul 资源瓶颈</td>
+<td>版本与具体形状制约，数值契约需细分</td>
+<td>延续 FA2 的 per-op 成本观点</td>
+</tr>
+<tr>
+<td>Meta MXFP8 / 独立 FP4</td>
+<td style="text-align: right;">2026</td>
+<td>block-scaled 低精度与融合</td>
+<td>有利形状进一步提速</td>
+<td>gradient dtype、标定与训练稳定性限制</td>
+<td>改变精度契约的后续分支</td>
+</tr>
+</tbody>
+</table></div>
+<p>研究截止与获取日期：2026-10-29。基准论文：arXiv:2307.08691v1。范围仅为独立文献与官方实现核验；未运行 GPU 性能或精度实验，不涉及页面工程或 Git 操作。</p>
+<h3 id="subsection-17">1. 结论与证据边界</h3>
+<p>FlashAttention-2（FA2）的核心贡献是减少非矩阵乘运算、增加序列维度上的 CTA 并行度、改善 warp 内工作分配，而不是首次发明 online softmax，也不是把稠密 attention 的计算复杂度变为线性。其 2023 年的性能结论必须限定到当年的 A100/H100、精度、形状与实现版本；不能直接推广成 2026 年的统一 SOTA。<a href="#source-1">R1</a><a href="#source-2">R2</a><a href="#source-5">R5</a></p>
+<p>FA2 已正式收录于 <strong>ICLR 2024</strong>，官方 proceedings 的标题与作者均对应 Tri Dao 的 FA2。2023-07-17 是 arXiv v1 首次提交日，2024 是会议收录年份；不能把这两个日期混为一谈。这里没有核验 poster/oral 类别，不作该项断言；算法逐式核对和历史 benchmark 仍限定 v1，不声称会议版与 v1 逐字相同。<a href="#source-26">R26</a><a href="#source-1">R1</a></p>
+<p>FA3 和 FA4 均有可核实的一手论文。FA3 是 Hopper 异步流水线与低精度扩展；FA4 于 2026-03-05 正式发布论文与作者博客，重点适配 Blackwell 的非对称硬件扩张。2026 年 9 月还出现 Meta 的 MXFP8 前后向扩展以及独立的 FP4 FA4 研究，不能将这些不同代码与精度契约合并为一个“官方 FA4 全精度支持”结论。<a href="#source-8">R8</a><a href="#source-10">R10</a><a href="#source-11">R11</a><a href="#source-21">R21</a><a href="#source-23">R23</a></p>
+<p>截至截止日，官方仓库可核实的最新稳定 FA2 release 是 <code>v2.8.3.post2</code>（2026-10-13），最新列出的 FA4 预发布 release 是 <code>fa4-v4.0.0.beta37</code>（2026-10-28）。<code>releases/latest</code> 返回稳定 FA2，不代表 FA4 没有新版本。主线核验固定在 <code>98c1cee0ed59307833841cdbf567fe336ceec13a</code>，提交时间为 2026-10-24；仓库 <code>pushed_at</code> 为 2026-10-29，二者不是同一时间字段。<a href="#source-12">R12</a><a href="#source-14">R14</a><a href="#source-15">R15</a></p>
+<p>引用的性能数字属于各作者的实验体系，未由本篇独立复测。来源、发布日期和代码契约的核验与性能复现分开。</p>
+<h3 id="subsection-18">2. 前史与 FA2 的贡献归属</h3>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作</th>
+<th>首次提交</th>
+<th>已核实贡献</th>
+<th>与 FA2 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Milakov、Gimelshein：Online normalizer calculation for softmax</td>
+<td>2018-05-08</td>
+<td>同一遍维护 running max 与 normalizer，给出可合并的 online normalizer；完整 softmax 仍须产生输出</td>
+<td>online softmax 的明确先行工作，不应归功于 FA2。<a href="#source-2">R2</a></td>
+</tr>
+<tr>
+<td>Rabe、Staats：Self-attention Does Not Need O(n²) Memory</td>
+<td>2021-12-10</td>
+<td>数值稳定的分块 attention、节省中间存储及可微实现；时间仍为二次</td>
+<td>说明“不存完整 attention 矩阵”的思想先于 FA1；其辅助内存口径不能与输入输出总显存直接比较。<a href="#source-3">R3</a></td>
+</tr>
+<tr>
+<td>FlashAttention / FA1</td>
+<td>2022-05-27</td>
+<td>IO-aware tiling、融合、反向重计算；避免将完整 S、P 写入 HBM，并分析 IO 复杂度</td>
+<td>FA2 保留数学目标与 IO-aware 基础，进一步改善并行和执行效率。<a href="#source-4">R4</a></td>
+</tr>
+<tr>
+<td>FA2 v1</td>
+<td>2023-07-17</td>
+<td>非 matmul 运算减少、CTA 序列并行、forward sliced-Q 工作分配</td>
+<td>属于算法与内核执行协同优化，不是稀疏或线性 attention。<a href="#source-1">R1</a><a href="#source-5">R5</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>2018 年论文的 V100 FP32 softmax 最多约 1.3 倍、softmax+TopK 最多约 5 倍是不同算子边界；后者包含融合收益，不能当作 attention 的倍率。（作者报告，未独立复测）<a href="#source-2">R2</a></p>
+<p>FA2 v1 §3.2 明确致谢 Phil Tillet 的 Triton 实现首先建议并实现 forward 交换循环顺序、沿序列维并行。因此“FA2 首次提出所有序列并行技巧”不准确；更合理的归属是把既有实践与非 matmul 简化、warp 工作分配整合为更高效实现。<a href="#source-1">R1</a></p>
+<p>稠密 self-attention 的算术工作仍为 <span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>O</mi><mo stretchy="false">(</mo><msup><mi>N</mi><mn>2</mn></msup><mi>d</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">O(N^2d)</annotation></semantics></math></span>。线性显存指不再持久保存 <span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mo>×</mo><mi>N</mi></mrow><annotation encoding="application/x-tex">N\times N</annotation></semantics></math></span> 的 score/probability 中间矩阵；FA2 前向附加保存 row-wise LSE 为 <span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>O</mi><mo stretchy="false">(</mo><mi>N</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">O(N)</annotation></semantics></math></span>，输入输出本身是 <span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>O</mi><mo stretchy="false">(</mo><mi>N</mi><mi>d</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">O(Nd)</annotation></semantics></math></span>。它不自动压缩推理 KV cache；MQA/GQA 减少 KV heads 属于模型结构选择，FA2 提供相应支持。<a href="#source-1">R1</a><a href="#source-4">R4</a><a href="#source-5">R5</a></p>
+<h3 id="subsection-19">3. 同期 xFormers、Triton 与可比性</h3>
+<p>FA2 v1 §4.1 的基线包括原始 FA1、xFormers 的 CUTLASS memory-efficient attention、Triton 的 FlashAttention 实现及标准 PyTorch attention。xFormers 是可分派到多种内核的工具库，Triton 是语言/编译器及相应内核实现；二者不是与 FA2 完全互斥的数学 attention 算法。<a href="#source-1">R1</a><a href="#source-6">R6</a><a href="#source-7">R7</a></p>
+<p>2023 年作者博客注明 Triton 使用 <strong>2023-07-14 的最新开发版</strong>。v1 论文的更细分结论是 FA2 相对当时 Triton forward 约 1.3–1.5 倍、backward 约 2 倍；博客“约 2 倍”概括不可替代这组前后向差异。（作者报告，未独立复测）<a href="#source-1">R1</a><a href="#source-5">R5</a></p>
+<p>2026-10-29 读取的 Triton 官方 Fused Attention 教程已直接声明实现 FA2，并包含 tensor descriptors、Hopper/Blackwell 判断及 warp specialization。当前 xFormers 源码 <code>xformers/ops/fmha/dispatch.py</code> 已转导入 <code>mslk.attention.fmha.dispatch</code>；仅凭旧图或旧 <code>cutlass</code> 标签推断当前实际执行内核不可靠。这里不将教程页面中硬件上下文不完整的 TFLOPS 表作为跨库排名。<a href="#source-6">R6</a><a href="#source-7">R7</a></p>
+<h4 id="subsection-20">3.1 FA2 v1 的实验口径</h4>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>原文设置 / 结果</th>
+<th>不能外推的范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Attention microbenchmark</td>
+<td>A100 80GB SXM4；序列 512 到 16K；batch 调整到总 tokens=16K；hidden=2048；head dim=64/128；分别 causal/noncausal</td>
+<td>不覆盖所有 batch、head dim、KV 布局、decode 和硬件。<a href="#source-1">R1</a></td>
+</tr>
+<tr>
+<td>内核吞吐</td>
+<td>forward 最高约 230 TFLOPs/s，约 73% A100 理论峰值；摘要给 50–73% 区间</td>
+<td>不是每个形状都达到 73%，不是全模型 MFU。<a href="#source-1">R1</a></td>
+</tr>
+<tr>
+<td>H100 初始结果</td>
+<td>同一实现不使用 TMA 等 Hopper 专有新特性，forward+backward 最高约 335 TFLOPs/s</td>
+<td>不是 FA3 的异步实现，也不是 Hopper 的能力上限。<a href="#source-1">R1</a><a href="#source-5">R5</a></td>
+</tr>
+<tr>
+<td>端到端训练</td>
+<td>8×A100 80GB SXM；GPT-style 1.3B/2.7B，2K/8K；最高每 GPU 225 TFLOPs/s、72% MFU；相对 FA1 最多约 1.3 倍</td>
+<td>不等于 TTFT、TPOT 或全模型两倍加速。<a href="#source-1">R1</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>以上数值均为 <code>（作者报告，未独立复测）</code>。v1 的 attention 内核 FLOPs 对 causal 约减半、backward 按 forward 的 2.5 倍计重计算；端到端 MFU 则沿用文献公式，没有把 causal attention 项减半。<strong>73% 内核利用率与 72% MFU 不能直接横比。</strong><a href="#source-1">R1</a></p>
+<p>原文和博客也并非所有汇总数字一致：v1 §4.1 的标准 PyTorch 对照最高写 10 倍，2023 博客写 9 倍。这是不同发布文本的汇总，不应写成无需条件的固定倍率。<a href="#source-1">R1</a><a href="#source-5">R5</a></p>
+<h3 id="subsection-21">4. FA3、FA4 与 2026 年低精度后续</h3>
+<h4 id="subsection-22">4.1 FA3：Hopper 异步流水线</h4>
+<p>FA3 首次提交于 2024-07-11，v2 为 2024-07-12。它利用 WGMMA、TMA、producer/consumer warp specialization、matmul 与 softmax 的跨/内 warpgroup 重叠；FP8 路线另加入 block quantization 和 incoherent processing。<a href="#source-8">R8</a><a href="#source-9">R9</a></p>
+<p>原论文/作者博客报告 H100 FP16 相对 FA2 约 1.5–2.0 倍、最高 740 TFLOPs/s（75%），FP8 接近 1.2 PFLOPs/s。FP8 误差“降低 2.6 倍”是相对指定 baseline FP8 attention 的实验，不是相对 FP16/BF16/FP64，也不是下游任务无损保证；博客明确包含带 outlier 的合成输入实验。（作者报告，未独立复测）<a href="#source-8">R8</a><a href="#source-9">R9</a></p>
+<h4 id="subsection-23">4.2 FA4：Blackwell 非 matmul 资源成为关键限制</h4>
+<p>FA4 的新重点是 TMEM、异步 <code>tcgen05.mma</code>、新 forward/backward 流水线、部分指数多项式模拟与条件重缩放、2-CTA backward 降低 shared-memory traffic 和 dQ atomic，以及 causal/varlen 调度。实现使用 Python 内嵌 CuTe-DSL，不能称为“仅升级 Tensor Core GEMM”。<a href="#source-10">R10</a><a href="#source-11">R11</a></p>
+<p>主文 §5 报 B200 BF16，序列 1K 到 32K、总 tokens=32K，head dim=64/128 或特殊 (192,128) 配置，最高 <strong>1613 TFLOPs/s</strong>，相对 cuDNN <strong>9.13</strong> 最多 1.3 倍、相对当时 Triton 最多 2.7 倍。作者博客则写 <strong>1605 TFLOPs/s</strong>。应保留出处差异，不能将一个值“修正”为另一值。（作者报告，未独立复测）（来源存在差异）<a href="#source-10">R10</a><a href="#source-11">R11</a></p>
+<p>更重要的反证是论文图 4 图注及附录说明：新版 cuDNN 已吸收 FA4 技巧，性能接近 FA4，附录列出 cuDNN 9.19.1.2。因此“FA4 截至 2026 年领先最新 cuDNN 1.3 倍”不是原文支持的结论。<a href="#source-10">R10</a> 2024 年 NVIDIA cuDNN 9 博客也有自身融合 SDPA 与低精度实现，提醒比较的是不同版本的具体内核，而不是“cuDNN 对 FlashAttention 思想”。<a href="#source-20">R20</a></p>
+<p>原文还有必须披露的内部不一致：</p>
+<ul>
+<li>§5 与图注明 B200，附录 A.1 却写 <code>B100 180GB SXM6 (1000W)</code>；同一附录写 <code>(March 2025)</code>，而 arXiv v1 是 2026-03-05。HTML 与公开 TeX 均如此，疑似笔误但没有作者勘误，不擅自统一。（来源存在差异）<a href="#source-10">R10</a></li>
+<li>附录列 CUDA 13.1、FA 2.8.3、Triton 3.6、PyTorch 2.10.0、CuTe-DSL 4.4.1；这些是原文所列环境，不是本次复现实验环境。<a href="#source-10">R10</a></li>
+<li>论文 §5.2 的 deterministic backward 最高约为指定 <strong>1-CTA nondeterministic</strong> 基线的 75%；作者博客写约 85–90% nondeterministic throughput。参照内核/设置未完全对齐，不合并为一个确定比例。（来源存在差异）<a href="#source-10">R10</a><a href="#source-11">R11</a></li>
+</ul>
+<p>FA4 的“exact attention”也需细分：不做稀疏截断或改变目标 attention 公式，不代表指数实现与 FP32/FP64 完全一致。原论文表 2 的三次指数多项式相对 FP64 最大 FP32 相对误差约 <span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>8.77</mn><mo>×</mo><msup><mn>10</mn><mrow><mo>−</mo><mn>5</mn></mrow></msup></mrow><annotation encoding="application/x-tex">8.77\times10^{-5}</annotation></semantics></math></span>，大于硬件 MUFU；round 到 BF16 后两者误差接近。该实验只是指数近似在 4M 个 [0,1) 输入上的局部误差分析，不是完整模型/训练误差定理。（作者报告，未独立复测）<a href="#source-10">R10</a></p>
+<h4 id="subsection-24">4.3 2026-09：Meta MXFP8 与独立 FP4 研究</h4>
+<p><strong>Meta MXFP8 扩展。</strong> PyTorch 官方博客发表于 2026-09-16、页面另显示更新日 2026-09-23，报告 FA4 fork 的 MXFP8 forward/backward、融合 quantization producer 和 jagged 模块。GB300 LLM 形状前向最高 2.85 PF/s；但 cuDNN 9.24 MX8 为 2.82 PF/s，属于接近而非普遍领先。内部 jagged 形状 FA4 MX8 为 2.54 PF/s、cuDNN MX8 为 2.64 PF/s，后者更快。（作者报告，未独立复测）<a href="#source-21">R21</a></p>
+<p>博客主动排除了一个不合格的横向对照：cuDNN 9.24 + Frontend 1.26 的 MXFP8 backward 在 nonuniform E8M0 V scales 下 dQ/dK 不匹配 reference；其 1.76 PF/s 只能算 performance-only，不能算通过精度核验的速度排名。Meta 路线还可能返回量化 dK/dV，与 BF16 gradient 返回契约不同。对应模块端到端前后向在 4K KV 时约 1.00 倍、16K 时约 1.30 倍，不能将内核 1.6 倍推广到模块或服务。<a href="#source-21">R21</a></p>
+<p>其可核实代码在 <strong><code>facebookresearch/ads_model_kernel_library/lp_fa4</code></strong>，不是 Dao-AILab 主线的通用 FP8 backward。2026-10-29 README 固定快照 <code>2e8689e43325fe215f79802467c0d8a0e592bf88</code> 声明 unpublished release candidate；初始 MXFP8 API 限定 <strong>noncausal、head dim 128、MHA</strong>，含 dense/packed varlen/shared-Q。README 的 kernel benchmark 预先量化再计时，与博客的融合模块边界也不同。<a href="#source-22">R22</a></p>
+<p><strong>FP4 独立研究。</strong> Robert Hu 的 <em>Hardware-Aware FP4 FlashAttention-4</em> 首次提交于 2026-09-03，研究 noncausal Direct-P 和另行设计的 causal training 路线。论文自报有利形状 GB200 forward 最高约 2.13 倍 BF16、单 GPU 8B update 最高约 1.14 倍；其“full FP4”只指 Q/K/P/V attention operands，不是全 Transformer 纯 FP4。尤其是作者明确报告：所测试的 MXFP4 P/V 分布式训练轨迹均发散，保留的训练配置使用 FP8 P/V。（作者报告，未独立复测）<a href="#source-23">R23</a></p>
+<p>上述后续的存在已经核实，但性能与稳定性没有三方独立复现，不能升级为通用推荐或统一 SOTA。本次对作者站点、官方仓库与 <code>FlashAttention-5</code> 的 2026 年检索未发现可核实的官方 FA5 论文/发布；这是有限检索中的未发现，不是不存在的证明。</p>
+<h3 id="subsection-25">5. 当前实现与支持矩阵</h3>
+<p>以下均是截止日文档/源码契约，不代表本次在对应硬件上实测成功。FA2、FA3、FA4 包名与安装入口不同，版本号也不等同论文编号。</p>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>实现与证据</th>
+<th>硬件 / 环境</th>
+<th>精度与功能边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FA2 CUDA；主线 README</td>
+<td>Ampere、Ada、Hopper；CUDA ≥12.0；整体 requirements 写 PyTorch ≥2.2、Linux</td>
+<td>FP16/BF16；head dim ≤256；消费者 GPU 的 hd256 backward 无 dropout 支持自 2.5.5 起；不能按此矩阵宣称 FP32/FP8 CUDA FA2。<a href="#source-12">R12</a></td>
+</tr>
+<tr>
+<td>FA2 ROCm CK；主线 README</td>
+<td>ROCm ≥6.0；MI200x/MI250x/MI300x/MI355x、RDNA 3/4</td>
+<td>FP16/BF16，前后向 head dim ≤256。当前 main 声明不等于旧 FA2 release 同样覆盖全部新增卡。<a href="#source-12">R12</a></td>
+</tr>
+<tr>
+<td>AMD Triton/aiter；主线 README</td>
+<td>CDNA/部分 RDNA；经 aiter 集成</td>
+<td>声明 FP16/BF16/FP32；MQA/GQA、varlen、paged 等；FP8 经 v3 interface；sliding window 尚在进行中。不要与 CUDA 路径精度表合并。<a href="#source-12">R12</a></td>
+</tr>
+<tr>
+<td>FA3 <code>hopper</code> beta</td>
+<td>H100/H800；CUDA ≥12.3，推荐 12.8</td>
+<td>FP16/BF16 前后向、FP8 前向；不是原 FA3 H100 内核可直接跑 B200 的保证。<a href="#source-12">R12</a></td>
+</tr>
+<tr>
+<td>FA4 <code>flash-attn-4</code> / <code>flash_attn.cute</code></td>
+<td>README 主打 Hopper/Blackwell；pyproject Python ≥3.10、CUTLASS DSL ≥4.6.2；CUDA 13 可用 <code>cu13</code> extra</td>
+<td>主线 interface 接受 FP16/BF16 前后向；FP8 E4M3FN/E5M2 前向限 CC 10.x、输出 BF16；明确拒绝 FP8 <code>requires_grad</code>。没有该公共入口 FP4 支持声明。<a href="#source-13">R13</a></td>
+</tr>
+<tr>
+<td>FA4 主线架构与形状分派</td>
+<td>interface 还接受 CC 8.x/9.x/10.x/11.x/12.x，含独立 SM80/SM120 等路径</td>
+<td>不能把“源码存在路径”当所有卡/形状已复现。SM90 对齐形状 8–256；SM100/110 通用范围 8–128，另有 (256,256) 等特殊配置；不是任意 hd≤256 的统一矩阵。<a href="#source-13">R13</a></td>
+</tr>
+<tr>
+<td>Meta LP-FA4 release candidate</td>
+<td>README 测试依赖：Linux、Python 3.12、SM10x、CUDA 13、PyTorch 2.13.0、DSL 4.6.1、Quack 0.6.2</td>
+<td>显式 MXFP8 前后向 API，初始 noncausal MHA hd128；可返回量化 dK/dV；这些是本次读取 README 的测试依赖，不是保证已广泛可安装的稳定栈。<a href="#source-22">R22</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>主线 README 对 Linux 是正式要求；Windows 只写可能可用且需要更多测试。没有据此证明 Mac/Metal、CPU、所有 Blackwell 消费级卡获得同一 FA2/FA3/FA4 优化内核。<a href="#source-12">R12</a><a href="#source-13">R13</a></p>
+<h4 id="subsection-26">5.1 必须随版本记录的正确性变化</h4>
+<ol>
+<li>FA2 <code>v2.8.3.post2</code> 修复 backward <code>dq_accum</code> int32 offset 溢出：当 <code>batch * round128(seqlen_q) * nheads * headdim &gt; 2^31</code> 时旧代码可能非法访问或 NaN gradient。该版本是维护修复，不是新的内核功能发布。<a href="#source-14">R14</a></li>
+<li>FA4 beta37 列出未使用 KV cache 值的 NaN 污染、ragged K/V TMA bounds、2-CTA CLC work-tile coordinates 等修复。不能把旧版本偶发错误等价于数学 attention 算法错误，也不能凭新版说明宣称所有边界均已消除。<a href="#source-15">R15</a></li>
+<li>FA2 自 v2.1 起，<code>seqlen_q != seqlen_k</code> 的 causal mask 改为 <strong>右下对齐</strong>；PyTorch SDPA 文档的非方阵 <code>is_causal</code> 是 <strong>左上对齐</strong>。decode/cross-attention 的 API 替换必须显式核验 mask 语义，不能只比较 dtype 和形状。<a href="#source-12">R12</a><a href="#source-17">R17</a></li>
+<li>“Exact”不意味着 bitwise 相等。官方测试以 output/gradient 相对 reference 的误差容忍为准，README 写最大误差不超过 PyTorch baseline 误差约两倍；它是测试标准，不是所有可能输入的数学误差界。FP8/FP4 的量化、缩放、梯度格式与确定性还必须另验。<a href="#source-12">R12</a><a href="#source-17">R17</a></li>
+</ol>
+<p>PyTorch SDPA 会按输入条件选择 fused 或 math 等后端；调用 SDPA、安装 <code>flash-attn</code>、以及真正执行某版本 FA 内核不是同一事实。应使用 <code>sdpa_kernel</code> 控制、实际分派日志和 profiler 证实路径；更高精度 math backend、dropout、mask 等限制也会改变结果。<a href="#source-17">R17</a></p>
+<h3 id="subsection-27">6. Prefill、Decode、TTFT 与 TPOT</h3>
+<div aria-label="Explanatory comparison" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>计算 / 指标定义</th>
+<th>对 FA2 结论的影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prefill</td>
+<td>通常并行处理 prompt 多个 query tokens，生成各层 KV；长 prompt 常有较高算术强度</td>
+<td>接近训练 forward 的大 Q 形状，但没有 backward；不能拿 forward+backward 倍率替代 prefill 倍率。<a href="#source-16">R16</a><a href="#source-19">R19</a></td>
+</tr>
+<tr>
+<td>Decode</td>
+<td>常规自回归每步 query 长度约 1，读取不断增长的 KV cache</td>
+<td>小 Q、少 batch/head 时 CTA 并行不足，常受 KV/HBM 或固定开销限制；需要 split-KV、合并、paged 布局与服务调度。<a href="#source-16">R16</a><a href="#source-19">R19</a><a href="#source-24">R24</a></td>
+</tr>
+<tr>
+<td>TTFT</td>
+<td>请求发出到首个输出 token 的时间</td>
+<td>包含排队、传输、tokenization/调度、prefill 与首 token 输出等；不是纯 attention 或纯 prefill kernel 时间。<a href="#source-18">R18</a></td>
+</tr>
+<tr>
+<td>TPOT</td>
+<td>对一个输出 tokens&gt;1 的请求，<span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">(</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">t</mi></mrow></msub><mo>−</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">f</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">t</mi></mrow></msub><mo stretchy="false">)</mo><mi mathvariant="normal">/</mi><mo stretchy="false">(</mo><msub><mi>n</mi><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">t</mi></mrow></msub><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">(T_{\mathrm{last}}-T_{\mathrm{first}})/(n_{\mathrm{out}}-1)</annotation></semantics></math></span></td>
+<td>排除 TTFT，主要反映首 token 后生成间隔；需报告输出长度与服务计时边界。<a href="#source-18">R18</a></td>
+</tr>
+<tr>
+<td>ITL</td>
+<td>相邻输出 token 完成之间的间隔</td>
+<td>单请求 TPOT 是 ITL 平均；跨请求 mean TPOT 通常按请求等权，mean ITL 按 token 间隔加权，二者可不同。<a href="#source-18">R18</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>“Prefill 总是 compute-bound、decode 总是 memory-bound”过于绝对。2026-07-31 NVIDIA 原文指出短增量 prompt + 长 prefix cache 的 prefill 可接近 decode；speculative decoding 多 query 验证会增加算术强度，可能向 compute-bound 移动。FA4 又显示即使长 Q 内核，SFU 和 shared-memory traffic 也可能是瓶颈，而不是 Tensor Core FLOPs。<a href="#source-19">R19</a><a href="#source-10">R10</a></p>
+<p>Flash-Decoding 于 2023-10-12 的作者/团队博客提出沿 KV 长度分片并行，再以每片 LSE 合并；它自 FA package v2.2 与 xFormers v0.0.22 提供。因此“FA2 完全不能优化 decode”不准确；准确说法是 <strong>FA2 v1 的 forward Q 分块并行策略不能单凭训练结果保证小 Q decode 加速，后续版本另有 decode 路线</strong>。博客的“batch 1 少于 1% GPU”示意不能忽略 heads 维后照搬到任意 MHA。<a href="#source-16">R16</a><a href="#source-12">R12</a></p>
+<p>在线性能还须控制请求到达率、并发、prefix cache 命中、chunked prefill、KV dtype/布局、输出长度、调度与通信，并报告 p50/p95/p99 和 goodput。vLLM 文档提供 TTFT/TPOT/ITL 百分位与 SLO goodput 参数；这些是指标配置，不是 FA2 改善指标的实测证据。<a href="#source-25">R25</a></p>
+<h3 id="subsection-28">8. 性能结论的使用边界</h3>
+<p>稠密、保持目标公式、同 dtype 不足以完成公平比较。至少应对齐 GPU 型号/功耗/时钟、软件快照、batch 与 Q/K 长度、Q/KV heads、head dim、causal/varlen/paged/dropout、输入与返回梯度 dtype、确定性、量化和 layout conversion 是否计时、编译/warmup、kernel/model/server 计时边界以及误差标准。<a href="#source-1">R1</a><a href="#source-10">R10</a><a href="#source-21">R21</a><a href="#source-22">R22</a></p>
+<p>短 Q/短序列可能被 launch、调度与最终 reduction 开销主导；长 Q 与宽 head 又可能遇到寄存器、shared memory、TMEM 与 SFU 限制。稀疏/低比特工作可以是有价值的后续，但改变了计算/精度契约，不应与 BF16 稠密 exact attention 无条件并列排名。<a href="#source-1">R1</a><a href="#source-10">R10</a><a href="#source-19">R19</a><a href="#source-23">R23</a></p>
+<p>本次 <code>（尚无独立验证）</code>：没有跨作者独立重测 FA4 当前 release、没有 GPU 支持矩阵实测、没有覆盖全部 2026 年 attention 文献，未将有限检索未发现 FA5 写成不存在。原文中的 synthetic benchmark 是被引用的实验方法，不是本调研生成的模拟数据；不使用这类局部实验替代真实生产普适结论。</p>
+<h3 id="subsection-29">来源</h3>
+<p>完整获取状态、日期、关键事实、可比性与快照见同目录 <code>sources.json</code>。下列编号是本调研已获取来源的稳定索引。</p>
+<p><a id="source-1"></a>[R1] FA2 v1（PDF、arXiv 元数据与公开 TeX）：<a href="https://arxiv.org/pdf/2307.08691v1" rel="noopener">https://arxiv.org/pdf/2307.08691v1</a> ; <a href="https://arxiv.org/abs/2307.08691v1" rel="noopener">https://arxiv.org/abs/2307.08691v1</a> ; <a href="https://arxiv.org/src/2307.08691v1" rel="noopener">https://arxiv.org/src/2307.08691v1</a></p>
+<p><a id="source-2"></a>[R2] Online normalizer calculation for softmax：<a href="https://arxiv.org/abs/1805.02867" rel="noopener">https://arxiv.org/abs/1805.02867</a> ; <a href="https://arxiv.org/pdf/1805.02867" rel="noopener">https://arxiv.org/pdf/1805.02867</a></p>
+<p><a id="source-3"></a>[R3] Self-attention Does Not Need O(n²) Memory：<a href="https://arxiv.org/abs/2112.05682" rel="noopener">https://arxiv.org/abs/2112.05682</a></p>
+<p><a id="source-4"></a>[R4] FlashAttention / FA1：<a href="https://arxiv.org/abs/2205.14135" rel="noopener">https://arxiv.org/abs/2205.14135</a></p>
+<p><a id="source-5"></a>[R5] Tri Dao，FA2 作者博客（2023-07-17）：<a href="https://crfm.stanford.edu/2023/07/17/flash2.html" rel="noopener">https://crfm.stanford.edu/2023/07/17/flash2.html</a></p>
+<p><a id="source-6"></a>[R6] Triton 官方 Fused Attention 教程：<a href="https://triton-lang.org/main/getting-started/tutorials/06-fused-attention.html" rel="noopener">https://triton-lang.org/main/getting-started/tutorials/06-fused-attention.html</a></p>
+<p><a id="source-7"></a>[R7] xFormers 官方快照 README/dispatcher：<a href="https://github.com/facebookresearch/xformers/blob/4f701fad69a6308e6b9f0c3f7863c40c881b30a7/README.md" rel="noopener">https://github.com/facebookresearch/xformers/blob/4f701fad69a6308e6b9f0c3f7863c40c881b30a7/README.md</a> ; <a href="https://github.com/facebookresearch/xformers/blob/4f701fad69a6308e6b9f0c3f7863c40c881b30a7/xformers/ops/fmha/dispatch.py" rel="noopener">https://github.com/facebookresearch/xformers/blob/4f701fad69a6308e6b9f0c3f7863c40c881b30a7/xformers/ops/fmha/dispatch.py</a></p>
+<p><a id="source-8"></a>[R8] FA3 原论文：<a href="https://arxiv.org/abs/2407.08608" rel="noopener">https://arxiv.org/abs/2407.08608</a></p>
+<p><a id="source-9"></a>[R9] FA3 作者博客：<a href="https://tridao.me/blog/2024/flash3/" rel="noopener">https://tridao.me/blog/2024/flash3/</a></p>
+<p><a id="source-10"></a>[R10] FA4 原论文、HTML 与 TeX：<a href="https://arxiv.org/abs/2603.05451" rel="noopener">https://arxiv.org/abs/2603.05451</a> ; <a href="https://arxiv.org/html/2603.05451v1" rel="noopener">https://arxiv.org/html/2603.05451v1</a> ; <a href="https://arxiv.org/src/2603.05451v1" rel="noopener">https://arxiv.org/src/2603.05451v1</a></p>
+<p><a id="source-11"></a>[R11] FA4 作者博客：<a href="https://tridao.me/blog/2026/flash4/" rel="noopener">https://tridao.me/blog/2026/flash4/</a></p>
+<p><a id="source-12"></a>[R12] Dao-AILab 官方主线 README 固定快照：<a href="https://github.com/Dao-AILab/flash-attention/blob/98c1cee0ed59307833841cdbf567fe336ceec13a/README.md" rel="noopener">https://github.com/Dao-AILab/flash-attention/blob/98c1cee0ed59307833841cdbf567fe336ceec13a/README.md</a></p>
+<p><a id="source-13"></a>[R13] 官方 FA4 CuTe 固定快照：<a href="https://github.com/Dao-AILab/flash-attention/tree/98c1cee0ed59307833841cdbf567fe336ceec13a/flash_attn/cute" rel="noopener">https://github.com/Dao-AILab/flash-attention/tree/98c1cee0ed59307833841cdbf567fe336ceec13a/flash_attn/cute</a></p>
+<p><a id="source-14"></a>[R14] FA2 v2.8.3.post2：<a href="https://github.com/Dao-AILab/flash-attention/releases/tag/v2.8.3.post2" rel="noopener">https://github.com/Dao-AILab/flash-attention/releases/tag/v2.8.3.post2</a></p>
+<p><a id="source-15"></a>[R15] FA4 beta37：<a href="https://github.com/Dao-AILab/flash-attention/releases/tag/fa4-v4.0.0.beta37" rel="noopener">https://github.com/Dao-AILab/flash-attention/releases/tag/fa4-v4.0.0.beta37</a></p>
+<p><a id="source-16"></a>[R16] Flash-Decoding 作者/团队博客：<a href="https://crfm.stanford.edu/2023/10/12/flashdecoding.html" rel="noopener">https://crfm.stanford.edu/2023/10/12/flashdecoding.html</a></p>
+<p><a id="source-17"></a>[R17] PyTorch SDPA 官方 API：<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html" rel="noopener">https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html</a></p>
+<p><a id="source-18"></a>[R18] TensorRT-LLM 官方服务 benchmark 指标：<a href="https://nvidia.github.io/TensorRT-LLM/latest/commands/trtllm-serve/run-benchmark-with-trtllm-serve.html" rel="noopener">https://nvidia.github.io/TensorRT-LLM/latest/commands/trtllm-serve/run-benchmark-with-trtllm-serve.html</a></p>
+<p><a id="source-19"></a>[R19] NVIDIA，2026-07-31 attention co-design：<a href="https://developer.nvidia.com/blog/co-designing-ai-model-attention-for-fast-interactive-long-context-inference/" rel="noopener">https://developer.nvidia.com/blog/co-designing-ai-model-attention-for-fast-interactive-long-context-inference/</a></p>
+<p><a id="source-20"></a>[R20] NVIDIA cuDNN 9，2024-05-24：<a href="https://developer.nvidia.com/blog/accelerating-transformers-with-nvidia-cudnn-9/" rel="noopener">https://developer.nvidia.com/blog/accelerating-transformers-with-nvidia-cudnn-9/</a></p>
+<p><a id="source-21"></a>[R21] PyTorch/Meta，2026-09 MXFP8 FA4：<a href="https://pytorch.org/blog/low-precision-flash-attention-4-end-to-end-block-scaled-attention-for-blackwell/" rel="noopener">https://pytorch.org/blog/low-precision-flash-attention-4-end-to-end-block-scaled-attention-for-blackwell/</a></p>
+<p><a id="source-22"></a>[R22] Meta LP-FA4 2026-10-29 README 快照：<a href="https://github.com/facebookresearch/ads_model_kernel_library/blob/2e8689e43325fe215f79802467c0d8a0e592bf88/lp_fa4/README.md" rel="noopener">https://github.com/facebookresearch/ads_model_kernel_library/blob/2e8689e43325fe215f79802467c0d8a0e592bf88/lp_fa4/README.md</a></p>
+<p><a id="source-23"></a>[R23] Robert Hu，Hardware-Aware FP4 FlashAttention-4：<a href="https://arxiv.org/abs/2609.04105" rel="noopener">https://arxiv.org/abs/2609.04105</a> ; <a href="https://arxiv.org/html/2609.04105v1" rel="noopener">https://arxiv.org/html/2609.04105v1</a></p>
+<p><a id="source-24"></a>[R24] FlashInfer，MLSys 2025 论文：<a href="https://arxiv.org/abs/2501.01005" rel="noopener">https://arxiv.org/abs/2501.01005</a></p>
+<p><a id="source-25"></a>[R25] vLLM 服务 benchmark CLI：<a href="https://docs.vllm.ai/en/latest/cli/bench/serve/" rel="noopener">https://docs.vllm.ai/en/latest/cli/bench/serve/</a></p>
+<p><a id="source-26"></a>[R26] ICLR 2024 官方 FA2 收录页：<a href="https://proceedings.iclr.cc/paper_files/paper/2024/hash/98ed250b203d1ac6b24bbcf263e3d4a7-Abstract-Conference.html" rel="noopener">https://proceedings.iclr.cc/paper_files/paper/2024/hash/98ed250b203d1ac6b24bbcf263e3d4a7-Abstract-Conference.html</a></p>
+<h2 id="section-10">9 My Takeaways — 优势、代价与未解问题</h2>
+<p><strong>优势。</strong>FA2 在保持模型定义和精确 attention 的前提下优化内核执行，迁移成本比改模型 attention pattern 小。算法状态、CTA 轴和 warp 所有权三个层次连贯；作者明确承认 Triton 先行贡献，原始图和开源实现为复核提供入口。</p>
+<p><strong>代价。</strong>大 tile 和更多片上状态可能降低 occupancy；后向 dQ 原子归约存在通信和确定性成本；Q-block 并行增加不同 CTA 对 KV 的访问，cache/复用路径会影响实际 IO。MFU 数字依赖 FLOPs 口径，kernel speedup 不能直接替代训练或业务收益。</p>
+<p><strong>正确性评价。</strong>设计的不变量容易证明；v1 文本与伪代码存在可确证错误，因此技术报告和正确实现需分开评价。数学自检支持校正后的算法，不替原始性能实验提供独立实测背书。</p>
+<p><strong>扩展性评价。</strong>长 Q、适当 head dimension 和 Tensor Core GPU 是强场景；q_len=1、极小 tile、跨设备、低精度/全 mask 等场景需要额外设计。本文没有一种统一可比的“所有场景最快 attention”结果。</p>
+<p><strong>尚待回答。</strong>三个改进各自节省多少时间？反向原子与确定性策略在不同形状如何切换？哪个 block 参数改变了 GEMM 与标量流水的临界点？prefill 的收益是否被模型其他算子和跨设备调用淹没？这些比继续引用一个整体“2×”更能指导落地。</p>
+<p><strong>下一步实现方向。</strong>用 profiler 按真实调用顺序检查等待、内存拷贝、kernel launch 和每个 GEMM/softmax/归约，再选择内核。面对端侧部署，保留 thin JNI/native 主链路的原则，把容量估算与真实物理峰值分开，把数学对齐与稳态 TTFT/TPOT 分开验收。</p>
+<div class="related-readings"><p>Related readings</p><a href="../flashattention/">← FlashAttention：先减少 HBM IO</a><a href="../gqa/">GQA：缩小共享 KV 的容量</a><a href="../mqa/">MQA：多个 Query 共用历史</a><a href="../transformer/">Attention Is All You Need：attention 的数学定义</a></div>
+<h2 id="section-11">10 References — 原论文与一手资料</h2>
+<ol>
+<li><a href="https://arxiv.org/abs/2307.08691v1" id="ref-1" rel="noopener">Tri Dao. FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning. arXiv:2307.08691v1, 2023.</a> 指定版本 PDF、14 页全文、9 个原公式组、7 图、1 表、2 算法；LaTeX 和原图一并归档。<a href="https://arxiv.org/pdf/2307.08691v1" rel="noopener">https://arxiv.org/pdf/2307.08691v1</a></li>
+<li><a href="https://github.com/Dao-AILab/flash-attention" id="ref-2" rel="noopener">Dao-AILab / flash-attention — official implementation.</a> 仓库状态及后续实现由 gh 核验；最新代码与历史 v1 benchmark 分开。<a href="https://github.com/Dao-AILab/flash-attention" rel="noopener">https://github.com/Dao-AILab/flash-attention</a></li>
+</ol>
+<p>扩展来源、URL 与时效记录见上节及 <a href="notes/sources.json">sources.json</a>。</p>
+<p class="fine">Initial reading · 2026-10-29. Paper-reported measurements, external-source claims and Agent interpretation remain distinct. 本篇包含原文笔误说明；未进行模型训练、GPU/NPU 性能或质量复现。</p></main></div><footer class="site-footer"><a href="../">← All Paper Readings</a><span>Read & reviewed · October 29, 2026</span></footer></div><dialog class="image-modal" id="figure-modal"><div class="modal-top"><p id="modal-caption"></p><button id="modal-close" type="button">Close</button></div><img id="modal-image" alt=""><a id="modal-source" target="_blank" rel="noopener">Open original asset</a></dialog><script src="assets/reading.js" defer></script></body></html>
