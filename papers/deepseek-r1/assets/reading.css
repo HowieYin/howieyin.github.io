@@ -92,3 +92,57 @@
 .reading .metric-bars>div{border-bottom:1px solid #26364a;padding:11px 0}
 .light .reading .metric-bars>div{border-color:#c2d1df}
 @media(max-width:800px){.answer-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.reading .equation math{font-size:18px}.reading .original-listing{padding:12px}}
+
+/* Source prompts and transcripts use reading typography, not data-table cells. */
+.reading .original-document{margin:34px 0 46px;border:1px solid #34465c;border-radius:6px;overflow:hidden;min-width:0}
+.document-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:22px 26px;background:#111b29;border-bottom:1px solid #34465c}
+.reading .document-kicker{margin:0 0 7px;font:11px/1.7 var(--mono);color:#9badc2;letter-spacing:.035em}
+.reading .document-header h4{margin:0;font-size:21px;line-height:1.5}
+.document-header>a{font-size:12px;white-space:nowrap;padding-top:3px}
+.document-panel{padding:24px 26px;background:#101923;min-width:0}
+.document-panel+.document-panel{border-top:1px solid #34465c}
+.document-controls{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px;color:#c7d9ea}
+.document-controls>.document-row,.document-controls>span{font:12px/1.7 var(--mono);letter-spacing:.04em}
+.document-actions{display:flex;gap:12px;align-items:center;flex-shrink:0}
+.document-actions a{font:12px/1.7 var(--mono)}
+.document-actions .copy-button{font-size:12px;padding:6px 11px}
+.reading .document-content{font-size:17px;line-height:1.9;overflow-wrap:anywhere}
+.document-content>.document-row{margin:12px 0;min-width:0}
+.document-content>.document-row:first-child{margin-top:0}
+.document-content>.document-row:last-child{margin-bottom:0}
+.reading .document-row p{font-size:inherit;line-height:inherit;margin:0;white-space:pre-line}
+.document-row .ltx_inline-block{display:block}
+.document-content .ltx_font_typewriter{font-size:.95em}
+.document-content math{font-size:1.05em;display:inline math}
+.reading .document-formula{overflow-x:auto;max-width:100%;padding:8px 0;overscroll-behavior-x:contain}
+.document-formula math{min-width:max-content}
+.reading .reflection-excerpt{border-left:3px solid #cc9c82;background:#231e1b;padding:15px 20px;margin:25px 0;color:#eed9ca}
+.document-evaluation{border-top:1px solid #34465c}
+.document-evaluation>summary{display:flex;align-items:center;gap:18px;padding:18px 26px;cursor:pointer;background:#111b29;list-style:none;font-size:13px}
+.document-evaluation>summary::before{content:"▸";color:#99b1cc}
+.document-evaluation[open]>summary::before{content:"▾"}
+.document-evaluation>summary .document-row{font:12px/1.7 var(--mono)}
+.evaluation-hint{margin-left:auto;font-size:12px;color:#9badc2}
+.document-evaluation .document-panel{border-top:1px solid #29394a}
+.reading .document-caption{margin:0;padding:18px 26px 8px;font-size:13px;line-height:1.9;color:#a9b6c6;background:#0d141e}
+.reading .original-document>.fine{margin:0;padding:8px 26px 20px;font-size:12px;background:#0d141e}
+.document-header>a:focus-visible,.document-evaluation>summary:focus-visible{outline:2px solid #9fc1e4;outline-offset:-3px}
+.light .reading .original-document{border-color:#b5c7d8}
+.light .document-header,.light .document-evaluation>summary{background:#e6eef6;border-color:#b5c7d8}
+.light .document-panel{background:#f3f6fa}
+.light .document-controls{color:#2f4c66}
+.light .document-evaluation,.light .document-panel+.document-panel,.light .document-evaluation .document-panel{border-color:#c4d1de}
+.light .reading .document-kicker,.light .evaluation-hint{color:#526b82}
+.light .reading .document-caption,.light .reading .original-document>.fine{background:#eaf0f6;color:#50657b}
+.light .reading .reflection-excerpt{background:#f1e6dd;border-color:#997354;color:#6d4330}
+@media(max-width:800px){
+  .reading .document-content{font-size:16px;line-height:1.9}
+  .document-header,.document-panel{padding:20px 18px}
+  .document-header{flex-direction:column;gap:8px}
+  .reading .document-header h4{font-size:19px}
+  .document-evaluation>summary{padding:17px 18px;gap:10px}
+  .evaluation-hint{font-size:11px}
+  .reading .document-caption{padding:16px 18px 7px}
+  .reading .original-document>.fine{padding:7px 18px 18px}
+  .reading .reflection-excerpt{padding:13px 15px}
+}

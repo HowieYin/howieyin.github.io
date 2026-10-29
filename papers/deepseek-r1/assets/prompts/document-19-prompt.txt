@@ -1,0 +1,25 @@
+## Question:
+Sauna use, sometimes referred to as "sauna bathing," is characterized by short-term passive exposure to extreme heat …In fact, sauna use has been proposed as an alternative to exercise for people who are unable to engage in physical activity due to chronic disease or physical limitations.[13]
+According to the article, which of the following is NOT a benefit of sauna use?
+## Choices:
+- (A) Decreased risk of heart attacks.
+
+- (B) Increase in stroke volume.
+
+- (C) Improved mental health.
+
+- (D) Decreased rate of erectile dysfunction.
+## Instruction
+Please answer this question by first reasoning and then selecting the correct choice.
+
+Present your reasoning and solution in the following json format.
+
+Please show your choice in the ‘answer‘ field with only the choice letter, e.g.,‘"answer": "C"‘.
+
+{
+
+"reasoning": "___",
+
+"answer": "___"
+
+}

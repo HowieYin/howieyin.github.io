@@ -1,0 +1,1 @@
+Extract the code wrapped by ‘‘‘python‘‘‘ in response to judge if the answer passes the test cases.

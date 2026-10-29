@@ -40,6 +40,18 @@
       setTimeout(()=>button.textContent='Copy',1800);
     });
   });
+  document.querySelectorAll('[data-copy-document]').forEach(button=>{
+    button.addEventListener('click',async()=>{
+      const original=button.textContent;
+      try {
+        await navigator.clipboard.writeText(byId(button.dataset.copyDocument).content.textContent);
+        button.textContent='Copied';
+      } catch {
+        button.textContent='Use TXT';
+      }
+      setTimeout(()=>button.textContent=original,1800);
+    });
+  });
   let step=0,timer=null;
   const stop=()=>{clearInterval(timer);timer=null;byId('grpo-play').textContent='Play';byId('grpo-play').setAttribute('aria-pressed','false');};
   function updateGRPO(){

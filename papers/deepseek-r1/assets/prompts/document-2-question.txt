@@ -1,0 +1,1 @@
+Question: If \(a>1\), then the sum of the real solutions of \(\sqrt{a-\sqrt{a+x}}=x\) is equal to

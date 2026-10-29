@@ -1,0 +1,65 @@
+Question:
+There is a stack of N cards, and the ith card from the top has an integer \(A_{i}\) written on it.
+
+You take K cards from the bottom of the stack and place them on top of the stack, maintaining their order.
+
+Print the integers written on the cards from top to bottom after the operation.
+
+Input
+
+The input is given from Standard Input in the following format:
+
+N K
+
+\(A_{1}A_{2}\ldots A_{N}\)
+
+Output
+
+Let \(B_{i}\) be the integer written on the ith card from the top of the stack after the operation. Print \(B_{1},B_{2},\ldots,B_{N}\) in this order, separated by spaces.
+
+Constraints
+
+\(-1\leqslant K<N\leqslant 100\)
+
+\(-1\leqslant A_{i}\leqslant 100\)
+
+All input values are integers.
+
+Sample Input 1
+
+5 3
+
+1 2 3 4 5
+
+Sample Output 1
+
+3 4 5 1 2
+
+Initially, the integers written on the cards are 1,2,3,4,5 from top to bottom.
+After taking three cards from the bottom of the stack and placing them on top, the integers written on the cards become 3,4,5,1,2 from top to bottom.
+
+
+
+Sample Input 2
+
+
+
+6 2
+
+1 2 1 2 1 2
+
+
+
+Sample Output 2
+
+
+
+1 2 1 2 1 2
+
+
+
+The integers written on the cards are not necessarily distinct.
+
+
+
+Please write a python code to solve the above problem. Your code must read the inputs from stdin and output the results to stdout.

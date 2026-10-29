@@ -1,0 +1,1 @@
+Parse the json output in response to judge if the answer equals to ground truth.

@@ -1,0 +1,1 @@
+Parse the last line in response to judge if the choice equals to ground truth.

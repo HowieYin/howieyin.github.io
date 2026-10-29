@@ -1,0 +1,8 @@
+Here are the relevant Wikipedia articles:
+
+url: https:en.wikipedia.orgwikiPresident_of_the_United_States
+
+url content: The president of the United States (POTUS) is the head of state and head of government of the United States of America. The president directs the executive branch of the federal government and is the commander-in-chief of the United States Armed Forces.
+…
+Based on all the information, answer the query.
+Query: If my future wife has the same first name as the 15th first lady of the United States’ mother and her surname is the same as the second assassinated president’s mother’s maiden name, what is my future wife’s name?

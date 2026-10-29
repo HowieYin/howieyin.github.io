@@ -1,0 +1,12 @@
+To write an SQL query that selects the top 10 rows in a database and joins to 3 different tables based on a field called "code", you would need to know the names of the tables and the specific fields you want to select. Assuming the tables are named "table1", "table2", and "table3", and you want to select all fields from each table, the query would look like this:
+“‘sql
+SELECT *
+FROM (
+SELECT *
+FROM table1
+LIMIT 10
+) AS t1
+JOIN table2 ON t1.code = table2.code
+JOIN table3 ON t1.code = table3.code;
+“‘
+This query first selects the top 10 rows from "table1" and then joins "table2" and "table3" based on the "code" field. If you want to select specific fields from each table, you can replace the asterisks (*) with the field names separated by commas.

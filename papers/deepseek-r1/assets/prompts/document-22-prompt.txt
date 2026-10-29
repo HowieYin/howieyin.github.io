@@ -1,0 +1,20 @@
+You will be asked to read a passage and answer a question. Some examples of passages and Q&A are provided below.
+# Examples
+—
+Passage: Looking to avoid back-to-back divisional losses, the Patriots traveled to Miami to face the 6-4 Dolphins at Dolphin Stadium …Cassel’s 415 passing yards made him the second quarterback in Patriots history to throw for at least 400 yards in two or more games; Drew Bledsoe had four 400+ yard passing games in his Patriots career.
+Question: How many points did the Dolphins lose by?
+Answer: 20.
+—
+Passage: In week 2, the Seahawks took on their division rivals, the San Francisco 49ers. Prior to the season, NFL analysts rated this rivalry as the top upcoming rivalry, as well as the top rivalry of the decade …Seattle was now 2-0, and still unbeaten at home.
+Question: How many field goals of at least 30 yards did Hauschka make?
+Answer: 2.
+—
+Passage: at Raymond James Stadium, Tampa, Florida TV Time: CBS 1:00pm eastern The Ravens opened the regular season on the road against the Tampa Bay Buccaneers on September 10. …With the win, the Ravens were 1-0 and 1-0 against NFC Opponents.
+Question: how many yards did lewis get
+Answer: 4.
+# Your Task
+—
+Passage: The Chargers (1-0) won their season opener 22-14 against the Oakland Raiders after five field goals by Nate Kaeding and three botched punts by the Raiders. The Raiders Pro Bowl long snapper Jon Condo suffered a head injury in the second quarter. He was replaced by linebacker Travis Goethel, who had not snapped since high school. Goethel rolled two snaps to punter Shane Lechler, each giving the Chargers the ball in Raiders territory, and Lechler had another punt blocked by Dante Rosario. The Chargers scored their only touchdown in the second quarter after a 13-play, 90-yard drive resulted in a 6-yard touchdown pass from Philip Rivers to wide receiver Malcom Floyd. The Chargers failed to score four out of five times in the red zone. San Diego led at halftime 10-6, and the Raiders did not scored a touchdown until 54 seconds remained in the game. Undrafted rookie Mike Harris made his first NFL start, filing in for left tackle for an injured Jared Gaither. San Diego protected Harris by having Rivers throw short passes; sixteen of Rivers’ 24 completions were to running backs and tight ends, and he threw for 231 yards while only being sacked once. He did not have an interception after throwing 20 in 2011. The win was the Chargers’ eighth in their previous nine games at Oakland. It improved Norv Turner’s record to 4-2 in Chargers’ season openers. Running back Ryan Mathews and receiver Vincent Brown missed the game with injuries.
+Question: How many yards did Rivers pass?
+Answer:
+Think step by step, then write a line of the form "Answer: $ANSWER" at the end of your response.

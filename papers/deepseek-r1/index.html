@@ -1,4 +1,4 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>DeepSeek-R1：奖励怎样把预训练能力变成可用的推理 — Paper Readings · Howie Yin</title><meta name="description" content="DeepSeek-R1 v2逐章精读：18张原图、32张完整表、13个编号公式、8份原始Listing，GRPO与多阶段训练、评测和安全审计、长思维延迟与MLA内存交互，扩展研究截至2026-10-29。"><meta property="og:title" content="DeepSeek-R1：奖励怎样把预训练能力变成可用的推理"><meta property="og:description" content="From group rewards to reasoning, with full original evidence and engineering audits."><meta property="og:type" content="article"><meta property="og:image" content="https://howieyin.github.io/papers/deepseek-r1/assets/original/dsr1_nature.svg"><link rel="canonical" href="https://howieyin.github.io/papers/deepseek-r1/"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="page-tools"><span>18 FIGURES · 32 TABLES · 13 EQUATIONS · 8 LISTINGS · V2</span><button type="button" id="theme-toggle">Light mode</button></div><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents</summary><ol><li><a href="#section-1">阅读地图与 TL;DR</a></li><li><a href="#section-2">Abstract｜从结果反馈到可扩展推理</a></li><li><a href="#section-3">1 Introduction｜已有路径为何还需要 RL</a></li><li><a href="#section-4">2 DeepSeek-R1-Zero｜不给过程示范，给结果反馈</a></li><li><a href="#section-5">3 DeepSeek-R1｜推理能力与可用性如何组合</a></li><li><a href="#section-6">4 Experiment｜收益在哪里，代价在哪里</a></li><li><a href="#section-7">5 Ethics and Safety Statement｜模型能力与服务防线</a></li><li><a href="#section-8">6 Conclusion, Limitation, and Future Work</a></li><li><a href="#section-9">7 Author List｜贡献来源</a></li><li><a href="#section-10">Appendix A Background｜基座与 GRPO 的位置</a></li><li><a href="#section-11">Appendix B Training Details｜数据、系统与成本</a></li><li><a href="#section-12">Appendix C Self-Evolution｜“反思”证据能支持什么</a></li><li><a href="#section-13">Appendix D Evaluation｜把指标、基线与安全口径对齐</a></li><li><a href="#section-14">Appendix E More Analysis｜任务、难度与长思考</a></li><li><a href="#section-15">Appendix F Distillation｜迁移的是轨迹分布</a></li><li><a href="#section-16">Appendix G Discussion｜成功条件与失败经验</a></li><li><a href="#section-17">Appendix H Related Work｜论文如何接上历史</a></li><li><a href="#section-18">Appendix I Open Weights, Code, and Data｜复现边界</a></li><li><a href="#section-19">Appendix J Evaluation Prompts and Settings</a></li><li><a href="#section-20">My analysis｜从训练公式到端侧成本</a></li><li><a href="#section-21">Extended research｜前因、后续与当前证据</a></li><li><a href="#section-22">References & related readings</a></li></ol></details></aside><main class="reading" id="main"><p class="eyebrow">PAPER READING / REINFORCEMENT LEARNING / REASONING</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>DeepSeek-R1：奖励怎样把预训练能力变成可用的推理 — Paper Readings · Howie Yin</title><meta name="description" content="DeepSeek-R1 v2逐章精读：18张原图、15张数据表与17份原始问答／Prompt、13个编号公式、8份原始Listing，GRPO与多阶段训练、评测和安全审计、长思维延迟与MLA内存交互，扩展研究截至2026-10-29。"><meta property="og:title" content="DeepSeek-R1：奖励怎样把预训练能力变成可用的推理"><meta property="og:description" content="From group rewards to reasoning, with full original evidence and engineering audits."><meta property="og:type" content="article"><meta property="og:image" content="https://howieyin.github.io/papers/deepseek-r1/assets/original/dsr1_nature.svg"><link rel="canonical" href="https://howieyin.github.io/papers/deepseek-r1/"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css?v=2"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="page-tools"><span>18 FIGURES · 15 DATA TABLES · 17 PROMPTS / EXCERPTS · 13 EQUATIONS · 8 LISTINGS · V2</span><button type="button" id="theme-toggle">Light mode</button></div><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents</summary><ol><li><a href="#section-1">阅读地图与 TL;DR</a></li><li><a href="#section-2">Abstract｜从结果反馈到可扩展推理</a></li><li><a href="#section-3">1 Introduction｜已有路径为何还需要 RL</a></li><li><a href="#section-4">2 DeepSeek-R1-Zero｜不给过程示范，给结果反馈</a></li><li><a href="#section-5">3 DeepSeek-R1｜推理能力与可用性如何组合</a></li><li><a href="#section-6">4 Experiment｜收益在哪里，代价在哪里</a></li><li><a href="#section-7">5 Ethics and Safety Statement｜模型能力与服务防线</a></li><li><a href="#section-8">6 Conclusion, Limitation, and Future Work</a></li><li><a href="#section-9">7 Author List｜贡献来源</a></li><li><a href="#section-10">Appendix A Background｜基座与 GRPO 的位置</a></li><li><a href="#section-11">Appendix B Training Details｜数据、系统与成本</a></li><li><a href="#section-12">Appendix C Self-Evolution｜“反思”证据能支持什么</a></li><li><a href="#section-13">Appendix D Evaluation｜把指标、基线与安全口径对齐</a></li><li><a href="#section-14">Appendix E More Analysis｜任务、难度与长思考</a></li><li><a href="#section-15">Appendix F Distillation｜迁移的是轨迹分布</a></li><li><a href="#section-16">Appendix G Discussion｜成功条件与失败经验</a></li><li><a href="#section-17">Appendix H Related Work｜论文如何接上历史</a></li><li><a href="#section-18">Appendix I Open Weights, Code, and Data｜复现边界</a></li><li><a href="#section-19">Appendix J Evaluation Prompts and Settings</a></li><li><a href="#section-20">My analysis｜从训练公式到端侧成本</a></li><li><a href="#section-21">Extended research｜前因、后续与当前证据</a></li><li><a href="#section-22">References & related readings</a></li></ol></details></aside><main class="reading" id="main"><p class="eyebrow">PAPER READING / REINFORCEMENT LEARNING / REASONING</p>
 <h1>DeepSeek-R1：奖励怎样把预训练能力变成可用的推理</h1>
 <p><strong>DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning</strong></p>
 <p>DeepSeek-AI · Daya Guo、Dejian Yang 等，完整作者及贡献见原文 §7。Nature 645, 633–638（2025）。本文精读指定的 <strong>arXiv v2，2026-01-04，86 页</strong>；初版发布于 2025-01-22。阅读及扩展资料核验日期：2026-10-29。</p>
@@ -50,58 +50,74 @@
 <h3 id="subsection-2">2.2 Reward Design</h3>
 <div class="equation" id="equation-4"><span class="equation-label">ORIGINAL EQUATION (4)</span><math alttext="Reward_{\text{rule}}=Reward_{\text{acc}}+Reward_{\text{format}}" class="ltx_Math" display="block" id="S2.E4.m1" intent=":literal"><semantics><mrow><mrow><mi>R</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>w</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi>d</mi><mtext>rule</mtext></msub></mrow><mo>=</mo><mrow><mrow><mi>R</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>w</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi>d</mi><mtext>acc</mtext></msub></mrow><mo>+</mo><mrow><mi>R</mi><mo lspace="0em" rspace="0em">​</mo><mi>e</mi><mo lspace="0em" rspace="0em">​</mo><mi>w</mi><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi>d</mi><mtext>format</mtext></msub></mrow></mrow></mrow></semantics></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>Reward_{\text{rule}}=Reward_{\text{acc}}+Reward_{\text{format}}</code></details></div>
 <p><strong>Accuracy reward</strong> 检查最终数学答案、代码编译与测试等可验证条件；<strong>format reward</strong> 检查 <code>&lt;think&gt;</code>、<code>&lt;answer&gt;</code> 等结构。两个奖励权重相同。引言“仅由正确性驱动”的表述，应与这里的实际格式奖励一起读。</p>
-<figure class="original-table prompt-table" id="table-1"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 1: </span>Template for DeepSeek-R1-Zero. <span class="ltx_text paper-color-red" data-original-color="#FF0000">prompt</span> will be replaced with the specific reasoning question during training.</figcaption><div aria-label="Original Table 1" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T1.7">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_tt">
-<span class="ltx_inline-block ltx_align_top">
+<figure aria-label="R1-Zero · 训练提示词" class="original-document prompt-document" id="table-1">
+<header class="document-header"><div><p class="document-kicker">原文 Table 1 · 原始内容重新排版</p>
+<h4>R1-Zero · 训练提示词</h4></div><a href="assets/tables/table-01.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><span>PROMPT</span><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 1" class="copy-button" data-copy-document="document-1-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-1-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-1-prompt-content"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">A conversation between User and Assistant. The user asks a question, and the Assistant solves it.
 The assistant first thinks about the reasoning process in the mind and then provides the user with the answer.
 The reasoning process and answer are enclosed within </span><span class="ltx_text ltx_font_typewriter">&lt;think&gt;...&lt;/think&gt;</span><span class="ltx_text"> and </span><span class="ltx_text ltx_font_typewriter">&lt;answer&gt;...&lt;/answer&gt;</span><span class="ltx_text"> tags, respectively, i.e., </span><span class="ltx_text ltx_font_typewriter">&lt;think&gt;</span><span class="ltx_text"> reasoning process here </span><span class="ltx_text ltx_font_typewriter">&lt;/think&gt;</span><span class="ltx_text"> </span><span class="ltx_text ltx_font_typewriter">&lt;answer&gt;</span><span class="ltx_text"> answer here </span><span class="ltx_text ltx_font_typewriter">&lt;/answer&gt;</span><span class="ltx_text">.
 User: </span><span class="ltx_text paper-color-red" data-original-color="#FF0000">prompt</span><span class="ltx_text">. Assistant:</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 1 · all original cells and emphasis retained.</p></figure>
+</div></div></div>
+<template id="document-1-prompt">A conversation between User and Assistant. The user asks a question, and the Assistant solves it.
+The assistant first thinks about the reasoning process in the mind and then provides the user with the answer.
+The reasoning process and answer are enclosed within &lt;think&gt;...&lt;/think&gt; and &lt;answer&gt;...&lt;/answer&gt; tags, respectively, i.e., &lt;think&gt; reasoning process here &lt;/think&gt; &lt;answer&gt; answer here &lt;/answer&gt;.
+User: prompt. Assistant:
+</template></div><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 1: </span>Template for DeepSeek-R1-Zero. <span class="ltx_text paper-color-red" data-original-color="#FF0000">prompt</span> will be replaced with the specific reasoning question during training.</figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 1. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
 <p>这份原始模板没有展示完整解题示范，但已要求先思考再回答，并用标签分开过程与结果。它为输出行为设定框架，不是完全无先验的探索。奖励能判断结果，不一定能判断中间论证正确；最终碰巧答对、伪造证明或测试覆盖不足都有可能得到正反馈。</p>
 <h3 id="subsection-3">2.3 Incentivize Reasoning Capability in LLMs</h3>
 <figure class="original" id="figure-1"><img alt="Original Figure 1a: Figure 1: (a) AIME accuracy of DeepSeek-R1-Zero during training. AIME takes a mathematical problem as input and a number as output, illustrated in Table 32 . Pass@1 and Cons@16 are described in Supplementary D.1 . The baseline is the average score achieved by human participants in the AIME competition. (b) The average response length of DeepSeek-R1-Zero on the training set during the RL process. DeepSeek-R1-Zero naturally learns to solve reasoning tasks with more thinking time. Note that a training step refers to a single policy update operation." loading="lazy" src="assets/original/plot_aime_with_maj.svg"/><img alt="Original Figure 1b: Figure 1: (a) AIME accuracy of DeepSeek-R1-Zero during training. AIME takes a mathematical problem as input and a number as output, illustrated in Table 32 . Pass@1 and Cons@16 are described in Supplementary D.1 . The baseline is the average score achieved by human participants in the AIME competition. (b) The average response length of DeepSeek-R1-Zero on the training set during the RL process. DeepSeek-R1-Zero naturally learns to solve reasoning tasks with more thinking time. Note that a training step refers to a single policy update operation." loading="lazy" src="assets/original/plot_length.svg"/><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>(a) AIME accuracy of DeepSeek-R1-Zero during training. AIME takes a mathematical problem as input and a number as output, illustrated in Table <a class="ltx_ref" href="#table-32" title="Table 32 ‣ Appendix J Evaluation Prompts and Settings ‣ DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning"><span class="ltx_text ltx_ref_tag">32</span></a>. Pass@1 and Cons@16 are described in Supplementary <a class="ltx_ref" href="https://arxiv.org/html/2501.12948v2#A4.SS1.SSS0.Px4" rel="noopener" title="Baselines ‣ D.1 Experiment Setup ‣ Appendix D Evaluation of DeepSeek-R1 ‣ DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning"><span class="ltx_text ltx_ref_tag">D.1</span></a>. The baseline is the average score achieved by human participants in the AIME competition. (b) The average response length of DeepSeek-R1-Zero on the training set during the RL process. DeepSeek-R1-Zero naturally learns to solve reasoning tasks with more thinking time. Note that a training step refers to a single policy update operation.</figcaption><p class="fine">Source: Original paper · Figure 1 · author-provided asset. Click or press Enter to zoom.</p></figure>
 <p><strong>如何读 Figure 1：</strong>横轴是 policy update；左图纵轴是 AIME 正确率，pass@1 与 cons@16 分开绘制，人类基线是参赛者平均成绩；右图纵轴是训练集平均生成长度。Zero 的 AIME pass@1 从 15.6% 上升到 77.9%，绝对增加 <strong>62.3 个百分点</strong>。多数投票成绩更高，说明多样本结合还能带来收益。</p>
 <p>两条曲线同时上升支持“策略与分配的推理时间在训练中改变”，但不识别增长的唯一原因。尤其 <strong>8,200 step 将输出上限从 32,768 提高到 65,536 tokens</strong>，与后段长度及表现变化重叠。不能把所有增长都解释成无干预自发涌现，也不能据此量出每增加一千 token 的因果收益。</p>
-<figure class="original-table prompt-table" id="table-2"><figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 2: </span>An interesting “aha moment” of an intermediate version of DeepSeek-R1-Zero. The model learns to rethink using an anthropomorphic tone. This is also an aha moment for us, allowing us to witness the power and beauty of reinforcement learning.</figcaption><div aria-label="Original Table 2" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T2.2">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_border_tt">Question: If <math alttext="a&gt;1" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>a</mi><mo>&gt;</mo><mn>1</mn></mrow></semantics></math>, then the sum of the real solutions of <math alttext="\sqrt{a-\sqrt{a+x}}=x" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>=</mo><mi>x</mi></mrow></semantics></math> is equal to</td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_border_t">Response: <span class="ltx_text ltx_font_typewriter">&lt;think&gt;</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left">To solve the equation <math alttext="\sqrt{a-\sqrt{a+x}}=x" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>=</mo><mi>x</mi></mrow></semantics></math>, let’s start by squaring both <math alttext="\cdots" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>⋯</mo></semantics></math></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left"><math alttext="\left(\sqrt{a-\sqrt{a+x}}\right)^{2}=x^{2}\implies a-\sqrt{a+x}=x^{2}." class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><msup><mrow><mo>(</mo><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>)</mo></mrow><mn>2</mn></msup><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo stretchy="false">⟹</mo><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo lspace="0em">.</mo></mrow></semantics></math></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left">Rearrange to isolate the inner square root term:</td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left"><math alttext="(a-x^{2})^{2}=a+x\implies a^{2}-2ax^{2}+(x^{2})^{2}=a+x\implies x^{4}-2ax^{2}-x+(a^{2}-a)=0" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msup><mrow><mo stretchy="false">(</mo><mrow><mi>a</mi><mo>−</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo stretchy="false">)</mo></mrow><mn>2</mn></msup><mo>=</mo><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow><mo stretchy="false">⟹</mo><mrow><mrow><msup><mi>a</mi><mn>2</mn></msup><mo>−</mo><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>x</mi><mn>2</mn></msup></mrow></mrow><mo>+</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi>x</mi><mn>2</mn></msup><mo stretchy="false">)</mo></mrow><mn>2</mn></msup></mrow><mo>=</mo><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow><mo stretchy="false">⟹</mo><mrow><mrow><msup><mi>x</mi><mn>4</mn></msup><mo>−</mo><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo>−</mo><mi>x</mi></mrow><mo>+</mo><mrow><mo stretchy="false">(</mo><mrow><msup><mi>a</mi><mn>2</mn></msup><mo>−</mo><mi>a</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mn>0</mn></mrow></semantics></math></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left">…</td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left"><span class="ltx_text paper-color-red" data-original-color="#FF0000">Wait, wait. Wait. That’s an aha moment I can flag here</span>.</td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left">Let’s reevaluate this step-by-step to identify if the correct sum can be <math alttext="\cdots" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>⋯</mo></semantics></math></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left">We started with the equation:</td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left"><math alttext="\sqrt{a-\sqrt{a+x}}=x" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>=</mo><mi>x</mi></mrow></semantics></math></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left">First, let’s square both sides:</td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left"><math alttext="a-\sqrt{a+x}=x^{2}\implies\sqrt{a+x}=a-x^{2}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo stretchy="false">⟹</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt><mo>=</mo><mrow><mi>a</mi><mo>−</mo><msup><mi>x</mi><mn>2</mn></msup></mrow></mrow></semantics></math></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left">Next, I could square both sides again, treating the equation:
-<math alttext="\cdots" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>⋯</mo></semantics></math></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_border_b">…</td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 2 · all original cells and emphasis retained.</p></figure>
+<figure aria-label="R1-Zero · 一段重新思考的问答" class="original-document transcript-document" id="table-2">
+<header class="document-header"><div><p class="document-kicker">原文 Table 2 · 原始内容重新排版</p>
+<h4>R1-Zero · 一段重新思考的问答</h4></div><a href="assets/tables/table-02.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><span>Question</span><div class="document-actions">
+<button aria-label="Copy Question from original Table 2" class="copy-button" data-copy-document="document-2-question" type="button">Copy</button>
+<a href="assets/prompts/document-2-question.txt">TXT</a></div></div>
+<div class="document-content" id="document-2-question-content"><div class="document-row" data-source-row="0">Question: If <math alttext="a&gt;1" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>a</mi><mo>&gt;</mo><mn>1</mn></mrow></semantics></math>, then the sum of the real solutions of <math alttext="\sqrt{a-\sqrt{a+x}}=x" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>=</mo><mi>x</mi></mrow></semantics></math> is equal to</div></div>
+<template id="document-2-question">Question: If \(a&gt;1\), then the sum of the real solutions of \(\sqrt{a-\sqrt{a+x}}=x\) is equal to
+</template></div><div class="document-panel">
+<div class="document-controls"><span>Response</span><div class="document-actions">
+<button aria-label="Copy Response from original Table 2" class="copy-button" data-copy-document="document-2-response" type="button">Copy</button>
+<a href="assets/prompts/document-2-response.txt">TXT</a></div></div>
+<div class="document-content" id="document-2-response-content"><div class="document-row" data-source-row="1">Response: <span class="ltx_text ltx_font_typewriter">&lt;think&gt;</span></div><div class="document-row" data-source-row="2">To solve the equation <math alttext="\sqrt{a-\sqrt{a+x}}=x" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>=</mo><mi>x</mi></mrow></semantics></math>, let’s start by squaring both <math alttext="\cdots" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>⋯</mo></semantics></math></div><div aria-label="Original formula excerpt" class="document-row document-formula" data-source-row="3" role="region" tabindex="0"><math alttext="\left(\sqrt{a-\sqrt{a+x}}\right)^{2}=x^{2}\implies a-\sqrt{a+x}=x^{2}." class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><msup><mrow><mo>(</mo><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>)</mo></mrow><mn>2</mn></msup><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo stretchy="false">⟹</mo><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo lspace="0em">.</mo></mrow></semantics></math></div><div class="document-row" data-source-row="4">Rearrange to isolate the inner square root term:</div><div aria-label="Original formula excerpt" class="document-row document-formula" data-source-row="5" role="region" tabindex="0"><math alttext="(a-x^{2})^{2}=a+x\implies a^{2}-2ax^{2}+(x^{2})^{2}=a+x\implies x^{4}-2ax^{2}-x+(a^{2}-a)=0" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msup><mrow><mo stretchy="false">(</mo><mrow><mi>a</mi><mo>−</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo stretchy="false">)</mo></mrow><mn>2</mn></msup><mo>=</mo><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow><mo stretchy="false">⟹</mo><mrow><mrow><msup><mi>a</mi><mn>2</mn></msup><mo>−</mo><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>x</mi><mn>2</mn></msup></mrow></mrow><mo>+</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi>x</mi><mn>2</mn></msup><mo stretchy="false">)</mo></mrow><mn>2</mn></msup></mrow><mo>=</mo><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow><mo stretchy="false">⟹</mo><mrow><mrow><msup><mi>x</mi><mn>4</mn></msup><mo>−</mo><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo>−</mo><mi>x</mi></mrow><mo>+</mo><mrow><mo stretchy="false">(</mo><mrow><msup><mi>a</mi><mn>2</mn></msup><mo>−</mo><mi>a</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mn>0</mn></mrow></semantics></math></div><div class="document-row" data-source-row="6">…</div><div class="document-row reflection-excerpt" data-source-row="7"><span class="ltx_text paper-color-red" data-original-color="#FF0000">Wait, wait. Wait. That’s an aha moment I can flag here</span>.</div><div aria-label="Original formula excerpt" class="document-row document-formula" data-source-row="8" role="region" tabindex="0">Let’s reevaluate this step-by-step to identify if the correct sum can be <math alttext="\cdots" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>⋯</mo></semantics></math></div><div class="document-row" data-source-row="9">We started with the equation:</div><div aria-label="Original formula excerpt" class="document-row document-formula" data-source-row="10" role="region" tabindex="0"><math alttext="\sqrt{a-\sqrt{a+x}}=x" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>=</mo><mi>x</mi></mrow></semantics></math></div><div class="document-row" data-source-row="11">First, let’s square both sides:</div><div aria-label="Original formula excerpt" class="document-row document-formula" data-source-row="12" role="region" tabindex="0"><math alttext="a-\sqrt{a+x}=x^{2}\implies\sqrt{a+x}=a-x^{2}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo stretchy="false">⟹</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt><mo>=</mo><mrow><mi>a</mi><mo>−</mo><msup><mi>x</mi><mn>2</mn></msup></mrow></mrow></semantics></math></div><div aria-label="Original formula excerpt" class="document-row document-formula" data-source-row="13" role="region" tabindex="0">Next, I could square both sides again, treating the equation:
+<math alttext="\cdots" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>⋯</mo></semantics></math></div><div class="document-row" data-source-row="14">…</div></div>
+<template id="document-2-response">Response: &lt;think&gt;
+
+To solve the equation \(\sqrt{a-\sqrt{a+x}}=x\), let’s start by squaring both \(\cdots\)
+
+\(\left(\sqrt{a-\sqrt{a+x}}\right)^{2}=x^{2}\implies a-\sqrt{a+x}=x^{2}.\)
+
+Rearrange to isolate the inner square root term:
+
+\((a-x^{2})^{2}=a+x\implies a^{2}-2ax^{2}+(x^{2})^{2}=a+x\implies x^{4}-2ax^{2}-x+(a^{2}-a)=0\)
+
+…
+
+Wait, wait. Wait. That’s an aha moment I can flag here.
+
+Let’s reevaluate this step-by-step to identify if the correct sum can be \(\cdots\)
+
+We started with the equation:
+
+\(\sqrt{a-\sqrt{a+x}}=x\)
+
+First, let’s square both sides:
+
+\(a-\sqrt{a+x}=x^{2}\implies\sqrt{a+x}=a-x^{2}\)
+
+Next, I could square both sides again, treating the equation:
+\(\cdots\)
+
+…
+</template></div><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 2: </span>An interesting “aha moment” of an intermediate version of DeepSeek-R1-Zero. The model learns to rethink using an anthropomorphic tone. This is also an aha moment for us, allowing us to witness the power and beauty of reinforcement learning.</figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 2. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
 <p>原文的 “aha moment” 示例展示模型意识到方法可改进并重新思考。它是选中的定性片段，而且不是一份完整、最终可核验的正确解答。它帮助理解输出风格，不能替代跨样本统计、行为干预或内部机制证据。</p>
 <p>Zero 仍有可读性差、语言混杂和通用助手能力弱的问题。这也是下一章没有简单将 Zero 原样作为产品模型的原因。</p>
 <h2 id="section-5">3 DeepSeek-R1｜推理能力与可用性如何组合</h2>
@@ -2085,379 +2101,406 @@ Please provide your output according to the following format, replacing the cont
 <h2 id="section-19">Appendix J Evaluation Prompts and Settings</h2>
 <p>这一附录是复现的实质组成：少样本示例、答案提取、是否展示 CoT、judge 提示都会改变分数。下面保留 Tables 18–32 的全部原文；使用长表横滑及浏览器查找可定位具体字段。</p>
 <p><strong>Tables 18–24</strong> 依次是 MMLU、MMLU-Redux、LiveCodeBench、MMLU-Pro、DROP、IFEval、FRAMES。需保留 few-shot 数、输出约束及评分方式；EM、Acc、token F1、prompt strict 各有定义，不能汇总成同一种二分类准确率。FRAMES 使用 Oracle Prompt，已经提供标准 Wikipedia 文章，评测不包含外部检索效果。</p>
-<figure class="original-table prompt-table" id="table-18"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 18: </span>MMLU assesses a model’s factual and conceptual understanding across 57 tasks spanning STEM (science, technology, engineering, mathematics), humanities, social sciences, and professional fields (e.g., law, medicine). The benchmark is commonly used to evaluate a model’s ability to perform general knowledge reasoning and multitask proficiency across a diverse range of subjects and tasks. Here is an example of MMLU. </figcaption><div aria-label="Original Table 18" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T18.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+<figure aria-label="MMLU · 评测提示词" class="original-document prompt-document" id="table-18">
+<header class="document-header"><div><p class="document-kicker">原文 Table 18 · 原始内容重新排版</p>
+<h4>MMLU · 评测提示词</h4></div><a href="assets/tables/table-18.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 18" class="copy-button" data-copy-document="document-18-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-18-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-18-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Answer the following multiple choice question. The last line of your response should be of the following format: ’Answer: $LETTER’ (without quotes) where LETTER is one of ABCD. Think step by step before answering.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Which tool technology is associated with Neandertals?</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">A. Aurignacian</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">B. Acheulean</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">C. Mousterian</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">D. both b and c</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-18-prompt">Answer the following multiple choice question. The last line of your response should be of the following format: ’Answer: $LETTER’ (without quotes) where LETTER is one of ABCD. Think step by step before answering.
+
+Which tool technology is associated with Neandertals?
+
+A. Aurignacian
+
+B. Acheulean
+
+C. Mousterian
+
+D. both b and c
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 18" class="copy-button" data-copy-document="document-18-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-18-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-18-evaluation-content"><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Parse the last line in response to judge if the choice equals to ground truth.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 18 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-19"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 19: </span>MMLU-Redux is a subset of 5,700 manually re-annotated questions across all 57 MMLU subjects. MMLU-Redux focuses on improving the quality, clarity, and robustness of the benchmark by reducing noise, ambiguities, and potential biases in the MMLU, while potentially adjusting the scope or difficulty of tasks to better align with modern evaluation needs. Here is an example of MMLU-Redux.</figcaption><div aria-label="Original Table 19" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T19.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-18-evaluation">Parse the last line in response to judge if the choice equals to ground truth.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 18: </span>MMLU assesses a model’s factual and conceptual understanding across 57 tasks spanning STEM (science, technology, engineering, mathematics), humanities, social sciences, and professional fields (e.g., law, medicine). The benchmark is commonly used to evaluate a model’s ability to perform general knowledge reasoning and multitask proficiency across a diverse range of subjects and tasks. Here is an example of MMLU. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 18. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="MMLU-Redux · 评测提示词" class="original-document prompt-document" id="table-19">
+<header class="document-header"><div><p class="document-kicker">原文 Table 19 · 原始内容重新排版</p>
+<h4>MMLU-Redux · 评测提示词</h4></div><a href="assets/tables/table-19.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 19" class="copy-button" data-copy-document="document-19-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-19-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-19-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">## Question:</span></p>
 <p class="ltx_p"><span class="ltx_text">Sauna use, sometimes referred to as "sauna bathing," is characterized by short-term passive exposure to extreme heat …In fact, sauna use has been proposed as an alternative to exercise for people who are unable to engage in physical activity due to chronic disease or physical limitations.[13]</span></p>
 <p class="ltx_p"><span class="ltx_text">According to the article, which of the following is NOT a benefit of sauna use?</span></p>
 <p class="ltx_p"><span class="ltx_text">## Choices:</span></p>
 <p class="ltx_p"><span class="ltx_text">- (A) Decreased risk of heart attacks.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">- (B) Increase in stroke volume.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">- (C) Improved mental health.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">- (D) Decreased rate of erectile dysfunction.</span></p>
 <p class="ltx_p"><span class="ltx_text">## Instruction</span></p>
 <p class="ltx_p"><span class="ltx_text">Please answer this question by first reasoning and then selecting the correct choice.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Present your reasoning and solution in the following json format.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Please show your choice in the ‘answer‘ field with only the choice letter, e.g.,‘"answer": "C"‘.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">{</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">"reasoning": "___",</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="9">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">"answer": "___"</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="10">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">}</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-19-prompt">## Question:
+Sauna use, sometimes referred to as "sauna bathing," is characterized by short-term passive exposure to extreme heat …In fact, sauna use has been proposed as an alternative to exercise for people who are unable to engage in physical activity due to chronic disease or physical limitations.[13]
+According to the article, which of the following is NOT a benefit of sauna use?
+## Choices:
+- (A) Decreased risk of heart attacks.
+
+- (B) Increase in stroke volume.
+
+- (C) Improved mental health.
+
+- (D) Decreased rate of erectile dysfunction.
+## Instruction
+Please answer this question by first reasoning and then selecting the correct choice.
+
+Present your reasoning and solution in the following json format.
+
+Please show your choice in the ‘answer‘ field with only the choice letter, e.g.,‘"answer": "C"‘.
+
+{
+
+"reasoning": "___",
+
+"answer": "___"
+
+}
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="11">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 19" class="copy-button" data-copy-document="document-19-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-19-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-19-evaluation-content"><div class="document-row" data-source-row="12">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Parse the json output in response to judge if the answer equals to ground truth.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 19 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-20"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 20: </span>LiveCodeBench aims to evaluate model performance on the algorithm competition task, which collects new problems over time from contests across three competition platforms, namely LeetCode, AtCoder, and CodeForces. </figcaption><div aria-label="Original Table 20" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T20.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-19-evaluation">Parse the json output in response to judge if the answer equals to ground truth.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 19: </span>MMLU-Redux is a subset of 5,700 manually re-annotated questions across all 57 MMLU subjects. MMLU-Redux focuses on improving the quality, clarity, and robustness of the benchmark by reducing noise, ambiguities, and potential biases in the MMLU, while potentially adjusting the scope or difficulty of tasks to better align with modern evaluation needs. Here is an example of MMLU-Redux.</figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 19. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="LiveCodeBench · 编程题与评测规则" class="original-document prompt-document" id="table-20">
+<header class="document-header"><div><p class="document-kicker">原文 Table 20 · 原始内容重新排版</p>
+<h4>LiveCodeBench · 编程题与评测规则</h4></div><a href="assets/tables/table-20.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 20" class="copy-button" data-copy-document="document-20-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-20-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-20-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Question:
 There is a stack of N cards, and the ith card from the top has an integer </span><math alttext="A_{i}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi mathsize="0.900em">A</mi><mi mathsize="0.900em">i</mi></msub></semantics></math><span class="ltx_text"> written on it.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">You take K cards from the bottom of the stack and place them on top of the stack, maintaining their order.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Print the integers written on the cards from top to bottom after the operation.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Input</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">The input is given from Standard Input in the following format:</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">N K</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><math alttext="A_{1}A_{2}\ldots A_{N}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msub><mi mathsize="0.900em">A</mi><mn mathsize="0.900em">1</mn></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">A</mi><mn mathsize="0.900em">2</mn></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em" mathvariant="normal">…</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">A</mi><mi mathsize="0.900em">N</mi></msub></mrow></semantics></math></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Output</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="9">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Let </span><math alttext="B_{i}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi mathsize="0.900em">B</mi><mi mathsize="0.900em">i</mi></msub></semantics></math><span class="ltx_text"> be the integer written on the ith card from the top of the stack after the operation. Print </span><math alttext="B_{1},B_{2},\ldots,B_{N}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msub><mi mathsize="0.900em">B</mi><mn mathsize="0.900em">1</mn></msub><mo mathsize="0.900em">,</mo><msub><mi mathsize="0.900em">B</mi><mn mathsize="0.900em">2</mn></msub><mo mathsize="0.900em">,</mo><mi mathsize="0.900em" mathvariant="normal">…</mi><mo mathsize="0.900em">,</mo><msub><mi mathsize="0.900em">B</mi><mi mathsize="0.900em">N</mi></msub></mrow></semantics></math><span class="ltx_text"> in this order, separated by spaces.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="10">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Constraints</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="11">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><math alttext="-1\leqslant K&lt;N\leqslant 100" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">1</mn></mrow><mo mathsize="0.900em">⩽</mo><mi mathsize="0.900em">K</mi><mo mathsize="0.900em">&lt;</mo><mi mathsize="0.900em">N</mi><mo mathsize="0.900em">⩽</mo><mn mathsize="0.900em">100</mn></mrow></semantics></math></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="12">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><math alttext="-1\leqslant A_{i}\leqslant 100" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">1</mn></mrow><mo mathsize="0.900em">⩽</mo><msub><mi mathsize="0.900em">A</mi><mi mathsize="0.900em">i</mi></msub><mo mathsize="0.900em">⩽</mo><mn mathsize="0.900em">100</mn></mrow></semantics></math></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="13">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">All input values are integers.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="14">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Sample Input 1</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="15">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">5 3</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="16">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">1 2 3 4 5</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="17">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Sample Output 1</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="18">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">3 4 5 1 2</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="19">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Initially, the integers written on the cards are 1,2,3,4,5 from top to bottom.
 After taking three cards from the bottom of the stack and placing them on top, the integers written on the cards become 3,4,5,1,2 from top to bottom.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="20"></div><div class="document-row" data-source-row="21">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Sample Input 2</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="22"></div><div class="document-row" data-source-row="23">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">6 2</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="24">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">1 2 1 2 1 2</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="25"></div><div class="document-row" data-source-row="26">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Sample Output 2</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="27"></div><div class="document-row" data-source-row="28">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">1 2 1 2 1 2</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="29"></div><div class="document-row" data-source-row="30">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">The integers written on the cards are not necessarily distinct.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="31"></div><div class="document-row" data-source-row="32">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Please write a python code to solve the above problem. Your code must read the inputs from stdin and output the results to stdout.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-20-prompt">Question:
+There is a stack of N cards, and the ith card from the top has an integer \(A_{i}\) written on it.
+
+You take K cards from the bottom of the stack and place them on top of the stack, maintaining their order.
+
+Print the integers written on the cards from top to bottom after the operation.
+
+Input
+
+The input is given from Standard Input in the following format:
+
+N K
+
+\(A_{1}A_{2}\ldots A_{N}\)
+
+Output
+
+Let \(B_{i}\) be the integer written on the ith card from the top of the stack after the operation. Print \(B_{1},B_{2},\ldots,B_{N}\) in this order, separated by spaces.
+
+Constraints
+
+\(-1\leqslant K&lt;N\leqslant 100\)
+
+\(-1\leqslant A_{i}\leqslant 100\)
+
+All input values are integers.
+
+Sample Input 1
+
+5 3
+
+1 2 3 4 5
+
+Sample Output 1
+
+3 4 5 1 2
+
+Initially, the integers written on the cards are 1,2,3,4,5 from top to bottom.
+After taking three cards from the bottom of the stack and placing them on top, the integers written on the cards become 3,4,5,1,2 from top to bottom.
+
+
+
+Sample Input 2
+
+
+
+6 2
+
+1 2 1 2 1 2
+
+
+
+Sample Output 2
+
+
+
+1 2 1 2 1 2
+
+
+
+The integers written on the cards are not necessarily distinct.
+
+
+
+Please write a python code to solve the above problem. Your code must read the inputs from stdin and output the results to stdout.
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="33">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 20" class="copy-button" data-copy-document="document-20-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-20-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-20-evaluation-content"><div class="document-row" data-source-row="34">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Extract the code wrapped by </span><span class="ltx_text ltx_font_typewriter">‘‘‘</span><span class="ltx_text">python</span><span class="ltx_text ltx_font_typewriter">‘‘‘</span><span class="ltx_text"> in response to judge if the answer passes the test cases.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 20 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-21"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 21: </span>Compared to MMLU, MMLU-Pro features a curated subset of tasks, but with significantly increased difficulty. Questions in MMLU-Pro are designed to require deeper reasoning, multi-step problem-solving, and advanced domain-specific knowledge. For example, STEM tasks may involve complex mathematical derivations or nuanced scientific concepts, while humanities tasks may demand intricate contextual analysis. </figcaption><div aria-label="Original Table 21" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T21.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-20-evaluation">Extract the code wrapped by ‘‘‘python‘‘‘ in response to judge if the answer passes the test cases.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 20: </span>LiveCodeBench aims to evaluate model performance on the algorithm competition task, which collects new problems over time from contests across three competition platforms, namely LeetCode, AtCoder, and CodeForces. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 20. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="MMLU-Pro · 评测提示词" class="original-document prompt-document" id="table-21">
+<header class="document-header"><div><p class="document-kicker">原文 Table 21 · 原始内容重新排版</p>
+<h4>MMLU-Pro · 评测提示词</h4></div><a href="assets/tables/table-21.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 21" class="copy-button" data-copy-document="document-21-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-21-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-21-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">The following are multiple choice questions (with answers) about business. Think step by step and then output the answer in the format of "The answer is (X)" at the end.</span></p>
 <p class="ltx_p"><span class="ltx_text">…</span></p>
 <p class="ltx_p"><span class="ltx_text">Question: Typical advertising regulatory bodies suggest, for example that adverts must not: encourage ___, cause unnecessary ___ or ___, and must not cause ___ offence.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Options: A. Safe practices, Fear, Jealousy, Trivial</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">B. Unsafe practices, Distress, Joy, Trivial</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">C. Safe practices, Wants, Jealousy, Trivial</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">D. Safe practices, Distress, Fear, Trivial</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">E. Unsafe practices, Wants, Jealousy, Serious</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">F. Safe practices, Distress, Jealousy, Serious</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">G. Safe practices, Wants, Fear, Serious</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="9">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">H. Unsafe practices, Wants, Fear, Trivial</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="10">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">I. Unsafe practices, Distress, Fear, Serious</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="11">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Answer: Let’s think step by step.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-21-prompt">The following are multiple choice questions (with answers) about business. Think step by step and then output the answer in the format of "The answer is (X)" at the end.
+…
+Question: Typical advertising regulatory bodies suggest, for example that adverts must not: encourage ___, cause unnecessary ___ or ___, and must not cause ___ offence.
+
+Options: A. Safe practices, Fear, Jealousy, Trivial
+
+B. Unsafe practices, Distress, Joy, Trivial
+
+C. Safe practices, Wants, Jealousy, Trivial
+
+D. Safe practices, Distress, Fear, Trivial
+
+E. Unsafe practices, Wants, Jealousy, Serious
+
+F. Safe practices, Distress, Jealousy, Serious
+
+G. Safe practices, Wants, Fear, Serious
+
+H. Unsafe practices, Wants, Fear, Trivial
+
+I. Unsafe practices, Distress, Fear, Serious
+
+Answer: Let’s think step by step.
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="12">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 21" class="copy-button" data-copy-document="document-21-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-21-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-21-evaluation-content"><div class="document-row" data-source-row="13">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Parse the capital letter following “Answer: ” in response to judge if the answer equals to ground truth.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 21 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-22"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 22: </span>DROP assesses a model’s ability to understand and extract relevant information from extended textual passages. Unlike simpler question-answering benchmarks that focus on factual recall, DROP requires models to process and interpret context-rich paragraphs. </figcaption><div aria-label="Original Table 22" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T22.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-21-evaluation">Parse the capital letter following “Answer: ” in response to judge if the answer equals to ground truth.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 21: </span>Compared to MMLU, MMLU-Pro features a curated subset of tasks, but with significantly increased difficulty. Questions in MMLU-Pro are designed to require deeper reasoning, multi-step problem-solving, and advanced domain-specific knowledge. For example, STEM tasks may involve complex mathematical derivations or nuanced scientific concepts, while humanities tasks may demand intricate contextual analysis. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 21. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="DROP · 阅读理解提示词" class="original-document prompt-document" id="table-22">
+<header class="document-header"><div><p class="document-kicker">原文 Table 22 · 原始内容重新排版</p>
+<h4>DROP · 阅读理解提示词</h4></div><a href="assets/tables/table-22.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 22" class="copy-button" data-copy-document="document-22-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-22-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-22-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">You will be asked to read a passage and answer a question. Some examples of passages and Q&amp;A are provided below.</span></p>
 <p class="ltx_p"><span class="ltx_text"># Examples
 —
@@ -2478,167 +2521,205 @@ Passage: The Chargers (1-0) won their season opener 22-14 against the Oakland Ra
 <p class="ltx_p"><span class="ltx_text">Question: How many yards did Rivers pass?
 Answer:</span></p>
 <p class="ltx_p"><span class="ltx_text">Think step by step, then write a line of the form "Answer: $ANSWER" at the end of your response.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-22-prompt">You will be asked to read a passage and answer a question. Some examples of passages and Q&amp;A are provided below.
+# Examples
+—
+Passage: Looking to avoid back-to-back divisional losses, the Patriots traveled to Miami to face the 6-4 Dolphins at Dolphin Stadium …Cassel’s 415 passing yards made him the second quarterback in Patriots history to throw for at least 400 yards in two or more games; Drew Bledsoe had four 400+ yard passing games in his Patriots career.
+Question: How many points did the Dolphins lose by?
+Answer: 20.
+—
+Passage: In week 2, the Seahawks took on their division rivals, the San Francisco 49ers. Prior to the season, NFL analysts rated this rivalry as the top upcoming rivalry, as well as the top rivalry of the decade …Seattle was now 2-0, and still unbeaten at home.
+Question: How many field goals of at least 30 yards did Hauschka make?
+Answer: 2.
+—
+Passage: at Raymond James Stadium, Tampa, Florida TV Time: CBS 1:00pm eastern The Ravens opened the regular season on the road against the Tampa Bay Buccaneers on September 10. …With the win, the Ravens were 1-0 and 1-0 against NFC Opponents.
+Question: how many yards did lewis get
+Answer: 4.
+# Your Task
+—
+Passage: The Chargers (1-0) won their season opener 22-14 against the Oakland Raiders after five field goals by Nate Kaeding and three botched punts by the Raiders. The Raiders Pro Bowl long snapper Jon Condo suffered a head injury in the second quarter. He was replaced by linebacker Travis Goethel, who had not snapped since high school. Goethel rolled two snaps to punter Shane Lechler, each giving the Chargers the ball in Raiders territory, and Lechler had another punt blocked by Dante Rosario. The Chargers scored their only touchdown in the second quarter after a 13-play, 90-yard drive resulted in a 6-yard touchdown pass from Philip Rivers to wide receiver Malcom Floyd. The Chargers failed to score four out of five times in the red zone. San Diego led at halftime 10-6, and the Raiders did not scored a touchdown until 54 seconds remained in the game. Undrafted rookie Mike Harris made his first NFL start, filing in for left tackle for an injured Jared Gaither. San Diego protected Harris by having Rivers throw short passes; sixteen of Rivers’ 24 completions were to running backs and tight ends, and he threw for 231 yards while only being sacked once. He did not have an interception after throwing 20 in 2011. The win was the Chargers’ eighth in their previous nine games at Oakland. It improved Norv Turner’s record to 4-2 in Chargers’ season openers. Running back Ryan Mathews and receiver Vincent Brown missed the game with injuries.
+Question: How many yards did Rivers pass?
+Answer:
+Think step by step, then write a line of the form "Answer: $ANSWER" at the end of your response.
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 22" class="copy-button" data-copy-document="document-22-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-22-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-22-evaluation-content"><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Parse the capital letter following “Answer: ” in response to judge if the answer equals to ground truth.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 22 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-23"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 23: </span>Instruction<span class="ltx_text">-</span>Following Evaluation (IFEval) is a benchmark designed to assess a model’s ability to comply with explicit, verifiable instructions embedded within prompts. It targets a core competency of large language models (LLMs): producing outputs that meet multiple, clearly defined constraints specified by the user.</figcaption><div aria-label="Original Table 23" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T23.7">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-22-evaluation">Parse the capital letter following “Answer: ” in response to judge if the answer equals to ground truth.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 22: </span>DROP assesses a model’s ability to understand and extract relevant information from extended textual passages. Unlike simpler question-answering benchmarks that focus on factual recall, DROP requires models to process and interpret context-rich paragraphs. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 22. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="IFEval · 指令遵循提示词" class="original-document prompt-document" id="table-23">
+<header class="document-header"><div><p class="document-kicker">原文 Table 23 · 原始内容重新排版</p>
+<h4>IFEval · 指令遵循提示词</h4></div><a href="assets/tables/table-23.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 23" class="copy-button" data-copy-document="document-23-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-23-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-23-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Kindly summarize the text below in XML format. Make sure the summary contains less than 4 sentences.</span></p>
 <p class="ltx_p"><span class="ltx_text">Quantum entanglement is the phenomenon that occurs when a group of particles are generated, interact, or share spatial proximity in such a way that the quantum state of each particle of the group cannot be described independently of the state of the others, including when the particles are separated by a large distance. The topic of quantum entanglement is at the heart of the disparity between classical and quantum physics: entanglement is a primary feature of quantum mechanics not present in classical mechanics.</span></p>
 <p class="ltx_p"><span class="ltx_text">Measurements of physical properties such as position, momentum, spin, and polarization performed on entangled particles can, in some cases, be found to be perfectly correlated. For example, if a pair of entangled particles is generated such that their total spin is known to be zero, and one particle is found to have clockwise spin on a first axis, then the spin of the other particle, measured on the same axis, is found to be anticlockwise. However, this behavior gives rise to seemingly paradoxical effects: any measurement of a particle’s properties results in an apparent and irreversible wave function collapse of that particle and changes the original quantum state. With entangled particles, such measurements affect the entangled system as a whole.</span></p>
 <p class="ltx_p"><span class="ltx_text">Such phenomena were the subject of a 1935 paper by Albert Einstein, Boris Podolsky, and Nathan Rosen, and several papers by Erwin Schrödinger shortly thereafter, describing what came to be known as the EPR paradox. Einstein and others considered such behavior impossible, as it violated the local realism view of causality (Einstein referring to it as "spooky action at a distance") and argued that the accepted formulation of quantum mechanics must therefore be incomplete.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-23-prompt">Kindly summarize the text below in XML format. Make sure the summary contains less than 4 sentences.
+Quantum entanglement is the phenomenon that occurs when a group of particles are generated, interact, or share spatial proximity in such a way that the quantum state of each particle of the group cannot be described independently of the state of the others, including when the particles are separated by a large distance. The topic of quantum entanglement is at the heart of the disparity between classical and quantum physics: entanglement is a primary feature of quantum mechanics not present in classical mechanics.
+Measurements of physical properties such as position, momentum, spin, and polarization performed on entangled particles can, in some cases, be found to be perfectly correlated. For example, if a pair of entangled particles is generated such that their total spin is known to be zero, and one particle is found to have clockwise spin on a first axis, then the spin of the other particle, measured on the same axis, is found to be anticlockwise. However, this behavior gives rise to seemingly paradoxical effects: any measurement of a particle’s properties results in an apparent and irreversible wave function collapse of that particle and changes the original quantum state. With entangled particles, such measurements affect the entangled system as a whole.
+Such phenomena were the subject of a 1935 paper by Albert Einstein, Boris Podolsky, and Nathan Rosen, and several papers by Erwin Schrödinger shortly thereafter, describing what came to be known as the EPR paradox. Einstein and others considered such behavior impossible, as it violated the local realism view of causality (Einstein referring to it as "spooky action at a distance") and argued that the accepted formulation of quantum mechanics must therefore be incomplete.
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 23" class="copy-button" data-copy-document="document-23-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-23-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-23-evaluation-content"><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Call official functions to check if the answer is consistent with the instructions.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 23 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-24"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 24: </span>FRAMES (Factuality, Retrieval, And reasoning MEasurement Set) is a comprehensive benchmark designed to evaluate core components of retrieval-augmented generation (RAG) systems. Our evaluation employs the benchmark’s official "Oracle Prompt" configuration. In this setting, each test prompt includes the question along with all the ground truth Wikipedia articles, thus eliminating the need for an external retrieval component (e.g., BM25). This setting allows us to specifically measure a model’s ability to reason over and synthesize information from provided sources to generate correct and verifiable facts. </figcaption><div aria-label="Original Table 24" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T24.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-23-evaluation">Call official functions to check if the answer is consistent with the instructions.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 23: </span>Instruction<span class="ltx_text">-</span>Following Evaluation (IFEval) is a benchmark designed to assess a model’s ability to comply with explicit, verifiable instructions embedded within prompts. It targets a core competency of large language models (LLMs): producing outputs that meet multiple, clearly defined constraints specified by the user.</figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 23. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="FRAMES · 检索材料与评测提示词" class="original-document prompt-document" id="table-24">
+<header class="document-header"><div><p class="document-kicker">原文 Table 24 · 原始内容重新排版</p>
+<h4>FRAMES · 检索材料与评测提示词</h4></div><a href="assets/tables/table-24.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 24" class="copy-button" data-copy-document="document-24-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-24-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-24-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Here are the relevant Wikipedia articles:</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">url: https:en.wikipedia.orgwikiPresident_of_the_United_States</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">url content: The president of the United States (POTUS) is the head of state and head of government of the United States of America. The president directs the executive branch of the federal government and is the commander-in-chief of the United States Armed Forces.
 …</span></p>
 <p class="ltx_p"><span class="ltx_text">Based on all the information, answer the query.</span></p>
 <p class="ltx_p"><span class="ltx_text">Query: If my future wife has the same first name as the 15th first lady of the United States’ mother and her surname is the same as the second assassinated president’s mother’s maiden name, what is my future wife’s name?</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-24-prompt">Here are the relevant Wikipedia articles:
+
+url: https:en.wikipedia.orgwikiPresident_of_the_United_States
+
+url content: The president of the United States (POTUS) is the head of state and head of government of the United States of America. The president directs the executive branch of the federal government and is the commander-in-chief of the United States Armed Forces.
+…
+Based on all the information, answer the query.
+Query: If my future wife has the same first name as the 15th first lady of the United States’ mother and her surname is the same as the second assassinated president’s mother’s maiden name, what is my future wife’s name?
+</template></div><details class="document-evaluation"><summary><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 24" class="copy-button" data-copy-document="document-24-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-24-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-24-evaluation-content"><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">===Task===</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">I need your help in evaluating an answer provided by an LLM against a ground truth answer. Your task is to determine if the ground truth answer is present in the LLM’s response. Please analyze the provided data and make a decision.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">===Instructions===</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">1. Carefully compare the "Predicted Answer" with the "Ground Truth Answer".</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="9">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">2. Consider the substance of the answers - look for equivalent information or correct answers.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="10">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Do not focus on exact wording unless the exact wording is crucial to the meaning.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="11">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">3. Your final decision should be based on whether the meaning and the vital facts of the
 "Ground Truth Answer" are present in the "Predicted Answer:"</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="12">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">===Input Data===
 - Question: If my future wife has the same first name as the 15th first lady of the United States’ mother and her surname is the same as the second assassinated president’s mother’s maiden name, what is my future wife’s name?</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="13">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">- Predicted Answer: …</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="14">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">- Ground Truth Answer: Jane Ballou</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="15">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">===Output Format===</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="16">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Provide your final evaluation in the following format:</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="17">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Explanation: xxx</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="18">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Decision: "TRUE" or "FALSE"</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="19">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Please proceed with the evaluation.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 24 · all original cells and emphasis retained.</p></figure>
+</div></div></div>
+<template id="document-24-evaluation">===Task===
+
+I need your help in evaluating an answer provided by an LLM against a ground truth answer. Your task is to determine if the ground truth answer is present in the LLM’s response. Please analyze the provided data and make a decision.
+
+===Instructions===
+
+1. Carefully compare the "Predicted Answer" with the "Ground Truth Answer".
+
+2. Consider the substance of the answers - look for equivalent information or correct answers.
+
+Do not focus on exact wording unless the exact wording is crucial to the meaning.
+
+3. Your final decision should be based on whether the meaning and the vital facts of the
+"Ground Truth Answer" are present in the "Predicted Answer:"
+
+===Input Data===
+- Question: If my future wife has the same first name as the 15th first lady of the United States’ mother and her surname is the same as the second assassinated president’s mother’s maiden name, what is my future wife’s name?
+
+- Predicted Answer: …
+
+- Ground Truth Answer: Jane Ballou
+
+===Output Format===
+
+Provide your final evaluation in the following format:
+
+Explanation: xxx
+
+Decision: "TRUE" or "FALSE"
+
+Please proceed with the evaluation.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 24: </span>FRAMES (Factuality, Retrieval, And reasoning MEasurement Set) is a comprehensive benchmark designed to evaluate core components of retrieval-augmented generation (RAG) systems. Our evaluation employs the benchmark’s official "Oracle Prompt" configuration. In this setting, each test prompt includes the question along with all the ground truth Wikipedia articles, thus eliminating the need for an external retrieval component (e.g., BM25). This setting allows us to specifically measure a model’s ability to reason over and synthesize information from provided sources to generate correct and verifiable facts. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 24. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
 <p><strong>Tables 25–28</strong> 依次是 Arena-Hard、AlpacaEval 2.0、CLUEWSC、C-Eval。前两项涉及 judge，模型版本、位置交换、长度处理及可见内容都是测量条件；后两项是中文理解与学科知识。</p>
-<figure class="original-table prompt-table" id="table-25"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 25: </span>Arena-Hard is an open-ended evaluation benchmark specifically designed to assess the capabilities of LLMs. It presents models with challenging, novel, and diverse prompts curated from Chatbot Arena, a continuously evolving, crowd-sourced platform. It focuses on measuring model performance in open-ended tasks, with particular emphasis on coding and mathematics-related prompts.
-Given the inherently subjective nature of open-ended tasks, where multiple valid responses may exist, the benchmark necessitates the use of an evaluation model to approximate human judgment effectively. Higher evaluation scores suggest that the model is more likely to be favored by human users in real-world scenarios. </figcaption><div aria-label="Original Table 25" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T25.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+<figure aria-label="Arena-Hard · 用户提示词与比较评审" class="original-document prompt-document" id="table-25">
+<header class="document-header"><div><p class="document-kicker">原文 Table 25 · 原始内容重新排版</p>
+<h4>Arena-Hard · 用户提示词与比较评审</h4></div><a href="assets/tables/table-25.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 25" class="copy-button" data-copy-document="document-25-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-25-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-25-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">To write an SQL query that selects the top 10 rows in a database and joins to 3 different tables based on a field called "code", you would need to know the names of the tables and the specific fields you want to select. Assuming the tables are named "table1", "table2", and "table3", and you want to select all fields from each table, the query would look like this:</span></p>
 <p class="ltx_p"><span class="ltx_text">“‘sql
 SELECT *
@@ -2651,15 +2732,28 @@ JOIN table2 ON t1.code = table2.code
 JOIN table3 ON t1.code = table3.code;
 “‘</span></p>
 <p class="ltx_p"><span class="ltx_text">This query first selects the top 10 rows from "table1" and then joins "table2" and "table3" based on the "code" field. If you want to select specific fields from each table, you can replace the asterisks (*) with the field names separated by commas.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-25-prompt">To write an SQL query that selects the top 10 rows in a database and joins to 3 different tables based on a field called "code", you would need to know the names of the tables and the specific fields you want to select. Assuming the tables are named "table1", "table2", and "table3", and you want to select all fields from each table, the query would look like this:
+“‘sql
+SELECT *
+FROM (
+SELECT *
+FROM table1
+LIMIT 10
+) AS t1
+JOIN table2 ON t1.code = table2.code
+JOIN table3 ON t1.code = table3.code;
+“‘
+This query first selects the top 10 rows from "table1" and then joins "table2" and "table3" based on the "code" field. If you want to select specific fields from each table, you can replace the asterisks (*) with the field names separated by commas.
+</template></div><details class="document-evaluation"><summary><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 25" class="copy-button" data-copy-document="document-25-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-25-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-25-evaluation-content"><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Please act as an impartial judge and evaluate the quality of the responses provided by two AI assistants to the user prompt displayed below. You will be given assistant A’s answer and assistant B’s answer. Your job is to evaluate which assistant’s answer is better.</span></p>
 <p class="ltx_p"><span class="ltx_text">Begin your evaluation by generating your own answer to the prompt. You must provide your answers before judging any answers.</span></p>
 <p class="ltx_p"><span class="ltx_text">When evaluating the assistants’ answers, compare both assistants’ answers with your answer. You must identify and correct any mistakes or inaccurate information.</span></p>
@@ -2667,638 +2761,717 @@ JOIN table3 ON t1.code = table3.code;
 <p class="ltx_p"><span class="ltx_text">Then consider the creativity and novelty of the assistant’s answers when needed. Finally, identify any missing important information in the assistants’ answers that would be beneficial to include when responding to the user prompt.</span></p>
 <p class="ltx_p"><span class="ltx_text">After providing your explanation, you must output only one of the following choices as your final verdict with a label:</span></p>
 <p class="ltx_p"><span class="ltx_text">1. Assistant A is significantly better: [[A</span><math alttext="&gt;&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mo mathsize="0.900em">&gt;</mo><mo lspace="0em">⁣</mo><mo mathsize="0.900em">&gt;</mo></mrow></semantics></math><span class="ltx_text">B]]</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">2. Assistant A is slightly better: [[</span><math alttext="A&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi mathsize="0.900em">A</mi><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math><span class="ltx_text">B]]</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">3. Tie, relatively the same: [[A</span><math alttext="=" class="ltx_Math" display="inline" intent=":literal"><semantics><mo mathsize="0.900em">=</mo></semantics></math><span class="ltx_text">B]]</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">4. Assistant B is slightly better: [[B</span><math alttext="&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mo mathsize="0.900em">&gt;</mo></semantics></math><span class="ltx_text">A]]</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">5. Assistant B is significantly better: [[B</span><math alttext="&gt;&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mo mathsize="0.900em">&gt;</mo><mo lspace="0em">⁣</mo><mo mathsize="0.900em">&gt;</mo></mrow></semantics></math><span class="ltx_text">A]]</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Example output: "My final verdict is tie: [[A</span><math alttext="=" class="ltx_Math" display="inline" intent=":literal"><semantics><mo mathsize="0.900em">=</mo></semantics></math><span class="ltx_text">B]]".</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 25 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-26"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 26: </span>AlpacaEval 2.0 is an open-ended evaluation dataset, similar in nature to ArenaHard, and leverages an LLM to assess model performance on subjective tasks. However, in contrast to ArenaHard, the prompts in AlpacaEval 2.0 are generally less challenging and only a small subset necessitates the deployment of reasoning capabilities by the evaluated models. </figcaption><div aria-label="Original Table 26" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T26.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-25-evaluation">Please act as an impartial judge and evaluate the quality of the responses provided by two AI assistants to the user prompt displayed below. You will be given assistant A’s answer and assistant B’s answer. Your job is to evaluate which assistant’s answer is better.
+Begin your evaluation by generating your own answer to the prompt. You must provide your answers before judging any answers.
+When evaluating the assistants’ answers, compare both assistants’ answers with your answer. You must identify and correct any mistakes or inaccurate information.
+Then consider if the assistant’s answers are helpful, relevant, and concise. Helpful means the answer correctly responds to the prompt or follows the instructions. Note when user prompt has any ambiguity or more than one interpretation, it is more helpful and appropriate to ask for clarifications or more information from the user than providing an answer based on assumptions. Relevant means all parts of the response closely connect or are appropriate to what is being asked. Concise means the response is clear and not verbose or excessive.
+Then consider the creativity and novelty of the assistant’s answers when needed. Finally, identify any missing important information in the assistants’ answers that would be beneficial to include when responding to the user prompt.
+After providing your explanation, you must output only one of the following choices as your final verdict with a label:
+1. Assistant A is significantly better: [[A\(&gt;&gt;\)B]]
+
+2. Assistant A is slightly better: [[\(A&gt;\)B]]
+
+3. Tie, relatively the same: [[A\(=\)B]]
+
+4. Assistant B is slightly better: [[B\(&gt;\)A]]
+
+5. Assistant B is significantly better: [[B\(&gt;&gt;\)A]]
+
+Example output: "My final verdict is tie: [[A\(=\)B]]".
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 25: </span>Arena-Hard is an open-ended evaluation benchmark specifically designed to assess the capabilities of LLMs. It presents models with challenging, novel, and diverse prompts curated from Chatbot Arena, a continuously evolving, crowd-sourced platform. It focuses on measuring model performance in open-ended tasks, with particular emphasis on coding and mathematics-related prompts.
+Given the inherently subjective nature of open-ended tasks, where multiple valid responses may exist, the benchmark necessitates the use of an evaluation model to approximate human judgment effectively. Higher evaluation scores suggest that the model is more likely to be favored by human users in real-world scenarios. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 25. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="AlpacaEval 2.0 · 用户提示词与比较评审" class="original-document prompt-document" id="table-26">
+<header class="document-header"><div><p class="document-kicker">原文 Table 26 · 原始内容重新排版</p>
+<h4>AlpacaEval 2.0 · 用户提示词与比较评审</h4></div><a href="assets/tables/table-26.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 26" class="copy-button" data-copy-document="document-26-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-26-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-26-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">What are the names of some famous actors that started their careers on Broadway?</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-26-prompt">What are the names of some famous actors that started their careers on Broadway?
+</template></div><details class="document-evaluation"><summary><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 26" class="copy-button" data-copy-document="document-26-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-26-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-26-evaluation-content"><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><math alttext="&lt;|im_{s}tart|&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mphantom></mphantom><mo mathsize="0.900em">&lt;</mo><mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo><mrow><mi mathsize="0.900em">i</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">m</mi><mi mathsize="0.900em">s</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">t</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">a</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">r</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">t</mi></mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo></mrow><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math><span class="ltx_text">system</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">You are a highly efficient assistant, who evaluates and selects the best large language model (LLMs) based on the quality of their responses to a given instruction. This process will be used to create a leaderboard reflecting the most accurate and human-preferred answers.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><math alttext="&lt;|im_{e}nd|&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mphantom></mphantom><mo mathsize="0.900em">&lt;</mo><mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo><mrow><mi mathsize="0.900em">i</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">m</mi><mi mathsize="0.900em">e</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">n</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">d</mi></mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo></mrow><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><math alttext="&lt;|im_{s}tart|&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mphantom></mphantom><mo mathsize="0.900em">&lt;</mo><mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo><mrow><mi mathsize="0.900em">i</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">m</mi><mi mathsize="0.900em">s</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">t</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">a</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">r</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">t</mi></mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo></mrow><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math><span class="ltx_text">user</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">I require a leaderboard for various large language models. I’ll provide you with prompts given to these models and their corresponding outputs. Your task is to assess these responses, and select the model that produces the best output from a human perspective.</span></p>
 <p class="ltx_p"><span class="ltx_text">## Instruction</span></p>
 <p class="ltx_p"><span class="ltx_text">{</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">"instruction": """{instruction}""",</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="9">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">}</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="10">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">## Model Outputs</span></p>
 <p class="ltx_p"><span class="ltx_text">Here are the unordered outputs from the models. Each output is associated with a specific model, identified by a unique model identifier.</span></p>
 <p class="ltx_p"><span class="ltx_text">{</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="11">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">{</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="12">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">"model_identifier": "m",</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="13">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">"output": """{output_1}"""</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="14">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">},</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="15">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">{</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="16">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">"model_identifier": "M",</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="17">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">"output": """{output_2}"""</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="18">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">}</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="19">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">}</span></p>
 <p class="ltx_p"><span class="ltx_text">## Task</span></p>
 <p class="ltx_p"><span class="ltx_text">Evaluate the models based on the quality and relevance of their outputs, and select the model that generated the best output. Answer by providing the model identifier of the best model. We will use your output as the name of the best model, so make sure your output only contains one of the following model identifiers and nothing else (no quotes, no spaces, no new lines, …): m or M.</span></p>
 <p class="ltx_p"><span class="ltx_text">## Best Model Identifier</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="20">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><math alttext="&lt;|im_{e}nd|&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mphantom></mphantom><mo mathsize="0.900em">&lt;</mo><mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo><mrow><mi mathsize="0.900em">i</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">m</mi><mi mathsize="0.900em">e</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">n</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">d</mi></mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo></mrow><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 26 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-27"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 27: </span>The CLUEWSC (Chinese Language Understanding Evaluation Benchmark - Winograd Schema Challenge) is a specialized task within the CLUE benchmark suite designed to evaluate a model’s commonsense reasoning and contextual understanding capabilities in Chinese. </figcaption><div aria-label="Original Table 27" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T27.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-26-evaluation">\(&lt;|im_{s}tart|&gt;\)system
+
+You are a highly efficient assistant, who evaluates and selects the best large language model (LLMs) based on the quality of their responses to a given instruction. This process will be used to create a leaderboard reflecting the most accurate and human-preferred answers.
+
+\(&lt;|im_{e}nd|&gt;\)
+
+\(&lt;|im_{s}tart|&gt;\)user
+
+I require a leaderboard for various large language models. I’ll provide you with prompts given to these models and their corresponding outputs. Your task is to assess these responses, and select the model that produces the best output from a human perspective.
+## Instruction
+{
+
+"instruction": """{instruction}""",
+
+}
+
+## Model Outputs
+Here are the unordered outputs from the models. Each output is associated with a specific model, identified by a unique model identifier.
+{
+
+{
+
+"model_identifier": "m",
+
+"output": """{output_1}"""
+
+},
+
+{
+
+"model_identifier": "M",
+
+"output": """{output_2}"""
+
+}
+
+}
+## Task
+Evaluate the models based on the quality and relevance of their outputs, and select the model that generated the best output. Answer by providing the model identifier of the best model. We will use your output as the name of the best model, so make sure your output only contains one of the following model identifiers and nothing else (no quotes, no spaces, no new lines, …): m or M.
+## Best Model Identifier
+
+\(&lt;|im_{e}nd|&gt;\)
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 26: </span>AlpacaEval 2.0 is an open-ended evaluation dataset, similar in nature to ArenaHard, and leverages an LLM to assess model performance on subjective tasks. However, in contrast to ArenaHard, the prompts in AlpacaEval 2.0 are generally less challenging and only a small subset necessitates the deployment of reasoning capabilities by the evaluated models. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 26. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="CLUEWSC · 少样本提示词" class="original-document prompt-document" id="table-27">
+<header class="document-header"><div><p class="document-kicker">原文 Table 27 · 原始内容重新排版</p>
+<h4>CLUEWSC · 少样本提示词</h4></div><a href="assets/tables/table-27.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 27" class="copy-button" data-copy-document="document-27-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-27-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-27-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">请参考示例的格式，完成最后的测试题。</span></p>
 <p class="ltx_p"><span class="ltx_text">下面是一些示例：
 他伯父还有许多女弟子，大半是富商财主的外室；这些财翁白天忙着赚钱，怕小公馆里的情妇长日无聊，要不安分，常常叫她们学点玩艺儿消遣。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">上面的句子中的"她们"指的是</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">情妇</span></p>
 <p class="ltx_p"><span class="ltx_text">耶律克定说到雁北义军时，提起韦大哥，就连声说不可挡、不可挡，似有谈虎色变之味。后来又听说粘罕在云中，特派人厚币卑词，要与‘韦义士修好’。韦大哥斩钉截铁地回绝了，大义凛然，端的是条好汉。如今张孝纯也想结识他，几次三番派儿子张浃上门来厮缠，定要俺引他上雁门山去见韦大哥。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">上面的句子中的"他"指的是</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">张浃</span></p>
 <p class="ltx_p"><span class="ltx_text">“你何必把这事放在心上？何况你的还不过是手稿，并没有发表出来。”龙点睛越发坦率：“如果发表出来了，那倒也就算了。不过既然没发表出来，我何必还让它飘在外头呢？你给我找一找吧，我要收回。”</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">上面的句子中的"它"指的是</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">手稿</span></p>
 <p class="ltx_p"><span class="ltx_text">这个身材高大，曾经被孙光平拿着菜刀追赶得到处乱窜的年轻人，那天早晨穿上了全新的卡其布中山服，像一个城里来的干部似的脸色红润，准备过河去迎接他的新娘。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">上面的句子中的"他"指的是</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="9">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">年轻人</span></p>
 <p class="ltx_p"><span class="ltx_text">负责接待我们的是两位漂亮的朝鲜女导游，身材高挑，露出比例完美的小腿。一个姓韩，一个姓金，自称小韩和小金。她们的中文说得毫无口音，言谈举止也相当亲切。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="10">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">上面的句子中的"她们"指的是</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="11">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">两位漂亮的朝鲜女导游</span></p>
 <p class="ltx_p"><span class="ltx_text">下面是测试题，请在思考结束后（&lt;/think&gt;后）用一句话输出答案，不要额外的解释。</span></p>
 <p class="ltx_p"><span class="ltx_text">崩龙珍夫妻康健和美；鞠琴十年前丧偶，两年前重结良缘，现在的老伴是一位以前未曾有过婚史的高级工程师；崩龙珍和鞠琴都尽量避免谈及自己的爱人，也尽量回避提及蒋盈波的亡夫屈晋勇——尽管她们对他都很熟悉；当然也绝不会愚蠢地提出蒋盈波今后是一个人过到底还是再找个老伴的问题来加以讨论，那无论如何还为时过早。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="12">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">上面的句子中的"他"指的是</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-27-prompt">请参考示例的格式，完成最后的测试题。
+下面是一些示例：
+他伯父还有许多女弟子，大半是富商财主的外室；这些财翁白天忙着赚钱，怕小公馆里的情妇长日无聊，要不安分，常常叫她们学点玩艺儿消遣。
+
+上面的句子中的"她们"指的是
+
+情妇
+耶律克定说到雁北义军时，提起韦大哥，就连声说不可挡、不可挡，似有谈虎色变之味。后来又听说粘罕在云中，特派人厚币卑词，要与‘韦义士修好’。韦大哥斩钉截铁地回绝了，大义凛然，端的是条好汉。如今张孝纯也想结识他，几次三番派儿子张浃上门来厮缠，定要俺引他上雁门山去见韦大哥。
+
+上面的句子中的"他"指的是
+
+张浃
+“你何必把这事放在心上？何况你的还不过是手稿，并没有发表出来。”龙点睛越发坦率：“如果发表出来了，那倒也就算了。不过既然没发表出来，我何必还让它飘在外头呢？你给我找一找吧，我要收回。”
+
+上面的句子中的"它"指的是
+
+手稿
+这个身材高大，曾经被孙光平拿着菜刀追赶得到处乱窜的年轻人，那天早晨穿上了全新的卡其布中山服，像一个城里来的干部似的脸色红润，准备过河去迎接他的新娘。
+
+上面的句子中的"他"指的是
+
+年轻人
+负责接待我们的是两位漂亮的朝鲜女导游，身材高挑，露出比例完美的小腿。一个姓韩，一个姓金，自称小韩和小金。她们的中文说得毫无口音，言谈举止也相当亲切。
+
+上面的句子中的"她们"指的是
+
+两位漂亮的朝鲜女导游
+下面是测试题，请在思考结束后（&lt;/think&gt;后）用一句话输出答案，不要额外的解释。
+崩龙珍夫妻康健和美；鞠琴十年前丧偶，两年前重结良缘，现在的老伴是一位以前未曾有过婚史的高级工程师；崩龙珍和鞠琴都尽量避免谈及自己的爱人，也尽量回避提及蒋盈波的亡夫屈晋勇——尽管她们对他都很熟悉；当然也绝不会愚蠢地提出蒋盈波今后是一个人过到底还是再找个老伴的问题来加以讨论，那无论如何还为时过早。
+
+上面的句子中的"他"指的是
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="13">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 27" class="copy-button" data-copy-document="document-27-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-27-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-27-evaluation-content"><div class="document-row" data-source-row="14">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Parse the last line in response to judge if the answer equals to ground truth.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 27 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-28"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 28: </span>C-EVAL evaluates a model’s breadth and depth of knowledge across 52 diverse academic disciplines, spanning humanities, social sciences, STEM (Science, Technology, Engineering, and Mathematics), and other professional fields (e.g., medicine, law). All question in C-Eval are Chinese. </figcaption><div aria-label="Original Table 28" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T28.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-27-evaluation">Parse the last line in response to judge if the answer equals to ground truth.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 27: </span>The CLUEWSC (Chinese Language Understanding Evaluation Benchmark - Winograd Schema Challenge) is a specialized task within the CLUE benchmark suite designed to evaluate a model’s commonsense reasoning and contextual understanding capabilities in Chinese. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 27. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="C-Eval · 少样本提示词" class="original-document prompt-document" id="table-28">
+<header class="document-header"><div><p class="document-kicker">原文 Table 28 · 原始内容重新排版</p>
+<h4>C-Eval · 少样本提示词</h4></div><a href="assets/tables/table-28.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 28" class="copy-button" data-copy-document="document-28-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-28-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-28-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">以下是中国关于逻辑学考试的单项选择题，请选出其中的正确答案。</span></p>
 <p class="ltx_p"><span class="ltx_text">1991年6月15日，菲律宾吕宋岛上的皮纳图博火山突然大喷发，2000万吨二氧化硫气体冲入平流层，形成的霾像毯子一样盖在地球上空，把部分要照射到地球的阳光反射回太空几年之后，气象学家发现这层霾使得当时地球表面的温度累计下降了0．5℃，而皮纳图博火山喷发前的一个世纪，因人类活动而造成的温室效应已经使地球表面温度升高1℃。某位持“人工气候改造论”的科学家据此认为，可以用火箭弹等方式将二氧化硫充入大气层，阻挡部分阳光，达到地球表面降温的目的。以下哪项如果为真,最能对该科学家的提议构成质疑?___</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">A. 如果利用火箭弹将二氧化硫充入大气层，会导致航空乘客呼吸不适。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">B. 火山喷发形成的降温效应只是暂时的，经过一段时间温度将再次回升。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">C. 可以把大气层中的碳取出来存储在地下，减少大气层的碳含量。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">D. 不论何种方式，“人工气候改造”都将破坏地区的大气层结构。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">答案： B</span></p>
 <p class="ltx_p"><span class="ltx_text">…</span></p>
 <p class="ltx_p"><span class="ltx_text">新疆的哈萨克人用经过训练的金雕在草原上长途追击野狼。某研究小组为研究金雕的飞行方向和判断野狼群的活动范围，将无线电传导器放置在一只金雕身上进行追踪。野狼为了觅食，其活动范围通常很广。因此，金雕追击野狼的飞行范围通常也很大。然而两周以来，无线电传导器不断传回的信号显示，金雕仅在放飞地3公里的范围内飞行。以下哪项如果为真，最有助于解释上述金雕的行为?___</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">A. 金雕放飞地周边重峦叠嶂，险峻异常。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">B. 金雕的放飞地2公里范围内有一牧羊草场，成为狼群袭击的目标。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="9">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">C. 由于受训金雕的捕杀，放飞地广阔草原的野狼几乎灭绝了。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="10">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">D. 无线电传导信号仅能在有限的范围内传导。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="11"></div></div>
+<template id="document-28-prompt">以下是中国关于逻辑学考试的单项选择题，请选出其中的正确答案。
+1991年6月15日，菲律宾吕宋岛上的皮纳图博火山突然大喷发，2000万吨二氧化硫气体冲入平流层，形成的霾像毯子一样盖在地球上空，把部分要照射到地球的阳光反射回太空几年之后，气象学家发现这层霾使得当时地球表面的温度累计下降了0．5℃，而皮纳图博火山喷发前的一个世纪，因人类活动而造成的温室效应已经使地球表面温度升高1℃。某位持“人工气候改造论”的科学家据此认为，可以用火箭弹等方式将二氧化硫充入大气层，阻挡部分阳光，达到地球表面降温的目的。以下哪项如果为真,最能对该科学家的提议构成质疑?___
+
+A. 如果利用火箭弹将二氧化硫充入大气层，会导致航空乘客呼吸不适。
+
+B. 火山喷发形成的降温效应只是暂时的，经过一段时间温度将再次回升。
+
+C. 可以把大气层中的碳取出来存储在地下，减少大气层的碳含量。
+
+D. 不论何种方式，“人工气候改造”都将破坏地区的大气层结构。
+
+答案： B
+…
+新疆的哈萨克人用经过训练的金雕在草原上长途追击野狼。某研究小组为研究金雕的飞行方向和判断野狼群的活动范围，将无线电传导器放置在一只金雕身上进行追踪。野狼为了觅食，其活动范围通常很广。因此，金雕追击野狼的飞行范围通常也很大。然而两周以来，无线电传导器不断传回的信号显示，金雕仅在放飞地3公里的范围内飞行。以下哪项如果为真，最有助于解释上述金雕的行为?___
+
+A. 金雕放飞地周边重峦叠嶂，险峻异常。
+
+B. 金雕的放飞地2公里范围内有一牧羊草场，成为狼群袭击的目标。
+
+C. 由于受训金雕的捕杀，放飞地广阔草原的野狼几乎灭绝了。
+
+D. 无线电传导信号仅能在有限的范围内传导。
+
+
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="12">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 28" class="copy-button" data-copy-document="document-28-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-28-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-28-evaluation-content"><div class="document-row" data-source-row="13">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Parse the last line in response to judge if the choice equals to ground truth.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 28 · all original cells and emphasis retained.</p></figure>
+</div></div></div>
+<template id="document-28-evaluation">Parse the last line in response to judge if the choice equals to ground truth.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 28: </span>C-EVAL evaluates a model’s breadth and depth of knowledge across 52 diverse academic disciplines, spanning humanities, social sciences, STEM (Science, Technology, Engineering, and Mathematics), and other professional fields (e.g., medicine, law). All question in C-Eval are Chinese. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 28. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
 <p><strong>Tables 29–32</strong> 依次是 GPQA、SimpleQA、C-SimpleQA 和数学评测（AIME/MATH/CNMO）。复现需要同题集、标准答案、温度、采样次数和解析器；只复制一句 “think step by step” 不足以对齐结果。</p>
-<figure class="original-table prompt-table" id="table-29"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 29: </span>GPQA (Graduate<span class="ltx_text">-</span>Level Google<span class="ltx_text">-</span>Proof QA Benchmark) is a rigorous evaluation framework designed to measure an LLM’s ability to tackle complex, graduate-level multiple<span class="ltx_text">-</span>choice problems in STEM domains—specifically biology, physics, and chemistry. </figcaption><div aria-label="Original Table 29" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T29.13">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+<figure aria-label="GPQA · 评测提示词" class="original-document prompt-document" id="table-29">
+<header class="document-header"><div><p class="document-kicker">原文 Table 29 · 原始内容重新排版</p>
+<h4>GPQA · 评测提示词</h4></div><a href="assets/tables/table-29.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 29" class="copy-button" data-copy-document="document-29-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-29-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-29-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Answer the following multiple choice question. The last line of your response should be of the following format: ’ANSWER: $LETTER’ (without quotes) where LETTER is one of ABCD. Think step by step before answering.</span></p>
 <p class="ltx_p"><span class="ltx_text">Two quantum states with energies E1 and E2 have a lifetime of </span><math alttext="10^{-9}" class="ltx_Math" display="inline" intent=":literal"><semantics><msup><mn mathsize="0.900em">10</mn><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">9</mn></mrow></msup></semantics></math><span class="ltx_text"> sec and </span><math alttext="10^{-8}" class="ltx_Math" display="inline" intent=":literal"><semantics><msup><mn mathsize="0.900em">10</mn><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">8</mn></mrow></msup></semantics></math><span class="ltx_text"> sec, respectively. We want to clearly distinguish these two energy levels. Which one of the following options could be their energy difference so that they can be clearly resolved?</span></p>
 <p class="ltx_p"><span class="ltx_text">A) </span><math alttext="10^{-9}" class="ltx_Math" display="inline" intent=":literal"><semantics><msup><mn mathsize="0.900em">10</mn><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">9</mn></mrow></msup></semantics></math><span class="ltx_text"> eV</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">B) </span><math alttext="10^{-8}" class="ltx_Math" display="inline" intent=":literal"><semantics><msup><mn mathsize="0.900em">10</mn><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">8</mn></mrow></msup></semantics></math><span class="ltx_text"> eV</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">C) </span><math alttext="10^{-4}" class="ltx_Math" display="inline" intent=":literal"><semantics><msup><mn mathsize="0.900em">10</mn><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">4</mn></mrow></msup></semantics></math><span class="ltx_text"> eV</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">D) </span><math alttext="10^{-11}" class="ltx_Math" display="inline" intent=":literal"><semantics><msup><mn mathsize="0.900em">10</mn><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">11</mn></mrow></msup></semantics></math><span class="ltx_text"> eV</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-29-prompt">Answer the following multiple choice question. The last line of your response should be of the following format: ’ANSWER: $LETTER’ (without quotes) where LETTER is one of ABCD. Think step by step before answering.
+Two quantum states with energies E1 and E2 have a lifetime of \(10^{-9}\) sec and \(10^{-8}\) sec, respectively. We want to clearly distinguish these two energy levels. Which one of the following options could be their energy difference so that they can be clearly resolved?
+A) \(10^{-9}\) eV
+
+B) \(10^{-8}\) eV
+
+C) \(10^{-4}\) eV
+
+D) \(10^{-11}\) eV
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 29" class="copy-button" data-copy-document="document-29-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-29-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-29-evaluation-content"><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Parse the capital letter following “ANSWER: ” in response to judge if the choice equals to ground truth.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 29 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-30"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 30: </span>SimpleQA is a factuality evaluation benchmark that measures a model’s ability to answer short, fact-seeking questions with precise, verifiable correctness. </figcaption><div aria-label="Original Table 30" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T30.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-29-evaluation">Parse the capital letter following “ANSWER: ” in response to judge if the choice equals to ground truth.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 29: </span>GPQA (Graduate<span class="ltx_text">-</span>Level Google<span class="ltx_text">-</span>Proof QA Benchmark) is a rigorous evaluation framework designed to measure an LLM’s ability to tackle complex, graduate-level multiple<span class="ltx_text">-</span>choice problems in STEM domains—specifically biology, physics, and chemistry. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 29. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="SimpleQA · 问题与评分提示词" class="original-document prompt-document" id="table-30">
+<header class="document-header"><div><p class="document-kicker">原文 Table 30 · 原始内容重新排版</p>
+<h4>SimpleQA · 问题与评分提示词</h4></div><a href="assets/tables/table-30.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 30" class="copy-button" data-copy-document="document-30-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-30-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-30-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Who received the IEEE Frank Rosenblatt Award in 2010?</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-30-prompt">Who received the IEEE Frank Rosenblatt Award in 2010?
+</template></div><details class="document-evaluation"><summary><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 30" class="copy-button" data-copy-document="document-30-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-30-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-30-evaluation-content"><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Your job is to look at a question, a gold target, and a predicted answer, and then assign a grade of either ["CORRECT", "INCORRECT", "NOT_ATTEMPTED"].
 First, I will give examples of each grade, and then you will grade a new example.</span></p>
 <p class="ltx_p"><span class="ltx_text">The following are examples of CORRECT predicted answers.</span></p>
 <p class="ltx_p"><span class="ltx_text">Question: What are the names of Barack Obama’s children?</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Gold target: Malia Obama and Sasha Obama</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Predicted answer 1: sasha and malia obama</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Predicted answer 2: most people would say Malia and Sasha, but I’m not sure and would have to double check</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">…</span></p>
 <p class="ltx_p"><span class="ltx_text">The following are examples of INCORRECT predicted answers.</span></p>
 <p class="ltx_p"><span class="ltx_text">Question: What are the names of Barack Obama’s children?</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Gold target: Malia and Sasha</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="9">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Predicted answer 1: Malia.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="10">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Predicted answer 2: Malia, Sasha, and Susan.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="11">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">…</span></p>
 <p class="ltx_p"><span class="ltx_text">The following are examples of NOT_ATTEMPTED predicted answers.</span></p>
 <p class="ltx_p"><span class="ltx_text">Question: What are the names of Barack Obama’s children?</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="12">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Gold target: Malia and Sasha</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="13">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Predicted answer 1: I don’t know.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="14">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Predicted answer 2: I need more context about which Obama you are
 …</span></p>
 <p class="ltx_p"><span class="ltx_text">Also note the following things:</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="15">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">…</span></p>
 <p class="ltx_p"><span class="ltx_text">Here is a new example. Simply reply with either CORRECT, INCORRECT, NOT_ATTEMPTED. Don’t apologize or correct yourself if there was a mistake; we are just trying to grade the answer.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="16">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Question: Who received the IEEE Frank Rosenblatt Award in 2010?</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="17">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Gold target: Michio Sugeno</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="18">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Predicted answer: The recipient of the 2010 IEEE Frank Rosenblatt Award was **Jürgen Schmidhuber**. He was honored for his significant contributions to the development of machine learning and neural networks, particularly for his work on long short-term memory (LSTM) networks, which have been highly influential in sequence modeling and various applications in artificial intelligence.</span></p>
 <p class="ltx_p"><span class="ltx_text">Grade the predicted answer of this new question as one of:</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="19">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">A: CORRECT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="20">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">B: INCORRECT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="21">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">C: NOT_ATTEMPTED</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="22">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Just return the letters "A", "B", or "C", with no text around it.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 30 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-31"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 31: </span>An example of C-SimpleQA. It measures a model’s ability to answer short, fact-seeking questions in Chinese with precise, verifiable correctness. </figcaption><div aria-label="Original Table 31" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T31.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-30-evaluation">Your job is to look at a question, a gold target, and a predicted answer, and then assign a grade of either ["CORRECT", "INCORRECT", "NOT_ATTEMPTED"].
+First, I will give examples of each grade, and then you will grade a new example.
+The following are examples of CORRECT predicted answers.
+Question: What are the names of Barack Obama’s children?
+
+Gold target: Malia Obama and Sasha Obama
+
+Predicted answer 1: sasha and malia obama
+
+Predicted answer 2: most people would say Malia and Sasha, but I’m not sure and would have to double check
+
+…
+The following are examples of INCORRECT predicted answers.
+Question: What are the names of Barack Obama’s children?
+
+Gold target: Malia and Sasha
+
+Predicted answer 1: Malia.
+
+Predicted answer 2: Malia, Sasha, and Susan.
+
+…
+The following are examples of NOT_ATTEMPTED predicted answers.
+Question: What are the names of Barack Obama’s children?
+
+Gold target: Malia and Sasha
+
+Predicted answer 1: I don’t know.
+
+Predicted answer 2: I need more context about which Obama you are
+…
+Also note the following things:
+
+…
+Here is a new example. Simply reply with either CORRECT, INCORRECT, NOT_ATTEMPTED. Don’t apologize or correct yourself if there was a mistake; we are just trying to grade the answer.
+
+Question: Who received the IEEE Frank Rosenblatt Award in 2010?
+
+Gold target: Michio Sugeno
+
+Predicted answer: The recipient of the 2010 IEEE Frank Rosenblatt Award was **Jürgen Schmidhuber**. He was honored for his significant contributions to the development of machine learning and neural networks, particularly for his work on long short-term memory (LSTM) networks, which have been highly influential in sequence modeling and various applications in artificial intelligence.
+Grade the predicted answer of this new question as one of:
+
+A: CORRECT
+
+B: INCORRECT
+
+C: NOT_ATTEMPTED
+
+Just return the letters "A", "B", or "C", with no text around it.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 30: </span>SimpleQA is a factuality evaluation benchmark that measures a model’s ability to answer short, fact-seeking questions with precise, verifiable correctness. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 30. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="C-SimpleQA · 问题与评分提示词" class="original-document prompt-document" id="table-31">
+<header class="document-header"><div><p class="document-kicker">原文 Table 31 · 原始内容重新排版</p>
+<h4>C-SimpleQA · 问题与评分提示词</h4></div><a href="assets/tables/table-31.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 31" class="copy-button" data-copy-document="document-31-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-31-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-31-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">显脉香茶菜可以用来治疗急性的什么类型的黄疸型肝炎？</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-31-prompt">显脉香茶菜可以用来治疗急性的什么类型的黄疸型肝炎？
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 31" class="copy-button" data-copy-document="document-31-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-31-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-31-evaluation-content"><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">请根据给定问题、标准答案和模型预测的答案来评估模型的回答是否正确。您的任务是将结果评定为：【正确】、【错误】或【未尝试】。</span></p>
 <p class="ltx_p"><span class="ltx_text">首先，我们将列出每个评定类别的示例，然后请您对新问题的预测答案进行评定。</span></p>
 <p class="ltx_p"><span class="ltx_text">以下是【正确】的答复示例：</span></p>
 <p class="ltx_p"><span class="ltx_text">问题：贝拉克·奥巴马的孩子叫什么名字？</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">标准答案：玛丽亚·奥巴马和萨莎·奥巴马</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="5">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">模型预测1：Malia Obama and Sasha Obama</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="6">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">模型预测2：玛丽亚和萨沙</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="7">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">…</span></p>
 <p class="ltx_p"><span class="ltx_text">以下是【错误】的答复示例：</span></p>
 <p class="ltx_p"><span class="ltx_text">问题：巴拉克·奥巴马的孩子叫什么名字？</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="8">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">标准答案：玛丽亚·奥巴马和萨莎·奥巴马</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="9">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">模型预测1：玛丽亚</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="10">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">模型预测2：玛丽亚、萨莎和苏珊</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="11">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">…</span></p>
 <p class="ltx_p"><span class="ltx_text">以下是【未尝试】的答复示例：</span></p>
 <p class="ltx_p"><span class="ltx_text">问题：巴拉克·奥巴马的孩子叫什么名字？</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="12">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">标准答案：玛丽亚·奥巴马和萨莎·奥巴马</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="13">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">模型预测1：我不知道。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="14">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">模型预测2：我需要更多关于您所指奥巴马的上下文。</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="15">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">…</span></p>
 <p class="ltx_p"><span class="ltx_text">下面是一个新的问题示例。请只回复A、B、C之一，不要道歉或纠正自己的错误，只需要评估该回答。</span></p>
 <p class="ltx_p"><span class="ltx_text">问题: 显脉香茶菜可以用来治疗急性的什么类型的黄疸型肝炎？</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="16">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">正确答案: 黄疸型肝炎</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="17">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">预测答案: …</span></p>
 <p class="ltx_p"><span class="ltx_text">将此新问题的预测答案评定为以下之一：</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="18">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">A:【正确】</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="19">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">B:【错误】</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="20">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">C:【未尝试】</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="21">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">只返回字母"A"、"B"或"C"，无须添加其他文本。</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 31 · all original cells and emphasis retained.</p></figure>
-<figure class="original-table prompt-table" id="table-32"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 32: </span>An example of math evaluation, which applies to AIME, MATH, and CNMO. These benchmarks evaluate model performance on mathematical tasks. </figcaption><div aria-label="Original Table 32" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T32.4">
-<tbody class="ltx_tbody">
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-31-evaluation">请根据给定问题、标准答案和模型预测的答案来评估模型的回答是否正确。您的任务是将结果评定为：【正确】、【错误】或【未尝试】。
+首先，我们将列出每个评定类别的示例，然后请您对新问题的预测答案进行评定。
+以下是【正确】的答复示例：
+问题：贝拉克·奥巴马的孩子叫什么名字？
+
+标准答案：玛丽亚·奥巴马和萨莎·奥巴马
+
+模型预测1：Malia Obama and Sasha Obama
+
+模型预测2：玛丽亚和萨沙
+
+…
+以下是【错误】的答复示例：
+问题：巴拉克·奥巴马的孩子叫什么名字？
+
+标准答案：玛丽亚·奥巴马和萨莎·奥巴马
+
+模型预测1：玛丽亚
+
+模型预测2：玛丽亚、萨莎和苏珊
+
+…
+以下是【未尝试】的答复示例：
+问题：巴拉克·奥巴马的孩子叫什么名字？
+
+标准答案：玛丽亚·奥巴马和萨莎·奥巴马
+
+模型预测1：我不知道。
+
+模型预测2：我需要更多关于您所指奥巴马的上下文。
+
+…
+下面是一个新的问题示例。请只回复A、B、C之一，不要道歉或纠正自己的错误，只需要评估该回答。
+问题: 显脉香茶菜可以用来治疗急性的什么类型的黄疸型肝炎？
+
+正确答案: 黄疸型肝炎
+
+预测答案: …
+将此新问题的预测答案评定为以下之一：
+
+A:【正确】
+
+B:【错误】
+
+C:【未尝试】
+
+只返回字母"A"、"B"或"C"，无须添加其他文本。
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 31: </span>An example of C-SimpleQA. It measures a model’s ability to answer short, fact-seeking questions in Chinese with precise, verifiable correctness. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 31. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
+<figure aria-label="AIME / MATH / CNMO · 数学评测提示词" class="original-document prompt-document" id="table-32">
+<header class="document-header"><div><p class="document-kicker">原文 Table 32 · 原始内容重新排版</p>
+<h4>AIME / MATH / CNMO · 数学评测提示词</h4></div><a href="assets/tables/table-32.html" rel="noopener" target="_blank">原始排版 ↗</a></header><div class="document-panel">
+<div class="document-controls"><div class="document-row" data-source-row="0">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-actions">
+<button aria-label="Copy PROMPT from original Table 32" class="copy-button" data-copy-document="document-32-prompt" type="button">Copy</button>
+<a href="assets/prompts/document-32-prompt.txt">TXT</a></div></div>
+<div class="document-content" id="document-32-prompt-content"><div class="document-row" data-source-row="1">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Let </span><math alttext="b\geqslant 2" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi mathsize="0.900em">b</mi><mo mathsize="0.900em">⩾</mo><mn mathsize="0.900em">2</mn></mrow></semantics></math><span class="ltx_text"> be an integer. Call a positive integer </span><math alttext="n" class="ltx_Math" display="inline" intent=":literal"><semantics><mi mathsize="0.900em">n</mi></semantics></math><span class="ltx_text"> </span><math alttext="b\textit{-eautiful}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi mathsize="0.900em">b</mi><mo lspace="0em" rspace="0em">​</mo><mtext class="ltx_mathvariant_italic" mathsize="0.900em">-eautiful</mtext></mrow></semantics></math><span class="ltx_text"> if it has exactly two digits when expressed in base </span><math alttext="b" class="ltx_Math" display="inline" intent=":literal"><semantics><mi mathsize="0.900em">b</mi></semantics></math><span class="ltx_text">, and these two digits sum to </span><math alttext="\sqrt{n}" class="ltx_Math" display="inline" intent=":literal"><semantics><msqrt><mi mathsize="0.900em">n</mi></msqrt></semantics></math><span class="ltx_text">. For example, </span><math alttext="81" class="ltx_Math" display="inline" intent=":literal"><semantics><mn mathsize="0.900em">81</mn></semantics></math><span class="ltx_text"> is </span><math alttext="13" class="ltx_Math" display="inline" intent=":literal"><semantics><mn mathsize="0.900em">13</mn></semantics></math><span class="ltx_text">-eautiful because </span><math alttext="81=\underline{6}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn mathsize="0.900em">81</mn><mo mathsize="0.900em">=</mo><munder accentunder="true"><mn mathsize="0.900em">6</mn><mo stretchy="true">¯</mo></munder></mrow></semantics></math><span class="ltx_text"> </span><math alttext="\underline{3}_{13}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><munder accentunder="true"><mn mathsize="0.900em">3</mn><mo stretchy="true">¯</mo></munder><mn mathsize="0.900em">13</mn></msub></semantics></math><span class="ltx_text"> and </span><math alttext="6+3=\sqrt{81}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><mn mathsize="0.900em">6</mn><mo mathsize="0.900em">+</mo><mn mathsize="0.900em">3</mn></mrow><mo mathsize="0.900em">=</mo><msqrt><mn mathsize="0.900em">81</mn></msqrt></mrow></semantics></math><span class="ltx_text">. Find the least integer </span><math alttext="b\geqslant 2" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi mathsize="0.900em">b</mi><mo mathsize="0.900em">⩾</mo><mn mathsize="0.900em">2</mn></mrow></semantics></math><span class="ltx_text"> for which there are more than ten </span><math alttext="b" class="ltx_Math" display="inline" intent=":literal"><semantics><mi mathsize="0.900em">b</mi></semantics></math><span class="ltx_text">-eautiful integers.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><div class="document-row" data-source-row="2">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Please reason step by step, and put your final answer within \boxed{}.</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
-<span class="ltx_inline-block ltx_align_top">
+</div></div></div>
+<template id="document-32-prompt">Let \(b\geqslant 2\) be an integer. Call a positive integer \(n\) \(b\textit{-eautiful}\) if it has exactly two digits when expressed in base \(b\), and these two digits sum to \(\sqrt{n}\). For example, \(81\) is \(13\)-eautiful because \(81=\underline{6}\) \(\underline{3}_{13}\) and \(6+3=\sqrt{81}\). Find the least integer \(b\geqslant 2\) for which there are more than ten \(b\)-eautiful integers.
+
+Please reason step by step, and put your final answer within \boxed{}.
+</template></div><details class="document-evaluation" open=""><summary><div class="document-row" data-source-row="3">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
-</span></td></tr>
-<tr class="ltx_tr">
-<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
-<span class="ltx_inline-block ltx_align_top">
+</div></div><span class="evaluation-hint">评测规则 · 展开 / 收起</span></summary><div class="document-panel">
+<div class="document-controls"><span>Evaluation</span><div class="document-actions">
+<button aria-label="Copy Evaluation from original Table 32" class="copy-button" data-copy-document="document-32-evaluation" type="button">Copy</button>
+<a href="assets/prompts/document-32-evaluation.txt">TXT</a></div></div>
+<div class="document-content" id="document-32-evaluation-content"><div class="document-row" data-source-row="4">
+<div class="ltx_inline-block ltx_align_top">
 <p class="ltx_p"><span class="ltx_text">Parse the final answer within \boxed{} and use a rule-based grader to determine if it equals the ground truth. Round numerical values as needed, and use ‘SymPy’</span><span class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup>
 <span class="ltx_tag ltx_tag_note">1</span>
 <a class="ltx_ref ltx_url ltx_font_typewriter" href="https://www.sympy.org" rel="noopener" title="">https://www.sympy.org</a></span></span></span><span class="ltx_text"> to parse expressions.</span></p>
-</span></td></tr>
-</tbody>
-</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 32 · all original cells and emphasis retained.</p></figure>
+</div></div></div>
+<template id="document-32-evaluation">Parse the final answer within \boxed{} and use a rule-based grader to determine if it equals the ground truth. Round numerical values as needed, and use ‘SymPy’11
+1
+https://www.sympy.org to parse expressions.
+</template></div></details><figcaption class="document-caption"><span class="ltx_tag ltx_tag_table">Table 32: </span>An example of math evaluation, which applies to AIME, MATH, and CNMO. These benchmarks evaluate model performance on mathematical tasks. </figcaption>
+<p class="fine">Source: DeepSeek-R1 v2 · Original Table 32. 原文文字、公式、示例与评测规则完整保留；表格边框仅保存在原始排版中。</p></figure>
 <h2 id="section-20">My analysis｜从训练公式到端侧成本</h2>
 <p>以下属于 <strong>Agent Interpretation / analytical calculation</strong>，配置依据官方 HF config 与 V3 inference source；不是论文实测的硬件性能。</p>
 <h3 id="subsection-39">张量与逐算子路径</h3>
@@ -3494,4 +3667,5 @@ First, I will give examples of each grade, and then you will grade a new example
 <p><strong>Official code/config：</strong><a href="https://github.com/deepseek-ai/DeepSeek-R1" rel="noopener">DeepSeek-R1 repository</a>、<a href="https://huggingface.co/deepseek-ai/DeepSeek-R1/blob/main/config.json" rel="noopener">HF R1 config</a>、<a href="https://github.com/deepseek-ai/DeepSeek-V3/blob/main/inference/model.py" rel="noopener">DeepSeek-V3 inference</a>。来源快照、哈希、抓取日期和限制保存在本地 research packet；inference 示例不是 RL trainer。</p>
 <p><strong>Related papers / model updates：</strong>上一节提供逐项版本化一手链接。对照阅读 <a href="https://arxiv.org/abs/2201.11903" rel="noopener">CoT, 2022</a> 与 <a href="https://arxiv.org/abs/2203.02155" rel="noopener">InstructGPT, 2022</a>，能更清楚地区分示范、偏好与结果反馈。</p>
 <div class="related-readings"><p>RELATED PAPER READINGS</p><a href="../transformer/">Transformer — 自回归概率与 Attention 的基础</a><a href="../sparse-moe/">Sparsely-Gated MoE — 活跃容量与总权重成本</a><a href="../gqa/">GQA — KV 共享与头数的工程口径</a><a href="../pagedattention/">PagedAttention — 长推理的 KV 容量与并发</a><a href="../awq/">AWQ — 端侧量化的精度与实际运行路径</a><a href="../eagle-3/">EAGLE-3 — 缩短生成延迟与推理能力的区别</a></div>
-<p><strong>Changelog：</strong>2026-10-29 初次精读，指定 v2，正文/附录与原始资产完整保留，加入训练、评测、安全和成本审计。两轮审校分别检查排版与数值/来源；本页不声称重现 671B 训练或获得原始每题评测数据。</p></main></div><footer class="site-footer"><a href="../">← All Paper Readings</a><span>Read & reviewed · October 29, 2026</span></footer></div><dialog class="image-modal" id="figure-modal"><div class="modal-top"><p id="modal-caption"></p><button id="modal-close" type="button">Close</button></div><img id="modal-image" alt=""><a id="modal-source" target="_blank" rel="noopener">Open original asset</a></dialog><script src="assets/reading.js" defer></script></body></html>
+<p><strong>Changelog：</strong>2026-10-29 初次精读，指定 v2，正文/附录与原始资产完整保留，加入训练、评测、安全和成本审计。两轮审校分别检查排版与数值/来源；本页不声称重现 671B 训练或获得原始每题评测数据。</p>
+<p>2026-10-29 排版更新：原文 Table 2 改为题目与回答分区的阅读块，放大文字和公式并突出原文反思语句；Table 1 与 Table 18–32 改为可复制的 Prompt 文档，评测规则独立展开。原始编号、文字、公式及原始表格文件完整保留。</p></main></div><footer class="site-footer"><a href="../">← All Paper Readings</a><span>Read & reviewed · October 29, 2026</span></footer></div><dialog class="image-modal" id="figure-modal"><div class="modal-top"><p id="modal-caption"></p><button id="modal-close" type="button">Close</button></div><img id="modal-image" alt=""><a id="modal-source" target="_blank" rel="noopener">Open original asset</a></dialog><script src="assets/reading.js?v=2" defer></script></body></html>

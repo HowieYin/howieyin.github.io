@@ -1,0 +1,1 @@
+Parse the capital letter following “ANSWER: ” in response to judge if the choice equals to ground truth.

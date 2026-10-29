@@ -1,0 +1,23 @@
+The following are multiple choice questions (with answers) about business. Think step by step and then output the answer in the format of "The answer is (X)" at the end.
+…
+Question: Typical advertising regulatory bodies suggest, for example that adverts must not: encourage ___, cause unnecessary ___ or ___, and must not cause ___ offence.
+
+Options: A. Safe practices, Fear, Jealousy, Trivial
+
+B. Unsafe practices, Distress, Joy, Trivial
+
+C. Safe practices, Wants, Jealousy, Trivial
+
+D. Safe practices, Distress, Fear, Trivial
+
+E. Unsafe practices, Wants, Jealousy, Serious
+
+F. Safe practices, Distress, Jealousy, Serious
+
+G. Safe practices, Wants, Fear, Serious
+
+H. Unsafe practices, Wants, Fear, Trivial
+
+I. Unsafe practices, Distress, Fear, Serious
+
+Answer: Let’s think step by step.
