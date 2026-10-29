@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "kimi-k2",
+      "title": "Kimi K2：万亿参数，如何训练成能执行任务的 Agent",
+      "metadata": "2025 · Moonshot AI · arXiv v2 · Read October 29, 2026 · MoE / MuonClip / Agentic RL",
+      "readDate": "2026-10-29",
+      "description": "All 13 original figures, 6 complete tables, the MuonClip algorithm and 11 formula groups; MLA tensors and cache, 384-to-8 routing, agent data and RL, H800 memory and communication, three interactive explainers, source audits and dated follow-up research.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "instructgpt",
       "title": "InstructGPT：把会续写的模型，训练成更愿意完成任务的助手",
       "metadata": "NeurIPS 2022 · arXiv v1 · Read October 29, 2026 · RLHF / Reward Model / PPO",

@@ -1,0 +1,26 @@
+Plugin,Strategy,Kimi-K2-Instruct,DeepSeek-V3-0324,DeepSeek-R1,Qwen3-235B-A22B
+Harmful,Basic,98.04,90.45,99.02,98.53
+Harmful,Base64,100,90.20,100,100
+Harmful,Prompt Injection,93.14,100,95.10,99.02
+Harmful,Iterative Jailbreak,92.16,66.67,72.55,74.51
+Harmful,Crescendo,64.71,64.71,80.39,86.27
+Criminal,Basic,100,99.62,95.45,99.24
+Criminal,Base64,96.97,89.39,84.85,98.48
+Criminal,Prompt Injection,75.76,91.67,69.70,98.47
+Criminal,Iterative Jailbreak,57.57,21.21,25.76,53.03
+Criminal,Crescendo,56.06,31.81,42.42,59.09
+Misinformation,Basic,97.28,92.57,92.46,94.84
+Misinformation,Base64,98.48,90.48,96.83,93.65
+Misinformation,Prompt Injection,98.39,86.51,93.65,93.65
+Misinformation,Iterative Jailbreak,63.97,53.97,84.13,69.84
+Misinformation,Crescendo,85.71,55.56,88.89,84.13
+Privacy,Basic,100,100,100,100
+Privacy,Base64,100,100,100,100
+Privacy,Prompt Injection,88.33,98.33,100,91.67
+Privacy,Iterative Jailbreak,76.67,100,93.33,96.67
+Privacy,Crescendo,96.67,100,96.67,100
+Security,Basic,77.84,75.57,70.46,90.09
+Security,Base64,82.93,82.93,63.41,95.12
+Security,Prompt Injection,87.80,97.56,65.85,84.13
+Security,Iterative Jailbreak,43.90,60.97,43.90,78.04
+Security,Crescendo,68.29,87.80,68.29,87.80

@@ -1,0 +1,75 @@
+\newcolumntype{P}[1]{>{\centering\arraybackslash}p{#1}}
+
+\begin{table}[htbp] % 使用 [htbp] 提供更灵活的浮动位置
+\centering
+\footnotesize % 使用 footnotesize，比 scriptsize 稍大，更易读
+\setlength{\tabcolsep}{4pt} % 减少列间距以节省空间
+
+\caption{Performance comparison of Kimi-K2-Instruct against leading open-source and proprietary models across diverse tasks. \textbf{Bold} denotes the global SOTA; \underline{\textbf{underlined bold}} indicates the best open-source result. Data points marked with * are taken directly from the model's technical report or blog.}
+\label{tab:instruct_eval} % 添加一个标签，方便在文中引用
+\begin{tabular}{@{}l *{7}{P{1.4cm}}@{}} % *{7}{P{1.6cm}} 表示重复 P{1.6cm} 7次
+\toprule
+& \multicolumn{3}{c}{\textbf{Open Source}} & \multicolumn{4}{c}{\textbf{Proprietary}} \\ % 调整了 & 数量
+\cmidrule(lr){2-4} \cmidrule(lr){5-8} % 调整了 cmidrule 的列范围
+\textbf{Benchmark} & \textbf{Kimi-K2-Instruct} & \textbf{DeepSeek-V3-0324} & \textbf{Qwen3-235B-A22B} & \textbf{Claude Sonnet 4} & \textbf{Claude Opus 4} & \textbf{GPT-4.1} & \textbf{Gemini 2.5 Flash} \\
+\midrule
+\multicolumn{8}{@{}l}{\textbf{Coding Tasks}} \\ % 调整为 8 列
+\midrule
+LiveCodeBench~v6 (Pass@1) & \textbf{53.7} & 46.9 & 37.0 & 48.5 & 47.4 & 44.7 & 44.7 \\
+OJBench (Pass@1) & \textbf{27.1} & 24.0 & 11.3 & 15.3 & 19.6 & 19.5 & 19.5 \\
+MultiPL-E (Pass@1) & \textbf{\underline{85.7}} & 83.1 & 78.2 & 88.6 & \textbf{89.6} & 86.7 & 85.6 \\
+\makecell[l]{SWE-bench~Verified\\\textit{Agentless-Single-Patch} (Pass@1)} & \textbf{\underline{51.8}} & 36.6 & 39.4 & 50.2 & \textbf{53.0} & 40.8 & 32.6 \\
+\makecell[l]{SWE-bench~Verified\\\textit{Agentic-Single-Attempt} (Pass@1)} & \textbf{\underline{65.8}} & 38.8 & 34.4 & \textbf{72.7*} & 72.5* & 54.6 & --- \\
+\makecell[l]{SWE-bench~Verified\\\textit{Agentic-Multi-Attempt} (Pass@1)} & \textbf{\underline{71.6}} & --- & --- & \textbf{80.2*} & 79.4* & --- & --- \\
+\makecell[l]{SWE-bench Multilingual (Pass@1)} & \textbf{\underline{47.3}} & 25.8 & 20.9 & \textbf{51.0} & --- & 31.5 & --- \\
+\makecell[l]{Multi-SWE-bench (Pass@1)} & \textbf{\underline{18.3}} & 8.0 & 9.0 & \textbf{29.2}  & --- & 11.7 & 14.0 \\
+\makecell[l]{SWE-Lancer (Pass@1)} & \textbf{\underline{39.1}} & 30.5 & 24.1 & \textbf{40.8}  & --- & 23.0 & 38.5 \\
+\makecell[l]{Paper Bench~\textit{Code-Dev} (Acc.)} & \textbf{\underline{27.8}} & 12.2 & 13.2 & \textbf{43.3}  & --- & 29.9 & 5.7 \\
+
+Terminal Bench \textit{In-House} (Acc.) & \textbf{\underline{30.0}} & --- & --- & 35.5 & \textbf{43.2} & 8.3 & --- \\
+Terminal Bench \textit{Terminus} (Acc.) & \textbf{\underline{25.0}} & 16.3 & 6.6 & --- & --- & \textbf{30.3} & 16.8 \\
+Aider-Polyglot (Acc.) & 60.0 & 55.1 & \textbf{\underline{61.8}} & 56.4 & \textbf{70.7} & 52.4 & 44.0 \\
+\midrule
+\multicolumn{8}{@{}l}{\textbf{Tool Use Tasks}} \\ % 调整为 8 列
+\midrule
+Tau2 retail (Avg@4) & \textbf{\underline{70.6}} & 69.1 & 57.0 & 75.0 & \textbf{81.8} & 74.8 & 64.3 \\
+Tau2 airline (Avg@4) & \textbf{\underline{56.5}} & 39.0 & 26.5 & 55.5 & \textbf{60.0} & 54.5 & 42.5 \\
+Tau2 telecom (Avg@4) & \textbf{65.8} & 32.5 & 22.1 & 45.2 & 57.0 & 38.6 & 16.9 \\
+AceBench (Acc.) & \textbf{\underline{76.5}} & 72.7 & 70.5 & 76.2 & 75.6 & \textbf{80.1} & 74.5 \\
+\midrule
+\multicolumn{8}{@{}l}{\textbf{Math \& STEM Tasks}} \\ % 调整为 8 列
+\midrule
+AIME 2024 (Avg@64) & \textbf{69.6} & 59.4* & 40.1* & 43.4 & 48.2 & 46.5 & 61.3 \\
+AIME 2025 (Avg@64) & \textbf{49.5} & 46.7 & 24.7* & 33.1* & 33.9* & 37.0 & 46.6 \\
+MATH-500 (Acc.) & \textbf{97.4} & 94.0* & 91.2* & 94.0 & 94.4 & 92.4 & 95.4 \\
+HMMT 2025 (Avg@32) & \textbf{38.8} & 27.5 & 11.9 & 15.9 & 15.9 & 19.4 & 34.7 \\
+CNMO 2024 (Avg@16) & 74.3 & \textbf{\underline{74.7}} & 48.6 & 60.4 & 57.6 & 56.6 & \textbf{75.0} \\
+PolyMath-en (Avg@4) & \textbf{65.1} & 59.5 & 51.9 & 52.8 & 49.8 & 54.0 & 49.9 \\
+ZebraLogic (Acc.) & \textbf{89.0} & 84.0 & 37.7* & 79.7 & 59.3 & 58.5 & 57.9 \\
+AutoLogi (Acc.) & \textbf{\underline{89.5}} & 88.9 & 83.3* & \textbf{89.8} & 86.1 & 88.2 & 84.1 \\
+GPQA-Diamond (Avg@8) & \textbf{75.1} & 68.4* & 62.9* & 70.0* & 74.9* & 66.3 & 68.2 \\
+SuperGPQA (Acc.) & \textbf{57.2} & 53.7 & 50.2 & 55.7 & 56.5 & 50.8 & 49.6 \\
+Humanity's Last Exam (Acc.) & 4.7 & 5.2 & \textbf{\underline{5.7}} & 5.8 & \textbf{7.1} & 3.7 & 5.6 \\
+\midrule
+\multicolumn{8}{@{}l}{\textbf{General Tasks}} \\ % 调整为 8 列
+\midrule
+MMLU (EM) & \textbf{\underline{89.5}} & 89.4 & 87.0 & 91.5 & \textbf{92.9} & 90.4 & 90.1 \\
+MMLU-Redux (EM) & \textbf{\underline{92.7}} & 90.5 & 89.2* & 93.6 & \textbf{94.2} & 92.4 & 90.6 \\
+MMLU-Pro (EM) & 81.1 & \textbf{\underline{81.2*}} & 77.3 & 83.7 & \textbf{86.6} & 81.8 & 79.4 \\
+IFEval (Prompt Strict) & \textbf{89.8} & 81.1 & 83.2* & 87.6 & 87.4 & 88.0 & 84.3 \\
+Multi-Challenge (Acc.) & \textbf{54.1} & 31.4 & 34.0 & 46.8 & 49.0 & 36.4 & 39.5 \\
+SimpleQA (Correct) & \textbf{\underline{31.0}} & 27.7 & 13.2 & 15.9 & 22.8 & \textbf{42.3} & 23.3 \\
+Livebench (Pass@1) & \textbf{76.4} & 72.4 & 67.6 & 74.8 & 74.6 & 69.8 & 67.8 \\
+\makecell[l]{Arena Hard v2.0 \\\emph{Hard Prompt} (Win rate)} & \textbf{\underline{54.5}} & 39.9 & 39.9 & 51.6 & \textbf{59.7} & 51.7 & 48.7 \\
+\makecell[l]{Arena Hard v2.0 \\\emph{Creative Writing} (Win rate)} & \textbf{85.0} & 59.3 & 59.8 & 54.6 & 68.5 & 61.5 & 72.8 \\
+FACTS Grounding (Adjusted) & \textbf{88.5} & 68.3 & 68.5 & 83.6 & --- & 79.2 & 86.6 \\
+HHEM v2.1 (1-Hallu.) & \textbf{98.9} & 88.9 & 94.5 & 94.5 & --- & 96.7 & 97.8 \\
+FaithJudge (1-Hallu.) & \textbf{\underline{92.6}} & 83.4 & 75.7 & 83.0 & --- & 91.0 & \textbf{93.2} \\
+LongBench v2 (Acc.) &49.1&\textbf{\underline{51.1}}&---&52.5& --- & 54.3 & \textbf{55.5}\\
+FRAMES (Acc.)  & 77.1 & \textbf{\underline{79.2}}&--- & 76.3&---&\textbf{87.4} &72.9\\
+MRCR (Acc.) & \textbf{\underline{55.0}}& 50.8&---&74.4&---&66.9&\textbf{81.7}\\
+DROP (Acc.) &\textbf{93.5}&91.2&84.3&92.0&---&79.1&81.7\\
+\bottomrule
+\\[-0.5ex]               % 让标题往下沉 0.5ex（可微调）
+\end{tabular}
+\end{table}

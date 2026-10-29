@@ -1,0 +1,149 @@
+\section{Token Template of Tool Calling}
+\label{sec:tool-call-token-template}
+
+There are three components in the token structure for tool-calling:
+\begin{itemize}
+    \item \textbf{Tool declaration message}: defines the list of available tools and the schema of the arguments;
+    \item \textbf{Tool invoking section in assistant message}: encodes the model's request to invoke tools; 
+    \item \textbf{Tool result message}: encapsulates the invoked tool's execution result.
+\end{itemize}
+
+
+\lstdefinestyle{mystyle}{
+    keywordstyle=\footnotesize\ttfamily,
+    basicstyle=\footnotesize\ttfamily,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=t,                    
+    keepspaces=true,                 
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+
+The raw tokens of the tool declaration message are formatted as follows:
+
+\begin{center}
+\framebox{%
+\begin{minipage}{8cm}
+\ttfamily\footnotesize
+{\color{blue}<|im\_begin|>}\\
+tool\_declare\\
+{\color{blue}<|im\_middle|>}\\
+\# Tools\\
+\\
+{\color{darkgreen}\{\{ tool declaration content \}\}}\\
+{\color{blue}<|im\_end|>}
+\end{minipage}
+}
+\end{center}
+
+The blue highlighted marks represent special tokens, and the green part, quoted by brackets, is the tool declaration content.
+We use TypeScript to express the tool declaration content, since TypeScript is a concise language with a comprehensive type system, able to express the types and constraints of tool parameters with brief text. The code~\ref{lst:tool-declare-json} shows
+an example for two simple tools in JSON format compatible with OpenAI's chat completion API, as a comparison, the same tools defined in TypeScript (listed in Code~\ref{lst:tool-declare-ts}) is much shorter.
+To improve compatibility, part of our training data also uses JSON as the tool declaration language, so that 3rd-party frameworks need not additional development to support our tool calling scheme.
+
+\begin{lstlisting}[language=Python, caption=Tool definition with JSON in OpenAI compatible API, label={lst:tool-declare-json}]
+[{
+  "type": "function",
+  "function": {
+    "name": "get_weather",
+    "description": "Get weather for a location and date",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City and country e.g. Beijing, China"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date to query, format in `%Y-%m-%d'"
+        }
+      },
+      "required": [
+        "location"
+      ]
+    }
+  }
+},
+{
+  "type": "function",
+  "function": {
+    "name": "Calculator",
+    "description": "Simple calculator",
+    "parameters": {
+      "properties": {
+        "expr": {
+          "type": "string",
+          "description": "Arithmetic expression in javascript"
+        }
+      },
+      "type": "object"
+    }
+  }
+}]
+\end{lstlisting}
+
+\begin{lstlisting}[caption=Tool definition in TypeScript, label={lst:tool-declare-ts}]
+namespace functions { 
+// Get weather for a location and date
+type get_weather = (_: { 
+  // City and country e.g. Beijing, China 
+  location: string, 
+  // Date to query, format in `%Y-%m-%d' 
+  date?: string 
+}) => any; 
+// Simple calculator 
+type Calculator = (_: { 
+  // Arithmetic expression in javascript 
+  expr?: string 
+}) => any; 
+}
+\end{lstlisting}
+
+
+The token template of the tool invoking section in the model's response messages is listed as follows:
+\begin{center}
+\framebox{%
+\begin{minipage}{14cm}
+\ttfamily\footnotesize
+{\color{blue}<|tool\_call\_section\_begin|>}\\
+{\color{blue}<|tool\_call\_begin|>}\\
+{\color{gray}  // call\_id part}\\
+functions.{\color{darkgreen}\{\{tool name\}\}}:{\color{darkgreen}\{\{counter\}\}}\\
+{\color{blue}<|tool\_arguments\_begin|>}\\
+{\color{darkgreen}\{\{ json serialized call arguments \}\}}\\
+{\color{blue}<|tool\_call\_end|>}\\\
+{\color{blue}<|tool\_call\_begin|>}\\
+{\color{gray}  // more tool calls}\\
+{\color{blue}<|tool\_call\_end|>}\\
+{\color{blue}<|tool\_call\_section\_end|>}
+\end{minipage}
+}
+\end{center}
+
+As shown in the template, we support parallel tool calling by placing multiple tool calls in a single response turn. 
+Each tool call has a unique call id, formatted as \texttt{functions.\{tool-name\}:\{counter\}}, 
+where \texttt{tool-name} is the name of the tool, and \texttt{counter} is an auto-increasing counter of all tool calls starting from 0 in the dialog.
+
+During inference, the model may occasionally generate unexpected tokens, leading to format errors when parsing a tool call. To solve this issue, we developed a constrained decoding module named \emph{enforcer}, inspired by {lm-format-enforcer}\footnote{\url{https://github.com/noamgat/lm-format-enforcer}}. When a \texttt{<tool\_call\_section\_begin|>} token is generated, it ensures that the upcoming tool-related tokens follow the predefined template, and the JSON argument string follows the declared schema.
+
+The tool result message is simply a text message encoded with the tool's call id and the corresponding results.
+\begin{center}
+\framebox{%
+\begin{minipage}{8cm}
+\ttfamily\footnotesize
+{\color{blue}<|im\_begin|>}\\
+tool\\
+{\color{blue}<|im\_middle|>}\\
+\#\# Results of {\color{darkgreen}\{\{call\_id\}\} }\\
+{\color{darkgreen}\{\{ execution result content \}\}}\\
+{\color{blue}<|im\_end|>}
+\end{minipage}
+}
+\end{center}
+

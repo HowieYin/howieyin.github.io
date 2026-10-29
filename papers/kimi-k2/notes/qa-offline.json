@@ -1,0 +1,1625 @@
+{
+  "url": "file:///Users/bytedance/project/read_papers/paper-readings/kimi-k2/offline.html",
+  "results": [
+    {
+      "width": 375,
+      "scrollWidth": 375,
+      "figures": 13,
+      "panels": 18,
+      "originals": 11,
+      "tables": [
+        4,
+        10,
+        50,
+        27,
+        6,
+        26
+      ],
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 293,
+          "height": 23.328125
+        },
+        {
+          "width": 60.265625,
+          "height": 12.765625
+        },
+        {
+          "width": 9.828125,
+          "height": 9.1875
+        },
+        {
+          "width": 10,
+          "height": 9.296875
+        },
+        {
+          "width": 93.40625,
+          "height": 17.953125
+        },
+        {
+          "width": 73,
+          "height": 15.859375
+        },
+        {
+          "width": 87,
+          "height": 15.46875
+        },
+        {
+          "width": 69.28125,
+          "height": 13.234375
+        },
+        {
+          "width": 293,
+          "height": 55.78125
+        },
+        {
+          "width": 26.6875,
+          "height": 15.03125
+        },
+        {
+          "width": 34.75,
+          "height": 9.546875
+        },
+        {
+          "width": 70.21875,
+          "height": 13.40625
+        },
+        {
+          "width": 37.09375,
+          "height": 17.6875
+        },
+        {
+          "width": 293,
+          "height": 44.421875
+        },
+        {
+          "width": 8.3125,
+          "height": 9.1875
+        },
+        {
+          "width": 15.65625,
+          "height": 12.703125
+        },
+        {
+          "width": 30.8125,
+          "height": 9.5625
+        },
+        {
+          "width": 293,
+          "height": 23.109375
+        },
+        {
+          "width": 108.671875,
+          "height": 13.28125
+        },
+        {
+          "width": 105.375,
+          "height": 12.296875
+        },
+        {
+          "width": 43.34375,
+          "height": 9.171875
+        },
+        {
+          "width": 7,
+          "height": 9.640625
+        },
+        {
+          "width": 23.953125,
+          "height": 17.6875
+        },
+        {
+          "width": 120.375,
+          "height": 15.515625
+        },
+        {
+          "width": 45.140625,
+          "height": 9.125
+        },
+        {
+          "width": 14.234375,
+          "height": 14.65625
+        },
+        {
+          "width": 14.453125,
+          "height": 13.203125
+        },
+        {
+          "width": 30.078125,
+          "height": 17.6875
+        },
+        {
+          "width": 13.875,
+          "height": 14.546875
+        },
+        {
+          "width": 13.125,
+          "height": 11.875
+        },
+        {
+          "width": 14.09375,
+          "height": 13.09375
+        },
+        {
+          "width": 296.390625,
+          "height": 53.8125
+        },
+        {
+          "width": 30.8125,
+          "height": 9.5625
+        },
+        {
+          "width": 104.4375,
+          "height": 12.390625
+        },
+        {
+          "width": 94.921875,
+          "height": 17.6875
+        },
+        {
+          "width": 7.140625,
+          "height": 9.78125
+        },
+        {
+          "width": 7.359375,
+          "height": 10.015625
+        },
+        {
+          "width": 15.40625,
+          "height": 12.375
+        },
+        {
+          "width": 119.5,
+          "height": 11.15625
+        },
+        {
+          "width": 64.859375,
+          "height": 11.15625
+        },
+        {
+          "width": 749.640625,
+          "height": 21.40625
+        },
+        {
+          "width": 293,
+          "height": 19.765625
+        },
+        {
+          "width": 484.65625,
+          "height": 68.609375
+        },
+        {
+          "width": 35.5,
+          "height": 9.1875
+        },
+        {
+          "width": 9.171875,
+          "height": 9.1875
+        },
+        {
+          "width": 10.375,
+          "height": 12.125
+        },
+        {
+          "width": 39.75,
+          "height": 15.8125
+        },
+        {
+          "width": 93.109375,
+          "height": 17.921875
+        },
+        {
+          "width": 42.8125,
+          "height": 9.671875
+        },
+        {
+          "width": 22.046875,
+          "height": 11.15625
+        },
+        {
+          "width": 59.46875,
+          "height": 12.890625
+        },
+        {
+          "width": 98.875,
+          "height": 13.578125
+        },
+        {
+          "width": 29.890625,
+          "height": 12.3125
+        },
+        {
+          "width": 10.515625,
+          "height": 12.890625
+        },
+        {
+          "width": 399.921875,
+          "height": 44.203125
+        },
+        {
+          "width": 35.421875,
+          "height": 12.3125
+        },
+        {
+          "width": 19.25,
+          "height": 9.53125
+        },
+        {
+          "width": 60.90625,
+          "height": 14.0625
+        },
+        {
+          "width": 293,
+          "height": 33.375
+        },
+        {
+          "width": 24.75,
+          "height": 17.6875
+        },
+        {
+          "width": 331.140625,
+          "height": 19.53125
+        },
+        {
+          "width": 63.40625,
+          "height": 17.640625
+        },
+        {
+          "width": 92.5625,
+          "height": 17.953125
+        },
+        {
+          "width": 293,
+          "height": 35.875
+        },
+        {
+          "width": 11.21875,
+          "height": 9.53125
+        },
+        {
+          "width": 27.21875,
+          "height": 9.625
+        },
+        {
+          "width": 293,
+          "height": 47.328125
+        },
+        {
+          "width": 7.984375,
+          "height": 8.578125
+        },
+        {
+          "width": 20.75,
+          "height": 10.25
+        },
+        {
+          "width": 293,
+          "height": 47.328125
+        },
+        {
+          "width": 293,
+          "height": 20.0625
+        },
+        {
+          "width": 38.828125,
+          "height": 17.6875
+        },
+        {
+          "width": 293,
+          "height": 22.75
+        },
+        {
+          "width": 13.125,
+          "height": 11.875
+        }
+      ],
+      "originalAlgorithm": 1,
+      "clip": "S=400; τ=100; γ=0.250000\nqC=0.500000; kC=0.500000; qR=0.250000; shared kR=1\nContent=75.000; rotary=25.000; total=100.000\nFixed-input identity holds: total=γS. Not a future-input guarantee.",
+      "badClip": "S=400; τ=100; γ=0.250000\nqC=1.000000; kC=1.000000; qR=0.250000; shared kR=1\nContent=300.000; rotary=25.000; total=325.000\nAbove threshold: content was not scaled.",
+      "memory": "B=1; N=131072; H=64; bytes=2\nLatent cache=8.578125 GiB; expanded=305.000000 GiB\nExpanded / latent=35.5556×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "doubleHeads": "B=1; N=131072; H=128; bytes=2\nLatent cache=8.578125 GiB; expanded=610.000000 GiB\nExpanded / latent=71.1111×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "budget": "Iteration=630s; useful rollout+update share=95.238%\nSwitch share=4.762%; ideal zero-switch speedup=1.0500×\nAttempt=10240; allowed=8192; emitted=8192 tokens\nTRUNCATED: paper assigns a penalty; exact value undisclosed. Incomplete tool calls require explicit handling.\nTimes are illustrative inputs, not measured K2 performance.",
+      "errors": []
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "figures": 13,
+      "panels": 18,
+      "originals": 11,
+      "tables": [
+        4,
+        10,
+        50,
+        27,
+        6,
+        26
+      ],
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 308,
+          "height": 23.328125
+        },
+        {
+          "width": 60.265625,
+          "height": 12.765625
+        },
+        {
+          "width": 9.828125,
+          "height": 9.1875
+        },
+        {
+          "width": 10,
+          "height": 9.296875
+        },
+        {
+          "width": 93.40625,
+          "height": 17.953125
+        },
+        {
+          "width": 73,
+          "height": 15.859375
+        },
+        {
+          "width": 87,
+          "height": 15.46875
+        },
+        {
+          "width": 69.28125,
+          "height": 13.234375
+        },
+        {
+          "width": 308,
+          "height": 55.78125
+        },
+        {
+          "width": 26.6875,
+          "height": 15.03125
+        },
+        {
+          "width": 34.75,
+          "height": 9.546875
+        },
+        {
+          "width": 70.21875,
+          "height": 13.40625
+        },
+        {
+          "width": 37.09375,
+          "height": 17.6875
+        },
+        {
+          "width": 308,
+          "height": 44.421875
+        },
+        {
+          "width": 8.3125,
+          "height": 9.1875
+        },
+        {
+          "width": 15.65625,
+          "height": 12.703125
+        },
+        {
+          "width": 30.8125,
+          "height": 9.5625
+        },
+        {
+          "width": 308,
+          "height": 23.109375
+        },
+        {
+          "width": 108.671875,
+          "height": 13.28125
+        },
+        {
+          "width": 105.375,
+          "height": 12.296875
+        },
+        {
+          "width": 43.34375,
+          "height": 9.171875
+        },
+        {
+          "width": 7,
+          "height": 9.640625
+        },
+        {
+          "width": 23.953125,
+          "height": 17.6875
+        },
+        {
+          "width": 120.375,
+          "height": 15.515625
+        },
+        {
+          "width": 45.140625,
+          "height": 9.125
+        },
+        {
+          "width": 14.234375,
+          "height": 14.65625
+        },
+        {
+          "width": 14.453125,
+          "height": 13.203125
+        },
+        {
+          "width": 30.078125,
+          "height": 17.6875
+        },
+        {
+          "width": 13.875,
+          "height": 14.546875
+        },
+        {
+          "width": 13.125,
+          "height": 11.875
+        },
+        {
+          "width": 14.09375,
+          "height": 13.09375
+        },
+        {
+          "width": 308,
+          "height": 53.8125
+        },
+        {
+          "width": 30.8125,
+          "height": 9.5625
+        },
+        {
+          "width": 104.4375,
+          "height": 12.390625
+        },
+        {
+          "width": 94.921875,
+          "height": 17.6875
+        },
+        {
+          "width": 7.140625,
+          "height": 9.78125
+        },
+        {
+          "width": 7.359375,
+          "height": 10.015625
+        },
+        {
+          "width": 15.40625,
+          "height": 12.375
+        },
+        {
+          "width": 119.5,
+          "height": 11.15625
+        },
+        {
+          "width": 64.859375,
+          "height": 11.15625
+        },
+        {
+          "width": 749.640625,
+          "height": 21.40625
+        },
+        {
+          "width": 308,
+          "height": 19.765625
+        },
+        {
+          "width": 484.65625,
+          "height": 68.609375
+        },
+        {
+          "width": 35.5,
+          "height": 9.1875
+        },
+        {
+          "width": 9.171875,
+          "height": 9.1875
+        },
+        {
+          "width": 10.375,
+          "height": 12.125
+        },
+        {
+          "width": 39.75,
+          "height": 15.8125
+        },
+        {
+          "width": 93.109375,
+          "height": 17.921875
+        },
+        {
+          "width": 42.8125,
+          "height": 9.671875
+        },
+        {
+          "width": 22.046875,
+          "height": 11.15625
+        },
+        {
+          "width": 59.46875,
+          "height": 12.890625
+        },
+        {
+          "width": 98.875,
+          "height": 13.578125
+        },
+        {
+          "width": 29.890625,
+          "height": 12.3125
+        },
+        {
+          "width": 10.515625,
+          "height": 12.890625
+        },
+        {
+          "width": 399.921875,
+          "height": 44.203125
+        },
+        {
+          "width": 35.421875,
+          "height": 12.3125
+        },
+        {
+          "width": 19.25,
+          "height": 9.53125
+        },
+        {
+          "width": 60.90625,
+          "height": 14.0625
+        },
+        {
+          "width": 308,
+          "height": 33.375
+        },
+        {
+          "width": 24.75,
+          "height": 17.6875
+        },
+        {
+          "width": 331.140625,
+          "height": 19.53125
+        },
+        {
+          "width": 63.40625,
+          "height": 17.640625
+        },
+        {
+          "width": 92.5625,
+          "height": 17.953125
+        },
+        {
+          "width": 308,
+          "height": 35.875
+        },
+        {
+          "width": 11.21875,
+          "height": 9.53125
+        },
+        {
+          "width": 27.21875,
+          "height": 9.625
+        },
+        {
+          "width": 308,
+          "height": 47.328125
+        },
+        {
+          "width": 7.984375,
+          "height": 8.578125
+        },
+        {
+          "width": 20.75,
+          "height": 10.25
+        },
+        {
+          "width": 308,
+          "height": 47.328125
+        },
+        {
+          "width": 308,
+          "height": 20.0625
+        },
+        {
+          "width": 38.828125,
+          "height": 17.6875
+        },
+        {
+          "width": 308,
+          "height": 22.75
+        },
+        {
+          "width": 13.125,
+          "height": 11.875
+        }
+      ],
+      "originalAlgorithm": 1,
+      "clip": "S=400; τ=100; γ=0.250000\nqC=0.500000; kC=0.500000; qR=0.250000; shared kR=1\nContent=75.000; rotary=25.000; total=100.000\nFixed-input identity holds: total=γS. Not a future-input guarantee.",
+      "badClip": "S=400; τ=100; γ=0.250000\nqC=1.000000; kC=1.000000; qR=0.250000; shared kR=1\nContent=300.000; rotary=25.000; total=325.000\nAbove threshold: content was not scaled.",
+      "memory": "B=1; N=131072; H=64; bytes=2\nLatent cache=8.578125 GiB; expanded=305.000000 GiB\nExpanded / latent=35.5556×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "doubleHeads": "B=1; N=131072; H=128; bytes=2\nLatent cache=8.578125 GiB; expanded=610.000000 GiB\nExpanded / latent=71.1111×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "budget": "Iteration=630s; useful rollout+update share=95.238%\nSwitch share=4.762%; ideal zero-switch speedup=1.0500×\nAttempt=10240; allowed=8192; emitted=8192 tokens\nTRUNCATED: paper assigns a penalty; exact value undisclosed. Incomplete tool calls require explicit handling.\nTimes are illustrative inputs, not measured K2 performance.",
+      "errors": []
+    },
+    {
+      "width": 430,
+      "scrollWidth": 430,
+      "figures": 13,
+      "panels": 18,
+      "originals": 11,
+      "tables": [
+        4,
+        10,
+        50,
+        27,
+        6,
+        26
+      ],
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 348,
+          "height": 23.328125
+        },
+        {
+          "width": 64.6875,
+          "height": 13.671875
+        },
+        {
+          "width": 10.53125,
+          "height": 9.84375
+        },
+        {
+          "width": 10.71875,
+          "height": 9.953125
+        },
+        {
+          "width": 100.21875,
+          "height": 19.25
+        },
+        {
+          "width": 78.328125,
+          "height": 17.015625
+        },
+        {
+          "width": 93.375,
+          "height": 16.59375
+        },
+        {
+          "width": 74.359375,
+          "height": 14.1875
+        },
+        {
+          "width": 348,
+          "height": 55.78125
+        },
+        {
+          "width": 28.59375,
+          "height": 16.109375
+        },
+        {
+          "width": 37.25,
+          "height": 10.21875
+        },
+        {
+          "width": 75.359375,
+          "height": 14.375
+        },
+        {
+          "width": 39.75,
+          "height": 18.953125
+        },
+        {
+          "width": 348,
+          "height": 44.421875
+        },
+        {
+          "width": 8.90625,
+          "height": 9.84375
+        },
+        {
+          "width": 16.78125,
+          "height": 13.609375
+        },
+        {
+          "width": 33.015625,
+          "height": 10.25
+        },
+        {
+          "width": 348,
+          "height": 23.109375
+        },
+        {
+          "width": 116.46875,
+          "height": 14.234375
+        },
+        {
+          "width": 112.921875,
+          "height": 13.171875
+        },
+        {
+          "width": 46.4375,
+          "height": 9.828125
+        },
+        {
+          "width": 7.5,
+          "height": 10.328125
+        },
+        {
+          "width": 25.671875,
+          "height": 18.953125
+        },
+        {
+          "width": 129.03125,
+          "height": 16.625
+        },
+        {
+          "width": 48.375,
+          "height": 9.78125
+        },
+        {
+          "width": 15.25,
+          "height": 15.703125
+        },
+        {
+          "width": 15.484375,
+          "height": 14.15625
+        },
+        {
+          "width": 32.25,
+          "height": 18.953125
+        },
+        {
+          "width": 14.875,
+          "height": 15.578125
+        },
+        {
+          "width": 14.078125,
+          "height": 12.71875
+        },
+        {
+          "width": 15.109375,
+          "height": 14.03125
+        },
+        {
+          "width": 348,
+          "height": 53.8125
+        },
+        {
+          "width": 33.015625,
+          "height": 10.25
+        },
+        {
+          "width": 112.09375,
+          "height": 13.28125
+        },
+        {
+          "width": 101.71875,
+          "height": 18.953125
+        },
+        {
+          "width": 7.640625,
+          "height": 10.46875
+        },
+        {
+          "width": 7.875,
+          "height": 10.734375
+        },
+        {
+          "width": 16.515625,
+          "height": 13.265625
+        },
+        {
+          "width": 128.015625,
+          "height": 11.953125
+        },
+        {
+          "width": 69.5,
+          "height": 11.953125
+        },
+        {
+          "width": 749.640625,
+          "height": 21.40625
+        },
+        {
+          "width": 348,
+          "height": 19.765625
+        },
+        {
+          "width": 484.65625,
+          "height": 68.609375
+        },
+        {
+          "width": 38.046875,
+          "height": 9.84375
+        },
+        {
+          "width": 9.828125,
+          "height": 9.84375
+        },
+        {
+          "width": 11.140625,
+          "height": 13
+        },
+        {
+          "width": 42.625,
+          "height": 16.9375
+        },
+        {
+          "width": 99.8125,
+          "height": 19.21875
+        },
+        {
+          "width": 45.875,
+          "height": 10.359375
+        },
+        {
+          "width": 23.625,
+          "height": 11.953125
+        },
+        {
+          "width": 63.734375,
+          "height": 13.796875
+        },
+        {
+          "width": 105.96875,
+          "height": 14.546875
+        },
+        {
+          "width": 32.0625,
+          "height": 13.1875
+        },
+        {
+          "width": 11.28125,
+          "height": 13.796875
+        },
+        {
+          "width": 399.921875,
+          "height": 44.203125
+        },
+        {
+          "width": 37.984375,
+          "height": 13.1875
+        },
+        {
+          "width": 20.640625,
+          "height": 10.203125
+        },
+        {
+          "width": 65.28125,
+          "height": 15.0625
+        },
+        {
+          "width": 348,
+          "height": 33.375
+        },
+        {
+          "width": 26.515625,
+          "height": 18.953125
+        },
+        {
+          "width": 348,
+          "height": 19.53125
+        },
+        {
+          "width": 67.984375,
+          "height": 18.890625
+        },
+        {
+          "width": 99.296875,
+          "height": 19.25
+        },
+        {
+          "width": 348,
+          "height": 35.875
+        },
+        {
+          "width": 12.046875,
+          "height": 10.203125
+        },
+        {
+          "width": 29.203125,
+          "height": 10.296875
+        },
+        {
+          "width": 348,
+          "height": 47.328125
+        },
+        {
+          "width": 8.5625,
+          "height": 9.203125
+        },
+        {
+          "width": 22.234375,
+          "height": 10.984375
+        },
+        {
+          "width": 348,
+          "height": 47.328125
+        },
+        {
+          "width": 348,
+          "height": 20.0625
+        },
+        {
+          "width": 41.59375,
+          "height": 18.953125
+        },
+        {
+          "width": 348,
+          "height": 22.75
+        },
+        {
+          "width": 14.078125,
+          "height": 12.71875
+        }
+      ],
+      "originalAlgorithm": 1,
+      "clip": "S=400; τ=100; γ=0.250000\nqC=0.500000; kC=0.500000; qR=0.250000; shared kR=1\nContent=75.000; rotary=25.000; total=100.000\nFixed-input identity holds: total=γS. Not a future-input guarantee.",
+      "badClip": "S=400; τ=100; γ=0.250000\nqC=1.000000; kC=1.000000; qR=0.250000; shared kR=1\nContent=300.000; rotary=25.000; total=325.000\nAbove threshold: content was not scaled.",
+      "memory": "B=1; N=131072; H=64; bytes=2\nLatent cache=8.578125 GiB; expanded=305.000000 GiB\nExpanded / latent=35.5556×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "doubleHeads": "B=1; N=131072; H=128; bytes=2\nLatent cache=8.578125 GiB; expanded=610.000000 GiB\nExpanded / latent=71.1111×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "budget": "Iteration=630s; useful rollout+update share=95.238%\nSwitch share=4.762%; ideal zero-switch speedup=1.0500×\nAttempt=10240; allowed=8192; emitted=8192 tokens\nTRUNCATED: paper assigns a penalty; exact value undisclosed. Incomplete tool calls require explicit handling.\nTimes are illustrative inputs, not measured K2 performance.",
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "figures": 13,
+      "panels": 18,
+      "originals": 11,
+      "tables": [
+        4,
+        10,
+        50,
+        27,
+        6,
+        26
+      ],
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 814,
+          "height": 23.328125
+        },
+        {
+          "width": 68.765625,
+          "height": 14.578125
+        },
+        {
+          "width": 11.234375,
+          "height": 10.5
+        },
+        {
+          "width": 11.4375,
+          "height": 10.625
+        },
+        {
+          "width": 106.59375,
+          "height": 20.546875
+        },
+        {
+          "width": 83.28125,
+          "height": 18.15625
+        },
+        {
+          "width": 99.296875,
+          "height": 17.703125
+        },
+        {
+          "width": 79.046875,
+          "height": 15.140625
+        },
+        {
+          "width": 814,
+          "height": 55.78125
+        },
+        {
+          "width": 30.5,
+          "height": 17.171875
+        },
+        {
+          "width": 39.71875,
+          "height": 10.90625
+        },
+        {
+          "width": 80.109375,
+          "height": 15.34375
+        },
+        {
+          "width": 42.40625,
+          "height": 20.21875
+        },
+        {
+          "width": 814,
+          "height": 44.421875
+        },
+        {
+          "width": 9.5,
+          "height": 10.5
+        },
+        {
+          "width": 17.875,
+          "height": 14.515625
+        },
+        {
+          "width": 35.21875,
+          "height": 10.9375
+        },
+        {
+          "width": 814,
+          "height": 23.109375
+        },
+        {
+          "width": 124.234375,
+          "height": 15.1875
+        },
+        {
+          "width": 120.453125,
+          "height": 14.0625
+        },
+        {
+          "width": 49.546875,
+          "height": 10.484375
+        },
+        {
+          "width": 8,
+          "height": 11.03125
+        },
+        {
+          "width": 27.390625,
+          "height": 20.21875
+        },
+        {
+          "width": 137.609375,
+          "height": 17.734375
+        },
+        {
+          "width": 51.609375,
+          "height": 10.4375
+        },
+        {
+          "width": 16.265625,
+          "height": 16.75
+        },
+        {
+          "width": 16.515625,
+          "height": 15.09375
+        },
+        {
+          "width": 34.390625,
+          "height": 20.21875
+        },
+        {
+          "width": 15.859375,
+          "height": 16.609375
+        },
+        {
+          "width": 15,
+          "height": 13.578125
+        },
+        {
+          "width": 16.109375,
+          "height": 14.953125
+        },
+        {
+          "width": 814,
+          "height": 53.8125
+        },
+        {
+          "width": 35.21875,
+          "height": 10.9375
+        },
+        {
+          "width": 119.1875,
+          "height": 14.171875
+        },
+        {
+          "width": 108.484375,
+          "height": 20.21875
+        },
+        {
+          "width": 8.15625,
+          "height": 11.171875
+        },
+        {
+          "width": 8.40625,
+          "height": 11.453125
+        },
+        {
+          "width": 17.609375,
+          "height": 14.15625
+        },
+        {
+          "width": 136.578125,
+          "height": 12.765625
+        },
+        {
+          "width": 74.125,
+          "height": 12.765625
+        },
+        {
+          "width": 814,
+          "height": 21.40625
+        },
+        {
+          "width": 814,
+          "height": 19.765625
+        },
+        {
+          "width": 814,
+          "height": 68.609375
+        },
+        {
+          "width": 40.59375,
+          "height": 10.5
+        },
+        {
+          "width": 10.484375,
+          "height": 10.5
+        },
+        {
+          "width": 11.875,
+          "height": 13.859375
+        },
+        {
+          "width": 45.4375,
+          "height": 18.0625
+        },
+        {
+          "width": 106.421875,
+          "height": 20.484375
+        },
+        {
+          "width": 48.890625,
+          "height": 11.046875
+        },
+        {
+          "width": 25.203125,
+          "height": 12.765625
+        },
+        {
+          "width": 67.9375,
+          "height": 14.734375
+        },
+        {
+          "width": 113.015625,
+          "height": 15.515625
+        },
+        {
+          "width": 34.1875,
+          "height": 14.078125
+        },
+        {
+          "width": 12.015625,
+          "height": 14.734375
+        },
+        {
+          "width": 814,
+          "height": 44.203125
+        },
+        {
+          "width": 40.5,
+          "height": 14.078125
+        },
+        {
+          "width": 22.015625,
+          "height": 10.890625
+        },
+        {
+          "width": 69.625,
+          "height": 16.078125
+        },
+        {
+          "width": 814,
+          "height": 33.375
+        },
+        {
+          "width": 28.296875,
+          "height": 20.21875
+        },
+        {
+          "width": 814,
+          "height": 19.53125
+        },
+        {
+          "width": 72.46875,
+          "height": 20.15625
+        },
+        {
+          "width": 105.625,
+          "height": 20.546875
+        },
+        {
+          "width": 814,
+          "height": 35.875
+        },
+        {
+          "width": 12.828125,
+          "height": 10.890625
+        },
+        {
+          "width": 31.109375,
+          "height": 11
+        },
+        {
+          "width": 814,
+          "height": 47.328125
+        },
+        {
+          "width": 9.125,
+          "height": 9.8125
+        },
+        {
+          "width": 23.703125,
+          "height": 11.71875
+        },
+        {
+          "width": 814,
+          "height": 47.328125
+        },
+        {
+          "width": 814,
+          "height": 20.0625
+        },
+        {
+          "width": 44.34375,
+          "height": 20.21875
+        },
+        {
+          "width": 814,
+          "height": 22.75
+        },
+        {
+          "width": 15,
+          "height": 13.578125
+        }
+      ],
+      "originalAlgorithm": 1,
+      "clip": "S=400; τ=100; γ=0.250000\nqC=0.500000; kC=0.500000; qR=0.250000; shared kR=1\nContent=75.000; rotary=25.000; total=100.000\nFixed-input identity holds: total=γS. Not a future-input guarantee.",
+      "badClip": "S=400; τ=100; γ=0.250000\nqC=1.000000; kC=1.000000; qR=0.250000; shared kR=1\nContent=300.000; rotary=25.000; total=325.000\nAbove threshold: content was not scaled.",
+      "memory": "B=1; N=131072; H=64; bytes=2\nLatent cache=8.578125 GiB; expanded=305.000000 GiB\nExpanded / latent=35.5556×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "doubleHeads": "B=1; N=131072; H=128; bytes=2\nLatent cache=8.578125 GiB; expanded=610.000000 GiB\nExpanded / latent=71.1111×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "budget": "Iteration=630s; useful rollout+update share=95.238%\nSwitch share=4.762%; ideal zero-switch speedup=1.0500×\nAttempt=10240; allowed=8192; emitted=8192 tokens\nTRUNCATED: paper assigns a penalty; exact value undisclosed. Incomplete tool calls require explicit handling.\nTimes are illustrative inputs, not measured K2 performance.",
+      "errors": []
+    },
+    {
+      "width": 1920,
+      "scrollWidth": 1920,
+      "figures": 13,
+      "panels": 18,
+      "originals": 11,
+      "tables": [
+        4,
+        10,
+        50,
+        27,
+        6,
+        26
+      ],
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 814,
+          "height": 23.328125
+        },
+        {
+          "width": 68.765625,
+          "height": 14.578125
+        },
+        {
+          "width": 11.234375,
+          "height": 10.5
+        },
+        {
+          "width": 11.4375,
+          "height": 10.625
+        },
+        {
+          "width": 106.59375,
+          "height": 20.546875
+        },
+        {
+          "width": 83.28125,
+          "height": 18.15625
+        },
+        {
+          "width": 99.296875,
+          "height": 17.703125
+        },
+        {
+          "width": 79.046875,
+          "height": 15.140625
+        },
+        {
+          "width": 814,
+          "height": 55.78125
+        },
+        {
+          "width": 30.5,
+          "height": 17.171875
+        },
+        {
+          "width": 39.71875,
+          "height": 10.90625
+        },
+        {
+          "width": 80.109375,
+          "height": 15.34375
+        },
+        {
+          "width": 42.40625,
+          "height": 20.21875
+        },
+        {
+          "width": 814,
+          "height": 44.421875
+        },
+        {
+          "width": 9.5,
+          "height": 10.5
+        },
+        {
+          "width": 17.875,
+          "height": 14.515625
+        },
+        {
+          "width": 35.21875,
+          "height": 10.9375
+        },
+        {
+          "width": 814,
+          "height": 23.109375
+        },
+        {
+          "width": 124.234375,
+          "height": 15.1875
+        },
+        {
+          "width": 120.453125,
+          "height": 14.0625
+        },
+        {
+          "width": 49.546875,
+          "height": 10.484375
+        },
+        {
+          "width": 8,
+          "height": 11.03125
+        },
+        {
+          "width": 27.390625,
+          "height": 20.21875
+        },
+        {
+          "width": 137.609375,
+          "height": 17.734375
+        },
+        {
+          "width": 51.609375,
+          "height": 10.4375
+        },
+        {
+          "width": 16.265625,
+          "height": 16.75
+        },
+        {
+          "width": 16.515625,
+          "height": 15.09375
+        },
+        {
+          "width": 34.390625,
+          "height": 20.21875
+        },
+        {
+          "width": 15.859375,
+          "height": 16.609375
+        },
+        {
+          "width": 15,
+          "height": 13.578125
+        },
+        {
+          "width": 16.109375,
+          "height": 14.953125
+        },
+        {
+          "width": 814,
+          "height": 53.8125
+        },
+        {
+          "width": 35.21875,
+          "height": 10.9375
+        },
+        {
+          "width": 119.1875,
+          "height": 14.171875
+        },
+        {
+          "width": 108.484375,
+          "height": 20.21875
+        },
+        {
+          "width": 8.15625,
+          "height": 11.171875
+        },
+        {
+          "width": 8.40625,
+          "height": 11.453125
+        },
+        {
+          "width": 17.609375,
+          "height": 14.15625
+        },
+        {
+          "width": 136.578125,
+          "height": 12.765625
+        },
+        {
+          "width": 74.125,
+          "height": 12.765625
+        },
+        {
+          "width": 814,
+          "height": 21.40625
+        },
+        {
+          "width": 814,
+          "height": 19.765625
+        },
+        {
+          "width": 814,
+          "height": 68.609375
+        },
+        {
+          "width": 40.59375,
+          "height": 10.5
+        },
+        {
+          "width": 10.484375,
+          "height": 10.5
+        },
+        {
+          "width": 11.875,
+          "height": 13.859375
+        },
+        {
+          "width": 45.4375,
+          "height": 18.0625
+        },
+        {
+          "width": 106.421875,
+          "height": 20.484375
+        },
+        {
+          "width": 48.890625,
+          "height": 11.046875
+        },
+        {
+          "width": 25.203125,
+          "height": 12.765625
+        },
+        {
+          "width": 67.9375,
+          "height": 14.734375
+        },
+        {
+          "width": 113.015625,
+          "height": 15.515625
+        },
+        {
+          "width": 34.1875,
+          "height": 14.078125
+        },
+        {
+          "width": 12.015625,
+          "height": 14.734375
+        },
+        {
+          "width": 814,
+          "height": 44.203125
+        },
+        {
+          "width": 40.5,
+          "height": 14.078125
+        },
+        {
+          "width": 22.015625,
+          "height": 10.890625
+        },
+        {
+          "width": 69.625,
+          "height": 16.078125
+        },
+        {
+          "width": 814,
+          "height": 33.375
+        },
+        {
+          "width": 28.296875,
+          "height": 20.21875
+        },
+        {
+          "width": 814,
+          "height": 19.53125
+        },
+        {
+          "width": 72.46875,
+          "height": 20.15625
+        },
+        {
+          "width": 105.625,
+          "height": 20.546875
+        },
+        {
+          "width": 814,
+          "height": 35.875
+        },
+        {
+          "width": 12.828125,
+          "height": 10.890625
+        },
+        {
+          "width": 31.109375,
+          "height": 11
+        },
+        {
+          "width": 814,
+          "height": 47.328125
+        },
+        {
+          "width": 9.125,
+          "height": 9.8125
+        },
+        {
+          "width": 23.703125,
+          "height": 11.71875
+        },
+        {
+          "width": 814,
+          "height": 47.328125
+        },
+        {
+          "width": 814,
+          "height": 20.0625
+        },
+        {
+          "width": 44.34375,
+          "height": 20.21875
+        },
+        {
+          "width": 814,
+          "height": 22.75
+        },
+        {
+          "width": 15,
+          "height": 13.578125
+        }
+      ],
+      "originalAlgorithm": 1,
+      "clip": "S=400; τ=100; γ=0.250000\nqC=0.500000; kC=0.500000; qR=0.250000; shared kR=1\nContent=75.000; rotary=25.000; total=100.000\nFixed-input identity holds: total=γS. Not a future-input guarantee.",
+      "badClip": "S=400; τ=100; γ=0.250000\nqC=1.000000; kC=1.000000; qR=0.250000; shared kR=1\nContent=300.000; rotary=25.000; total=325.000\nAbove threshold: content was not scaled.",
+      "memory": "B=1; N=131072; H=64; bytes=2\nLatent cache=8.578125 GiB; expanded=305.000000 GiB\nExpanded / latent=35.5556×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "doubleHeads": "B=1; N=131072; H=128; bytes=2\nLatent cache=8.578125 GiB; expanded=610.000000 GiB\nExpanded / latent=71.1111×\nAll weights: BF16=1942.74 GiB; FP8≈971.37 GiB\nActive weights / token (BF16)≈60.72 GiB; does not determine residency.\nCache results omit scales, pages, replication and workspace.",
+      "budget": "Iteration=630s; useful rollout+update share=95.238%\nSwitch share=4.762%; ideal zero-switch speedup=1.0500×\nAttempt=10240; allowed=8192; emitted=8192 tokens\nTRUNCATED: paper assigns a penalty; exact value undisclosed. Incomplete tool calls require explicit handling.\nTimes are illustrative inputs, not measured K2 performance.",
+      "errors": []
+    }
+  ]
+}

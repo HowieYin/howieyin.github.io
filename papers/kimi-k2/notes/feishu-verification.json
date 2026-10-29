@@ -1,0 +1,18 @@
+{
+  "url": "https://bytedance.larkoffice.com/docx/XyaXdcHRgoUFxtxYm7RcogIZnue",
+  "date": "2026-10-29",
+  "document_id": "XyaXdcHRgoUFxtxYm7RcogIZnue",
+  "images": 20,
+  "original_figure_panels": 18,
+  "generated_diagrams": 2,
+  "latex": 74,
+  "tables": 13,
+  "formula_differences": 0,
+  "table_content_differences": 0,
+  "owner_email": "yinhongyi@bytedance.com",
+  "owner_open_id": "ou_2ec33cc3f852a19896a332697197a564",
+  "permission": "full_access",
+  "edit_verified": true,
+  "manage_verified": true,
+  "dynamic_components": "replaced by static calculations and interactive webpage links"
+}

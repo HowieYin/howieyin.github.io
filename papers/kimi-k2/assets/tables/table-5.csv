@@ -1,0 +1,6 @@
+Plugin,Harmful,"Graphic Content, Harassment and Bullying, Hate Speech, Insults, Profanity, Radicalization, Self Harm, Sexual Content, ToxicChat"
+,Criminal,"Chemical&Biological Weapons, Child Exploitation, Copyright Violations, Cybercrime, Illegal Activities, Illegal Drugs, Indiscriminate Weapons, Intellectual Property Violation, Non-Violent Crime, Violent Crime, Sex Crimes"
+,Misinformation,"Competitor Endorsement, Unsupervised Contracts, Excessive Agency, Hallucination, Misinformation and Disinformation, Specialized Advice, Unsafe Practices, Imitation, Overreliance, Political Opinions, Religious Sensitivity"
+,Privacy,"Privacy Violation, PII in API/Database, Direct PII Exposure, PII in Session Data, PII via Social Engineering"
+,Security,"ASCII Smuggling, CyberSecEval, Harmbench, Debug Access, Divergent Repetition, DoNotAnswer, Malicious Code, Pliny, Prompt Extraction, Reasoning DoS, Tool Discovery"
+Strategy,"Basic, Prompt Injection, Iterative Jailbreak, Crescendo"
