@@ -1,0 +1,11 @@
+flowchart TB
+  Q["Q row block i"] --> F["Forward CTA i: scan allowed KV"]
+  K["K/V tiles"] --> F
+  F --> U["Private m, sum l, numerator U"]
+  U --> O["Write unique output rows O_i and L_i"]
+  O --> B["Backward: recompute P from Q, K and L"]
+  K --> B
+  B --> C["CTA j owns one KV column block"]
+  C --> DK["Private sum: dK_j and dV_j"]
+  C --> DQ["Shared dQ_i contributions"]
+  DQ --> A["Atomic add / global reduction"]

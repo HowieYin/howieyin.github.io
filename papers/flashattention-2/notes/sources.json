@@ -1,0 +1,557 @@
+{
+  "schema_version": "1.0",
+  "language": "zh-CN",
+  "topic": "FlashAttention-2 arXiv:2307.08691v1 独立扩展调研",
+  "research_cutoff": "2026-10-29",
+  "accessed_on": "2026-10-29",
+  "methodology": {
+    "source_priority": ["P0 原论文", "P0 作者博客", "P0 官方文档与源码"],
+    "parallel_fan_out": [
+      "online softmax / FA1 前史",
+      "2023 xFormers / Triton 同期与当前实现",
+      "FA3 / FA4 / 2026 后续与官方支持矩阵",
+      "prefill / decode / TTFT / TPOT 与性能边界"
+    ],
+    "execution": "独立子问题通过 multi_tool_use.parallel 并行取证；当前环境未提供额外子 agent 调用工具，未声称启动子 agent。",
+    "web_access_skill": "/Users/bytedance/.trae/skills/web-access/SKILL.md",
+    "web_access_preflight": "check-deps.mjs 通过：Node v25.2.1、Chrome CDP port 9222、proxy ready；已向用户展示风险须知。",
+    "github_access": "全部 GitHub 内容及元数据通过 gh api 获取；未运行 git。",
+    "independence_rule": "同一作者/实验体系的论文、博客、源码不是三份独立性能验证；性能结论标记 SINGLE-SOURCE，冲突标记 DISPUTED，未复现标记 INSUFFICIENT DATA。",
+    "local_gpu_benchmark_status": "not_run",
+    "intermediate_directory": "/private/tmp/fa2-research",
+    "scope_exclusions": ["页面工程", "Git 工作区操作", "统一 SOTA 排名", "自生成模拟 benchmark 数据"],
+    "time_rule": "无发布日期的动态文档仅记录获取日；源码记录固定 SHA 与提交日期；仓库 pushed_at 不等于主线提交日期。"
+  },
+  "sources": [
+    {
+      "id": 1,
+      "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+      "priority": "P0",
+      "source_family": "FA2 作者实验体系",
+      "url": "https://arxiv.org/pdf/2307.08691v1",
+      "related_urls": ["https://arxiv.org/abs/2307.08691v1", "https://arxiv.org/src/2307.08691v1"],
+      "publication_date": "2023-07-17",
+      "date_note": "arXiv v1 提交日；PDF 首页日期为 2023-07-18，二者分开记录。",
+      "version": "2307.08691v1",
+      "key_facts": [
+        "三项优化：减少非 matmul FLOPs、序列维 CTA 并行、减少 warp shared-memory communication。",
+        "v1 §3.2 将交换 forward 循环顺序和序列并行归功于 Phil Tillet 的 Triton 实现。",
+        "v1 §4.1：A100 80GB SXM4，N=512..16K、总 tokens=16K、hidden=2048、d=64/128、causal/noncausal。",
+        "作者实测 forward 相对同期 Triton 约1.3–1.5倍、backward约2倍，最高约230 TFLOPs/s。",
+        "8×A100 GPT-style 1.3B/2.7B、2K/8K，最高225 TFLOPs/s/GPU、72% MFU；端到端相对FA1最多约1.3倍。",
+        "公开 src/algo.tex Algorithm 1 的旧output重缩放写有逆号；按代数应乘exp(m_old-m_new)而非倒数。Algorithm 2 rowsum(dO⊙O)维度写R^d，按形状应R^N。未见作者勘误，未把此判成GPU源码bug。"
+      ],
+      "claim_status": "文献/TeX已核实；性能SINGLE-SOURCE；符号纠正为代数与维度分析",
+      "comparability": {
+        "hardware": "A100 80GB SXM4；另有无Hopper专有优化的H100结果",
+        "scope": ["attention forward", "attention backward", "GPT-style end-to-end training"],
+        "limitations": ["不是decode/服务指标", "causal内核FLOPs减半，但端到端MFU公式未减半", "2023版本不可代表2026实现"]
+      },
+      "acquisition": {
+        "status": "retrieved",
+        "methods": ["WebFetch PDF（返回内容截断）", "WebFetch arXiv元数据", "curl原始TeX tar + tar -xOf"],
+        "local_artifacts": ["/private/tmp/fa2-research/fa2-v1-source.tar"],
+        "read_sections": ["src/experiments.tex", "src/algo.tex", "PDF已返回部分"],
+        "accessed_on": "2026-10-29"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Online normalizer calculation for softmax",
+      "priority": "P0",
+      "source_family": "Milakov/Gimelshein 原论文",
+      "url": "https://arxiv.org/abs/1805.02867",
+      "related_urls": ["https://arxiv.org/pdf/1805.02867"],
+      "publication_date": "2018-05-08",
+      "last_revision_date": "2018-07-28",
+      "version": "v2",
+      "key_facts": [
+        "running maximum与normalizer在一遍更新；完整softmax内存访问由4次降到3次/元素。",
+        "Algorithm 3使用d_old*exp(m_old-m_new)，§3.1给可结合/交换的合并操作。",
+        "Tesla V100 PCIe 16GB、CUDA9.1、FP32；softmax最多约1.3倍，TopK融合最多约5倍，包含融合贡献。"
+      ],
+      "claim_status": "算法已读取；性能SINGLE-SOURCE",
+      "comparability": {"scope": "standalone softmax / softmax+TopK", "limitations": ["不能当成attention内核或FA2倍率", "V100、FP32、batch4000/10与FA2形状不同"]},
+      "acquisition": {"status": "retrieved", "methods": ["WebFetch arXiv元数据", "WebFetch PDF正文"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 3,
+      "title": "Self-attention Does Not Need O(n^2) Memory",
+      "priority": "P0",
+      "source_family": "Rabe/Staats 原论文",
+      "url": "https://arxiv.org/abs/2112.05682",
+      "publication_date": "2021-12-10",
+      "last_revision_date": "2022-10-10",
+      "version": "v3",
+      "key_facts": ["先于FA1的数值稳定、memory-efficient attention工作。", "摘要的常数/对数/平方根辅助内存口径不包括输入输出总显存；时间仍为二次。"],
+      "claim_status": "元数据与摘要已核实",
+      "comparability": {"scope": "attention辅助存储与算法", "limitations": ["本次未读取全文/复现", "不能与FA输入输出总显存作同口径排名"]},
+      "acquisition": {"status": "retrieved_metadata_abstract", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 4,
+      "title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+      "priority": "P0",
+      "source_family": "FA1 作者体系",
+      "url": "https://arxiv.org/abs/2205.14135",
+      "publication_date": "2022-05-27",
+      "last_revision_date": "2022-06-23",
+      "version": "v2",
+      "key_facts": ["IO-aware tiling减少HBM/SRAM读写，避免完整attention中间矩阵；稠密精确attention与block-sparse扩展需分开。", "IO最优性声明限定SRAM容量范围，不是所有资源和所有形状的性能最优。"],
+      "claim_status": "元数据/摘要已核实；细节由已读FA2背景与作者博客补充",
+      "comparability": {"scope": "IO-aware attention", "limitations": ["FA1模型结果不作为FA2当前支持矩阵", "不把block-sparse近似结果当稠密exact结果"]},
+      "acquisition": {"status": "retrieved_metadata_abstract", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 5,
+      "title": "Tri Dao: FlashAttention-2 作者博客",
+      "priority": "P0",
+      "source_family": "FA2 作者实验体系",
+      "url": "https://crfm.stanford.edu/2023/07/17/flash2.html",
+      "publication_date": "2023-07-17",
+      "key_facts": ["CUTLASS3.x/CuTe重写，sliced-K转sliced-Q，支持head dim256及MQA/GQA。", "Triton对照明确为2023-07-14开发版。", "博客PyTorch最高9倍与论文§4.1最高10倍的汇总不同。"],
+      "claim_status": "内容已读取；数值SINGLE-SOURCE，与论文不算独立复现",
+      "comparability": {"scope": "2023 attention / GPT training", "limitations": ["不能把旧倍率套用当前Triton/xFormers", "博客概括约2倍掩盖forward/backward差异"]},
+      "acquisition": {"status": "retrieved", "methods": ["WebSearch定位真实博客", "WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 6,
+      "title": "Triton 官方 Fused Attention 教程",
+      "priority": "P0",
+      "source_family": "Triton 官方实现",
+      "url": "https://triton-lang.org/main/getting-started/tutorials/06-fused-attention.html",
+      "publication_date": null,
+      "date_note": "main动态文档，获取日快照，未取得固定源码SHA。",
+      "key_facts": ["教程明确是FA2算法实现。", "包含tensor descriptors、Hopper/Blackwell分支与warp_specialize。", "alpha=exp2(m_i-m_ij)后乘旧acc，佐证正确重缩放方向。"],
+      "claim_status": "当前文档/实现片段已读取",
+      "comparability": {"scope": "教程内核而非完整库", "limitations": ["页面TFLOPS表硬件上下文不足，未引用为排名", "不是2023-07-14开发版"]},
+      "acquisition": {"status": "retrieved_partial_due_to_length", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 7,
+      "title": "xFormers 官方 README 与 FMHA dispatcher 固定快照",
+      "priority": "P0",
+      "source_family": "xFormers 官方实现",
+      "url": "https://github.com/facebookresearch/xformers/blob/4f701fad69a6308e6b9f0c3f7863c40c881b30a7/README.md",
+      "related_urls": [
+        "https://github.com/facebookresearch/xformers/blob/4f701fad69a6308e6b9f0c3f7863c40c881b30a7/xformers/ops/fmha/dispatch.py",
+        "https://facebookresearch.github.io/xformers/components/ops.html"
+      ],
+      "publication_date": null,
+      "snapshot_commit": "4f701fad69a6308e6b9f0c3f7863c40c881b30a7",
+      "snapshot_commit_date": "2026-10-09T16:40:21Z",
+      "key_facts": ["xFormers会分派外部库，不是单一CUTLASS内核。", "FMHA dispatch.py当前转导入mslk.attention.fmha.dispatch；未进一步核验mslk全部支持矩阵。"],
+      "claim_status": "固定源码已核实；不推断实际安装分派",
+      "comparability": {"scope": "工具库/分派入口", "limitations": ["2023CUTLASS基线不是当前全部xFormers", "未把README宣传最高倍率用于排名"]},
+      "acquisition": {
+        "status": "retrieved_via_fallback",
+        "methods": ["官方ops页面WebFetch仅返回目录壳", "gh api README及dispatch.py（main后固定SHA）"],
+        "local_artifacts": ["/private/tmp/fa2-research/xformers-readme-pinned.md", "/private/tmp/fa2-research/xformers-dispatch-pinned.py"],
+        "accessed_on": "2026-10-29"
+      }
+    },
+    {
+      "id": 8,
+      "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+      "priority": "P0",
+      "source_family": "FA3 作者实验体系",
+      "url": "https://arxiv.org/abs/2407.08608",
+      "publication_date": "2024-07-11",
+      "last_revision_date": "2024-07-12",
+      "version": "v2",
+      "key_facts": ["Hopper异步Tensor Cores/TMA、warp specialization、matmul-softmax重叠。", "H100 FP16最高740TFLOPs/s，FP8接近1.2PFLOPs/s；指定FP8 baseline误差降低2.6倍。"],
+      "claim_status": "元数据/摘要已核实；性能SINGLE-SOURCE",
+      "comparability": {"hardware": "H100", "scope": "kernel throughput / FP8局部误差", "limitations": ["不等于A100可达到", "不是相对FP16误差改善2.6倍", "非全模型无损保证"]},
+      "acquisition": {"status": "retrieved_metadata_abstract", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 9,
+      "title": "FA3 作者博客",
+      "priority": "P0",
+      "source_family": "FA3 作者实验体系",
+      "url": "https://tridao.me/blog/2024/flash3/",
+      "publication_date": null,
+      "date_note": "读取页面未显示明确发布日期，不由URL猜具体日期；对应原论文首次提交为2024-07-11。",
+      "key_facts": ["WGMMA、TMA、pingpong与intra-warpgroup overlap。", "2.6倍误差实验包含标准正态加0.1%大幅值outlier的合成输入；随机正交/Hadamard分散outlier。"],
+      "claim_status": "作者全文已读取；性能SINGLE-SOURCE",
+      "comparability": {"scope": "FP16/FP8 forward及数值实验", "limitations": ["局部合成实验非生产精度定理", "与FA3论文互相引用不构成独立复现"]},
+      "acquisition": {"status": "retrieved", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 10,
+      "title": "FlashAttention-4 原论文 v1",
+      "priority": "P0",
+      "source_family": "FA4 作者实验体系",
+      "url": "https://arxiv.org/abs/2603.05451",
+      "related_urls": ["https://arxiv.org/html/2603.05451v1", "https://arxiv.org/src/2603.05451v1"],
+      "publication_date": "2026-03-05",
+      "version": "v1",
+      "key_facts": [
+        "Blackwell TMEM、异步MMA、指数部分多项式模拟、conditional rescaling、2-CTA backward。",
+        "主文B200 BF16最高1613TFLOPs/s，cuDNN9.13最多1.3倍、Triton最多2.7倍。",
+        "图4说明新版cuDNN吸收FA4技巧后性能类似；附录列cuDNN9.19.1.2。",
+        "附录A.1写B100 180GB SXM6(1000W)、March2025，与主文B200及v1提交日冲突。",
+        "附录环境列CUDA13.1、FA2.8.3、Triton3.6、PyTorch2.10.0、CuTe-DSL4.4.1；未经本次复现。",
+        "三次指数模拟局部FP32最大相对误差约8.77e-5，BF16 rounding后近硬件误差；测试4M随机[0,1)输入。",
+        "§5.2 deterministic backward最高约指定1-CTA nondeterministic基线75%，与博客85–90%不能直接合并。"
+      ],
+      "claim_status": "原文已核实；性能SINGLE-SOURCE；环境及数字差异DISPUTED",
+      "comparability": {
+        "hardware": "正文B200；附录B100有冲突",
+        "dtype": "BF16",
+        "shapes": "N=1K..32K、总tokens32K、d64/128与特殊(192,128)",
+        "scope": "attention kernel forward/backward，不是TTFT/TPOT",
+        "limitations": ["不代表最新版cuDNN仍慢1.3倍", "非所有卡/形状", "原文环境矛盾限制精确复现"]
+      },
+      "acquisition": {
+        "status": "retrieved",
+        "methods": ["WebFetch元数据及部分HTML", "curl完整HTML + BeautifulSoup按section核验", "curl原始TeX tar + tar -xOf"],
+        "local_artifacts": ["/private/tmp/fa2-research/fa4.html", "/private/tmp/fa2-research/fa4-v1-source.tar"],
+        "read_sections": ["S3.SS1.SSS3", "S5", "A1", "src/experiments.tex", "src/appendix_experiments.tex"],
+        "browser_note": "新建arXiv后台tab后eval报告target消失；未把该失败当获取成功。静态HTML/TeX已取得。",
+        "accessed_on": "2026-10-29"
+      }
+    },
+    {
+      "id": 11,
+      "title": "FA4 作者博客",
+      "priority": "P0",
+      "source_family": "FA4 作者实验体系",
+      "url": "https://tridao.me/blog/2026/flash4/",
+      "publication_date": "2026-03-05",
+      "key_facts": ["作者正式发布FA4，不是无论文代号。", "博客最高1605TFLOPs/s，与论文1613不同；deterministic约85–90%与论文参照口径未对齐。", "forward SFU、backward shared-memory瓶颈，不能归结为只加速GEMM。"],
+      "claim_status": "已读取部分正文；性能SINGLE-SOURCE；与论文数字冲突DISPUTED",
+      "comparability": {"hardware": "B200", "scope": "BF16 attention kernel", "limitations": ["最多1.3倍限定cuDNN9.13", "与论文不算独立复现"]},
+      "acquisition": {"status": "retrieved_partial_due_to_length", "methods": ["WebSearch", "WebFetch"], "browser_note": "新tab的后续eval target消失，未依赖其内容。", "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 12,
+      "title": "Dao-AILab 官方主线 README",
+      "priority": "P0",
+      "source_family": "Dao-AILab 实现维护",
+      "url": "https://github.com/Dao-AILab/flash-attention/blob/98c1cee0ed59307833841cdbf567fe336ceec13a/README.md",
+      "related_urls": ["https://github.com/Dao-AILab/flash-attention", "https://github.com/Dao-AILab/flash-attention/commit/98c1cee0ed59307833841cdbf567fe336ceec13a"],
+      "publication_date": null,
+      "snapshot_commit": "98c1cee0ed59307833841cdbf567fe336ceec13a",
+      "snapshot_commit_date": "2026-10-24T15:10:01Z",
+      "repository_pushed_at": "2026-10-29T03:51:33Z",
+      "key_facts": [
+        "FA2 CUDA声明Ampere/Ada/Hopper、CUDA>=12、FP16/BF16、head dim<=256；消费者hd256 backward无dropout支持自2.5.5。",
+        "ROCm CK与AMD Triton/aiter支持矩阵各异，不能泛化CUDA精度到AMD或反向。",
+        "FA3 hopper beta：H100/H800、CUDA>=12.3推荐12.8，FP16/BF16前后向、FP8前向。",
+        "Linux为正式requirements；Windows仍需更多测试。",
+        "v2.1非方阵causal改右下对齐；v2.2小Q splitKV推理；v2.5 paged cache。",
+        "测试为容忍误差，README最大误差不超过PyTorch baseline误差两倍，非bitwise同一。"
+      ],
+      "claim_status": "固定文档契约已核实；硬件实测INSUFFICIENT DATA",
+      "comparability": {"scope": "main支持声明，不等于所有旧release", "limitations": ["文档范围与实际编译/分派需另验", "不证明Mac/Metal/CPU优化支持"]},
+      "acquisition": {
+        "status": "retrieved",
+        "methods": ["gh api repo元数据、commits/main、readme及固定SHA内容"],
+        "local_artifacts": ["/private/tmp/fa2-research/official-readme-pinned.md"],
+        "accessed_on": "2026-10-29"
+      }
+    },
+    {
+      "id": 13,
+      "title": "FA4 CuTe README / pyproject / interface 固定快照",
+      "priority": "P0",
+      "source_family": "Dao-AILab 实现维护",
+      "url": "https://github.com/Dao-AILab/flash-attention/tree/98c1cee0ed59307833841cdbf567fe336ceec13a/flash_attn/cute",
+      "related_urls": [
+        "https://github.com/Dao-AILab/flash-attention/blob/98c1cee0ed59307833841cdbf567fe336ceec13a/flash_attn/cute/README.md",
+        "https://github.com/Dao-AILab/flash-attention/blob/98c1cee0ed59307833841cdbf567fe336ceec13a/flash_attn/cute/pyproject.toml",
+        "https://github.com/Dao-AILab/flash-attention/blob/98c1cee0ed59307833841cdbf567fe336ceec13a/flash_attn/cute/interface.py"
+      ],
+      "publication_date": null,
+      "snapshot_commit": "98c1cee0ed59307833841cdbf567fe336ceec13a",
+      "snapshot_commit_date": "2026-10-24T15:10:01Z",
+      "key_facts": [
+        "包名flash-attn-4，Python>=3.10、nvidia-cutlass-dsl>=4.6.2，CUDA13提供cu13 extra。",
+        "interface.py L801接受FP16/BF16/FP8E4M3FN/E5M2；L859-862 FP8 requires_grad明确拒绝，输出BF16；L925 FP8仅限CC10.x。",
+        "L844附近接受CC8/9/10/11/12，有不同路径；不能据此宣称所有GPU都复现过。",
+        "SM90有对齐8–256范围；SM100/110通用8–128与特殊形状，非任意<=256统一支持。",
+        "该公共入口没有FP4输入契约。"
+      ],
+      "claim_status": "固定源码断言已核实；非安装/GPU验证",
+      "comparability": {"scope": "官方公共接口，与Meta MXFP8接口分开", "limitations": ["FP8 forward-only并不等于MXFP8训练接口", "单一路径不能代表所有架构/功能组合"]},
+      "acquisition": {
+        "status": "retrieved",
+        "methods": ["gh api固定SHA目录与原始文件"],
+        "local_artifacts": ["/private/tmp/fa2-research/cute-readme.md", "/private/tmp/fa2-research/cute-pyproject.toml", "/private/tmp/fa2-research/cute-interface.py"],
+        "accessed_on": "2026-10-29"
+      }
+    },
+    {
+      "id": 14,
+      "title": "FA2 v2.8.3.post2 maintenance release",
+      "priority": "P0",
+      "source_family": "Dao-AILab release",
+      "url": "https://github.com/Dao-AILab/flash-attention/releases/tag/v2.8.3.post2",
+      "publication_date": "2026-10-13",
+      "published_at": "2026-10-13T05:41:17Z",
+      "version": "v2.8.3.post2",
+      "key_facts": ["稳定latest release，维护发布无kernel feature changes。", "修复FA2 backward dq_accum int32 offset溢出：batch*round128(seqlen_q)*nheads*headdim超过2^31可能非法访问/NaN gradient。", "另有安全维护回移与cu13 wheel请求更新；本调研不展开安全审计。"],
+      "claim_status": "release记录已核实",
+      "comparability": {"scope": "版本/正确性", "limitations": ["不是新算法性能证据", "latest排除预发布FA4，不能以latest否定FA4"]},
+      "acquisition": {"status": "retrieved", "methods": ["gh api releases/latest、releases/tags"], "local_artifacts": ["/private/tmp/fa2-research/fa2-post2-release.json"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 15,
+      "title": "FA4 fa4-v4.0.0.beta37 prerelease",
+      "priority": "P0",
+      "source_family": "Dao-AILab release",
+      "url": "https://github.com/Dao-AILab/flash-attention/releases/tag/fa4-v4.0.0.beta37",
+      "publication_date": "2026-10-28",
+      "published_at": "2026-10-28T08:14:55Z",
+      "version": "fa4-v4.0.0.beta37",
+      "prerelease": true,
+      "key_facts": ["截至获取时列表最新FA4预发布。", "含unused KV NaN contamination、ragged K/V TMA bounds、2CTA CLC coordinates、hd256 GQA backward等修复。"],
+      "claim_status": "release记录已核实；修复效果未独立复现",
+      "comparability": {"scope": "版本与边界修复", "limitations": ["不是稳定发布承诺", "不保证所有边界已消除"]},
+      "acquisition": {"status": "retrieved", "methods": ["gh api releases列表及tags"], "local_artifacts": ["/private/tmp/fa2-research/fa4-beta37-release.json"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 16,
+      "title": "Flash-Decoding for long-context inference",
+      "priority": "P0",
+      "source_family": "Dao / xFormers 合作作者团队",
+      "url": "https://crfm.stanford.edu/2023/10/12/flashdecoding.html",
+      "publication_date": "2023-10-12",
+      "key_facts": ["decode小Q下沿KV序列split并行、LSE合并。", "FA package v2.2、xFormers v0.0.22集成。", "原文batch1低GPU利用率示意不能忽略heads维后泛化任意MHA。"],
+      "claim_status": "作者全文已读取；倍率SINGLE-SOURCE且报告不作为当前服务排名",
+      "comparability": {"hardware": "A100 / CodeLlama34B特定设置", "scope": "decode，与训练forward不同", "limitations": ["splitKV有最终reduction额外开销", "2023版本不代表当前decode基线"]},
+      "acquisition": {"status": "retrieved", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 17,
+      "title": "PyTorch scaled_dot_product_attention 官方 API",
+      "priority": "P0",
+      "source_family": "PyTorch 官方接口",
+      "url": "https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html",
+      "publication_date": null,
+      "date_note": "stable动态文档，未固定发布版本。",
+      "key_facts": ["自动选择后端且受输入限制，sdpa_kernel可控制；不能以调用API证明执行某FA版本。", "非方阵is_causal为upper-left，与FA2v2.1+bottom-right不同。", "fused数值结果可与math后端不同，math可支持float64；评估必须显式dropout_p=0。"],
+      "claim_status": "当前官方接口文档已核实",
+      "comparability": {"scope": "API/分派/精度语义", "limitations": ["页面列举与所有底层实现列表可能有时间差，未当完整支持矩阵", "无GPU实际分派验证"]},
+      "acquisition": {"status": "retrieved", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 18,
+      "title": "TensorRT-LLM run benchmarking with trtllm-serve",
+      "priority": "P0",
+      "source_family": "NVIDIA 服务指标官方定义",
+      "url": "https://nvidia.github.io/TensorRT-LLM/latest/commands/trtllm-serve/run-benchmark-with-trtllm-serve.html",
+      "publication_date": null,
+      "date_note": "latest动态文档。",
+      "key_facts": ["TTFT请求到首token；TPOT/ITL排除TTFT。", "单请求TPOT=(E2E-TTFT)/(output_tokens-1)，跨请求meanTPOT按请求等权，ITL按间隔加权。", "服务参数/示例不保证最优，不能把样例性能用作FA2结果。"],
+      "claim_status": "指标定义已读取",
+      "comparability": {"scope": "server metrics", "limitations": ["计时边界需明确客户端/服务端", "n_out=1的TPOT未定义", "kernel TFLOPS不可替代TTFT/TPOT"]},
+      "acquisition": {"status": "retrieved_partial_due_to_length", "methods": ["WebSearch", "WebFetch（关键指标已完整返回）"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 19,
+      "title": "Co-Designing AI Model Attention for Fast, Interactive Long-Context Inference",
+      "priority": "P0",
+      "source_family": "NVIDIA attention co-design",
+      "url": "https://developer.nvidia.com/blog/co-designing-ai-model-attention-for-fast-interactive-long-context-inference/",
+      "publication_date": "2026-07-31",
+      "key_facts": ["大Q prefill常compute-bound，常规decode小Q常KV/HBM-bound。", "prefix-cache下短新prompt prefill可像decode；speculative验证增大有效Q可提高算术强度。", "GQA group size、head dim、KV长度与并行方式改变roofline。"],
+      "claim_status": "已读取作者正文，不依赖页面AI-generated summary",
+      "comparability": {"scope": "FP8 attention compute/KV分析及厂商实测", "limitations": ["shape/hardware特定，不写prefill/decode绝对瓶颈", "未把head dim128/256经验推广所有GPU"]},
+      "acquisition": {"status": "retrieved_partial_due_to_length", "methods": ["WebSearch", "WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 20,
+      "title": "Accelerating Transformers with NVIDIA cuDNN 9",
+      "priority": "P0",
+      "source_family": "NVIDIA cuDNN 团队",
+      "url": "https://developer.nvidia.com/blog/accelerating-transformers-with-nvidia-cudnn-9/",
+      "publication_date": "2024-05-24",
+      "key_facts": ["cuDNN SDPA也使用flash attention及其他融合/heuristic，并非与FA算法互斥。", "博客GPU-only计时不含host overhead；2024提及PyTorch集成进展不能当2026状态。"],
+      "claim_status": "作者正文已读取；厂商性能SINGLE-SOURCE",
+      "comparability": {"hardware": "H200 / 8GPU LoRA等指定设置", "scope": "cuDNN9历史与融合边界", "limitations": ["不用于2026统一排名", "不沿用2024 PyTorch集成未完成声明"]},
+      "acquisition": {"status": "retrieved", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 21,
+      "title": "Low Precision Flash Attention 4: End-to-End Block-Scaled Attention for Blackwell",
+      "priority": "P0",
+      "source_family": "Meta LP-FA4 作者实验体系 / PyTorch官方博客",
+      "url": "https://pytorch.org/blog/low-precision-flash-attention-4-end-to-end-block-scaled-attention-for-blackwell/",
+      "publication_date": "2026-09-16",
+      "last_updated_date": "2026-09-23",
+      "key_facts": [
+        "Meta FA4 fork扩展MXFP8前后向、融合producer与jagged模块；不是Dao主线公共FP8反向。",
+        "GB300 LLM形状：MX8 forward2.85PF/s、cuDNN9.24MX8为2.82，内部jagged形状2.54对2.64，cuDNN更快。",
+        "cuDNN9.24/Frontend1.26 MX8 backward nonuniform E8M0 V scales下dQ/dK不匹配，其1.76PF/s只能performance-only。",
+        "量化dK/dV与cuDNN BF16 gradient返回契约不同。",
+        "PMA模块GB300 B768/Q512/D384/H3，4K KV约1.00倍、8K1.18倍、16K1.30倍；200warmup/1000iterations median compiled fwd+bwd。",
+        "OSS FA4对照为2026-08-02快照，不是10月最新release；shared-Q对照使用最近可支持independent-Q且matching attention arithmetic。"
+      ],
+      "claim_status": "原文与DOM/HTML复核；性能和accuracy caveat均SINGLE-SOURCE，未独立复现",
+      "comparability": {
+        "hardware": "Meta internal Recsys GB300；融合辅助kernel另有B200",
+        "scope": ["kernel forward/backward", "compiled PMA module"],
+        "limitations": ["不合格精度结果排除性能排名", "返回gradient dtype不同", "kernel与module计时不能混合", "生产形状合成数值run不等于真实业务普适保证"]
+      },
+      "acquisition": {
+        "status": "retrieved",
+        "methods": ["WebSearch", "WebFetch部分正文", "web-access CDP自建后台tab DOM提取§3–4", "curl完整HTML + BeautifulSoup复核"],
+        "local_artifacts": ["/private/tmp/fa2-research/fa4-mxfp8.html"],
+        "accessed_on": "2026-10-29"
+      }
+    },
+    {
+      "id": 22,
+      "title": "Meta ads_model_kernel_library/lp_fa4 README 固定快照",
+      "priority": "P0",
+      "source_family": "Meta LP-FA4 作者实验体系 / 实现",
+      "url": "https://github.com/facebookresearch/ads_model_kernel_library/blob/2e8689e43325fe215f79802467c0d8a0e592bf88/lp_fa4/README.md",
+      "related_urls": ["https://github.com/facebookresearch/ads_model_kernel_library/tree/main/lp_fa4"],
+      "publication_date": null,
+      "snapshot_commit": "2e8689e43325fe215f79802467c0d8a0e592bf88",
+      "snapshot_commit_date": "2026-10-29T01:36:17Z",
+      "key_facts": [
+        "代码公开可读取，但README自称unpublished release candidate，不把公开代码说成稳定PyPI发布。",
+        "初始MXFP8 API noncausal、head dim128、MHA，dense/packed varlen/shared-Q。",
+        "README测试依赖Linux/Python3.12/SM10x/CUDA13/PyTorch2.13.0/DSL4.6.1/Quack0.6.2；未独立安装验证。",
+        "量化在kernel timing前一次完成；gradient可输出E4M3 payload + E8M0 scales，dQ BF16；可兼容返回三BF16梯度。"
+      ],
+      "claim_status": "当前README契约已核实；可安装性和GPU实测INSUFFICIENT DATA",
+      "comparability": {"scope": "显式MXFP8公共API及kernel benchmark", "limitations": ["比博客内核/模块功能集合窄", "不是官方FA4全精度矩阵", "预量化计时不可直接当producer-inclusive性能"]},
+      "acquisition": {"status": "retrieved", "methods": ["gh api目录、README、path最新commit与固定SHA"], "local_artifacts": ["/private/tmp/fa2-research/meta-lp-fa4-readme-pinned.md"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 23,
+      "title": "Hardware-Aware FP4 FlashAttention-4",
+      "priority": "P0",
+      "source_family": "Robert Hu 独立研究",
+      "url": "https://arxiv.org/abs/2609.04105",
+      "related_urls": ["https://arxiv.org/html/2609.04105v1"],
+      "publication_date": "2026-09-03",
+      "version": "v1",
+      "key_facts": ["独立FP4 FA4扩展，noncausal Direct-P与causal training分开。", "GB200有利shape forward最多2.13倍BF16；单GPU8B update最多1.14倍；均作者实测。", "全部所测试MXFP4 P/V distributed training trajectories发散，保留FP8 P/V；full FP4仅指attention四operands。"],
+      "claim_status": "论文元数据、摘要及部分正文已核实；实验SINGLE-SOURCE",
+      "comparability": {"scope": "quantized inference / training routes", "limitations": ["不是官方Dao公共入口支持", "非纯FP4全Transformer", "不能以好形状倍率忽略训练发散", "未核验其链接代码或复现实验"]},
+      "acquisition": {"status": "retrieved_metadata_abstract_and_partial_html", "methods": ["WebSearch", "WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 24,
+      "title": "FlashInfer: Efficient and Customizable Attention Engine for LLM Inference Serving",
+      "priority": "P0",
+      "source_family": "FlashInfer 作者体系",
+      "url": "https://arxiv.org/abs/2501.01005",
+      "publication_date": "2025-01-02",
+      "last_revision_date": "2025-04-21",
+      "version": "v2",
+      "key_facts": ["MLSys2025工作，关注异质KV存储、load-balanced scheduling、JIT与CUDA Graph兼容。", "用于说明服务优化不止训练forward；未把其摘要倍率列入FA2/FA4统一性能排名。"],
+      "claim_status": "摘要与元数据已核实",
+      "comparability": {"scope": "serving engine/kernel生态", "limitations": ["不是同shape同dtype同version的FA2统一对照", "本次未读取全文或当前实现支持矩阵"]},
+      "acquisition": {"status": "retrieved_metadata_abstract", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 25,
+      "title": "vLLM bench serve 官方 CLI",
+      "priority": "P0",
+      "source_family": "vLLM 服务指标官方文档",
+      "url": "https://docs.vllm.ai/en/latest/cli/bench/serve/",
+      "publication_date": null,
+      "date_note": "latest动态文档。",
+      "key_facts": ["TTFT/TPOT/ITL百分位、请求率/并发、goodput SLO参数及记录metadata。", "控制指标与工作负载不是FA内核提升服务指标的实测证明。"],
+      "claim_status": "相关参数段落已核实",
+      "comparability": {"scope": "server benchmark配置", "limitations": ["无服务实测", "客户端queue与模型kernel不同计时边界"]},
+      "acquisition": {"status": "retrieved_partial_due_to_length", "methods": ["WebFetch"], "accessed_on": "2026-10-29"}
+    },
+    {
+      "id": 26,
+      "title": "ICLR 2024 官方 proceedings：FlashAttention-2",
+      "priority": "P0",
+      "source_family": "ICLR 官方会议收录记录",
+      "url": "https://proceedings.iclr.cc/paper_files/paper/2024/hash/98ed250b203d1ac6b24bbcf263e3d4a7-Abstract-Conference.html",
+      "related_urls": ["https://proceedings.iclr.cc/paper_files/paper/2024/file/98ed250b203d1ac6b24bbcf263e3d4a7-Paper-Conference.pdf"],
+      "publication_date": null,
+      "publication_year": 2024,
+      "date_note": "官方页确认ICLR2024 Conference；未显示精确发布日期，不从其他字段推断。",
+      "key_facts": ["FA2、作者Tri Dao，正式收录于ICLR2024。", "会议年份与arXiv v1提交日期2023-07-17不同。"],
+      "claim_status": "正式收录已核实；poster/oral类别未核验",
+      "comparability": {"scope": "会议收录与版本边界", "limitations": ["未读取会议PDF或比较其与arXiv v1文本差异", "报告符号核对及2023benchmark限定v1，不声称会议版存在相同笔误"]},
+      "acquisition": {"status": "retrieved_official_record_and_abstract", "methods": ["WebSearch定位", "WebFetch官方proceedings"], "accessed_on": "2026-10-29"}
+    }
+  ],
+  "failed_or_incomplete_acquisitions": [
+    {
+      "url": "https://tridao.me/blog/2023/flash2/",
+      "accessed_on": "2026-10-29",
+      "method": "WebFetch",
+      "status": "not_found_message",
+      "details": "返回Nothing exists here与重定向提示，不作为FA2博客证据。",
+      "fallback": "https://crfm.stanford.edu/2023/07/17/flash2.html"
+    },
+    {
+      "url": "https://r.jina.ai/arxiv.org/pdf/2307.08691v1",
+      "accessed_on": "2026-10-29",
+      "method": "curl",
+      "status": "network_timeout",
+      "details": "curl exit28，约75秒无法连接r.jina.ai:443；未重复同参数重试。",
+      "fallback": "WebFetch原始PDF + curl https://arxiv.org/src/2307.08691v1"
+    },
+    {
+      "url": "https://facebookresearch.github.io/xformers/components/ops.html",
+      "accessed_on": "2026-10-29",
+      "method": "WebFetch",
+      "status": "content_shell_only",
+      "details": "只返回小节标题/目录，不能证明具体ops支持。",
+      "fallback": "gh api固定README与dispatcher"
+    },
+    {
+      "urls": ["https://arxiv.org/html/2603.05451v1", "https://tridao.me/blog/2026/flash4/"],
+      "accessed_on": "2026-10-29",
+      "method": "web-access CDP new + eval",
+      "status": "target_disappeared_before_eval",
+      "details": "两个自建后台tab后续eval均报No target with given id found；未依赖失败eval为事实。仅向自身创建target发close，未操作用户原有tab。",
+      "fallback": "arXiv已取得完整静态HTML与TeX；作者博客已通过WebFetch取得所引用段落。"
+    }
+  ],
+  "recency_checks": [
+    {
+      "date": "2026-10-29",
+      "method": "WebSearch",
+      "query": "FlashAttention-4 2026 Tri Dao official Blackwell",
+      "outcome": "定位作者2026-03-05博客与arXiv2603.05451；均定向原文核验。"
+    },
+    {
+      "date": "2026-10-29",
+      "method": "WebSearch",
+      "query": "FlashAttention-4 2026 FP4 BF16 FP16 supported official flash-attn-4",
+      "outcome": "定位PyTorch2026-09 MXFP8博客、arXiv2609.04105 FP4论文；原文和Meta代码分别核验，未采纳第三方云商概括。"
+    },
+    {
+      "date": "2026-10-29",
+      "method": "WebSearch",
+      "queries": ["site:tridao.me 2026 FlashAttention 4 October latest FlashAttention 5", "\"FlashAttention-5\" 2026"],
+      "outcome": "有限检索未发现可核实官方FA5论文/发布；不作为不存在的证明。",
+      "status": "INSUFFICIENT DATA"
+    },
+    {
+      "date": "2026-10-29",
+      "method": "gh api releases/latest + releases?per_page=6 + releases/tags",
+      "repository_url": "https://github.com/Dao-AILab/flash-attention",
+      "outcome": "稳定latest为v2.8.3.post2；预发布列表最新为fa4-v4.0.0.beta37，均在截止日前。",
+      "status": "verified_release_metadata"
+    }
+  ],
+  "unresolved_conflicts": [
+    {"source_ids": [10, 11], "topic": "FA4 peak throughput", "values": ["论文1613 TFLOPs/s", "博客1605 TFLOPs/s"], "resolution": "保留出处，不擅自统一。"},
+    {"source_ids": [10], "topic": "FA4 benchmark环境", "values": ["正文B200", "附录B100 180GB SXM6(1000W)", "附录March2025与v1日期2026-03-05不一致"], "resolution": "疑似笔误但无作者勘误；环境精确复现受限。"},
+    {"source_ids": [10, 11], "topic": "deterministic backward吞吐比例", "values": ["论文指定1-CTA非确定性参照约75%", "博客非确定性吞吐约85–90%"], "resolution": "参照设置未对齐，不合并。"}
+  ],
+  "limitations": [
+    "没有本地GPU benchmark或实际安装验证。",
+    "作者/厂商性能没有三方独立复现；已明确SINGLE-SOURCE。",
+    "部分论文只读摘要或HTML已返回部分；每条来源状态已标明，不声称全部全文精读。",
+    "动态文档可能继续变化；GitHub关键实现已固定SHA，Triton/PyTorch/vLLM动态文档未固定源码SHA。",
+    "未覆盖所有2026年attention文献，未以搜索未发现证明官方FA5不存在。",
+    "不提供页面，不操作git。"
+  ]
+}
