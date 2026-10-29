@@ -1,0 +1,10 @@
+flowchart TD
+  I["Image · B × H × W × C"] --> P["Shared patch projection<br/>B × N × D"]
+  P --> C["Prepend CLS and add position<br/>B × (N+1) × D"]
+  C --> A["LN → global MSA → residual"]
+  A --> F["LN → GELU MLP → residual"]
+  F --> L["Repeat L blocks · final LN"]
+  L --> R["CLS · B × D"]
+  L --> V["Patch features · B × N × D"]
+  R --> H["Classification head"]
+  V --> X["External VLM projector<br/>not part of original ViT"]

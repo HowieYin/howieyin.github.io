@@ -1,0 +1,10 @@
+flowchart TD
+  T["2017 · Transformer<br/>standard token interface"] --> B["2020 · ViT<br/>patch sequence + large-data training"]
+  B --> D["2020–2021 · DeiT<br/>data-efficient training"]
+  B --> S["2021 · Swin<br/>hierarchical shifted windows"]
+  B --> C["2021 · CLIP<br/>image-text alignment"]
+  B --> M["2021–2022 · MAE<br/>visible-patch encoding"]
+  C --> G["2025 · SigLIP 2<br/>multilingual and dense features"]
+  M --> F["2023–2025 · DINOv2 / v3<br/>curated SSL and dense features"]
+  G --> E["2026 · EUPE<br/>multi-expert proxy distillation"]
+  F --> E

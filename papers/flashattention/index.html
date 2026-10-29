@@ -3853,6 +3853,7 @@ C --&gt; L[2026 Low precision FA4]</code></pre></details></figure>
 <h3 id="section-79">2. 与 RoPE / VRoPE 的关系：语义与执行正交</h3>
 <p>RoPE 在 Attention 前旋转 Q/K；VRoPE 决定多模态坐标如何映射到这些旋转。FlashAttention 执行旋转后的 QKᵀ 与 softmax。它不决定位置坐标，也不修复多模态位置设计。可片上融合的位置处理可能影响额外 IO，但必须保持同一位置语义。</p>
 <p>相关阅读：<a href="../roformer/">RoFormer：旋转与相对内积</a>；<a href="../vrope/">VRoPE：视频位置与坐标分配</a>。它们回答“score 应表达什么”，本篇回答“同一 score 如何高效计算”。</p>
+<p>相关阅读：<a href="../vit/">Vision Transformer：视觉 token 与分辨率成本</a>。ViT 的全局双向 attention 可应用 exact attention 的 IO 优化；高分辨率扩大 pair 数，同时 patch、线性层和布局成本仍需单独统计。</p>
 <h3 id="section-80">3. 正确性检查要穿过 forward / backward 的调用链</h3>
 <p>最容易产生明显错误的位置是 mask 的 <code>−∞</code> 语义、空行、scale 漏乘、O 合并漏掉旧 ℓ、dropout RNG replay，以及 tensor layout/stride 误读。混合精度下还需区分指数/归约累积 dtype、数值容差与随机误差。减少保存激活不是忽略中间状态，而是找到能够重建它的最小状态。</p>
 <p>生产验证应比较 output 与梯度，并区分 causal、padding、全空行、非整 tile 长度、不同 d、dropout、GQA/cross-attention。小规模 dense reference 是正确性工具，真实 kernel benchmark 是性能工具，两者缺一不可。</p>
