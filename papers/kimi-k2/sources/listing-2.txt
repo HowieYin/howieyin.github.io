@@ -1,0 +1,14 @@
+namespace functions { 
+// Get weather for a location and date
+type get_weather = (_: { 
+  // City and country e.g. Beijing, China 
+  location: string, 
+  // Date to query, format in `%Y-%m-%d' 
+  date?: string 
+}) => any; 
+// Simple calculator 
+type Calculator = (_: { 
+  // Arithmetic expression in javascript 
+  expr?: string 
+}) => any; 
+}

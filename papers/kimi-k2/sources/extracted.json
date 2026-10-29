@@ -1,0 +1,1271 @@
+{
+  "figures": {
+    "1": {
+      "files": [
+        "k2-bench-bar-chart.pdf"
+      ],
+      "caption": "Kimi K2 main results. Original footnote: All models evaluated above are non-thinking models. For SWE-bench Multilingual, we evaluated only Claude 4 Sonnet because the cost of Claude 4 Opus was prohibitive.",
+      "panels": [],
+      "assets": [
+        "assets/figures/k2-bench-bar-chart.png"
+      ]
+    },
+    "2": {
+      "files": [
+        "muon-MN-max-logits.pdf",
+        "muon-K2-max-logits.pdf"
+      ],
+      "caption": "Left: During a mid-scale training run, attention logits rapidly exceed 1000, which could lead to potential numerical instabilities and even training divergence.  Right: Maximum logits for Kimi K2 with MuonClip and τ = 100 over the entire training run. \n  The max logits rapidly increase to the capped value of 100, and only decay to a stable range after approximately 30% of the training steps, demonstrating the effective regulation effect of QK-Clip.",
+      "panels": [],
+      "assets": [
+        "assets/figures/muon-MN-max-logits.png",
+        "assets/figures/muon-K2-max-logits.png"
+      ]
+    },
+    "3": {
+      "files": [
+        "loss_vs_tokens_white.pdf"
+      ],
+      "caption": "Per-step training loss curve of Kimi K2, <strong>without smoothing or sub-sampling</strong>. It shows no spikes throughout the entire training process. Note that we omit the very beginning of training for clarity.",
+      "panels": [],
+      "assets": [
+        "assets/figures/loss_vs_tokens_white.png"
+      ]
+    },
+    "4": {
+      "files": [
+        "synthetic_data_rephrase.pdf"
+      ],
+      "caption": "Auto-regressive chunk-wise rephrasing pipeline for long input excerpts. The input is split into smaller chunks with preserved context, rewritten sequentially, and then concatenated into a full rewritten passage.",
+      "panels": [],
+      "assets": [
+        "assets/figures/synthetic_data_rephrase.png"
+      ]
+    },
+    "5": {
+      "files": [
+        "scaling_law_validation_loss.pdf"
+      ],
+      "caption": "Sparsity Scaling Law. Increasing sparsity leads to improved model performance. We fixed the number of activated experts to 8 and the number of shared experts to 1, and varied the total number of experts, resulting in models with different sparsity levels.",
+      "panels": [],
+      "assets": [
+        "assets/figures/scaling_law_validation_loss.png"
+      ]
+    },
+    "6": {
+      "files": [
+        "doubleQheads.pdf"
+      ],
+      "caption": "Scaling curves for models with number of attention heads equals to number of layers and their counterparts with doubled attention heads. Doubling the number of attention heads leads to a reduction in validation loss of approximately 0.5% to 1.2%.",
+      "panels": [],
+      "assets": [
+        "assets/figures/doubleQheads.png"
+      ]
+    },
+    "7": {
+      "files": [
+        "3x_stream.pdf"
+      ],
+      "caption": "Computation, communication and offloading overlapped in different PP phases.",
+      "panels": [],
+      "assets": [
+        "assets/figures/3x_stream.png"
+      ]
+    },
+    "8": {
+      "files": [
+        "tool_repo_synthesis.pdf",
+        "tool_traj_synthesis.pdf"
+      ],
+      "caption": "Data synthesis pipeline for tool use. (a) Tool specs are from both real-world tools and LLMs; agents and tasks are the generated from the tool repo. (b) Multi-agent pipeline to generate and filter trajectories with tool calling.",
+      "panels": [
+        "Synthesizing tool specs, agents and tasks",
+        "Generating agent trajectories"
+      ],
+      "assets": [
+        "assets/figures/tool_repo_synthesis.png",
+        "assets/figures/tool_traj_synthesis.png"
+      ]
+    },
+    "9": {
+      "files": [
+        "tsne_tool_mcp.pdf",
+        "tsne_tool_synthetic.pdf"
+      ],
+      "caption": "t-SNE visualizations of tool embeddings. (a) Real-world MCP tools exhibit natural clustering based on their original source categories. (b) Synthetic tools are organized into pre-defined domain categories, providing systematic coverage of the tool space. Together, they ensure comprehensive representation across different tool functionalities.",
+      "panels": [
+        "t-SNE visualization of real MCP tools, colored by their original source categories",
+        "t-SNE visualization of synthetic tools, colored by pre-defined domain categories"
+      ],
+      "assets": [
+        "assets/figures/tsne_tool_mcp.png",
+        "assets/figures/tsne_tool_synthetic.png"
+      ]
+    },
+    "10": {
+      "files": [
+        "rl-ipc.drawio.pdf"
+      ],
+      "caption": "Parameter update utilizing a checkpoint engine",
+      "panels": [],
+      "assets": [
+        "assets/figures/rl-ipc.drawio.png"
+      ]
+    },
+    "11": {
+      "files": [
+        "posttrain_inhouse_eval.pdf"
+      ],
+      "caption": "Chinese in-house benchmark evaluation.",
+      "panels": [],
+      "assets": [
+        "assets/figures/posttrain_inhouse_eval.png"
+      ]
+    },
+    "12": {
+      "files": [
+        "muon-qkclip_vs_noclip.pdf"
+      ],
+      "caption": "Applying QK-Clip to Muon in a small-scale setting with an aggresive threshold (τ = 30) has negligible impact on loss, indicating that it is a safe and effective method for constraining attention logits.",
+      "panels": [],
+      "assets": [
+        "assets/figures/muon-qkclip_vs_noclip.png"
+      ]
+    },
+    "13": {
+      "files": [
+        "new-rl-reload-3-stage-pipeline.pdf",
+        "new-rl-reload-pcie-bound-3-stage-pipeline.pdf",
+        "new-rl-reload-2-stage-pipeline.pdf"
+      ],
+      "caption": "pipeline for RL weight update",
+      "panels": [
+        "Theoretical perfect three-stage pipeline weight update",
+        "A PCIE bounded three-stage pipeline",
+        "Fixed two-stage pipeline"
+      ],
+      "assets": [
+        "assets/figures/new-rl-reload-3-stage-pipeline.png",
+        "assets/figures/new-rl-reload-pcie-bound-3-stage-pipeline.png",
+        "assets/figures/new-rl-reload-2-stage-pipeline.png"
+      ]
+    }
+  },
+  "tables": {
+    "1": {
+      "caption": "SimpleQA Accuracy under three rephrasing-epoch configurations",
+      "html": "<table><tr><th># Rephrasings</th><th># Epochs</th><th>SimpleQA Accuracy</th></tr><tr><td>0 (raw wiki-text)</td><td>10</td><td>23.76</td></tr><tr><td>1</td><td>10</td><td>27.39</td></tr><tr><td>10</td><td>1</td><td>28.94</td></tr></table>",
+      "row_count": 4,
+      "rows": [
+        [
+          "# Rephrasings",
+          "# Epochs",
+          "SimpleQA Accuracy"
+        ],
+        [
+          "0 (raw wiki-text)",
+          "10",
+          "23.76"
+        ],
+        [
+          "1",
+          "10",
+          "27.39"
+        ],
+        [
+          "10",
+          "1",
+          "28.94"
+        ]
+      ]
+    },
+    "2": {
+      "caption": "Architectural comparison between Kimi K2 and DeepSeek-V3",
+      "html": "<table><tr><th></th><th><strong>DeepSeek-V3</strong></th><th><strong>Kimi K2</strong></th><th><strong>Δ</strong></th></tr><tr><td>#Layers</td><td>61</td><td>61</td><td>=</td></tr><tr><td>Total Parameters</td><td>671B</td><td>1.04T</td><td>↑ 54%</td></tr><tr><td>Activated Parameters</td><td>37B</td><td>32.6B</td><td>↓ 13%</td></tr><tr><td>Experts (total)</td><td>256</td><td>384</td><td>↑ 50%</td></tr><tr><td>Experts Active per Token</td><td>8</td><td>8</td><td>=</td></tr><tr><td>Shared Experts</td><td>1</td><td>1</td><td>=</td></tr><tr><td>Attention Heads</td><td>128</td><td>64</td><td>↓ 50%</td></tr><tr><td>Number of Dense Layers</td><td>3</td><td>1</td><td>↓ 67%</td></tr><tr><td>Expert Grouping</td><td>Yes</td><td>No</td><td>-</td></tr></table>",
+      "row_count": 10,
+      "rows": [
+        [
+          "",
+          "DeepSeek-V3",
+          "Kimi K2",
+          "Δ"
+        ],
+        [
+          "#Layers",
+          "61",
+          "61",
+          "="
+        ],
+        [
+          "Total Parameters",
+          "671B",
+          "1.04T",
+          "↑ 54%"
+        ],
+        [
+          "Activated Parameters",
+          "37B",
+          "32.6B",
+          "↓ 13%"
+        ],
+        [
+          "Experts (total)",
+          "256",
+          "384",
+          "↑ 50%"
+        ],
+        [
+          "Experts Active per Token",
+          "8",
+          "8",
+          "="
+        ],
+        [
+          "Shared Experts",
+          "1",
+          "1",
+          "="
+        ],
+        [
+          "Attention Heads",
+          "128",
+          "64",
+          "↓ 50%"
+        ],
+        [
+          "Number of Dense Layers",
+          "3",
+          "1",
+          "↓ 67%"
+        ],
+        [
+          "Expert Grouping",
+          "Yes",
+          "No",
+          "-"
+        ]
+      ]
+    },
+    "3": {
+      "caption": "Performance comparison of Kimi-K2-Instruct against leading open-source and proprietary models across diverse tasks. <strong>Bold</strong> denotes the global SOTA; <u><strong>underlined bold</strong></u> indicates the best open-source result. Data points marked with * are taken directly from the model's technical report or blog.",
+      "html": "<table><tr><th></th><th colspan=\"3\"><strong>Open Source</strong></th><th colspan=\"4\"><strong>Proprietary</strong></th></tr><tr><td><strong>Benchmark</strong></td><td><strong>Kimi-K2-Instruct</strong></td><td><strong>DeepSeek-V3-0324</strong></td><td><strong>Qwen3-235B-A22B</strong></td><td><strong>Claude Sonnet 4</strong></td><td><strong>Claude Opus 4</strong></td><td><strong>GPT-4.1</strong></td><td><strong>Gemini 2.5 Flash</strong></td></tr><tr><td colspan=\"8\"><strong>Coding Tasks</strong></td></tr><tr><td>LiveCodeBench v6 (Pass@1)</td><td><strong>53.7</strong></td><td>46.9</td><td>37.0</td><td>48.5</td><td>47.4</td><td>44.7</td><td>44.7</td></tr><tr><td>OJBench (Pass@1)</td><td><strong>27.1</strong></td><td>24.0</td><td>11.3</td><td>15.3</td><td>19.6</td><td>19.5</td><td>19.5</td></tr><tr><td>MultiPL-E (Pass@1)</td><td><strong><u>85.7</u></strong></td><td>83.1</td><td>78.2</td><td>88.6</td><td><strong>89.6</strong></td><td>86.7</td><td>85.6</td></tr><tr><td><span>SWE-bench Verified<br/><em>Agentless-Single-Patch</em> (Pass@1)</span></td><td><strong><u>51.8</u></strong></td><td>36.6</td><td>39.4</td><td>50.2</td><td><strong>53.0</strong></td><td>40.8</td><td>32.6</td></tr><tr><td><span>SWE-bench Verified<br/><em>Agentic-Single-Attempt</em> (Pass@1)</span></td><td><strong><u>65.8</u></strong></td><td>38.8</td><td>34.4</td><td><strong>72.7*</strong></td><td>72.5*</td><td>54.6</td><td>—</td></tr><tr><td><span>SWE-bench Verified<br/><em>Agentic-Multi-Attempt</em> (Pass@1)</span></td><td><strong><u>71.6</u></strong></td><td>—</td><td>—</td><td><strong>80.2*</strong></td><td>79.4*</td><td>—</td><td>—</td></tr><tr><td><span>SWE-bench Multilingual (Pass@1)</span></td><td><strong><u>47.3</u></strong></td><td>25.8</td><td>20.9</td><td><strong>51.0</strong></td><td>—</td><td>31.5</td><td>—</td></tr><tr><td><span>Multi-SWE-bench (Pass@1)</span></td><td><strong><u>18.3</u></strong></td><td>8.0</td><td>9.0</td><td><strong>29.2</strong></td><td>—</td><td>11.7</td><td>14.0</td></tr><tr><td><span>SWE-Lancer (Pass@1)</span></td><td><strong><u>39.1</u></strong></td><td>30.5</td><td>24.1</td><td><strong>40.8</strong></td><td>—</td><td>23.0</td><td>38.5</td></tr><tr><td><span>Paper Bench <em>Code-Dev</em> (Acc.)</span></td><td><strong><u>27.8</u></strong></td><td>12.2</td><td>13.2</td><td><strong>43.3</strong></td><td>—</td><td>29.9</td><td>5.7</td></tr><tr><td>Terminal Bench <em>In-House</em> (Acc.)</td><td><strong><u>30.0</u></strong></td><td>—</td><td>—</td><td>35.5</td><td><strong>43.2</strong></td><td>8.3</td><td>—</td></tr><tr><td>Terminal Bench <em>Terminus</em> (Acc.)</td><td><strong><u>25.0</u></strong></td><td>16.3</td><td>6.6</td><td>—</td><td>—</td><td><strong>30.3</strong></td><td>16.8</td></tr><tr><td>Aider-Polyglot (Acc.)</td><td>60.0</td><td>55.1</td><td><strong><u>61.8</u></strong></td><td>56.4</td><td><strong>70.7</strong></td><td>52.4</td><td>44.0</td></tr><tr><td colspan=\"8\"><strong>Tool Use Tasks</strong></td></tr><tr><td>Tau2 retail (Avg@4)</td><td><strong><u>70.6</u></strong></td><td>69.1</td><td>57.0</td><td>75.0</td><td><strong>81.8</strong></td><td>74.8</td><td>64.3</td></tr><tr><td>Tau2 airline (Avg@4)</td><td><strong><u>56.5</u></strong></td><td>39.0</td><td>26.5</td><td>55.5</td><td><strong>60.0</strong></td><td>54.5</td><td>42.5</td></tr><tr><td>Tau2 telecom (Avg@4)</td><td><strong>65.8</strong></td><td>32.5</td><td>22.1</td><td>45.2</td><td>57.0</td><td>38.6</td><td>16.9</td></tr><tr><td>AceBench (Acc.)</td><td><strong><u>76.5</u></strong></td><td>72.7</td><td>70.5</td><td>76.2</td><td>75.6</td><td><strong>80.1</strong></td><td>74.5</td></tr><tr><td colspan=\"8\"><strong>Math &amp; STEM Tasks</strong></td></tr><tr><td>AIME 2024 (Avg@64)</td><td><strong>69.6</strong></td><td>59.4*</td><td>40.1*</td><td>43.4</td><td>48.2</td><td>46.5</td><td>61.3</td></tr><tr><td>AIME 2025 (Avg@64)</td><td><strong>49.5</strong></td><td>46.7</td><td>24.7*</td><td>33.1*</td><td>33.9*</td><td>37.0</td><td>46.6</td></tr><tr><td>MATH-500 (Acc.)</td><td><strong>97.4</strong></td><td>94.0*</td><td>91.2*</td><td>94.0</td><td>94.4</td><td>92.4</td><td>95.4</td></tr><tr><td>HMMT 2025 (Avg@32)</td><td><strong>38.8</strong></td><td>27.5</td><td>11.9</td><td>15.9</td><td>15.9</td><td>19.4</td><td>34.7</td></tr><tr><td>CNMO 2024 (Avg@16)</td><td>74.3</td><td><strong><u>74.7</u></strong></td><td>48.6</td><td>60.4</td><td>57.6</td><td>56.6</td><td><strong>75.0</strong></td></tr><tr><td>PolyMath-en (Avg@4)</td><td><strong>65.1</strong></td><td>59.5</td><td>51.9</td><td>52.8</td><td>49.8</td><td>54.0</td><td>49.9</td></tr><tr><td>ZebraLogic (Acc.)</td><td><strong>89.0</strong></td><td>84.0</td><td>37.7*</td><td>79.7</td><td>59.3</td><td>58.5</td><td>57.9</td></tr><tr><td>AutoLogi (Acc.)</td><td><strong><u>89.5</u></strong></td><td>88.9</td><td>83.3*</td><td><strong>89.8</strong></td><td>86.1</td><td>88.2</td><td>84.1</td></tr><tr><td>GPQA-Diamond (Avg@8)</td><td><strong>75.1</strong></td><td>68.4*</td><td>62.9*</td><td>70.0*</td><td>74.9*</td><td>66.3</td><td>68.2</td></tr><tr><td>SuperGPQA (Acc.)</td><td><strong>57.2</strong></td><td>53.7</td><td>50.2</td><td>55.7</td><td>56.5</td><td>50.8</td><td>49.6</td></tr><tr><td>Humanity's Last Exam (Acc.)</td><td>4.7</td><td>5.2</td><td><strong><u>5.7</u></strong></td><td>5.8</td><td><strong>7.1</strong></td><td>3.7</td><td>5.6</td></tr><tr><td colspan=\"8\"><strong>General Tasks</strong></td></tr><tr><td>MMLU (EM)</td><td><strong><u>89.5</u></strong></td><td>89.4</td><td>87.0</td><td>91.5</td><td><strong>92.9</strong></td><td>90.4</td><td>90.1</td></tr><tr><td>MMLU-Redux (EM)</td><td><strong><u>92.7</u></strong></td><td>90.5</td><td>89.2*</td><td>93.6</td><td><strong>94.2</strong></td><td>92.4</td><td>90.6</td></tr><tr><td>MMLU-Pro (EM)</td><td>81.1</td><td><strong><u>81.2*</u></strong></td><td>77.3</td><td>83.7</td><td><strong>86.6</strong></td><td>81.8</td><td>79.4</td></tr><tr><td>IFEval (Prompt Strict)</td><td><strong>89.8</strong></td><td>81.1</td><td>83.2*</td><td>87.6</td><td>87.4</td><td>88.0</td><td>84.3</td></tr><tr><td>Multi-Challenge (Acc.)</td><td><strong>54.1</strong></td><td>31.4</td><td>34.0</td><td>46.8</td><td>49.0</td><td>36.4</td><td>39.5</td></tr><tr><td>SimpleQA (Correct)</td><td><strong><u>31.0</u></strong></td><td>27.7</td><td>13.2</td><td>15.9</td><td>22.8</td><td><strong>42.3</strong></td><td>23.3</td></tr><tr><td>Livebench (Pass@1)</td><td><strong>76.4</strong></td><td>72.4</td><td>67.6</td><td>74.8</td><td>74.6</td><td>69.8</td><td>67.8</td></tr><tr><td><span>Arena Hard v2.0 <br/><em>Hard Prompt</em> (Win rate)</span></td><td><strong><u>54.5</u></strong></td><td>39.9</td><td>39.9</td><td>51.6</td><td><strong>59.7</strong></td><td>51.7</td><td>48.7</td></tr><tr><td><span>Arena Hard v2.0 <br/><em>Creative Writing</em> (Win rate)</span></td><td><strong>85.0</strong></td><td>59.3</td><td>59.8</td><td>54.6</td><td>68.5</td><td>61.5</td><td>72.8</td></tr><tr><td>FACTS Grounding (Adjusted)</td><td><strong>88.5</strong></td><td>68.3</td><td>68.5</td><td>83.6</td><td>—</td><td>79.2</td><td>86.6</td></tr><tr><td>HHEM v2.1 (1-Hallu.)</td><td><strong>98.9</strong></td><td>88.9</td><td>94.5</td><td>94.5</td><td>—</td><td>96.7</td><td>97.8</td></tr><tr><td>FaithJudge (1-Hallu.)</td><td><strong><u>92.6</u></strong></td><td>83.4</td><td>75.7</td><td>83.0</td><td>—</td><td>91.0</td><td><strong>93.2</strong></td></tr><tr><td>LongBench v2 (Acc.)</td><td>49.1</td><td><strong><u>51.1</u></strong></td><td>—</td><td>52.5</td><td>—</td><td>54.3</td><td><strong>55.5</strong></td></tr><tr><td>FRAMES (Acc.)</td><td>77.1</td><td><strong><u>79.2</u></strong></td><td>—</td><td>76.3</td><td>—</td><td><strong>87.4</strong></td><td>72.9</td></tr><tr><td>MRCR (Acc.)</td><td><strong><u>55.0</u></strong></td><td>50.8</td><td>—</td><td>74.4</td><td>—</td><td>66.9</td><td><strong>81.7</strong></td></tr><tr><td>DROP (Acc.)</td><td><strong>93.5</strong></td><td>91.2</td><td>84.3</td><td>92.0</td><td>—</td><td>79.1</td><td>81.7</td></tr></table>",
+      "row_count": 50,
+      "rows": [
+        [
+          "",
+          "Open Source",
+          "Proprietary"
+        ],
+        [
+          "Benchmark",
+          "Kimi-K2-Instruct",
+          "DeepSeek-V3-0324",
+          "Qwen3-235B-A22B",
+          "Claude Sonnet 4",
+          "Claude Opus 4",
+          "GPT-4.1",
+          "Gemini 2.5 Flash"
+        ],
+        [
+          "Coding Tasks"
+        ],
+        [
+          "LiveCodeBench v6 (Pass@1)",
+          "53.7",
+          "46.9",
+          "37.0",
+          "48.5",
+          "47.4",
+          "44.7",
+          "44.7"
+        ],
+        [
+          "OJBench (Pass@1)",
+          "27.1",
+          "24.0",
+          "11.3",
+          "15.3",
+          "19.6",
+          "19.5",
+          "19.5"
+        ],
+        [
+          "MultiPL-E (Pass@1)",
+          "85.7",
+          "83.1",
+          "78.2",
+          "88.6",
+          "89.6",
+          "86.7",
+          "85.6"
+        ],
+        [
+          "SWE-bench Verified Agentless-Single-Patch (Pass@1)",
+          "51.8",
+          "36.6",
+          "39.4",
+          "50.2",
+          "53.0",
+          "40.8",
+          "32.6"
+        ],
+        [
+          "SWE-bench Verified Agentic-Single-Attempt (Pass@1)",
+          "65.8",
+          "38.8",
+          "34.4",
+          "72.7*",
+          "72.5*",
+          "54.6",
+          "—"
+        ],
+        [
+          "SWE-bench Verified Agentic-Multi-Attempt (Pass@1)",
+          "71.6",
+          "—",
+          "—",
+          "80.2*",
+          "79.4*",
+          "—",
+          "—"
+        ],
+        [
+          "SWE-bench Multilingual (Pass@1)",
+          "47.3",
+          "25.8",
+          "20.9",
+          "51.0",
+          "—",
+          "31.5",
+          "—"
+        ],
+        [
+          "Multi-SWE-bench (Pass@1)",
+          "18.3",
+          "8.0",
+          "9.0",
+          "29.2",
+          "—",
+          "11.7",
+          "14.0"
+        ],
+        [
+          "SWE-Lancer (Pass@1)",
+          "39.1",
+          "30.5",
+          "24.1",
+          "40.8",
+          "—",
+          "23.0",
+          "38.5"
+        ],
+        [
+          "Paper Bench Code-Dev (Acc.)",
+          "27.8",
+          "12.2",
+          "13.2",
+          "43.3",
+          "—",
+          "29.9",
+          "5.7"
+        ],
+        [
+          "Terminal Bench In-House (Acc.)",
+          "30.0",
+          "—",
+          "—",
+          "35.5",
+          "43.2",
+          "8.3",
+          "—"
+        ],
+        [
+          "Terminal Bench Terminus (Acc.)",
+          "25.0",
+          "16.3",
+          "6.6",
+          "—",
+          "—",
+          "30.3",
+          "16.8"
+        ],
+        [
+          "Aider-Polyglot (Acc.)",
+          "60.0",
+          "55.1",
+          "61.8",
+          "56.4",
+          "70.7",
+          "52.4",
+          "44.0"
+        ],
+        [
+          "Tool Use Tasks"
+        ],
+        [
+          "Tau2 retail (Avg@4)",
+          "70.6",
+          "69.1",
+          "57.0",
+          "75.0",
+          "81.8",
+          "74.8",
+          "64.3"
+        ],
+        [
+          "Tau2 airline (Avg@4)",
+          "56.5",
+          "39.0",
+          "26.5",
+          "55.5",
+          "60.0",
+          "54.5",
+          "42.5"
+        ],
+        [
+          "Tau2 telecom (Avg@4)",
+          "65.8",
+          "32.5",
+          "22.1",
+          "45.2",
+          "57.0",
+          "38.6",
+          "16.9"
+        ],
+        [
+          "AceBench (Acc.)",
+          "76.5",
+          "72.7",
+          "70.5",
+          "76.2",
+          "75.6",
+          "80.1",
+          "74.5"
+        ],
+        [
+          "Math & STEM Tasks"
+        ],
+        [
+          "AIME 2024 (Avg@64)",
+          "69.6",
+          "59.4*",
+          "40.1*",
+          "43.4",
+          "48.2",
+          "46.5",
+          "61.3"
+        ],
+        [
+          "AIME 2025 (Avg@64)",
+          "49.5",
+          "46.7",
+          "24.7*",
+          "33.1*",
+          "33.9*",
+          "37.0",
+          "46.6"
+        ],
+        [
+          "MATH-500 (Acc.)",
+          "97.4",
+          "94.0*",
+          "91.2*",
+          "94.0",
+          "94.4",
+          "92.4",
+          "95.4"
+        ],
+        [
+          "HMMT 2025 (Avg@32)",
+          "38.8",
+          "27.5",
+          "11.9",
+          "15.9",
+          "15.9",
+          "19.4",
+          "34.7"
+        ],
+        [
+          "CNMO 2024 (Avg@16)",
+          "74.3",
+          "74.7",
+          "48.6",
+          "60.4",
+          "57.6",
+          "56.6",
+          "75.0"
+        ],
+        [
+          "PolyMath-en (Avg@4)",
+          "65.1",
+          "59.5",
+          "51.9",
+          "52.8",
+          "49.8",
+          "54.0",
+          "49.9"
+        ],
+        [
+          "ZebraLogic (Acc.)",
+          "89.0",
+          "84.0",
+          "37.7*",
+          "79.7",
+          "59.3",
+          "58.5",
+          "57.9"
+        ],
+        [
+          "AutoLogi (Acc.)",
+          "89.5",
+          "88.9",
+          "83.3*",
+          "89.8",
+          "86.1",
+          "88.2",
+          "84.1"
+        ],
+        [
+          "GPQA-Diamond (Avg@8)",
+          "75.1",
+          "68.4*",
+          "62.9*",
+          "70.0*",
+          "74.9*",
+          "66.3",
+          "68.2"
+        ],
+        [
+          "SuperGPQA (Acc.)",
+          "57.2",
+          "53.7",
+          "50.2",
+          "55.7",
+          "56.5",
+          "50.8",
+          "49.6"
+        ],
+        [
+          "Humanity's Last Exam (Acc.)",
+          "4.7",
+          "5.2",
+          "5.7",
+          "5.8",
+          "7.1",
+          "3.7",
+          "5.6"
+        ],
+        [
+          "General Tasks"
+        ],
+        [
+          "MMLU (EM)",
+          "89.5",
+          "89.4",
+          "87.0",
+          "91.5",
+          "92.9",
+          "90.4",
+          "90.1"
+        ],
+        [
+          "MMLU-Redux (EM)",
+          "92.7",
+          "90.5",
+          "89.2*",
+          "93.6",
+          "94.2",
+          "92.4",
+          "90.6"
+        ],
+        [
+          "MMLU-Pro (EM)",
+          "81.1",
+          "81.2*",
+          "77.3",
+          "83.7",
+          "86.6",
+          "81.8",
+          "79.4"
+        ],
+        [
+          "IFEval (Prompt Strict)",
+          "89.8",
+          "81.1",
+          "83.2*",
+          "87.6",
+          "87.4",
+          "88.0",
+          "84.3"
+        ],
+        [
+          "Multi-Challenge (Acc.)",
+          "54.1",
+          "31.4",
+          "34.0",
+          "46.8",
+          "49.0",
+          "36.4",
+          "39.5"
+        ],
+        [
+          "SimpleQA (Correct)",
+          "31.0",
+          "27.7",
+          "13.2",
+          "15.9",
+          "22.8",
+          "42.3",
+          "23.3"
+        ],
+        [
+          "Livebench (Pass@1)",
+          "76.4",
+          "72.4",
+          "67.6",
+          "74.8",
+          "74.6",
+          "69.8",
+          "67.8"
+        ],
+        [
+          "Arena Hard v2.0 Hard Prompt (Win rate)",
+          "54.5",
+          "39.9",
+          "39.9",
+          "51.6",
+          "59.7",
+          "51.7",
+          "48.7"
+        ],
+        [
+          "Arena Hard v2.0 Creative Writing (Win rate)",
+          "85.0",
+          "59.3",
+          "59.8",
+          "54.6",
+          "68.5",
+          "61.5",
+          "72.8"
+        ],
+        [
+          "FACTS Grounding (Adjusted)",
+          "88.5",
+          "68.3",
+          "68.5",
+          "83.6",
+          "—",
+          "79.2",
+          "86.6"
+        ],
+        [
+          "HHEM v2.1 (1-Hallu.)",
+          "98.9",
+          "88.9",
+          "94.5",
+          "94.5",
+          "—",
+          "96.7",
+          "97.8"
+        ],
+        [
+          "FaithJudge (1-Hallu.)",
+          "92.6",
+          "83.4",
+          "75.7",
+          "83.0",
+          "—",
+          "91.0",
+          "93.2"
+        ],
+        [
+          "LongBench v2 (Acc.)",
+          "49.1",
+          "51.1",
+          "—",
+          "52.5",
+          "—",
+          "54.3",
+          "55.5"
+        ],
+        [
+          "FRAMES (Acc.)",
+          "77.1",
+          "79.2",
+          "—",
+          "76.3",
+          "—",
+          "87.4",
+          "72.9"
+        ],
+        [
+          "MRCR (Acc.)",
+          "55.0",
+          "50.8",
+          "—",
+          "74.4",
+          "—",
+          "66.9",
+          "81.7"
+        ],
+        [
+          "DROP (Acc.)",
+          "93.5",
+          "91.2",
+          "84.3",
+          "92.0",
+          "—",
+          "79.1",
+          "81.7"
+        ]
+      ]
+    },
+    "4": {
+      "caption": "Performance comparison of Kimi-K2-Base against leading open-source models across diverse tasks.",
+      "html": "<table><tr><th></th><th><strong>Benchmark  (Metric)</strong></th><th><strong>#Shots</strong></th><th><strong>Kimi-K2-Base</strong></th><th><strong>DeepSeek-V3-Base</strong></th><th><strong>Llama4-Maverick-Base</strong></th><th><strong>Qwen2.5-72B-Base</strong></th></tr><tr><td></td><td>Architecture</td><td>-</td><td>MoE</td><td>MoE</td><td>MoE</td><td>Dense</td></tr><tr><td></td><td># Activated Params</td><td>-</td><td>32B</td><td>37B</td><td>17B</td><td>72B</td></tr><tr><td></td><td># Total Params</td><td>-</td><td>1043B</td><td>671B</td><td>400B</td><td>72B</td></tr><tr><td>English</td><td>MMLU</td><td>5-shots</td><td><strong>87.79</strong></td><td>87.10</td><td>84.87</td><td>86.08</td></tr><tr><td>English</td><td>MMLU-pro</td><td>5-shots</td><td><strong>69.17</strong></td><td>60.59</td><td>63.47</td><td>62.80</td></tr><tr><td>English</td><td>MMLU-redux</td><td>5-shots</td><td><strong>90.17</strong></td><td>89.53</td><td>88.18</td><td>87.77</td></tr><tr><td>English</td><td>SuperGPQA</td><td>5-shots</td><td><strong>44.67</strong></td><td>39.20</td><td>38.84</td><td>34.23</td></tr><tr><td>English</td><td>GPQA-Diamond( avg@8)</td><td>5-shots</td><td>48.11</td><td><strong>50.51</strong></td><td>49.43</td><td>40.78</td></tr><tr><td>English</td><td>SimpleQA</td><td>5-shots</td><td><strong>35.25</strong></td><td>26.49</td><td>23.74</td><td>10.31</td></tr><tr><td>English</td><td>TriviaQA</td><td>5-shots</td><td><strong>85.09</strong></td><td>84.11</td><td>79.25</td><td>76.03</td></tr><tr><td>English</td><td>BBH</td><td>3-shots</td><td><strong>88.71</strong></td><td>88.37</td><td>87.10</td><td>84.09</td></tr><tr><td>English</td><td>HellaSwag</td><td>5-shots</td><td>94.60</td><td>89.44</td><td>86.02</td><td><strong>95.27</strong></td></tr><tr><td>English</td><td>AGIEval</td><td>-</td><td><strong>84.23</strong></td><td>81.57</td><td>67.55</td><td>76.87</td></tr><tr><td>English</td><td>ARC-Challenge</td><td>0-shot</td><td><strong>95.73</strong></td><td>93.77</td><td>94.03</td><td>95.56</td></tr><tr><td>English</td><td>WinoGrande</td><td>5-shots</td><td><strong>85.32</strong></td><td>84.21</td><td>77.58</td><td>84.14</td></tr><tr><td>Code</td><td>CRUXEval-I-cot</td><td>0-shots</td><td><strong>74.00</strong></td><td>62.75</td><td>67.13</td><td>61.12</td></tr><tr><td>Code</td><td>CRUXEval-O-cot</td><td>0-shots</td><td><strong>83.50</strong></td><td>75.25</td><td>75.88</td><td>66.13</td></tr><tr><td>Code</td><td>LiveCodeBench(v6)</td><td>1-shots</td><td><strong>26.29</strong></td><td>24.57</td><td>25.14</td><td>22.29</td></tr><tr><td>Code</td><td>EvalPlus</td><td>-</td><td><strong>80.33</strong></td><td>65.61</td><td>65.48</td><td>66.04</td></tr><tr><td>Math</td><td>MATH</td><td>4-shots</td><td><strong>70.22</strong></td><td>61.70</td><td>63.02</td><td>62.68</td></tr><tr><td>Math</td><td>GSM8k</td><td>8-shots</td><td><strong>92.12</strong></td><td>91.66</td><td>86.35</td><td>90.37</td></tr><tr><td>Math</td><td>GSM8k-platinum</td><td>8-shots</td><td><strong>94.21</strong></td><td>93.38</td><td>88.83</td><td>92.47</td></tr><tr><td>Math</td><td>CMATH</td><td>6-shots</td><td>90.26</td><td><strong>90.53</strong></td><td>88.07</td><td>86.98</td></tr><tr><td>Chinese</td><td>C-Eval</td><td>5-shots</td><td><strong>92.50</strong></td><td>90.04</td><td>80.91</td><td>90.86</td></tr><tr><td>Chinese</td><td>CMMLU</td><td>5-shots</td><td><strong>90.90</strong></td><td>88.84</td><td>81.24</td><td>90.55</td></tr><tr><td>Chinese</td><td>CSimpleQA</td><td>5-shots</td><td><strong>77.57</strong></td><td>72.13</td><td>53.47</td><td>50.53</td></tr></table>",
+      "row_count": 27,
+      "rows": [
+        [
+          "",
+          "Benchmark  (Metric)",
+          "#Shots",
+          "Kimi-K2-Base",
+          "DeepSeek-V3-Base",
+          "Llama4-Maverick-Base",
+          "Qwen2.5-72B-Base"
+        ],
+        [
+          "",
+          "Architecture",
+          "-",
+          "MoE",
+          "MoE",
+          "MoE",
+          "Dense"
+        ],
+        [
+          "",
+          "# Activated Params",
+          "-",
+          "32B",
+          "37B",
+          "17B",
+          "72B"
+        ],
+        [
+          "",
+          "# Total Params",
+          "-",
+          "1043B",
+          "671B",
+          "400B",
+          "72B"
+        ],
+        [
+          "English",
+          "MMLU",
+          "5-shots",
+          "87.79",
+          "87.10",
+          "84.87",
+          "86.08"
+        ],
+        [
+          "English",
+          "MMLU-pro",
+          "5-shots",
+          "69.17",
+          "60.59",
+          "63.47",
+          "62.80"
+        ],
+        [
+          "English",
+          "MMLU-redux",
+          "5-shots",
+          "90.17",
+          "89.53",
+          "88.18",
+          "87.77"
+        ],
+        [
+          "English",
+          "SuperGPQA",
+          "5-shots",
+          "44.67",
+          "39.20",
+          "38.84",
+          "34.23"
+        ],
+        [
+          "English",
+          "GPQA-Diamond( avg@8)",
+          "5-shots",
+          "48.11",
+          "50.51",
+          "49.43",
+          "40.78"
+        ],
+        [
+          "English",
+          "SimpleQA",
+          "5-shots",
+          "35.25",
+          "26.49",
+          "23.74",
+          "10.31"
+        ],
+        [
+          "English",
+          "TriviaQA",
+          "5-shots",
+          "85.09",
+          "84.11",
+          "79.25",
+          "76.03"
+        ],
+        [
+          "English",
+          "BBH",
+          "3-shots",
+          "88.71",
+          "88.37",
+          "87.10",
+          "84.09"
+        ],
+        [
+          "English",
+          "HellaSwag",
+          "5-shots",
+          "94.60",
+          "89.44",
+          "86.02",
+          "95.27"
+        ],
+        [
+          "English",
+          "AGIEval",
+          "-",
+          "84.23",
+          "81.57",
+          "67.55",
+          "76.87"
+        ],
+        [
+          "English",
+          "ARC-Challenge",
+          "0-shot",
+          "95.73",
+          "93.77",
+          "94.03",
+          "95.56"
+        ],
+        [
+          "English",
+          "WinoGrande",
+          "5-shots",
+          "85.32",
+          "84.21",
+          "77.58",
+          "84.14"
+        ],
+        [
+          "Code",
+          "CRUXEval-I-cot",
+          "0-shots",
+          "74.00",
+          "62.75",
+          "67.13",
+          "61.12"
+        ],
+        [
+          "Code",
+          "CRUXEval-O-cot",
+          "0-shots",
+          "83.50",
+          "75.25",
+          "75.88",
+          "66.13"
+        ],
+        [
+          "Code",
+          "LiveCodeBench(v6)",
+          "1-shots",
+          "26.29",
+          "24.57",
+          "25.14",
+          "22.29"
+        ],
+        [
+          "Code",
+          "EvalPlus",
+          "-",
+          "80.33",
+          "65.61",
+          "65.48",
+          "66.04"
+        ],
+        [
+          "Math",
+          "MATH",
+          "4-shots",
+          "70.22",
+          "61.70",
+          "63.02",
+          "62.68"
+        ],
+        [
+          "Math",
+          "GSM8k",
+          "8-shots",
+          "92.12",
+          "91.66",
+          "86.35",
+          "90.37"
+        ],
+        [
+          "Math",
+          "GSM8k-platinum",
+          "8-shots",
+          "94.21",
+          "93.38",
+          "88.83",
+          "92.47"
+        ],
+        [
+          "Math",
+          "CMATH",
+          "6-shots",
+          "90.26",
+          "90.53",
+          "88.07",
+          "86.98"
+        ],
+        [
+          "Chinese",
+          "C-Eval",
+          "5-shots",
+          "92.50",
+          "90.04",
+          "80.91",
+          "90.86"
+        ],
+        [
+          "Chinese",
+          "CMMLU",
+          "5-shots",
+          "90.90",
+          "88.84",
+          "81.24",
+          "90.55"
+        ],
+        [
+          "Chinese",
+          "CSimpleQA",
+          "5-shots",
+          "77.57",
+          "72.13",
+          "53.47",
+          "50.53"
+        ]
+      ]
+    },
+    "5": {
+      "caption": "Enabled Plugins and Strategies",
+      "html": "<table><tr><th>Plugin</th><th>Harmful</th><th>Graphic Content, Harassment and Bullying, Hate Speech, Insults, Profanity, Radicalization, Self Harm, Sexual Content, ToxicChat</th></tr><tr><td></td><td>Criminal</td><td>Chemical&amp;Biological Weapons, Child Exploitation, Copyright Violations, Cybercrime, Illegal Activities, Illegal Drugs, Indiscriminate Weapons, Intellectual Property Violation, Non-Violent Crime, Violent Crime, Sex Crimes</td></tr><tr><td></td><td>Misinformation</td><td>Competitor Endorsement, Unsupervised Contracts, Excessive Agency, Hallucination, Misinformation and Disinformation, Specialized Advice, Unsafe Practices, Imitation, Overreliance, Political Opinions, Religious Sensitivity</td></tr><tr><td></td><td>Privacy</td><td>Privacy Violation, PII in API/Database, Direct PII Exposure, PII in Session Data, PII via Social Engineering</td></tr><tr><td></td><td>Security</td><td>ASCII Smuggling, CyberSecEval, Harmbench, Debug Access, Divergent Repetition, DoNotAnswer, Malicious Code, Pliny, Prompt Extraction, Reasoning DoS, Tool Discovery</td></tr><tr><td>Strategy</td><td colspan=\"2\">Basic, Prompt Injection, Iterative Jailbreak, Crescendo</td></tr></table>",
+      "row_count": 6,
+      "rows": [
+        [
+          "Plugin",
+          "Harmful",
+          "Graphic Content, Harassment and Bullying, Hate Speech, Insults, Profanity, Radicalization, Self Harm, Sexual Content, ToxicChat"
+        ],
+        [
+          "",
+          "Criminal",
+          "Chemical&Biological Weapons, Child Exploitation, Copyright Violations, Cybercrime, Illegal Activities, Illegal Drugs, Indiscriminate Weapons, Intellectual Property Violation, Non-Violent Crime, Violent Crime, Sex Crimes"
+        ],
+        [
+          "",
+          "Misinformation",
+          "Competitor Endorsement, Unsupervised Contracts, Excessive Agency, Hallucination, Misinformation and Disinformation, Specialized Advice, Unsafe Practices, Imitation, Overreliance, Political Opinions, Religious Sensitivity"
+        ],
+        [
+          "",
+          "Privacy",
+          "Privacy Violation, PII in API/Database, Direct PII Exposure, PII in Session Data, PII via Social Engineering"
+        ],
+        [
+          "",
+          "Security",
+          "ASCII Smuggling, CyberSecEval, Harmbench, Debug Access, Divergent Repetition, DoNotAnswer, Malicious Code, Pliny, Prompt Extraction, Reasoning DoS, Tool Discovery"
+        ],
+        [
+          "Strategy",
+          "Basic, Prompt Injection, Iterative Jailbreak, Crescendo"
+        ]
+      ]
+    },
+    "6": {
+      "caption": "Safety Evaluation Results",
+      "html": "<table><tr><th><strong>Plugin</strong></th><th><strong>Strategy</strong></th><th><strong>Kimi-K2-Instruct</strong></th><th><strong>DeepSeek-V3-0324</strong></th><th><strong>DeepSeek-R1</strong></th><th><strong>Qwen3-235B-A22B</strong></th></tr><tr><td>Harmful</td><td>Basic</td><td>98.04</td><td>90.45</td><td>99.02</td><td>98.53</td></tr><tr><td>Harmful</td><td>Base64</td><td>100</td><td>90.20</td><td>100</td><td>100</td></tr><tr><td>Harmful</td><td>Prompt Injection</td><td>93.14</td><td>100</td><td>95.10</td><td>99.02</td></tr><tr><td>Harmful</td><td>Iterative Jailbreak</td><td>92.16</td><td>66.67</td><td>72.55</td><td>74.51</td></tr><tr><td>Harmful</td><td>Crescendo</td><td>64.71</td><td>64.71</td><td>80.39</td><td>86.27</td></tr><tr><td>Criminal</td><td>Basic</td><td>100</td><td>99.62</td><td>95.45</td><td>99.24</td></tr><tr><td>Criminal</td><td>Base64</td><td>96.97</td><td>89.39</td><td>84.85</td><td>98.48</td></tr><tr><td>Criminal</td><td>Prompt Injection</td><td>75.76</td><td>91.67</td><td>69.70</td><td>98.47</td></tr><tr><td>Criminal</td><td>Iterative Jailbreak</td><td>57.57</td><td>21.21</td><td>25.76</td><td>53.03</td></tr><tr><td>Criminal</td><td>Crescendo</td><td>56.06</td><td>31.81</td><td>42.42</td><td>59.09</td></tr><tr><td>Misinformation</td><td>Basic</td><td>97.28</td><td>92.57</td><td>92.46</td><td>94.84</td></tr><tr><td>Misinformation</td><td>Base64</td><td>98.48</td><td>90.48</td><td>96.83</td><td>93.65</td></tr><tr><td>Misinformation</td><td>Prompt Injection</td><td>98.39</td><td>86.51</td><td>93.65</td><td>93.65</td></tr><tr><td>Misinformation</td><td>Iterative Jailbreak</td><td>63.97</td><td>53.97</td><td>84.13</td><td>69.84</td></tr><tr><td>Misinformation</td><td>Crescendo</td><td>85.71</td><td>55.56</td><td>88.89</td><td>84.13</td></tr><tr><td>Privacy</td><td>Basic</td><td>100</td><td>100</td><td>100</td><td>100</td></tr><tr><td>Privacy</td><td>Base64</td><td>100</td><td>100</td><td>100</td><td>100</td></tr><tr><td>Privacy</td><td>Prompt Injection</td><td>88.33</td><td>98.33</td><td>100</td><td>91.67</td></tr><tr><td>Privacy</td><td>Iterative Jailbreak</td><td>76.67</td><td>100</td><td>93.33</td><td>96.67</td></tr><tr><td>Privacy</td><td>Crescendo</td><td>96.67</td><td>100</td><td>96.67</td><td>100</td></tr><tr><td>Security</td><td>Basic</td><td>77.84</td><td>75.57</td><td>70.46</td><td>90.09</td></tr><tr><td>Security</td><td>Base64</td><td>82.93</td><td>82.93</td><td>63.41</td><td>95.12</td></tr><tr><td>Security</td><td>Prompt Injection</td><td>87.80</td><td>97.56</td><td>65.85</td><td>84.13</td></tr><tr><td>Security</td><td>Iterative Jailbreak</td><td>43.90</td><td>60.97</td><td>43.90</td><td>78.04</td></tr><tr><td>Security</td><td>Crescendo</td><td>68.29</td><td>87.80</td><td>68.29</td><td>87.80</td></tr></table>",
+      "row_count": 26,
+      "rows": [
+        [
+          "Plugin",
+          "Strategy",
+          "Kimi-K2-Instruct",
+          "DeepSeek-V3-0324",
+          "DeepSeek-R1",
+          "Qwen3-235B-A22B"
+        ],
+        [
+          "Harmful",
+          "Basic",
+          "98.04",
+          "90.45",
+          "99.02",
+          "98.53"
+        ],
+        [
+          "Harmful",
+          "Base64",
+          "100",
+          "90.20",
+          "100",
+          "100"
+        ],
+        [
+          "Harmful",
+          "Prompt Injection",
+          "93.14",
+          "100",
+          "95.10",
+          "99.02"
+        ],
+        [
+          "Harmful",
+          "Iterative Jailbreak",
+          "92.16",
+          "66.67",
+          "72.55",
+          "74.51"
+        ],
+        [
+          "Harmful",
+          "Crescendo",
+          "64.71",
+          "64.71",
+          "80.39",
+          "86.27"
+        ],
+        [
+          "Criminal",
+          "Basic",
+          "100",
+          "99.62",
+          "95.45",
+          "99.24"
+        ],
+        [
+          "Criminal",
+          "Base64",
+          "96.97",
+          "89.39",
+          "84.85",
+          "98.48"
+        ],
+        [
+          "Criminal",
+          "Prompt Injection",
+          "75.76",
+          "91.67",
+          "69.70",
+          "98.47"
+        ],
+        [
+          "Criminal",
+          "Iterative Jailbreak",
+          "57.57",
+          "21.21",
+          "25.76",
+          "53.03"
+        ],
+        [
+          "Criminal",
+          "Crescendo",
+          "56.06",
+          "31.81",
+          "42.42",
+          "59.09"
+        ],
+        [
+          "Misinformation",
+          "Basic",
+          "97.28",
+          "92.57",
+          "92.46",
+          "94.84"
+        ],
+        [
+          "Misinformation",
+          "Base64",
+          "98.48",
+          "90.48",
+          "96.83",
+          "93.65"
+        ],
+        [
+          "Misinformation",
+          "Prompt Injection",
+          "98.39",
+          "86.51",
+          "93.65",
+          "93.65"
+        ],
+        [
+          "Misinformation",
+          "Iterative Jailbreak",
+          "63.97",
+          "53.97",
+          "84.13",
+          "69.84"
+        ],
+        [
+          "Misinformation",
+          "Crescendo",
+          "85.71",
+          "55.56",
+          "88.89",
+          "84.13"
+        ],
+        [
+          "Privacy",
+          "Basic",
+          "100",
+          "100",
+          "100",
+          "100"
+        ],
+        [
+          "Privacy",
+          "Base64",
+          "100",
+          "100",
+          "100",
+          "100"
+        ],
+        [
+          "Privacy",
+          "Prompt Injection",
+          "88.33",
+          "98.33",
+          "100",
+          "91.67"
+        ],
+        [
+          "Privacy",
+          "Iterative Jailbreak",
+          "76.67",
+          "100",
+          "93.33",
+          "96.67"
+        ],
+        [
+          "Privacy",
+          "Crescendo",
+          "96.67",
+          "100",
+          "96.67",
+          "100"
+        ],
+        [
+          "Security",
+          "Basic",
+          "77.84",
+          "75.57",
+          "70.46",
+          "90.09"
+        ],
+        [
+          "Security",
+          "Base64",
+          "82.93",
+          "82.93",
+          "63.41",
+          "95.12"
+        ],
+        [
+          "Security",
+          "Prompt Injection",
+          "87.80",
+          "97.56",
+          "65.85",
+          "84.13"
+        ],
+        [
+          "Security",
+          "Iterative Jailbreak",
+          "43.90",
+          "60.97",
+          "43.90",
+          "78.04"
+        ],
+        [
+          "Security",
+          "Crescendo",
+          "68.29",
+          "87.80",
+          "68.29",
+          "87.80"
+        ]
+      ]
+    }
+  },
+  "equations": {
+    "1": {
+      "latex": "\\mathbf{Q}^{h} = \\mathbf X \\mathbf W_q^{h}, \\quad\n\\mathbf K^{h} = \\mathbf X \\mathbf W_k^{h}, \\quad\n\\mathbf V^{h} = \\mathbf X \\mathbf W_v^{h}.",
+      "label": "unnumbered"
+    },
+    "2": {
+      "latex": "\\mathbf O^{h} = \\operatorname{softmax}\\left( \\frac{1}{\\sqrt{d}} \\mathbf Q^{h} \\mathbf K^{h\\top} \\right) \\mathbf V^{h}.",
+      "label": "unnumbered"
+    },
+    "3": {
+      "latex": "S_{\\max}^{h} = \\frac{1}{\\sqrt{d}} \\max_{\\mathbf X \\in B} \\max_{i,j} \\mathbf Q_i^{h} \\mathbf K_j^{h\\top}",
+      "label": "unnumbered"
+    },
+    "4": {
+      "latex": "\\mathbf W_q^{h} \\gets \\gamma^{\\alpha} \\mathbf  W_q^{h} \\qquad\n  \\mathbf W_k^{h} \\gets  \\gamma^{1-\\alpha} \\mathbf W_k^{h}",
+      "label": "unnumbered"
+    },
+    "5": {
+      "latex": "\\begin{aligned}L_{\\mathrm{RL}}(\\theta) = \\mathbb{E}_{x \\sim\\mathcal{D}}\\left[ \\frac{1}{K} \\sum_{i=1}^K \\left[  \\left( r(x, y_i) - \\bar{r}(x)- \\tau \\log \\frac{\\pi_\\theta(y_i | x)}{{\\pi}_{\\mathrm{old}}(y_i | x)} \\right)^2 \\right]\\right] \\, ,\\end{aligned}",
+      "label": "unnumbered"
+    },
+    "6": {
+      "latex": "S_{\\max} = \\max_{i,j} \\bigl(q_i^{\\vphantom{\\top}}\\! \\cdot k_j\\bigr)",
+      "label": "1"
+    },
+    "7": {
+      "latex": "|q_i \\!\\cdot\\! k_j| \\le \\|q_i\\|\\|k_j\\| \\le \\|x_i\\|\\|x_j\\|\\|\\mathbf W_q\\|\\|\\mathbf W_k\\|,",
+      "label": "2"
+    },
+    "8": {
+      "latex": "\\mathbf W_{t-1}=\\sum_i \\sigma_i\\,u_i v_i^{\\top}",
+      "label": "3"
+    },
+    "9": {
+      "latex": "\\begin{aligned}\\Delta\\mathbf W_t &= \\sum_j \\bar\\sigma\\,\\bar u_j \\bar v_j^{\\top}\\end{aligned}",
+      "label": "4"
+    },
+    "10": {
+      "latex": "\\begin{aligned}\\mathbf W_t \\leftarrow \\sum_i \\sigma_i u_i v_i^{\\top} + \\sum_j \\bar\\sigma\\,\\bar u_j \\bar v_j^{\\top}\\end{aligned}",
+      "label": "5"
+    },
+    "11": {
+      "latex": "q_i\\cdot k_j=(x_i \\mathbf W_q)\\cdot (x_j \\mathbf W_k).",
+      "label": "6"
+    }
+  }
+}

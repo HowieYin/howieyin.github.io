@@ -1,0 +1,10 @@
+,DeepSeek-V3,Kimi K2,Δ
+#Layers,61,61,=
+Total Parameters,671B,1.04T,↑ 54%
+Activated Parameters,37B,32.6B,↓ 13%
+Experts (total),256,384,↑ 50%
+Experts Active per Token,8,8,=
+Shared Experts,1,1,=
+Attention Heads,128,64,↓ 50%
+Number of Dense Layers,3,1,↓ 67%
+Expert Grouping,Yes,No,-

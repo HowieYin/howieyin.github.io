@@ -41,6 +41,14 @@
       "category": "model-architecture"
     },
     {
+      "slug": "kimi-k2",
+      "title": "Kimi K2：万亿参数，如何训练成能执行任务的 Agent",
+      "metadata": "2025 · Moonshot AI · arXiv v2 · Read October 29, 2026 · MoE / MuonClip / Agentic RL",
+      "readDate": "2026-10-29",
+      "description": "All 13 original figures, 6 complete tables, the MuonClip algorithm and 11 formula groups; MLA tensors and cache, 384-to-8 routing, agent data and RL, H800 memory and communication, three interactive explainers, source audits and dated follow-up research.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "llama",
       "title": "LLaMA：把训练多花的钱，换成每次推理少花的钱",
       "metadata": "2023 · Meta AI · arXiv v1 · Read October 29, 2026 · LLM / Training / Inference",
