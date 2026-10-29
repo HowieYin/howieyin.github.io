@@ -1,0 +1,18 @@
+title: "Efficient Memory Management for Large Language Model Serving with PagedAttention"
+slug: pagedattention
+arxiv: "2309.06180"
+version: v1
+published: "2023-09-12"
+venue: "SOSP 2023"
+doi: "10.1145/3600006.3613165"
+authors: ["Woosuk Kwon", "Zhuohan Li", "Siyuan Zhuang", "Ying Sheng", "Lianmin Zheng", "Cody Hao Yu", "Joseph E. Gonzalez", "Hao Zhang", "Ion Stoica"]
+institutions: ["UC Berkeley", "Stanford University", "Independent Researcher", "UC San Diego"]
+paper: "https://arxiv.org/pdf/2309.06180v1"
+code: "https://github.com/vllm-project/vllm"
+project: "https://sky.cs.berkeley.edu/project/vllm/"
+read_date: "2026-10-29"
+research_cutoff: "2026-10-29"
+figure_count: 19
+table_count: 1
+numbered_equation_count: 4
+local_gpu_reproduction: false

@@ -1,0 +1,12 @@
+flowchart TD
+  A["2022 Orca：迭代级 batching"] --> B["2023 PagedAttention：KV 按需块管理"]
+  B --> C["2023–2024 SGLang：跨调用前缀复用"]
+  B --> D["2024 FastGen / Sarathi：prefill-decode 批组织"]
+  B --> E["2024 DistServe：P/D 分离 + SLO"]
+  B --> F["2024–2025 vAttention：VMM 虚拟连续"]
+  B --> G["2025 FlashInfer：可组合 layout / kernel"]
+  C --> H["2026 vLLM：APC + Hybrid KV + 多 backend"]
+  D --> H
+  E --> H
+  G --> H
+  F -. "替代地址路线；不是统一排名" .-> H

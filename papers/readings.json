@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "pagedattention",
+      "title": "PagedAttention：把 KV Cache 的容量，变成可用的并发",
+      "metadata": "SOSP 2023 · arXiv v1 · Read October 29, 2026 · LLM Serving / KV Cache / Systems",
+      "readDate": "2026-10-29",
+      "description": "All 19 original figures, the complete configuration table and 4 original equations; paging and copy-on-write steps, analytical KV and prefix explorers, per-op and TP costs, experiment audits, and dated research through October 29, 2026.",
+      "category": "attention-kv-cache"
+    },
+    {
       "slug": "vit",
       "title": "Vision Transformer：把图像变成序列，把视觉先验交给数据",
       "metadata": "ICLR 2021 · arXiv v2 · Read October 29, 2026 · CV / VLM / Model Architecture",

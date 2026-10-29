@@ -1,0 +1,7 @@
+flowchart LR
+  A["Host<br/>选择请求组"] --> B["KV manager<br/>按需分配 / 必要时 COW"]
+  B --> C["迭代输入<br/>token IDs + block table"]
+  C --> D["各 TP rank / 各层<br/>写 K/V → 全历史 attention<br/>其它层与 collective"]
+  D --> E["logits → sample<br/>结果返回 scheduler"]
+  E --> F["继续请求<br/>下一迭代"]
+  E --> G["结束请求<br/>设备完成后降引用<br/>安全复用"]

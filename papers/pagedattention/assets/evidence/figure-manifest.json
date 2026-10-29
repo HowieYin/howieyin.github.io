@@ -1,0 +1,257 @@
+[
+  {
+    "figure": 1,
+    "files": [
+      "memory-distribution.pdf",
+      "memory_batchsize.pdf"
+    ],
+    "png": "fig-01.png",
+    "caption": "Figure 1 . Left: Memory layout when serving an LLM with 13B parameters on NVIDIA A100. The parameters (gray) persist in GPU memory throughout serving. The memory for the KV cache (red) is (de)allocated per serving request. A small amount of memory (yellow) is used ephemerally for activation. Right: vLLM smooths out the rapid growth curve of KV cache memory seen in existing systems ( NVIDIA, 2023a ; Yu et al., 2022 ) , leading to a notable boost in serving throughput.",
+    "size": [
+      1833,
+      972
+    ],
+    "sha256": "6bc8ebd1014fae5f8d0eeeb9b5306b583af031d10133725a205081fa3649a3ab"
+  },
+  {
+    "figure": 2,
+    "files": [
+      "experiments/memory_breakdown.pdf"
+    ],
+    "png": "fig-02.png",
+    "caption": "Figure 2 . Average percentage of memory wastes in different LLM serving systems during the experiment in § 6.2 .",
+    "size": [
+      1512,
+      864
+    ],
+    "sha256": "5d0bfb31e601d9edb0db880aac3aac9b2fa8798d2a683ca487761059d22c2b75"
+  },
+  {
+    "figure": 3,
+    "files": [
+      "baseline-memory-management.pdf"
+    ],
+    "png": "fig-03.png",
+    "caption": "Figure 3 . KV cache memory management in existing systems. Three types of memory wastes – reserved, internal fragmentation, and external fragmentation – exist that prevent other requests from fitting into the memory. The token in each memory slot represents its KV cache. Note the same tokens can have different KV cache when at different positions.",
+    "size": [
+      3165,
+      480
+    ],
+    "sha256": "30cc559509ca622b71e03d49e591282ac87063555d949b79f7d90dca9a4b9f28"
+  },
+  {
+    "figure": 4,
+    "files": [
+      "system-overview.pdf"
+    ],
+    "png": "fig-04.png",
+    "caption": "Figure 4 . vLLM system overview.",
+    "size": [
+      1522,
+      811
+    ],
+    "sha256": "008a965b25428f5bb8bc7f5476b0eefc651e167fda90f125c444cbfc64ee1c3f"
+  },
+  {
+    "figure": 5,
+    "files": [
+      "pagedattention.pdf"
+    ],
+    "png": "fig-05.png",
+    "caption": "Figure 5 . Illustration of the PagedAttention algorithm, where the attention key and values vectors are stored as non-contiguous blocks in the memory.",
+    "size": [
+      1408,
+      658
+    ],
+    "sha256": "e6eed2de8a2680d9d57bd6e0e6f714a9d40c2b80ddfab95fbfd25ca772ff9431"
+  },
+  {
+    "figure": 6,
+    "files": [
+      "logical-and-physical-block-table.pdf"
+    ],
+    "png": "fig-06.png",
+    "caption": "Figure 6 . Block table translation in vLLM.",
+    "size": [
+      1989,
+      947
+    ],
+    "sha256": "3e98403d48b59eb6ec6a8ff19018bf657124d2b5d47d40a18398f29eaf3ea299"
+  },
+  {
+    "figure": 7,
+    "files": [
+      "multi-sequence-block-mapping.pdf"
+    ],
+    "png": "fig-07.png",
+    "caption": "Figure 7 . Storing the KV cache of two requests at the same time in vLLM.",
+    "size": [
+      2291,
+      920
+    ],
+    "sha256": "03fb69793fd3dc78baecc3f0581fcb087ef5980fcd4a81ae4022f4603856857b"
+  },
+  {
+    "figure": 8,
+    "files": [
+      "parallel-decoding.pdf"
+    ],
+    "png": "fig-08.png",
+    "caption": "Figure 8 . Parallel sampling example.",
+    "size": [
+      2299,
+      921
+    ],
+    "sha256": "4d4fe8b9cc77e0decdb86b064373c5628d627299bdf8f163fdaef7fea61d5180"
+  },
+  {
+    "figure": 9,
+    "files": [
+      "beam-search.pdf"
+    ],
+    "png": "fig-09.png",
+    "caption": "Figure 9 . Beam search example.",
+    "size": [
+      1639,
+      607
+    ],
+    "sha256": "82dd2230da72261a916f63fcdd34f3cdd7269e7dea5e0dd76d2993d00f5aaf9d"
+  },
+  {
+    "figure": 10,
+    "files": [
+      "share-prompt.pdf"
+    ],
+    "png": "fig-10.png",
+    "caption": "Figure 10 . Shared prompt example for machine translation. The examples are adopted from ( Brown et al., 2020 ) .",
+    "size": [
+      1629,
+      589
+    ],
+    "sha256": "5871a627a594e43c4fccaf1a44a27bf86f93d44df934bbfdb5c37e9066a3833c"
+  },
+  {
+    "figure": 11,
+    "files": [
+      "experiments/sharegpt_hist.pdf",
+      "experiments/alpaca_hist.pdf"
+    ],
+    "png": "fig-11.png",
+    "caption": "Figure 11 . Input and output length distributions of the (a) ShareGPT and (b) Alpaca datasets.",
+    "size": [
+      1752,
+      648
+    ],
+    "sha256": "1d56be8723af356f0eaa74f133e270c0310bf781dfb8d73f7a1ecd8afbad4af0"
+  },
+  {
+    "figure": 12,
+    "files": [
+      "experiments/n1-sharegpt.pdf",
+      "experiments/n1-alpaca.pdf"
+    ],
+    "png": "fig-12.png",
+    "caption": "Figure 12 . Single sequence generation with OPT models on the ShareGPT and Alpaca dataset",
+    "size": [
+      3271,
+      1276
+    ],
+    "sha256": "ace0c3e59e21727ccc388034b7e3a34db5c284fc19eef3471e16fb3e77006398"
+  },
+  {
+    "figure": 13,
+    "files": [
+      "experiments/batched_requests_sharegpt.pdf",
+      "experiments/batched_requests_alpaca.pdf"
+    ],
+    "png": "fig-13.png",
+    "caption": "Figure 13 . Average number of batched requests when serving OPT-13B for the ShareGPT (2 reqs/s) and Alpaca (30 reqs/s) traces.",
+    "size": [
+      1752,
+      648
+    ],
+    "sha256": "ff3e810e827e9229a15f36bb1ae26572eca7b00d84fc00ee9b31aa7bac74389a"
+  },
+  {
+    "figure": 14,
+    "files": [
+      "experiments/parallel.pdf",
+      "experiments/beam.pdf"
+    ],
+    "png": "fig-14.png",
+    "caption": "Figure 14 . Parallel generation and beam search with OPT-13B on the Alpaca dataset.",
+    "size": [
+      3271,
+      1276
+    ],
+    "sha256": "197d54bb0f8234bf5b275294ea7dba4fbed964988ff36dae5a8c389cdb9ab8ff"
+  },
+  {
+    "figure": 15,
+    "files": [
+      "experiments/mem_saving_parallel_gen.pdf",
+      "experiments/mem_saving_beam.pdf"
+    ],
+    "png": "fig-15.png",
+    "caption": "Figure 15 . Average amount of memory saving from sharing KV blocks, when serving OPT-13B for the Alpaca trace.",
+    "size": [
+      2184,
+      648
+    ],
+    "sha256": "da2e6c06a4143ebb183ffeacadb3ea6c895d3399c77330b9e78e9842cbf18f31"
+  },
+  {
+    "figure": 16,
+    "files": [
+      "experiments/prefix.pdf"
+    ],
+    "png": "fig-16.png",
+    "caption": "Figure 16 . Translation workload where the input prompts share a common prefix. The prefix includes (a) 1 example with 80 tokens or (b) 5 examples with 341 tokens.",
+    "size": [
+      1249,
+      693
+    ],
+    "sha256": "9dd43e6d958a33a4c5721be36dbe6abb70aaf9a1b4f5303f0bf2b490f242a71e"
+  },
+  {
+    "figure": 17,
+    "files": [
+      "experiments/chat-sharegpt.pdf"
+    ],
+    "png": "fig-17.png",
+    "caption": "Figure 17 . Performance on chatbot workload.",
+    "size": [
+      1486,
+      608
+    ],
+    "sha256": "882f2436ef41902395dddb9f448305cba05eb00e66c8d5ed93c69f071112547e"
+  },
+  {
+    "figure": 18,
+    "files": [
+      "experiments/micro_latency.pdf",
+      "experiments/n1-block-size.pdf"
+    ],
+    "png": "fig-18.png",
+    "caption": "Figure 18 . Ablation experiments.",
+    "size": [
+      1946,
+      864
+    ],
+    "sha256": "cd6b648fd52465a9fae52455b92d4f103e33bfd056a781fa856d7a75d139bc97"
+  },
+  {
+    "figure": 19,
+    "files": [
+      "experiments/micro-swap.pdf",
+      "experiments/recompute-vs-swap.pdf"
+    ],
+    "png": "fig-19.png",
+    "caption": "Figure 19 . (a) Overhead of recomputation and swapping for different block sizes. (b) Performance when serving OPT-13B with the ShareGPT traces at the same request rate.",
+    "size": [
+      1733,
+      648
+    ],
+    "sha256": "a5659b7bb478d8aa3806666afd9bf549e4d84253f05fceb4ec67ca42e19b21cc"
+  }
+]
