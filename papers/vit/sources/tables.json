@@ -1,0 +1,872 @@
+[
+  {
+    "number": 1,
+    "caption": "Details of Vision Transformer model variants.",
+    "rows": [
+      [
+        "Model",
+        "Layers",
+        "Hidden size D",
+        "MLP size",
+        "Heads",
+        "Params"
+      ],
+      [
+        "ViT-Base",
+        "12",
+        "768",
+        "3072",
+        "12",
+        "86M"
+      ],
+      [
+        "ViT-Large",
+        "24",
+        "1024",
+        "4096",
+        "16",
+        "307M"
+      ],
+      [
+        "ViT-Huge",
+        "32",
+        "1280",
+        "5120",
+        "16",
+        "632M"
+      ]
+    ]
+  },
+  {
+    "number": 2,
+    "caption": "Comparison with state of the art on popular image classification benchmarks. We report mean and standard deviation of the accuracies, averaged over three fine-tuning runs. Vision Transformer models pre-trained on the JFT-300M dataset outperform ResNet-based baselines on all datasets, while taking substantially less computational resources to pre-train. ViT pre-trained on the smaller public ImageNet-21k dataset performs well too. ^*Slightly improved 88.5% result reported in Touvron et al. (2020).",
+    "rows": [
+      [
+        "",
+        "Ours-JFT (ViT-H/14)",
+        "Ours-JFT (ViT-L/16)",
+        "Ours-I21k (ViT-L/16)",
+        "BiT-L (ResNet152x4)",
+        "Noisy Student (EfficientNet-L2)"
+      ],
+      [
+        "ImageNet",
+        "<strong>88.55 ± 0.04</strong>",
+        "87.76 ± 0.03",
+        "85.30 ± 0.02",
+        "87.54 ± 0.02",
+        "88.4/88.5^*"
+      ],
+      [
+        "ImageNet ReaL",
+        "<strong>90.72 ± 0.05</strong>",
+        "90.54 ± 0.03",
+        "88.62 ± 0.05",
+        "90.54",
+        "90.55"
+      ],
+      [
+        "CIFAR-10",
+        "<strong>99.50 ± 0.06</strong>",
+        "99.42 ± 0.03",
+        "99.15 ± 0.03",
+        "99.37 ± 0.06",
+        "-"
+      ],
+      [
+        "CIFAR-100",
+        "<strong>94.55 ± 0.04</strong>",
+        "93.90 ± 0.05",
+        "93.25 ± 0.05",
+        "93.51 ± 0.08",
+        "-"
+      ],
+      [
+        "Oxford-IIIT Pets",
+        "<strong>97.56 ± 0.03</strong>",
+        "97.32 ± 0.11",
+        "94.67 ± 0.15",
+        "96.62 ± 0.23",
+        "-"
+      ],
+      [
+        "Oxford Flowers-102",
+        "99.68 ± 0.02",
+        "<strong>99.74 ± 0.00</strong>",
+        "99.61 ± 0.02",
+        "99.63 ± 0.03",
+        "-"
+      ],
+      [
+        "VTAB (19 tasks)",
+        "<strong>77.63 ± 0.23</strong>",
+        "76.28 ± 0.46",
+        "72.72 ± 0.21",
+        "76.29 ± 1.70",
+        "-"
+      ],
+      [
+        "TPUv3-core-days",
+        "2.5k",
+        "0.68k",
+        "0.23k",
+        "9.9k",
+        "12.3k"
+      ]
+    ]
+  },
+  {
+    "number": 3,
+    "caption": "Hyperparameters for training. All models are trained with a batch size of 4096 and learning rate warmup of 10k steps. For ImageNet we found it beneficial to additionally apply gradient clipping at global norm 1. Training resolution is 224.",
+    "rows": [
+      [
+        "Models",
+        "Dataset",
+        "Epochs",
+        "Base LR",
+        "LR decay",
+        "Weight decay",
+        "Dropout"
+      ],
+      [
+        "ViT-B/{16,32}",
+        "JFT-300M",
+        "7",
+        "8 · 10^-4",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "ViT-L/32",
+        "JFT-300M",
+        "7",
+        "6 · 10^-4",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "ViT-L/16",
+        "JFT-300M",
+        "7/14",
+        "4 · 10^-4",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "ViT-H/14",
+        "JFT-300M",
+        "14",
+        "3 · 10^-4",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "R50x{1,2}",
+        "JFT-300M",
+        "7",
+        "10^-3",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "R101x1",
+        "JFT-300M",
+        "7",
+        "8 · 10^-4",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "R152x{1,2}",
+        "JFT-300M",
+        "7",
+        "6 · 10^-4",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "R50+ViT-B/{16,32}",
+        "JFT-300M",
+        "7",
+        "8 · 10^-4",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "R50+ViT-L/32",
+        "JFT-300M",
+        "7",
+        "2 · 10^-4",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "R50+ViT-L/16",
+        "JFT-300M",
+        "7/14",
+        "4 · 10^-4",
+        "linear",
+        "0.1",
+        "0.0"
+      ],
+      [
+        "ViT-B/{16,32}",
+        "ImageNet-21k",
+        "90",
+        "10^-3",
+        "linear",
+        "0.03",
+        "0.1"
+      ],
+      [
+        "ViT-L/{16,32}",
+        "ImageNet-21k",
+        "30/90",
+        "10^-3",
+        "linear",
+        "0.03",
+        "0.1"
+      ],
+      [
+        "ViT-*",
+        "ImageNet",
+        "300",
+        "3 · 10^-3",
+        "cosine",
+        "0.3",
+        "0.1"
+      ]
+    ]
+  },
+  {
+    "number": 4,
+    "caption": "Hyperparameters for fine-tuning. All models are fine-tuned with cosine learning rate decay, a batch size of 512, no weight decay, and grad clipping at global norm 1. If not mentioned otherwise, fine-tuning resolution is 384.",
+    "rows": [
+      [
+        "Dataset",
+        "Steps",
+        "Base LR"
+      ],
+      [
+        "ImageNet",
+        "20000",
+        "{0.003, 0.01, 0.03, 0.06}"
+      ],
+      [
+        "CIFAR100",
+        "10000",
+        "{0.001, 0.003, 0.01, 0.03}"
+      ],
+      [
+        "CIFAR10",
+        "10000",
+        "{0.001, 0.003, 0.01, 0.03}"
+      ],
+      [
+        "Oxford-IIIT Pets",
+        "500",
+        "{0.001, 0.003, 0.01, 0.03}"
+      ],
+      [
+        "Oxford Flowers-102",
+        "500",
+        "{0.001, 0.003, 0.01, 0.03}"
+      ],
+      [
+        "VTAB (19 tasks)",
+        "2500",
+        "0.01"
+      ]
+    ]
+  },
+  {
+    "number": 5,
+    "caption": "Top1 accuracy (in %) of Vision Transformer on various datasets when pre-trained on ImageNet, ImageNet-21k or JFT300M. These values correspond to Figure 3 in the main text. Models are fine-tuned at 384 resolution. Note that the ImageNet results are computed without additional techniques (Polyak averaging and 512 resolution images) used to achieve results in Table 2.",
+    "rows": [
+      [
+        "Pre-training",
+        "Downstream",
+        "ViT-B/16",
+        "ViT-B/32",
+        "ViT-L/16",
+        "ViT-L/32",
+        "ViT-H/14"
+      ],
+      [
+        "ImageNet",
+        "CIFAR-10",
+        "98.13",
+        "97.77",
+        "97.86",
+        "97.94",
+        "-"
+      ],
+      [
+        "ImageNet",
+        "CIFAR-100",
+        "87.13",
+        "86.31",
+        "86.35",
+        "87.07",
+        "-"
+      ],
+      [
+        "ImageNet",
+        "ImageNet",
+        "77.91",
+        "73.38",
+        "76.53",
+        "71.16",
+        "-"
+      ],
+      [
+        "ImageNet",
+        "ImageNet ReaL",
+        "83.57",
+        "79.56",
+        "82.19",
+        "77.83",
+        "-"
+      ],
+      [
+        "ImageNet",
+        "Oxford Flowers-102",
+        "89.49",
+        "85.43",
+        "89.66",
+        "86.36",
+        "-"
+      ],
+      [
+        "ImageNet",
+        "Oxford-IIIT-Pets",
+        "93.81",
+        "92.04",
+        "93.64",
+        "91.35",
+        "-"
+      ],
+      [
+        "ImageNet-21k",
+        "CIFAR-10",
+        "98.95",
+        "98.79",
+        "99.16",
+        "99.13",
+        "99.27"
+      ],
+      [
+        "ImageNet-21k",
+        "CIFAR-100",
+        "91.67",
+        "91.97",
+        "93.44",
+        "93.04",
+        "93.82"
+      ],
+      [
+        "ImageNet-21k",
+        "ImageNet",
+        "83.97",
+        "81.28",
+        "85.15",
+        "80.99",
+        "85.13"
+      ],
+      [
+        "ImageNet-21k",
+        "ImageNet ReaL",
+        "88.35",
+        "86.63",
+        "88.40",
+        "85.65",
+        "88.70"
+      ],
+      [
+        "ImageNet-21k",
+        "Oxford Flowers-102",
+        "99.38",
+        "99.11",
+        "99.61",
+        "99.19",
+        "99.51"
+      ],
+      [
+        "ImageNet-21k",
+        "Oxford-IIIT-Pets",
+        "94.43",
+        "93.02",
+        "94.73",
+        "93.09",
+        "94.82"
+      ],
+      [
+        "JFT-300M",
+        "CIFAR-10",
+        "99.00",
+        "98.61",
+        "99.38",
+        "99.19",
+        "99.50"
+      ],
+      [
+        "JFT-300M",
+        "CIFAR-100",
+        "91.87",
+        "90.49",
+        "94.04",
+        "92.52",
+        "94.55"
+      ],
+      [
+        "JFT-300M",
+        "ImageNet",
+        "84.15",
+        "80.73",
+        "87.12",
+        "84.37",
+        "88.04"
+      ],
+      [
+        "JFT-300M",
+        "ImageNet ReaL",
+        "88.85",
+        "86.27",
+        "89.99",
+        "88.28",
+        "90.33"
+      ],
+      [
+        "JFT-300M",
+        "Oxford Flowers-102",
+        "99.56",
+        "99.27",
+        "99.56",
+        "99.45",
+        "99.68"
+      ],
+      [
+        "JFT-300M",
+        "Oxford-IIIT-Pets",
+        "95.80",
+        "93.40",
+        "97.11",
+        "95.83",
+        "97.56"
+      ]
+    ]
+  },
+  {
+    "number": 6,
+    "caption": "Detailed results of model scaling experiments. These correspond to Figure 5 in the main paper. We show transfer accuracy on several datasets, as well as the pre-training compute (in exaFLOPs).",
+    "rows": [
+      [
+        "Model",
+        "Epochs",
+        "ImageNet",
+        "ImageNet ReaL",
+        "CIFAR-10",
+        "CIFAR-100",
+        "Pets",
+        "Flowers",
+        "exaFLOPs"
+      ],
+      [
+        "ViT-B/32",
+        "7",
+        "80.73",
+        "86.27",
+        "98.61",
+        "90.49",
+        "93.40",
+        "99.27",
+        "55"
+      ],
+      [
+        "ViT-B/16",
+        "7",
+        "84.15",
+        "88.85",
+        "99.00",
+        "91.87",
+        "95.80",
+        "99.56",
+        "224"
+      ],
+      [
+        "ViT-L/32",
+        "7",
+        "84.37",
+        "88.28",
+        "99.19",
+        "92.52",
+        "95.83",
+        "99.45",
+        "196"
+      ],
+      [
+        "ViT-L/16",
+        "7",
+        "86.30",
+        "89.43",
+        "99.38",
+        "93.46",
+        "96.81",
+        "99.66",
+        "783"
+      ],
+      [
+        "ViT-L/16",
+        "14",
+        "87.12",
+        "89.99",
+        "99.38",
+        "94.04",
+        "97.11",
+        "99.56",
+        "1567"
+      ],
+      [
+        "ViT-H/14",
+        "14",
+        "88.08",
+        "90.36",
+        "99.50",
+        "94.71",
+        "97.11",
+        "99.71",
+        "4262"
+      ],
+      [
+        "ResNet50x1",
+        "7",
+        "77.54",
+        "84.56",
+        "97.67",
+        "86.07",
+        "91.11",
+        "94.26",
+        "50"
+      ],
+      [
+        "ResNet50x2",
+        "7",
+        "82.12",
+        "87.94",
+        "98.29",
+        "89.20",
+        "93.43",
+        "97.02",
+        "199"
+      ],
+      [
+        "ResNet101x1",
+        "7",
+        "80.67",
+        "87.07",
+        "98.48",
+        "89.17",
+        "94.08",
+        "95.95",
+        "96"
+      ],
+      [
+        "ResNet152x1",
+        "7",
+        "81.88",
+        "87.96",
+        "98.82",
+        "90.22",
+        "94.17",
+        "96.94",
+        "141"
+      ],
+      [
+        "ResNet152x2",
+        "7",
+        "84.97",
+        "89.69",
+        "99.06",
+        "92.05",
+        "95.37",
+        "98.62",
+        "563"
+      ],
+      [
+        "ResNet152x2",
+        "14",
+        "85.56",
+        "89.89",
+        "99.24",
+        "91.92",
+        "95.75",
+        "98.75",
+        "1126"
+      ],
+      [
+        "ResNet200x3",
+        "14",
+        "87.22",
+        "90.15",
+        "99.34",
+        "93.53",
+        "96.32",
+        "99.04",
+        "3306"
+      ],
+      [
+        "R50x1+ViT-B/32",
+        "7",
+        "84.90",
+        "89.15",
+        "99.01",
+        "92.24",
+        "95.75",
+        "99.46",
+        "106"
+      ],
+      [
+        "R50x1+ViT-B/16",
+        "7",
+        "85.58",
+        "89.65",
+        "99.14",
+        "92.63",
+        "96.65",
+        "99.40",
+        "274"
+      ],
+      [
+        "R50x1+ViT-L/32",
+        "7",
+        "85.68",
+        "89.04",
+        "99.24",
+        "92.93",
+        "96.97",
+        "99.43",
+        "246"
+      ],
+      [
+        "R50x1+ViT-L/16",
+        "7",
+        "86.60",
+        "89.72",
+        "99.18",
+        "93.64",
+        "97.03",
+        "99.40",
+        "859"
+      ],
+      [
+        "R50x1+ViT-L/16",
+        "14",
+        "87.12",
+        "89.76",
+        "99.31",
+        "93.89",
+        "97.36",
+        "99.11",
+        "1668"
+      ]
+    ]
+  },
+  {
+    "number": 7,
+    "caption": "Fine-tuning ResNet models pre-trained with Adam and SGD.",
+    "rows": [
+      [
+        "Dataset",
+        "ResNet50 Adam",
+        "ResNet50 SGD",
+        "ResNet152x2 Adam",
+        "ResNet152x2 SGD"
+      ],
+      [
+        "ImageNet",
+        "77.54",
+        "78.24",
+        "84.97",
+        "84.37"
+      ],
+      [
+        "CIFAR10",
+        "97.67",
+        "97.46",
+        "99.06",
+        "99.07"
+      ],
+      [
+        "CIFAR100",
+        "86.07",
+        "85.17",
+        "92.05",
+        "91.06"
+      ],
+      [
+        "Oxford-IIIT Pets",
+        "91.11",
+        "91.00",
+        "95.37",
+        "94.79"
+      ],
+      [
+        "Oxford Flowers-102",
+        "94.26",
+        "92.06",
+        "98.62",
+        "99.32"
+      ],
+      [
+        "Average",
+        "89.33",
+        "88.79",
+        "94.01",
+        "93.72"
+      ]
+    ]
+  },
+  {
+    "number": 8,
+    "caption": "Results of the ablation study on positional embeddings with ViT-B/16 model evaluated on ImageNet 5-shot linear.",
+    "rows": [
+      [
+        "Pos. Emb.",
+        "Default/Stem",
+        "Every Layer",
+        "Every Layer-Shared"
+      ],
+      [
+        "No Pos. Emb.",
+        "0.61382",
+        "N/A",
+        "N/A"
+      ],
+      [
+        "1-D Pos. Emb.",
+        "0.64206",
+        "0.63964",
+        "0.64292"
+      ],
+      [
+        "2-D Pos. Emb.",
+        "0.64001",
+        "0.64046",
+        "0.64022"
+      ],
+      [
+        "Rel. Pos. Emb.",
+        "0.64032",
+        "N/A",
+        "N/A"
+      ]
+    ]
+  },
+  {
+    "number": 9,
+    "caption": "Breakdown of VTAB-1k performance across tasks.",
+    "rows": [
+      [
+        "Model",
+        "Caltech101",
+        "CIFAR-100",
+        "DTD",
+        "Flowers102",
+        "Pets",
+        "Sun397",
+        "SVHN",
+        "Camelyon",
+        "EuroSAT",
+        "Resisc45",
+        "Retinopathy",
+        "Clevr-Count",
+        "Clevr-Dist",
+        "DMLab",
+        "dSpr-Loc",
+        "dSpr-Ori",
+        "KITTI-Dist",
+        "sNORB-Azim",
+        "sNORB-Elev",
+        "Mean"
+      ],
+      [
+        "ViT-H/14 (JFT)",
+        "95.3",
+        "85.5",
+        "75.2",
+        "99.7",
+        "97.2",
+        "65.0",
+        "88.9",
+        "83.3",
+        "96.7",
+        "91.4",
+        "76.6",
+        "91.7",
+        "63.8",
+        "53.1",
+        "79.4",
+        "63.3",
+        "84.5",
+        "33.2",
+        "51.2",
+        "77.6"
+      ],
+      [
+        "ViT-L/16 (JFT)",
+        "95.4",
+        "81.9",
+        "74.3",
+        "99.7",
+        "96.7",
+        "63.5",
+        "87.4",
+        "83.6",
+        "96.5",
+        "89.7",
+        "77.1",
+        "86.4",
+        "63.1",
+        "49.7",
+        "74.5",
+        "60.5",
+        "82.2",
+        "36.2",
+        "51.1",
+        "76.3"
+      ],
+      [
+        "ViT-L/16 (I21k)",
+        "90.8",
+        "84.1",
+        "74.1",
+        "99.3",
+        "92.7",
+        "61.0",
+        "80.9",
+        "82.5",
+        "95.6",
+        "85.2",
+        "75.3",
+        "70.3",
+        "56.1",
+        "41.9",
+        "74.7",
+        "64.9",
+        "79.9",
+        "30.5",
+        "41.7",
+        "72.7"
+      ]
+    ]
+  }
+]

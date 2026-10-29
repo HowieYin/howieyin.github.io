@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "vit",
+      "title": "Vision Transformer：把图像变成序列，把视觉先验交给数据",
+      "metadata": "ICLR 2021 · arXiv v2 · Read October 29, 2026 · CV / VLM / Model Architecture",
+      "readDate": "2026-10-29",
+      "description": "All 14 original figures, 9 complete tables and 8 numbered equations; patch and position explorers, per-op resolution costs, source-code and experiment audits, and visual encoder research through October 29, 2026.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "stepped-moe",
       "title": "Stepped MoE：让专家驻留一段，让路由提前发生",
       "metadata": "2026 · Apple · arXiv v1 · Read October 29, 2026 · MoE / Edge Inference / Systems",
