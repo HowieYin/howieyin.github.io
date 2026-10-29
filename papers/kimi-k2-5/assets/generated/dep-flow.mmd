@@ -1,0 +1,10 @@
+flowchart TB
+  A["Global visual batch<br/>balance by image / patch workload"] --> B["1. Balanced vision forward<br/>replicate ViT on GPUs"]
+  B --> C["Keep final outputs<br/>discard intermediate activations"]
+  C --> D["Gather visual outputs to PP Stage-0"]
+  D --> E["2. Backbone training<br/>forward + backward using text PP / EP"]
+  E --> F["Gradients at visual encoder output"]
+  F --> G["3. Vision recomputation + backward<br/>recompute forward, update ViT"]
+  G --> H["Synchronize visual gradients"]
+  B -. "weight replication" .-> X["Trade-offs:<br/>extra compute + gather + synchronization"]
+  G -. "activation memory saved" .-> X
