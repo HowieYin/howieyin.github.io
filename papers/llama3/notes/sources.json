@@ -1,0 +1,21 @@
+{
+  "verifiedAt": "2026-10-29",
+  "policy": "Primary source first; author-reported performance, not local reproduction. Retrieved public code is a dated snapshot, not claimed identical to 2024 internal code.",
+  "sources": [
+    {"id":"P1","title":"The Llama 3 Herd of Models","version":"2407.21783v3","url":"https://arxiv.org/abs/2407.21783v3","pdf":"https://arxiv.org/pdf/2407.21783v3","html":"https://arxiv.org/html/2407.21783v3","date":"2024-11-23","role":"Full primary source; 92-page PDF and source package read"},
+    {"id":"C1","title":"Llama models / GQA reference implementation","url":"https://github.com/meta-llama/llama-models/blob/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama3/model.py","commit":"0e0b8c519242d5833d8c11bffc1232b77ad7f301","role":"Cache shape, repeat_kv, TP partition"},
+    {"id":"C2","title":"Llama 3.1 model card","url":"https://github.com/meta-llama/llama-models/blob/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama3_1/MODEL_CARD.md","role":"Release language, context and weights scope"},
+    {"id":"C3","title":"Llama 3.1 prompt format","url":"https://github.com/meta-llama/llama-models/blob/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama3_1/prompt_format.md","role":"EOM/EOT and executor/tool response semantics"},
+    {"id":"C4","title":"FBGEMM FP8 quantization","url":"https://github.com/pytorch/FBGEMM/blob/d4b20c45449d302a5984066e3836b0f91a8f20f0/fbgemm_gpu/experimental/gen_ai/src/quantize/quantize.cu","commit":"d4b20c45449d302a5984066e3836b0f91a8f20f0","role":"bounded row max, scale convention, CUDA E4M3 max448"},
+    {"id":"R1","title":"Training Compute-Optimal Large Language Models","url":"https://arxiv.org/abs/2203.15556","date":"2022-03-29","role":"Compute/data optimum predecessor"},
+    {"id":"R2","title":"Direct Preference Optimization","url":"https://arxiv.org/abs/2305.18290v3","date":"2024-07-29","role":"Standard DPO formula reconstruction; initial work2023"},
+    {"id":"R3","title":"Flamingo","url":"https://arxiv.org/abs/2204.14198","date":"2022","role":"Compositional visual-language predecessor"},
+    {"id":"R4","title":"BEST-RQ","url":"https://arxiv.org/abs/2202.01855","date":"2022","role":"Fixed random codebook speech objective"},
+    {"id":"R5","title":"DeepSeek-V3 Technical Report","url":"https://arxiv.org/html/2412.19437v2","date":"2025-02-18","role":"MoE/MLA/FP8/DualPipe alternative; author reported"},
+    {"id":"R6","title":"Olmo 3","url":"https://arxiv.org/abs/2512.13961v2","date":"2026-04-14","role":"Full model-flow openness and7B/32B route; claims not independently rebenchmarked"},
+    {"id":"U1","title":"Llama 3.2 official release","url":"https://about.fb.com/ltam/news/2024/09/llama-3-2-revolucionando-la-ia-y-la-vision-de-vanguardia-con-modelos-abiertos-y-personalizables/","date":"2024-09-25","role":"11B/90B vision;1B/3B text; beforev3 revision"},
+    {"id":"U2","title":"Llama4 official model card","url":"https://github.com/meta-llama/llama-models/blob/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama4/MODEL_CARD.md","date":"2025-04-05","role":"Scout109B/Maverick400B total;17B active; nativeMoE and BF16 evaluation"},
+    {"id":"U3","title":"Muse Wonder official release","url":"https://about.fb.com/news/2026/10/introducing-muse-wonder-models/","date":"2026-10-12","role":"Latest officialMeta product statement retrieved; no verified full comparable benchmark/openweights/parameter count"},
+    {"id":"U4","title":"Muse Wonder linked research blog","url":"https://research.meta.ai/blog/muse-wonder","status":"Fetch returned empty content","role":"Not used for numerical evidence; third-party benchmark repetitions not accepted as verified primary numbers"}
+  ]
+}

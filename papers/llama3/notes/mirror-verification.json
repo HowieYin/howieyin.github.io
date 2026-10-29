@@ -1,0 +1,20 @@
+{
+  "url": "https://bytedance.larkoffice.com/docx/VCl1dEIupoYKhFx2BYccgpagn0C",
+  "images": 40,
+  "tables": 40,
+  "latex_expressions": 486,
+  "table_errors": [],
+  "latex_matches": true,
+  "additional_superscript_expressions": {
+    "△": 6,
+    "⊲": 2,
+    "♢": 5,
+    "14": 2
+  },
+  "mermaid_sources": 2,
+  "end_marker": true,
+  "requested_email": "yinhongyi@bytedance.com",
+  "permission": "full_access",
+  "edit": true,
+  "manage": true
+}
