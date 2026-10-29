@@ -1,0 +1,64 @@
+<figure class="original-table" id="table-15">
+<div aria-label="Original Table 15" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" rowspan="2" scope="col"><span class="ltx_text">GPU Type</span></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">GPU Power</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" rowspan="2" scope="col"><span class="ltx_text">GPU-hours</span></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Total power</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Carbon emitted</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td ltx_align_center" scope="col">consumption</th>
+<th class="ltx_td ltx_align_center" scope="col">consumption</th>
+<th class="ltx_td ltx_align_center" scope="col">(tCO<sub class="ltx_sub">2</sub>eq)</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">OPT-175B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">A100-80GB</td>
+<td class="ltx_td ltx_align_center ltx_border_t">400W</td>
+<td class="ltx_td ltx_align_center ltx_border_t">809,472</td>
+<td class="ltx_td ltx_align_center ltx_border_t">356 MWh</td>
+<td class="ltx_td ltx_align_center ltx_border_t">137</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">BLOOM-175B</td>
+<td class="ltx_td ltx_align_center">A100-80GB</td>
+<td class="ltx_td ltx_align_center">400W</td>
+<td class="ltx_td ltx_align_center">1,082,880</td>
+<td class="ltx_td ltx_align_center">475 MWh</td>
+<td class="ltx_td ltx_align_center">183</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">LLaMA-7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">A100-80GB</td>
+<td class="ltx_td ltx_align_center ltx_border_t">400W</td>
+<td class="ltx_td ltx_align_center ltx_border_t">82,432</td>
+<td class="ltx_td ltx_align_center ltx_border_t"> 36 MWh</td>
+<td class="ltx_td ltx_align_center ltx_border_t"> 14</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">LLaMA-13B</td>
+<td class="ltx_td ltx_align_center">A100-80GB</td>
+<td class="ltx_td ltx_align_center">400W</td>
+<td class="ltx_td ltx_align_center">135,168</td>
+<td class="ltx_td ltx_align_center"> 59 MWh</td>
+<td class="ltx_td ltx_align_center"> 23</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">LLaMA-33B</td>
+<td class="ltx_td ltx_align_center">A100-80GB</td>
+<td class="ltx_td ltx_align_center">400W</td>
+<td class="ltx_td ltx_align_center">530,432</td>
+<td class="ltx_td ltx_align_center">233 MWh</td>
+<td class="ltx_td ltx_align_center"> 90</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">LLaMA-65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">A100-80GB</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">400W</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1,022,362</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">449 MWh</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">173</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 15: </span>
+<strong class="ltx_text ltx_font_bold">Carbon footprint of training different models in the same data center.</strong>
+We follow <cite class="ltx_cite ltx_citemacro_citet">Wu et al. (2022)</cite> to compute carbon emission of training OPT, BLOOM and our models in the same data center. For the power consumption of a A100-80GB, we take the thermal design power for NVLink systems, that is 400W. We take a PUE of 1.1 and a carbon intensity factor set at the national US average of 0.385 kg CO<sub class="ltx_sub">2</sub>e per KWh.
+
+
+</figcaption>
+<p class="fine">Original paper · Table 15. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>

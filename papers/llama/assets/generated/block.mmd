@@ -1,0 +1,9 @@
+flowchart LR
+  X["X<br/>B × S × d"] --> A["Pre RMSNorm<br/>QKV + RoPE on Q/K<br/>Causal Attention + O"]
+  A --> ADD1["Residual add"]
+  X --> ADD1
+  A -.-> K["KV cache<br/>rotated K + unrotated V"]
+  ADD1 --> F["Pre RMSNorm<br/>SiLU(w1 u) × w3 u<br/>w2 down projection"]
+  F --> ADD2["Residual add"]
+  ADD1 --> ADD2
+  ADD2 --> END["Next layer<br/>Final norm → LM head"]
