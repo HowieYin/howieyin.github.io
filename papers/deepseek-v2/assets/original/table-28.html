@@ -1,0 +1,205 @@
+<figure class="original-table" id="table-28">
+<div aria-label="Original Table 28" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_align_middle" id="A7.T28.2">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr" id="A7.T28.2.1">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_tt" id="A7.T28.2.1.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.1.1.1">
+<span class="ltx_p" id="A7.T28.2.1.1.1.1"><span class="ltx_text ltx_font_bold" id="A7.T28.2.1.1.1.1.1">PROMPT</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.2">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.2.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.2.1.1">
+<span class="ltx_p" id="A7.T28.2.2.1.1.1"><span class="ltx_text" id="A7.T28.2.2.1.1.1.1">You are an expert Python programmer, and here is your task: Write a function to find the similar elements from the given two tuple lists. Your code should pass these tests:</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.3">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.3.1"></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.4">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.4.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.4.1.1">
+<span class="ltx_p" id="A7.T28.2.4.1.1.1"><span class="ltx_text" id="A7.T28.2.4.1.1.1.1">assert similar_elements((3, 4, 5, 6),(5, 7, 4, 10)) == (4, 5)</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.5">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.5.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.5.1.1">
+<span class="ltx_p" id="A7.T28.2.5.1.1.1"><span class="ltx_text" id="A7.T28.2.5.1.1.1.1">assert similar_elements((1, 2, 3, 4),(5, 4, 3, 7)) == (3, 4)</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.6">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.6.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.6.1.1">
+<span class="ltx_p" id="A7.T28.2.6.1.1.1"><span class="ltx_text" id="A7.T28.2.6.1.1.1.1">assert similar_elements((11, 12, 14, 13),(17, 15, 14, 13)) == (13, 14)</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.7">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.7.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.7.1.1">
+<span class="ltx_p" id="A7.T28.2.7.1.1.1"><span class="ltx_text" id="A7.T28.2.7.1.1.1.1">[BEGIN]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.8">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.8.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.8.1.1">
+<span class="ltx_p" id="A7.T28.2.8.1.1.1"><span class="ltx_text" id="A7.T28.2.8.1.1.1.1">def similar_elements(test_tup1, test_tup2):</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.9">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.9.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.9.1.1">
+<span class="ltx_p" id="A7.T28.2.9.1.1.1"><span class="ltx_text" id="A7.T28.2.9.1.1.1.1">res = tuple(set(test_tup1) &amp; set(test_tup2))</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.10">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.10.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.10.1.1">
+<span class="ltx_p" id="A7.T28.2.10.1.1.1"><span class="ltx_text" id="A7.T28.2.10.1.1.1.1">return (res)</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.11">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.11.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.11.1.1">
+<span class="ltx_p" id="A7.T28.2.11.1.1.1"><span class="ltx_text" id="A7.T28.2.11.1.1.1.1">[DONE]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.12">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.12.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.12.1.1">
+<span class="ltx_p" id="A7.T28.2.12.1.1.1"><span class="ltx_text" id="A7.T28.2.12.1.1.1.1">You are an expert Python programmer, and here is your task: Write a python function to identify non-prime numbers. Your code should pass these tests:</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.13">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.13.1"></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.14">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.14.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.14.1.1">
+<span class="ltx_p" id="A7.T28.2.14.1.1.1"><span class="ltx_text" id="A7.T28.2.14.1.1.1.1">assert is_not_prime(2) == False</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.15">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.15.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.15.1.1">
+<span class="ltx_p" id="A7.T28.2.15.1.1.1"><span class="ltx_text" id="A7.T28.2.15.1.1.1.1">assert is_not_prime(10) == True</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.16">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.16.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.16.1.1">
+<span class="ltx_p" id="A7.T28.2.16.1.1.1"><span class="ltx_text" id="A7.T28.2.16.1.1.1.1">assert is_not_prime(35) == True</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.17">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.17.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.17.1.1">
+<span class="ltx_p" id="A7.T28.2.17.1.1.1"><span class="ltx_text" id="A7.T28.2.17.1.1.1.1">[BEGIN]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.18">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.18.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.18.1.1">
+<span class="ltx_p" id="A7.T28.2.18.1.1.1"><span class="ltx_text" id="A7.T28.2.18.1.1.1.1">import math</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.19">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.19.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.19.1.1">
+<span class="ltx_p" id="A7.T28.2.19.1.1.1"><span class="ltx_text" id="A7.T28.2.19.1.1.1.1">def is_not_prime(n):</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.20">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.20.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.20.1.1">
+<span class="ltx_p" id="A7.T28.2.20.1.1.1"><span class="ltx_text" id="A7.T28.2.20.1.1.1.1">result = False</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.21">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.21.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.21.1.1">
+<span class="ltx_p" id="A7.T28.2.21.1.1.1"><span class="ltx_text" id="A7.T28.2.21.1.1.1.1">for i in range(2,int(math.sqrt(n)) + 1):</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.22">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.22.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.22.1.1">
+<span class="ltx_p" id="A7.T28.2.22.1.1.1"><span class="ltx_text" id="A7.T28.2.22.1.1.1.1">if n % i == 0:</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.23">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.23.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.23.1.1">
+<span class="ltx_p" id="A7.T28.2.23.1.1.1"><span class="ltx_text" id="A7.T28.2.23.1.1.1.1">result = True</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.24">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.24.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.24.1.1">
+<span class="ltx_p" id="A7.T28.2.24.1.1.1"><span class="ltx_text" id="A7.T28.2.24.1.1.1.1">return result</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.25">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.25.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.25.1.1">
+<span class="ltx_p" id="A7.T28.2.25.1.1.1"><span class="ltx_text" id="A7.T28.2.25.1.1.1.1">[DONE]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.26">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.26.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.26.1.1">
+<span class="ltx_p" id="A7.T28.2.26.1.1.1"><span class="ltx_text" id="A7.T28.2.26.1.1.1.1">You are an expert Python programmer, and here is your task: Write a function to find the largest integers from a given list of numbers using heap queue algorithm. Your code should pass these tests:</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.27">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.27.1"></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.28">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.28.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.28.1.1">
+<span class="ltx_p" id="A7.T28.2.28.1.1.1"><span class="ltx_text" id="A7.T28.2.28.1.1.1.1">assert heap_queue_largest( [25, 35, 22, 85, 14, 65, 75, 22, 58],3)==[85, 75, 65]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.29">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.29.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.29.1.1">
+<span class="ltx_p" id="A7.T28.2.29.1.1.1"><span class="ltx_text" id="A7.T28.2.29.1.1.1.1">assert heap_queue_largest( [25, 35, 22, 85, 14, 65, 75, 22, 58],2)==[85, 75]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.30">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.30.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.30.1.1">
+<span class="ltx_p" id="A7.T28.2.30.1.1.1"><span class="ltx_text" id="A7.T28.2.30.1.1.1.1">assert heap_queue_largest( [25, 35, 22, 85, 14, 65, 75, 22, 58],5)==[85, 75, 65, 58, 35]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.31">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.31.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.31.1.1">
+<span class="ltx_p" id="A7.T28.2.31.1.1.1"><span class="ltx_text" id="A7.T28.2.31.1.1.1.1">[BEGIN]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.32">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.32.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.32.1.1">
+<span class="ltx_p" id="A7.T28.2.32.1.1.1"><span class="ltx_text" id="A7.T28.2.32.1.1.1.1">import heapq as hq</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.33">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.33.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.33.1.1">
+<span class="ltx_p" id="A7.T28.2.33.1.1.1"><span class="ltx_text" id="A7.T28.2.33.1.1.1.1">def heap_queue_largest(nums,n):</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.34">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.34.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.34.1.1">
+<span class="ltx_p" id="A7.T28.2.34.1.1.1"><span class="ltx_text" id="A7.T28.2.34.1.1.1.1">largest_nums = hq.nlargest(n, nums)</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.35">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.35.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.35.1.1">
+<span class="ltx_p" id="A7.T28.2.35.1.1.1"><span class="ltx_text" id="A7.T28.2.35.1.1.1.1">return largest_nums</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.36">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.36.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.36.1.1">
+<span class="ltx_p" id="A7.T28.2.36.1.1.1"><span class="ltx_text" id="A7.T28.2.36.1.1.1.1">[DONE]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.37">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.37.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.37.1.1">
+<span class="ltx_p" id="A7.T28.2.37.1.1.1"><span class="ltx_text" id="A7.T28.2.37.1.1.1.1">You are an expert Python programmer, and here is your task: Write a function to return the sum of all divisors of a number. Your code should pass these tests:</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.38">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.38.1"></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.39">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.39.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.39.1.1">
+<span class="ltx_p" id="A7.T28.2.39.1.1.1"><span class="ltx_text" id="A7.T28.2.39.1.1.1.1">assert sum_div(8)==7</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.40">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.40.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.40.1.1">
+<span class="ltx_p" id="A7.T28.2.40.1.1.1"><span class="ltx_text" id="A7.T28.2.40.1.1.1.1">assert sum_div(12)==16</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.41">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T28.2.41.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.41.1.1">
+<span class="ltx_p" id="A7.T28.2.41.1.1.1"><span class="ltx_text" id="A7.T28.2.41.1.1.1.1">assert sum_div(7)==1</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T28.2.42">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb" id="A7.T28.2.42.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T28.2.42.1.1">
+<span class="ltx_p" id="A7.T28.2.42.1.1.1"><span class="ltx_text" id="A7.T28.2.42.1.1.1.1">[BEGIN]</span></span>
+</span></td></tr>
+</tbody>
+</table></div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 28: </span>An example of MBPP.</figcaption>
+<p class="fine">Source: Original paper v5 · Table 28. All rows, columns, prompts and source emphasis retained.</p></figure>

@@ -1,0 +1,19 @@
+flowchart LR
+ subgraph PRE["Pretraining"]
+ direction TB
+ DATA["8.1T tokens"] --> BASE["4K pretrain<br/>MLA + MoE"]
+ BASE --> LONG["YaRN<br/>32K training<br/>128K evaluated"]
+ end
+ subgraph SUP["Supervised"]
+ direction TB
+ SFT["1.5M sessions<br/>SFT · 2 epochs"] --> OLD["Old policy samples<br/>G responses / question"]
+ end
+ subgraph RLTRAIN["Online GRPO"]
+ direction TB
+ R1["Stage 1<br/>Reasoning reward"] --> ADV["Group mean / std<br/>Relative advantage"]
+ ADV --> PPO["Clipped ratio + KL<br/>No learned critic"]
+ PPO --> R2["Stage 2<br/>Helpful / safety / rule"]
+ R2 --> RL["V2 Chat RL"]
+ end
+ PRE --> SUP
+ SUP --> RLTRAIN

@@ -1,0 +1,171 @@
+<figure class="original-table" id="table-36">
+<div aria-label="Original Table 36" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_align_middle" id="A7.T36.2">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr" id="A7.T36.2.1">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_tt" id="A7.T36.2.1.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.1.1.1">
+<span class="ltx_p" id="A7.T36.2.1.1.1.1"><span class="ltx_text ltx_font_bold" id="A7.T36.2.1.1.1.1.1">Prompt</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.2">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.2.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.2.1.1">
+<span class="ltx_p" id="A7.T36.2.2.1.1.1"><span class="ltx_text" id="A7.T36.2.2.1.1.1.1">You will be given a function f and an output in the form f(??) == output. Find any input such that executing f on the input leads to the given output. There may be multiple answers, but you should only output one. In
+[ANSWER] and
+[/ANSWER] tags, complete the assertion with one such input that will produce the output when executing the function.</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.3">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.3.1"></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.4">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.4.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.4.1.1">
+<span class="ltx_p" id="A7.T36.2.4.1.1.1"><span class="ltx_text" id="A7.T36.2.4.1.1.1.1">[PYTHON]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.5">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.5.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.5.1.1">
+<span class="ltx_p" id="A7.T36.2.5.1.1.1"><span class="ltx_text" id="A7.T36.2.5.1.1.1.1">def f(my_list):</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.6">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.6.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.6.1.1">
+<span class="ltx_p" id="A7.T36.2.6.1.1.1"><span class="ltx_text" id="A7.T36.2.6.1.1.1.1">count = 0</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.7">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.7.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.7.1.1">
+<span class="ltx_p" id="A7.T36.2.7.1.1.1"><span class="ltx_text" id="A7.T36.2.7.1.1.1.1">for i in my_list:</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.8">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.8.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.8.1.1">
+<span class="ltx_p" id="A7.T36.2.8.1.1.1"><span class="ltx_text" id="A7.T36.2.8.1.1.1.1">if len(i) % 2 == 0:</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.9">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.9.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.9.1.1">
+<span class="ltx_p" id="A7.T36.2.9.1.1.1"><span class="ltx_text" id="A7.T36.2.9.1.1.1.1">count += 1</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.10">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.10.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.10.1.1">
+<span class="ltx_p" id="A7.T36.2.10.1.1.1"><span class="ltx_text" id="A7.T36.2.10.1.1.1.1">return count</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.11">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.11.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.11.1.1">
+<span class="ltx_p" id="A7.T36.2.11.1.1.1"><span class="ltx_text" id="A7.T36.2.11.1.1.1.1">assert f(??) == 3</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.12">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.12.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.12.1.1">
+<span class="ltx_p" id="A7.T36.2.12.1.1.1"><span class="ltx_text" id="A7.T36.2.12.1.1.1.1">[/PYTHON]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.13">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.13.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.13.1.1">
+<span class="ltx_p" id="A7.T36.2.13.1.1.1"><span class="ltx_text" id="A7.T36.2.13.1.1.1.1">[ANSWER]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.14">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.14.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.14.1.1">
+<span class="ltx_p" id="A7.T36.2.14.1.1.1"><span class="ltx_text" id="A7.T36.2.14.1.1.1.1">assert f(
+["mq", "px", "zy"]) == 3</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.15">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.15.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.15.1.1">
+<span class="ltx_p" id="A7.T36.2.15.1.1.1"><span class="ltx_text" id="A7.T36.2.15.1.1.1.1">[/ANSWER]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.16">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.16.1"></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.17">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.17.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.17.1.1">
+<span class="ltx_p" id="A7.T36.2.17.1.1.1"><span class="ltx_text" id="A7.T36.2.17.1.1.1.1">[PYTHON]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.18">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.18.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.18.1.1">
+<span class="ltx_p" id="A7.T36.2.18.1.1.1"><span class="ltx_text" id="A7.T36.2.18.1.1.1.1">def f(s1, s2):</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.19">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.19.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.19.1.1">
+<span class="ltx_p" id="A7.T36.2.19.1.1.1"><span class="ltx_text" id="A7.T36.2.19.1.1.1.1">return s1 + s2</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.20">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.20.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.20.1.1">
+<span class="ltx_p" id="A7.T36.2.20.1.1.1"><span class="ltx_text" id="A7.T36.2.20.1.1.1.1">assert f(??) == "banana"</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.21">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.21.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.21.1.1">
+<span class="ltx_p" id="A7.T36.2.21.1.1.1"><span class="ltx_text" id="A7.T36.2.21.1.1.1.1">[/PYTHON]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.22">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.22.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.22.1.1">
+<span class="ltx_p" id="A7.T36.2.22.1.1.1"><span class="ltx_text" id="A7.T36.2.22.1.1.1.1">[ANSWER]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.23">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.23.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.23.1.1">
+<span class="ltx_p" id="A7.T36.2.23.1.1.1"><span class="ltx_text" id="A7.T36.2.23.1.1.1.1">assert f("ba", "nana") == "banana"</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.24">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.24.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.24.1.1">
+<span class="ltx_p" id="A7.T36.2.24.1.1.1"><span class="ltx_text" id="A7.T36.2.24.1.1.1.1">[/ANSWER]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.25">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.25.1"></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.26">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.26.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.26.1.1">
+<span class="ltx_p" id="A7.T36.2.26.1.1.1"><span class="ltx_text" id="A7.T36.2.26.1.1.1.1">[PYTHON]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.27">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.27.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.27.1.1">
+<span class="ltx_p" id="A7.T36.2.27.1.1.1"><span class="ltx_text" id="A7.T36.2.27.1.1.1.1">def f(a, b, c):</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.28">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.28.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.28.1.1">
+<span class="ltx_p" id="A7.T36.2.28.1.1.1"><span class="ltx_text" id="A7.T36.2.28.1.1.1.1">result = {}</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.29">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.29.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.29.1.1">
+<span class="ltx_p" id="A7.T36.2.29.1.1.1"><span class="ltx_text" id="A7.T36.2.29.1.1.1.1">for d in a, b, c:</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.30">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.30.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.30.1.1">
+<span class="ltx_p" id="A7.T36.2.30.1.1.1"><span class="ltx_text" id="A7.T36.2.30.1.1.1.1">result.update(dict.fromkeys(d))</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.31">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.31.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.31.1.1">
+<span class="ltx_p" id="A7.T36.2.31.1.1.1"><span class="ltx_text" id="A7.T36.2.31.1.1.1.1">return result</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.32">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.32.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.32.1.1">
+<span class="ltx_p" id="A7.T36.2.32.1.1.1"><span class="ltx_text" id="A7.T36.2.32.1.1.1.1">assert f(??) == {1: None, 2: None}</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.33">
+<td class="ltx_td ltx_align_left ltx_align_top" id="A7.T36.2.33.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.33.1.1">
+<span class="ltx_p" id="A7.T36.2.33.1.1.1"><span class="ltx_text" id="A7.T36.2.33.1.1.1.1">[/PYTHON]</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="A7.T36.2.34">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb" id="A7.T36.2.34.1">
+<span class="ltx_inline-block ltx_align_top" id="A7.T36.2.34.1.1">
+<span class="ltx_p" id="A7.T36.2.34.1.1.1"><span class="ltx_text" id="A7.T36.2.34.1.1.1.1">[ANSWER]</span></span>
+</span></td></tr>
+</tbody>
+</table></div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 36: </span>An example of CRUXEval-I.</figcaption>
+<p class="fine">Source: Original paper v5 · Table 36. All rows, columns, prompts and source emphasis retained.</p></figure>

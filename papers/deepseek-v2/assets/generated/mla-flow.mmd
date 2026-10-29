@@ -1,0 +1,15 @@
+flowchart TD
+ H["Current hidden h · 5120"] --> CQ["Q compression + RMSNorm · 1536"]
+ CQ --> QC["Content query · 128 per head"]
+ CQ --> QR["RoPE query · 64 per head"]
+ H --> CK["KV compression + RMSNorm · 512"]
+ H --> KR["RoPE key · 64 shared"]
+ CK --> CACHE["Persistent cache per layer/token<br/>cKV 512 + kR 64"]
+ KR --> CACHE
+ QC --> QE["UKᵀ qC · effective query 512 per head"]
+ QE --> SCORE["Content score + positional score<br/>scale √192 · head-wise softmax"]
+ QR --> SCORE
+ CACHE --> SCORE
+ SCORE --> Z["Weighted latent aggregate · 512 per head"]
+ CACHE --> Z
+ Z --> OUT["UV then output projection · hidden 5120"]

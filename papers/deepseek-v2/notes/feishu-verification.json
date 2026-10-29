@@ -1,0 +1,18 @@
+{
+  "url": "https://bytedance.larkoffice.com/docx/YSovdytEvoLwa6x1RDecdFUmnnb",
+  "images": 9,
+  "tables_total": 50,
+  "paper_tables": 37,
+  "latex_total": 65,
+  "corrected_renderer_syntax_equations": [
+    24,
+    30,
+    32,
+    41,
+    43
+  ],
+  "edit": true,
+  "manage_public": true,
+  "owner_email_verified": true,
+  "warnings_remaining": []
+}
