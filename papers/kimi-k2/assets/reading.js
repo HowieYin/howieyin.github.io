@@ -25,6 +25,55 @@
     if (matchMedia('(max-width:800px)').matches) contents.open = false;
   }));
   const modal = byId('figure-modal');
+  const modalImage = byId('modal-image');
+  const viewport = document.createElement('div');
+  viewport.className = 'modal-viewport';
+  viewport.tabIndex = 0;
+  viewport.setAttribute('aria-label', 'Image detail; scroll to explore when zoomed');
+  modalImage.before(viewport);
+  viewport.append(modalImage);
+  const tools = document.createElement('div');
+  tools.className = 'modal-tools';
+  const controls = document.createElement('div');
+  controls.className = 'modal-zoom-controls';
+  modal.append(tools);
+  tools.append(byId('modal-source'), controls);
+  function zoomButton(id, label, title, action) {
+    const button = document.createElement('button');
+    button.id = id;
+    button.type = 'button';
+    button.textContent = label;
+    button.setAttribute('aria-label', title);
+    button.title = title;
+    button.addEventListener('click', action);
+    controls.append(button);
+    return button;
+  }
+  let zoom = 1;
+  const zoomOut = zoomButton('modal-zoom-out', '−', 'Zoom out', () => setZoom(zoom / 2));
+  zoomButton('modal-fit', 'Fit', 'Fit entire image to window', () => setZoom(1));
+  const zoomIn = zoomButton('modal-zoom-in', '+', 'Zoom in; scroll to explore details', () => setZoom(zoom * 2));
+  function applyZoom() {
+    viewport.classList.toggle('is-zoomed', zoom > 1);
+    if (zoom === 1) {
+      modalImage.style.removeProperty('width');
+      modalImage.style.removeProperty('height');
+    } else if (modalImage.naturalWidth && modalImage.naturalHeight) {
+      const ratio = modalImage.naturalWidth / modalImage.naturalHeight;
+      const fitHeight = Math.min(viewport.clientHeight, viewport.clientWidth / ratio);
+      modalImage.style.width = `${fitHeight * ratio * zoom}px`;
+      modalImage.style.height = `${fitHeight * zoom}px`;
+    }
+    zoomOut.disabled = zoom === 1;
+    zoomIn.disabled = zoom === 8;
+  }
+  function setZoom(value) {
+    zoom = Math.max(1, Math.min(8, value));
+    applyZoom();
+    viewport.scrollTo(0, 0);
+  }
+  modalImage.addEventListener('load', applyZoom);
+  new ResizeObserver(() => { if (modal.open) applyZoom(); }).observe(viewport);
   let previousFocus = null;
   document.querySelectorAll('.reading figure img').forEach(img => {
     img.tabIndex = 0;
@@ -37,6 +86,7 @@
       byId('modal-caption').textContent = img.closest('figure').querySelector('figcaption')?.textContent || img.alt;
       byId('modal-source').href = img.src;
       modal.showModal();
+      setZoom(1);
     };
     img.addEventListener('click', open);
     img.addEventListener('keydown', event => {
