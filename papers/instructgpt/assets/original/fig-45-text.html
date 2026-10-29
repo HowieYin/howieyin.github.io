@@ -1,0 +1,61 @@
+<figure class="ltx_figure" id="A6.F45">
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_tt" colspan="2"><span class="ltx_text ltx_font_bold" style="font-size:90%;">Prompt:</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top" colspan="2">
+<span class="ltx_inline-block ltx_align_top" style="width:327.8pt;">
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">Please describe what the following code does and (if applicable how it works):</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">import math</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">def prime_sieve(num: int) -&gt; list[int]:
+if num &lt;= 0:
+raise ValueError(f""num: Invalid input, please enter a positive integer."")</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">sieve = [True] * (num + 1)
+prime = []
+start = 2
+end = int(math.sqrt(num))</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">while start &lt;= end:
+if sieve[start] is True:
+prime.append(start)
+for i in range(start * start, num + 1, start):
+if sieve[i] is True:
+sieve[i] = False
+start += 1</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">for j in range(end + 1, num + 1):
+if sieve[j] is True:
+prime.append(j)</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">return prime</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">Description:</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top" style="width:155.3pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold" style="font-size:90%;">GPT-3 175B completion:</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top" style="width:155.3pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold" style="font-size:90%;">InstructGPT 175B completion:</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb">
+<span class="ltx_inline-block ltx_align_top" style="width:155.3pt;">
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">This code is the classic "prime sieve". It generates a list of all the integers that are prime by successively eliminating all the multiples of all the primes up through a given integer.</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">Solution:</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">We start by defining a function that will generate the list of primes:</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">def prime_sieve(num: int) -&gt; list[int]:</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">The first thing we do is check that the input is positive:</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">if num &lt;= 0: raise ValueError(f""num: Invalid input, please enter a positive integer.")</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">Next, we declare a set of Boolean flags:</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">sieve = [True] * (num + 1)</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">Next, we declare a variable called prime, which will be our list of primes. Then we declare a variable called start, which will represent the largest prime we have found so far. We set it to 2 and pass it to the sqrt function, which returns the largest prime less than or equal to the value passed to it. […]</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb">
+<span class="ltx_inline-block ltx_align_top" style="width:155.3pt;">
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">The code above defines a function called prime_sieve(), which takes a numeric value num as an argument, and returns a list containing all prime numbers between 2 and num.</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">The function first checks the input argument to ensure that it is a positive integer. Then, it creates an array sieve made up of True values, with one value in each index from 2 to num. Next, a list prime is created, initializing it with the value 2. Then, the loop beginning at start and ending at end iterates through the values in the sieve array, checking each value to see if it is True. If it is, the value is appended to the list prime. Finally, the value of start is incremented, and the loop reiterates until all the elements in the sieve array are checked. At that point, the list contains all of the prime numbers between 2 and num.</span></span>
+</span></td></tr>
+</tbody>
+</table>
+
+</figure>

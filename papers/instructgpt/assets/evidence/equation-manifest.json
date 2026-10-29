@@ -1,0 +1,16 @@
+[
+  {
+    "id": "S3.E1",
+    "text": "loss ⁡ ( θ ) = − 1 ( K 2 ) ​ E ( x , y w , y l ) ∼ D ​ [ log ⁡ ( σ ⁡ ( r θ ​ ( x , y w ) − r θ ​ ( x , y l ) ) ) ] \\begin{split}\\operatorname{loss}\\left(\\theta\\right)=-\\frac{1}{{K\\choose 2}}E_{\\left(x,y_{w},y_{l}\\right)\\sim D}\\left[\\log\\left(\\sigma\\left(r_{\\theta}\\left(x,y_{w}\\right)-r_{\\theta}\\left(x,y_{l}\\right)\\right)\\right)\\right]\\end{split} (1)",
+    "math": [
+      "\\begin{split}\\operatorname{loss}\\left(\\theta\\right)=-\\frac{1}{{K\\choose 2}}E_{\\left(x,y_{w},y_{l}\\right)\\sim D}\\left[\\log\\left(\\sigma\\left(r_{\\theta}\\left(x,y_{w}\\right)-r_{\\theta}\\left(x,y_{l}\\right)\\right)\\right)\\right]\\end{split}"
+    ]
+  },
+  {
+    "id": "S3.E2",
+    "text": "objective ⁡ ( ϕ ) = E ( x , y ) ∼ D π ϕ RL ​ [ r θ ​ ( x , y ) − β ​ log ⁡ ( π ϕ RL ​ ( y ∣ x ) / π SFT ​ ( y ∣ x ) ) ] + γ ​ E x ∼ D pretrain ​ [ log ⁡ ( π ϕ RL ​ ( x ) ) ] \\begin{split}\\operatorname{objective}\\left(\\phi\\right)=&E_{\\left(x,y\\right)\\sim D_{\\pi_{\\phi}^{\\mathrm{RL}}}}\\left[r_{\\theta}(x,y)-\\beta\\log\\left(\\pi_{\\phi}^{\\mathrm{RL}}(y\\mid x)/\\pi^{\\mathrm{SFT}}(y\\mid x)\\right)\\right]+\\\\\n&\\gamma E_{x\\sim D_{\\textrm{pretrain}}}\\left[\\log(\\pi_{\\phi}^{\\mathrm{RL}}(x))\\right]\\end{split} (2)",
+    "math": [
+      "\\begin{split}\\operatorname{objective}\\left(\\phi\\right)=&E_{\\left(x,y\\right)\\sim D_{\\pi_{\\phi}^{\\mathrm{RL}}}}\\left[r_{\\theta}(x,y)-\\beta\\log\\left(\\pi_{\\phi}^{\\mathrm{RL}}(y\\mid x)/\\pi^{\\mathrm{SFT}}(y\\mid x)\\right)\\right]+\\\\\n&\\gamma E_{x\\sim D_{\\textrm{pretrain}}}\\left[\\log(\\pi_{\\phi}^{\\mathrm{RL}}(x))\\right]\\end{split}"
+    ]
+  }
+]

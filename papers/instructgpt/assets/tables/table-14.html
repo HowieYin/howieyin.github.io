@@ -1,0 +1,561 @@
+<figure class="ltx_table" id="A5.T14">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 14</span>: </span><span class="ltx_text">Automatic evaluations</span></figcaption>
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row ltx_border_tt"></th>
+<th class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_tt"></th>
+<th class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_tt"></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3"><span class="ltx_text">GPT models</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3"><span class="ltx_text">SFT models</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3"><span class="ltx_text">PPO models</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3"><span class="ltx_text">PPO + ptx models</span></th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row"><span class="ltx_text">Task</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row"><span class="ltx_text">Metric</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row"><span class="ltx_text">Prompt</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text"> XL</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">6b</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">175b</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text"> XL</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">6b</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">175b</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text"> XL</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">6b</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">175b</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text"> XL</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">6b</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span class="ltx_text">175b</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text">Winogender</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text">entropy</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span class="ltx_text">basic</span></th>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text"> 0.750</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.721</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.735</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text"> 0.583</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.535</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.503</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text"> 0.698</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.587</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.618</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text"> <span class="ltx_text ltx_font_bold">0.760</span></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.719</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">0.737</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">respectful</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.774</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.753</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.796</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.561</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.446</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.479</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.644</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.562</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.527</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.608</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.585</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.696</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">biased</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.760</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.773</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.783</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.561</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.516</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.540</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.706</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.567</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.564</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.676</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.543</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.690</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">CrowS Pairs</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">entropy</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">basic</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> <span class="ltx_text ltx_font_bold">0.448</span></span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.430</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.410</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.356</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.326</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.241</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.355</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.361</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.326</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.448</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.434</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.413</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">respectful</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> <span class="ltx_text ltx_font_bold">0.419</span></span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.413</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.362</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.302</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.260</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.204</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.281</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.258</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.270</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.310</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.273</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.243</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">biased</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> <span class="ltx_text ltx_font_bold">0.420</span></span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.419</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.353</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.305</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.252</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.187</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.287</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.288</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.223</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.314</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.254</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.205</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">Real Toxicity</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">toxicity</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">basic</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.228</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.229</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.231</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> <span class="ltx_text ltx_font_bold">0.198</span></span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.211</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.211</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.213</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.214</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.228</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.228</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.227</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.234</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">respectful</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.211</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.232</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.233</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.196</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.196</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.199</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.198</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.176</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.205</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.179</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.204</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.196</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">biased</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.250</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.261</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.285</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> <span class="ltx_text ltx_font_bold">0.236</span></span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.250</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.256</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.254</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.382</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.427</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.263</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.512</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.400</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">Truthful QA</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">true</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">QA prompt</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.312</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.220</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.284</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.324</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.436</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.515</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.546</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.586</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.755</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.297</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.476</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.712</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">instruction</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.340</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.414</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.570</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.360</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.756</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.665</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.634</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.928</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.879</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.355</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.733</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.815</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">QA + instruct</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.335</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.348</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.438</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.517</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.659</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.852</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.807</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.760</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.944</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.322</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.494</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.610</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">true + info</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">QA prompt</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.193</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.186</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.251</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.267</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.253</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.271</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.524</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.574</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.752</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.285</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.464</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.689</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">instruction</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.212</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.212</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.226</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.282</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.213</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.257</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> <span class="ltx_text ltx_font_bold">0.559</span></span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.187</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.382</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.339</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.350</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.494</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">QA + instruct</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.218</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.267</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.242</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.288</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.319</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.206</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> <span class="ltx_text ltx_font_bold">0.789</span></span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.704</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.588</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.242</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.399</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.315</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">HellaSwag</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">accuracy</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">zero-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.549</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.673</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.781</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.528</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.672</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.753</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.507</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.646</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.743</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.552</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.690</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.807</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">few-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.550</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.677</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.791</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.516</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.657</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.741</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.530</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.671</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.759</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.559</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.694</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.820</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">WSC</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">accuracy</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">zero-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.567</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.635</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.740</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.615</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.606</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.654</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.663</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.654</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.683</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.692</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.587</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.731</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">few-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.587</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.654</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.798</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.615</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.625</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.779</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.625</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.596</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.654</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.644</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.673</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.788</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">RTE</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">accuracy</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">zero-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.527</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.617</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.563</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.487</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.516</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.570</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.480</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.708</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.704</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.538</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.657</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.668</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">few-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.585</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.682</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.614</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.574</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.657</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.700</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.606</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.585</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.711</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.545</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.697</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.765</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">SST</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">accuracy</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">zero-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.592</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.616</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.898</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.873</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.888</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.907</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.817</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.820</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.920</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.812</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.901</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.900</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">few-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.842</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.930</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.944</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.909</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.933</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.936</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.794</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.880</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.944</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.838</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.923</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.938</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">QuAC</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">f1</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">zero-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 32.13</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">38.19</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">42.55</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 34.52</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">41.19</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">45.22</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 29.02</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">37.64</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">34.52</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 35.04</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">37.35</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">41.60</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">few-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 36.02</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">41.78</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">45.38</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 35.95</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">43.13</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">48.77</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 31.81</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">40.63</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">36.00</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 39.40</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">42.42</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">46.99</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">SQuADv2</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">f1</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">zero-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 51.97</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">58.66</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">64.30</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 36.88</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">46.53</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">57.67</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 45.37</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">47.42</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">43.68</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 45.46</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">47.23</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">59.85</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">few-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 58.86</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">62.33</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">69.75</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 46.62</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">53.91</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">65.90</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 48.11</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">52.34</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">51.95</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 58.33</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">63.78</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">69.93</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">DROP</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">f1</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">zero-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 17.68</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">19.96</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">27.53</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 13.29</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">13.23</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">15.79</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 14.70</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">12.34</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">13.08</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 14.71</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">10.64</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">15.23</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">few-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 25.43</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">30.08</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">35.27</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 23.84</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">30.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">35.85</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 21.61</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">27.11</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">27.78</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 23.89</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">29.39</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">33.34</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">FR <math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math> EN 15</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">BLEU</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">zero-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 30.65</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">34.99</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">38.92</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 25.56</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">33.25</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">36.90</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 19.85</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">25.22</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">24.16</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 25.77</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">30.41</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">34.28</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">few-shot</span></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 31.37</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">35.49</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">39.93</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 24.73</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">31.76</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">35.07</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 21.65</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">29.96</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">26.58</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 27.67</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">33.56</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">36.76</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">CNN/DM</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row"><span class="ltx_text">ROUGE-L</span></th>
+<th class="ltx_td ltx_th ltx_th_row"></th>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.182</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.197</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.196</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.198</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.235</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.225</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.218</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.231</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.227</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"> 0.214</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.231</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">0.220</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"><span class="ltx_text">TLDR</span></th>
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"><span class="ltx_text">ROUGE-L</span></th>
+<th class="ltx_td ltx_th ltx_th_row ltx_border_bb"></th>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text"> 0.182</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">0.197</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">0.196</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text"> 0.198</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">0.235</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">0.225</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text"> 0.218</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">0.231</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">0.227</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text"> 0.214</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">0.231</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">0.220</span></td></tr>
+</tbody>
+</table>
+</figure>

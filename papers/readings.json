@@ -41,6 +41,14 @@
       "description": "Chapter-by-chapter reading of v2 and every appendix: all 33 original figures, 52 complete tables and 5 formula groups; iterative feedback, two reward models, GAtt loss masks, GQA/TP cache costs, three interactive explainers, and dated research through October 29, 2026."
     },
     {
+      "slug": "instructgpt",
+      "title": "InstructGPT：把会续写的模型，训练成更愿意完成任务的助手",
+      "metadata": "NeurIPS 2022 · arXiv v1 · Read October 29, 2026 · RLHF / Reward Model / PPO",
+      "readDate": "2026-10-29",
+      "description": "All 50 original figures, 14 complete tables and 2 original equations; grouped ranking, sequence KL and PPO lifecycle interactions, SFT initialization and ptx audits, conditional safety and capability results, and primary-source research through October 29, 2026.",
+      "category": "training-scaling"
+    },
+    {
       "slug": "gpt3",
       "title": "GPT-3：参数规模如何改变上下文学习",
       "metadata": "NeurIPS 2020 · arXiv v4 · Read October 29, 2026 · Training / Scaling / In-Context Learning",
