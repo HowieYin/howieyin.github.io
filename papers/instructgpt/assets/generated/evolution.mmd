@@ -1,0 +1,12 @@
+flowchart TD
+  H["2017 · Human preference RL"] --> S["2020 · Summarization RLHF"]
+  P["2017 · PPO"] --> I["2022-03 · InstructGPT · SFT / RM / PPO-ptx"]
+  S --> I
+  I --> C["2022-12 · Constitutional AI · feedback source"]
+  I --> D["2023-05 · DPO · offline preference optimization"]
+  I --> G["2024-02 · GRPO / DeepSeekMath · no critic"]
+  I --> B["2025 / 2026v2 · RewardBench2 · best-of-4 + ties"]
+  G --> M["2026 · General Preference RL · multidimensional preference"]
+  D --> M
+  B --> E["Current audit · distinct benchmarks / no universal SOTA"]
+  M --> E
