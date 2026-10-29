@@ -1,7 +1,15 @@
-flowchart TD
- A["海量文本 · 预训练"] --> B["next-token loss · backward · Adam"]
- B --> C["固定权重 θ"]
- C --> D["任务描述 + K 个演示 + query"]
- D --> E["prefill · 建立条件状态与 KV"]
+flowchart LR
+ subgraph TRAIN["预训练 · 更新权重"]
+ direction TB
+ A["海量文本"] --> B["next-token loss"]
+ B --> C["backward + Adam"]
+ C --> W["训练得到权重 θ"]
+ end
+ subgraph INFER["上下文学习 · 固定权重"]
+ direction TB
+ D["任务描述 + K 个演示 + query"]
+ D --> E["prefill · 上下文状态与 KV"]
  E --> F["decode · 生成答案"]
- F --> G["任务 metric / split / 污染审计"]
+ F --> G["metric / split / 污染审计"]
+ end
+ TRAIN --> INFER
