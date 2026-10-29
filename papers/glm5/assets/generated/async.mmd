@@ -1,0 +1,18 @@
+sequenceDiagram
+  participant E as Task / Orchestrator
+  participant G as TITO Gateway
+  participant R as Rollout GPUs
+  participant B as Buffer
+  participant L as Learner GPUs
+  E->>G: 工具任务请求
+  G->>R: Exact token IDs
+  R-->>G: IDs + logp + mask + versions
+  G-->>E: 生成结果，继续环境交互
+  G->>B: 保存轨迹与元数据
+  Note over R,L: 两个 GPU pools 独立运行
+  B->>B: 环境失败 / version lag 过滤
+  B->>L: 达到门槛，取训练 batch
+  L->>L: Current logp → ratio → strict mask
+  L->>L: 更新权重；工具观察不计 loss
+  L-->>R: 周期刷新 serving weights
+  Note over G,R: Rollout ID 固定 DP rank，复用 prefix KV

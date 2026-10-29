@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "glm5",
+      "title": "GLM-5：从生成代码，走向持续完成工程任务",
+      "metadata": "2026 · arXiv v2 · Read October 29, 2026 · MoE / DSA / Agentic Engineering",
+      "readDate": "2026-10-29",
+      "description": "All 13 original figures, 13 complete tables and 5 numbered equations; DSA tensor and cache costs, asynchronous RL and TITO, engineering evaluation audits, three interactive explainers, and dated follow-up research through October 29, 2026.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "llama3",
       "title": "Llama 3：从数据、训练系统到多模态接口的完整工程账本",
       "metadata": "2024 · arXiv v3 · Read October 29, 2026 · LLM / Training / Systems / Multimodal",
