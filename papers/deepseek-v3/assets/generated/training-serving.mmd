@@ -1,0 +1,14 @@
+flowchart TB
+  Data["14.8T tokens"] --> Base["Pretrain: NTP + MTP + small sequence balance"]
+  Base --> Context["YaRN: 4K to 32K to 128K"]
+  Teacher["Internal reasoning teacher + filtered traces"] --> SFT["SFT · 1.5M instances"]
+  Context --> SFT
+  SFT --> RL["GRPO · rules / model reward / reference"]
+  RL --> Main["V3 main model"]
+  Main --> Plain["Normal decode · discard MTP"]
+  Main --> Draft["Optional MTP proposal"]
+  Draft --> Verify["Target verification"]
+  Verify --> Accept["Commit accepted prefix"]
+  Verify --> Reject["Reject / correct / roll back unused KV"]
+  Accept --> Draft
+  Reject --> Draft
