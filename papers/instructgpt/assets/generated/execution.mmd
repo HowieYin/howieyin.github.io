@@ -1,0 +1,17 @@
+flowchart TD
+  P["用户 prompts · B×P"] --> A["Actor πold · autoregressive rollout"]
+  A --> Y["tokens B×T · response mask · old logp B×R"]
+  Y --> REF["Frozen reference · logp B×R"]
+  Y --> RM["Frozen 6B RM · terminal reward B"]
+  Y --> V["Trainable 6B critic · values B×R"]
+  REF --> R["Token KL penalty + terminal score"]
+  RM --> R
+  R --> ADV["Masked returns / advantages"]
+  V --> ADV
+  ADV --> PPO["Actor PPO loss · new/old ratio · clip 0.2"]
+  Y --> PPO
+  PTX["Pretrain examples · ratio 8"] --> CE["Actor CE loss · gamma 27.8"]
+  PPO --> U["Accumulate actor gradients · update"]
+  CE --> U
+  ADV --> VL["Critic value loss · separate update"]
+  U --> N["New rollout snapshot · reference remains frozen"]

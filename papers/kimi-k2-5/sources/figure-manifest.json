@@ -1,0 +1,98 @@
+[
+  {
+    "number": 1,
+    "source_id": "S0.F1",
+    "file": "fig-01-k25-main-result.png",
+    "url": "https://arxiv.org/html/2602.02276v2/figures/k25-main-result.png",
+    "caption": "Figure 1: Kimi K2.5 main results.",
+    "sha256": "a81251c212e2153f160fb06ff09546b6d61dd325270d9f66a865cf477059bf2d"
+  },
+  {
+    "number": 2,
+    "source_id": "S2.F2",
+    "file": "fig-02-k25_visionzerorl_curves.svg",
+    "url": "https://arxiv.org/html/2602.02276v2/k25_visionzerorl_curves.svg",
+    "caption": "Figure 2: Vision RL training curves on vision benchmarks starting from minimal zero-vision SFT. By scaling vision RL FLOPs, the performance continues to improve, demonstrating that zero-vision activation paired with long-running RL is sufficient for acquiring robust visual capabilities.",
+    "sha256": "0f81cfaf1afe6ac01fc9f2b649cea344d238ebd22fbacec90e282c1f9b2ae2c6"
+  },
+  {
+    "number": 3,
+    "source_id": "S3.F3",
+    "file": "fig-03-multi-agent-rl-system.png",
+    "url": "https://arxiv.org/html/2602.02276v2/figures/multi-agent-rl-system.png",
+    "caption": "Figure 3: An agent swarm has a trainable orchestrator that dynamically creates specialized frozen subagents and decomposes complex tasks into parallelizable subtasks for efficient distributed execution.",
+    "sha256": "d488deda9ef9bf029a4afe880e60d93ddbcfdcc80e62447bfa26ebce54cf8618"
+  },
+  {
+    "number": 4,
+    "source_id": "S3.F4",
+    "file": "fig-04-pa-rl-progress.png",
+    "url": "https://arxiv.org/html/2602.02276v2/pa-rl-progress.png",
+    "caption": "Figure 4: In our parallel-agent reinforcement learning environment, the training accuracy increases smoothly as training progresses. At the same time, the level of parallelism during training also gradually increases.",
+    "sha256": "4252e7db60eb16d2661631b6b9dd4a2788e5fed2567036f7f4d1128df136c195"
+  },
+  {
+    "number": 5,
+    "source_id": "S4.F5",
+    "file": "fig-05-te-k2-thinking-radar.png",
+    "url": "https://arxiv.org/html/2602.02276v2/figures/te-k2-thinking-radar.png",
+    "caption": "Figure 5: Comparison of model performance and token usage for Kimi K2 Thinking following token-efficient RL.",
+    "sha256": "496804dc533c519ac8c638750cb2bc655d90a263039f56585abe7f3c6a1c0bb7"
+  },
+  {
+    "number": 6,
+    "source_id": "S5.F7.fig1",
+    "file": "fig-06-agent_swarm_subagents.png",
+    "url": "https://arxiv.org/html/2602.02276v2/agent_swarm_subagents.png",
+    "caption": "Figure 6: The word cloud visualizes heterogeneous K2.5-based sub-agents dynamically instantiated by the Orchestrator across tests.",
+    "sha256": "919dd1ffeddee1bd20a2a194f6b0fe8d30515e2192d7106f63705b2c69c098d7"
+  },
+  {
+    "number": 7,
+    "source_id": "S5.F7.fig2",
+    "file": "fig-07-agent_swarm_ctx_mgm.png",
+    "url": "https://arxiv.org/html/2602.02276v2/agent_swarm_ctx_mgm.png",
+    "caption": "Figure 7: Comparison of Kimi K2.5 performance under Agent Swarm and Discard-all context management in BrowseComp.",
+    "sha256": "df70895889d051e54b2c92f464b68d1ba118fee6f202fee706a5a26d0383be0b"
+  },
+  {
+    "number": 8,
+    "source_id": "S5.F8",
+    "file": "fig-08-agent_swarm_efficiency.svg",
+    "url": "https://arxiv.org/html/2602.02276v2/agent_swarm_efficiency.svg",
+    "caption": "Figure 8: Agent Swarm achieves 3 × \\times –4.5 × \\times faster execution time compared to single-agent baselines as target Item-F1 increases from 30% to 70% in WideSearch testing.",
+    "sha256": "c658aac89fc50e089553601423be4d85c657c9b56b1557a8e2adc6265c0042f0"
+  },
+  {
+    "number": 9,
+    "source_id": "A2.F9",
+    "file": "fig-09-vision-joint.svg",
+    "url": "https://arxiv.org/html/2602.02276v2/vision-joint.svg",
+    "caption": "Figure 9: Learning curves comparing vision-to-text ratios (10:90, 20:80, 50:50) under fixed vision-text token budget across vision and language tasks. Early fusion with lower vision ratios tend to yield better results.",
+    "sha256": "e41974e61c109c5b789c0542115a45f9472efcc733e33d034513c16860a288d7"
+  },
+  {
+    "number": 10,
+    "source_id": "A4.F10",
+    "file": "fig-10-rl_framework.png",
+    "url": "https://arxiv.org/html/2602.02276v2/rl_framework.png",
+    "caption": "Figure 10: Overview of our agentic RL framework.",
+    "sha256": "095577ce891b1c347a64f5e059e0a475e1c9996d6df74c1446c69ef58e9522d8"
+  },
+  {
+    "number": 11,
+    "source_id": "A5.F11",
+    "file": "fig-11-video_agent_case.png",
+    "url": "https://arxiv.org/html/2602.02276v2/video_agent_case.png",
+    "caption": "Figure 11: Qualitative example of Kimi K2.5 analyzing a complete playthrough of Black Myth: Wukong (24 hours of continuous gameplay across 32 videos at 1080p) using parallel visual agents. See generated webpage and source videos (all rights reserved by source authors).",
+    "sha256": "66a082d24e8f4ea396861cefd43c5f568d153f1c69a49ad8a8776133178fc285"
+  },
+  {
+    "number": 12,
+    "source_id": "A5.F12",
+    "file": "fig-12-vtir_examples.png",
+    "url": "https://arxiv.org/html/2602.02276v2/vtir_examples.png",
+    "caption": "Figure 12: Qualitative examples of Kimi K2.5 solving visual reasoning tasks via tool use.",
+    "sha256": "90c4e1ecebb9104608b72b9aaea06e9ab71d9e4bdac7b31d06a4bcf419ba5697"
+  }
+]

@@ -1,0 +1,17 @@
+title: "Training language models to follow instructions with human feedback"
+slug: instructgpt
+arxiv: "2203.02155"
+version: v1
+paper_date: "2022-03-04"
+venue: "NeurIPS 2022 (later publication)"
+institution: OpenAI
+reading_date: "2026-10-29"
+last_updated: "2026-10-29"
+pdf: "https://arxiv.org/pdf/2203.02155v1"
+code: "https://github.com/openai/following-instructions-human-feedback"
+category: training-scaling
+original_figures: 50
+original_tables: 14
+original_equations: 2
+local_training_reproduction: false
+tags: [RLHF, SFT, Reward Model, PPO, Alignment, GPT-3]

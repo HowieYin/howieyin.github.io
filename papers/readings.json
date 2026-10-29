@@ -41,6 +41,30 @@
       "category": "model-architecture"
     },
     {
+      "slug": "kimi-k2-5",
+      "title": "Kimi K2.5：让视觉进入训练，让并行进入策略",
+      "metadata": "2026 · Moonshot AI · arXiv v2 · Read October 29, 2026 · VLM / MoE / Agent Swarm",
+      "readDate": "2026-10-29",
+      "description": "All 12 original figures, 6 complete tables and 5 display equations; joint vision-text training, Zero-Vision SFT, PARL and context sharding, MoonViT-3D shapes and MLA cache explorers, DEP and evaluation audits, and dated research through October 29, 2026.",
+      "category": "model-architecture"
+    },
+    {
+      "slug": "deepseek-v3",
+      "title": "DeepSeek-V3：把低成本训练，落实到每一次数据移动",
+      "metadata": "2024 · arXiv v2 · Read October 29, 2026 · MLA / MoE / FP8 / Systems",
+      "readDate": "2026-10-29",
+      "description": "All 11 original figure groups, 9 complete tables and 28 numbered equations; MLA cache and weight absorption, routing bias, MTP cost explorers, DualPipe and FP8 gradient analysis, experiment audits, and dated research through October 29, 2026.",
+      "category": "model-architecture"
+    },
+    {
+      "slug": "instructgpt",
+      "title": "InstructGPT：把会续写的模型，训练成更愿意完成任务的助手",
+      "metadata": "NeurIPS 2022 · arXiv v1 · Read October 29, 2026 · RLHF / Reward Model / PPO",
+      "readDate": "2026-10-29",
+      "description": "All 50 original figures, 14 complete tables and 2 original equations; grouped ranking, sequence KL and PPO lifecycle interactions, SFT initialization and ptx audits, conditional safety and capability results, and primary-source research through October 29, 2026.",
+      "category": "training-scaling"
+    },
+    {
       "slug": "gpt3",
       "title": "GPT-3：参数规模如何改变上下文学习",
       "metadata": "NeurIPS 2020 · arXiv v4 · Read October 29, 2026 · Training / Scaling / In-Context Learning",

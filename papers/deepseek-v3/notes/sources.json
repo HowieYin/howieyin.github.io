@@ -1,0 +1,150 @@
+{
+  "paper_version": "2412.19437v2",
+  "research_cutoff": "2026-10-29",
+  "references": [
+    {
+      "id": "P",
+      "title": "[P] DeepSeek-AI. DeepSeek-V3 Technical Report , arXiv:2412.19437v2.",
+      "url": "https://arxiv.org/abs/2412.19437v2",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R1",
+      "title": "[R1] Shazeer et al. Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer (2017).",
+      "url": "https://arxiv.org/abs/1701.06538",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R2",
+      "title": "[R2] Ainslie et al. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints (2023).",
+      "url": "https://arxiv.org/abs/2305.13245",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R3",
+      "title": "[R3] DeepSeek-AI. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model (2024).",
+      "url": "https://arxiv.org/abs/2405.04434",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R4",
+      "title": "[R4] Gloeckle et al. Better & Faster Large Language Models via Multi-token Prediction (2024).",
+      "url": "https://arxiv.org/abs/2404.19737",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R5",
+      "title": "[R5] Wang et al. Auxiliary-Loss-Free Load Balancing Strategy for Mixture-of-Experts (2024).",
+      "url": "https://arxiv.org/abs/2408.15664",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R6",
+      "title": "[R6] Xiao et al. SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models (2022).",
+      "url": "https://arxiv.org/abs/2211.10438",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R7",
+      "title": "[R7] Li et al. EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (2024).",
+      "url": "https://arxiv.org/abs/2401.15077",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R8",
+      "title": "[R8] DeepSeek-AI. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models (2025).",
+      "url": "https://arxiv.org/abs/2512.02556",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R9",
+      "title": "[R9] DeepSeek-AI. DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence (2026).",
+      "url": "https://arxiv.org/abs/2606.19348",
+      "accessed": "2026-10-29",
+      "type": "primary_paper",
+      "local_reproduction": false
+    },
+    {
+      "id": "R10",
+      "title": "[R10] DeepSeek. DeepSeek-V4.1-Flash , official news, 2026-09-10.",
+      "url": "https://www.deepseek.com/en/news/deepseek-v4-1-flash/",
+      "accessed": "2026-10-29",
+      "type": "official_source",
+      "local_reproduction": false
+    },
+    {
+      "id": "R11",
+      "title": "[R11] PyTorch / Nebius. Enabling Up to 41% Faster Pre-training: MXFP8 and DeepEP for DeepSeek-V3 on B200 with TorchTitan (2026-03-25).",
+      "url": "https://pytorch.org/blog/enabling-up-to-41-faster-pre-training-mxfp8-and-deepep-for-deepseek-v3-on-b200-with-torchtitan/",
+      "accessed": "2026-10-29",
+      "type": "official_source",
+      "local_reproduction": false
+    },
+    {
+      "id": "C1",
+      "title": "[C1] DeepSeek-V3.",
+      "url": "https://github.com/deepseek-ai/DeepSeek-V3/tree/9b4e9788e4a3a731f7567338ed15d3ec549ce03b",
+      "accessed": "2026-10-29",
+      "type": "official_source",
+      "local_reproduction": false
+    },
+    {
+      "id": "C2",
+      "title": "[C2] DeepEP.",
+      "url": "https://github.com/deepseek-ai/DeepEP/tree/f6aa38fe06cd4a0489e7730365d4e0114970a2f3",
+      "accessed": "2026-10-29",
+      "type": "official_source",
+      "local_reproduction": false
+    },
+    {
+      "id": "C3",
+      "title": "[C3] DeepGEMM.",
+      "url": "https://github.com/deepseek-ai/DeepGEMM/tree/5081f8513af57e61696de4f4f04b0e707ffb503e",
+      "accessed": "2026-10-29",
+      "type": "official_source",
+      "local_reproduction": false
+    },
+    {
+      "id": "C4",
+      "title": "[C4] FlashMLA main snapshot.",
+      "url": "https://github.com/deepseek-ai/FlashMLA/tree/395cb3afbb331fef7b1b21e9340861b9436b42d8",
+      "accessed": "2026-10-29",
+      "type": "official_source",
+      "local_reproduction": false
+    },
+    {
+      "id": "C4b",
+      "title": "[C4b] FlashMLA V3/Hopper compatible snapshot.",
+      "url": "https://github.com/deepseek-ai/FlashMLA/tree/ba89a3466e9470ad08ab39738d4e7bb66989e1e7",
+      "accessed": "2026-10-29",
+      "type": "official_source",
+      "local_reproduction": false
+    },
+    {
+      "id": "C5",
+      "title": "[C5] DualPipe.",
+      "url": "https://github.com/deepseek-ai/DualPipe/tree/030ce4325f4ebeb437da4ebc6d00a70469dd58ae",
+      "accessed": "2026-10-29",
+      "type": "official_source",
+      "local_reproduction": false
+    }
+  ]
+}
