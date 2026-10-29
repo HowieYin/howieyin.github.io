@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "llama2",
+      "title": "Llama 2：从基础模型到聊天助手，真正困难的是反馈链路",
+      "metadata": "2023 · arXiv v2 · Read October 29, 2026 · Pretraining / RLHF / Safety / GQA",
+      "readDate": "2026-10-29",
+      "category": "training-scaling",
+      "description": "Chapter-by-chapter reading of v2 and every appendix: all 33 original figures, 52 complete tables and 5 formula groups; iterative feedback, two reward models, GAtt loss masks, GQA/TP cache costs, three interactive explainers, and dated research through October 29, 2026."
+    },
+    {
       "slug": "gpt3",
       "title": "GPT-3：参数规模如何改变上下文学习",
       "metadata": "NeurIPS 2020 · arXiv v4 · Read October 29, 2026 · Training / Scaling / In-Context Learning",
