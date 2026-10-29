@@ -1,0 +1,768 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>Stepped MoE：让专家驻留一段，让路由提前发生 — Paper Readings · Howie Yin</title><meta name="description" content="Stepped MoE v1逐章精读：4张原图、9张完整表、3个公式，分段全层路由、预算条件训练、KV与IO成本、模拟器与TPU成本审计，2026-10-29扩展研究。"><link rel="canonical" href="https://howieyin.github.io/papers/stepped-moe/"><meta property="og:title" content="Stepped MoE：让专家驻留一段，让路由提前发生"><meta property="og:type" content="article"><meta property="og:image" content="https://howieyin.github.io/papers/stepped-moe/assets/original/arch_new.png"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="page-tools"><span>4 FIGURES · 9 TABLES · 3 EQUATIONS · ARXIV V1</span><button type="button" id="theme-toggle">Light mode</button></div><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents</summary><ol><li><a href="#section-1">Paper Metadata</a></li><li><a href="#section-2">Abstract / TL;DR：把条件计算变成可提前安排的 IO</a></li><li><a href="#section-3">1. Introduction：MoE 的稀疏计算与稀疏驻留</a></li><li><a href="#section-4">2. Methodology：完整重构数据流</a></li><li><a href="#section-5">3. Experiments：质量收益与成本证据分别看</a></li><li><a href="#section-6">4. Related Works：论文自身的定位</a></li><li><a href="#section-7">5. Conclusion and Limitations：论文支持的边界</a></li><li><a href="#section-8">Appendix A：逐项补齐与核查</a></li><li><a href="#section-9">Interpretation：内存账单、实现建议与研究判断</a></li><li><a href="#section-10">External：技术演进与截至 2026-10-29 的相关研究</a></li></ol></details></aside><main id="main" class="reading"><h1>Stepped MoE：让专家驻留一段，让路由提前发生</h1>
+<p class="eyebrow">PAPER READINGS · MODEL ARCHITECTURE · EDGE INFERENCE</p>
+<p><strong>一句话：</strong>Stepped MoE 用前段 Dense 网络一次选出后续所有层的专家，让这批权重连续服务 S 个 token，再刷新路由；同一个 checkpoint 还支持多档活跃参数预算。</p>
+<h2 id="section-1">Paper Metadata</h2>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>已核实信息</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原标题</td>
+<td>Stepped MoE: Segment-Level Routing with Configurable Inference Complexity</td>
+</tr>
+<tr>
+<td>作者</td>
+<td>Arnav Kundu、Zhaoyang Xu、Bairu Hou、Chang Gao、Reed Li、Tao Lei</td>
+</tr>
+<tr>
+<td>机构</td>
+<td>Apple</td>
+</tr>
+<tr>
+<td>版本与日期</td>
+<td>arXiv:2610.07348v1 · 2026-10-05 · 15 页</td>
+</tr>
+<tr>
+<td>Venue / DOI</td>
+<td>Preprint；未定位正式会议、期刊或 DOI</td>
+</tr>
+<tr>
+<td>阅读与更新日期</td>
+<td>2026-10-29</td>
+</tr>
+<tr>
+<td>原文</td>
+<td><a href="https://arxiv.org/pdf/2610.07348v1">指定 v1 PDF</a> · <a href="https://arxiv.org/abs/2610.07348">arXiv 元数据</a> · <a href="https://arxiv.org/html/2610.07348v1">v1 HTML</a></td>
+</tr>
+<tr>
+<td>代码与模型</td>
+<td>论文使用 <a href="https://github.com/apple/axlearn">AXLearn</a> / JAX；截至阅读日未定位本文专属公开实现、权重或项目页</td>
+</tr>
+</tbody>
+</table></div>
+<p>本文遵循原论文顺序：Abstract → §1–5 → Appendix A.1–A.7，再给出独立工程分析与扩展调研。<strong>Paper</strong> 表示原论文事实；<strong>Interpretation</strong> 表示本文重构、计算或判断；<strong>External</strong> 表示其他论文或官方资料。所有质量数字、模拟延迟和 TPU 训练耗时均来自论文；本次没有训练复现或本地 NPU 性能复现。</p>
+<h2 id="section-2">Abstract / TL;DR：把条件计算变成可提前安排的 IO</h2>
+<p><strong>一段话。</strong>普通 MoE 降低了单 token 活跃计算量，但在 DRAM 放不下全部专家时，逐 token、逐层路由会频繁触发存储到内存的权重搬运。Stepped MoE 在 Dense backbone 后提前产生所有 MoE 层的路由，在连续 S 个 token 内保持专家集合不变，为后层预加载与跨 token 复用创造条件。训练时复制样本，让同一个 12B 总参数模型覆盖 1/2/3/4B 活跃预算。知识、数学和代码任务多数优于相同活跃规模的 Dense，部分通用文本指标有损失；模拟器显示延迟接近 Dense 的潜力，但实际设备端到端表现尚未得到充分验证。</p>
+<p>五个关键点：</p>
+<ol>
+<li><strong>优化目标是搬运。</strong>激活少量参数不意味着只需少量 DRAM；路由决策的时间和有效期决定权重能否及时加载。</li>
+<li><strong>两种粒度同时改变。</strong>路由从每层提前到一个全层 mask generator，刷新从每 token 放宽到每 S 个 token。</li>
+<li><strong>灵活预算需要付训练成本。</strong>四档复制令同一批数据参与四档计算；这不等于训练一个 Dense 模型的成本。</li>
+<li><strong>精度有任务差异。</strong>Table 1 的 MMLU 提升显著，但四档 Core-En-0s 都低于对应 Dense；Table 4 的部分分数随预算不单调。</li>
+<li><strong>两个边界必须保留。</strong>Figure 3 是 NPU 模拟器结果；Appendix A.6 的 Static 在近似 FLOPs 对齐时质量高于 Flexible，后者实际 TPU core-hours 还更高。</li>
+</ol>
+<h2 id="section-3">1. Introduction：MoE 的稀疏计算与稀疏驻留</h2>
+<h3 id="subsection-1">问题是什么</h3>
+<p><strong>Paper · §1。</strong>端侧模型需要适配设备 RAM、计算能力和任务难度。Dense 模型规模一旦固定，通常难以在同一个 checkpoint 中连续调节计算。MoE 虽只激活少数专家，但逐 token 选择专家时，下一步需要的权重可能还在 NAND 上。所有专家常驻又抵消了内存优势。</p>
+<p>可以把瓶颈分成三个量：磁盘保存的总参数、单 token 执行的活跃参数、某一时刻实际驻留的参数。前两个由模型结构决定，第三个还取决于缓存、预取和调度。Stepped MoE 要改变的是：在不常驻所有权重的情况下，让活跃专家具有可利用的时间局部性。</p>
+<h3 id="subsection-2">Figure 1：提前路由与分段复用的结合</h3>
+<figure class="original" id="figure-1"><img alt="Original Figure 1:  Left: Traditional MoE based architecture where experts are selected per token at each layer, Middle: Stepped MoE architecture that decides the experts for all layers to use at once using the mask generator, Right: Accuracy-Latency trade-off curve showing how stepped-MoE bridges the gap between Dense and MoE Models (size of the bubble represents active size of the models)." loading="lazy" src="assets/original/arch_new.png"/><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 1</span>: </span><span class="ltx_text">Left: Traditional MoE based architecture where experts are selected per token at each layer, Middle: Stepped MoE architecture that decides the experts for all layers to use at once using the mask generator, Right: Accuracy-Latency trade-off curve showing how stepped-MoE bridges the gap between Dense and MoE Models (size of the bubble represents active size of the models).</span><br/>Source: Original paper · Figure 1 · author-provided PNG. Click to zoom.</figcaption></figure>
+<p><strong>如何阅读。</strong>从左到中再到右。左图在每一层根据当前 token hidden 选专家；中图在 Dense backbone 后生成后续所有层的 mask，并在一个 segment 内复用；右图把 Dense、普通 MoE 和 Stepped MoE 放在概念性的 accuracy–latency 取舍上，气泡大小表示活跃规模。</p>
+<p><strong>模块与箭头。</strong>中间的 mask generator 输出不是文本，而是各层专家选择。它与 MoE 执行之间的连线表示控制信息，因此后层专家身份不必等前一 MoE 层计算结束才知道。蓝色 Dense 前段仍逐 token 执行；“保持不变”的是专家集合，不是 hidden state 或 Attention。</p>
+<p><strong>关键观察。</strong>一个常规 MoE 的 router 即使很便宜，晚发生的决策仍可能让 IO 串行进入关键路径。提前决定 + 保持一段，分别增加重叠窗口与摊销次数。</p>
+<p><strong>边界。</strong>右侧气泡是架构概念图，没有数值坐标，不能从气泡位置读出 speedup 或认定已测出的 Pareto frontier。</p>
+<h2 id="section-4">2. Methodology：完整重构数据流</h2>
+<h3 id="subsection-3">2.1 MoE background：计算稀疏，权重未必容易获得</h3>
+<p><strong>Paper。</strong>普通 token-choice MoE 的每层 router 从前一层 hidden 选择最多 k 个专家，通常再用路由分数加权组合专家输出。逐 token 的 active set 可以不同。DRAM 不足时，新专家需加载，旧专家可能被淘汰。</p>
+<p><strong>Interpretation。</strong>某层缓存集合 C、下一步激活集合 A，对应需要搬运的是 A∖C。仅知道 top-k 和总专家数无法算出传输量，还需知道命中率、权重编码与缓存容量。把一个 token 的专家选择延长到 S 个 token，会减少决策次数，但无法保证每次刷新仍命中同一批专家。</p>
+<h3 id="subsection-4">2.2 IFP background：固定一次请求的代价</h3>
+<p><strong>Paper。</strong>Instruction Following Pruning 在 prompt 条件下用小型 predictor 选择 FFN 子集，整个响应期间保持该子集。这样避免逐 token 权重替换，但对生成中上下文变化不够灵活；把隐藏维度视为非常细粒度专家，也扩大了优化空间。</p>
+<p>Stepped MoE 把“整次请求固定”改成“连续 S 个 token 固定”。它使用模型自身的 Dense 前层作路由 backbone，训练时能沿连续文本多次刷新，从头预训练分段路由。</p>
+<h3 id="subsection-5">2.3 Model architecture：尺寸、路由与专家</h3>
+<figure class="original" id="figure-2"><img alt="Original Figure 2:  Left: Flexible Stepped-MoE model architecture with expanded mask generator, Right: Inference time layout of the model to allow flexible sparsity based on resource availability." loading="lazy" src="assets/original/model_new.png"/><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 2</span>: </span><span class="ltx_text">Left: Flexible Stepped-MoE model architecture with expanded mask generator, Right: Inference time layout of the model to allow flexible sparsity based on resource availability.</span><br/>Source: Original paper · Figure 2 · author-provided PNG. Click to zoom.</figcaption></figure>
+<p><strong>Figure 2 阅读顺序。</strong>左上从 token embedding 和 active-size embedding 开始，经过 Dense backbone；mask generator 中 reshape 将时间轴分段、pooling 取每段第一个 hidden、MLP 同时产生后续各层 logits、SoftTopK 形成 mask。左下用 mask 控制 MoE 执行。右图将 NAND 中的总模型与 DRAM 中的 Dense 常驻区及当前专家区区分，箭头代表异步权重复制。</p>
+<p><strong>图的重要性。</strong>active-size embedding 在 Dense 之前加入，因此预算不只改变 TopK 的 k，也会改变送入 router 的特征。这是后面“嵌套”数学论证需要额外条件的原因。</p>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>张量 / 配置</th>
+<th>形状或数值</th>
+<th>工程含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入 tokens x</td>
+<td>[nB,T]</td>
+<td>B 是每档样本数，n 是预算档数</td>
+</tr>
+<tr>
+<td>TokenEmb(x)</td>
+<td>[nB,T,D]</td>
+<td>D=1536</td>
+</tr>
+<tr>
+<td>预算向量 Wₖ</td>
+<td>[D] / 每样本一档</td>
+<td>广播到时间轴，加到 token embeddings</td>
+</tr>
+<tr>
+<td>Dense 输出 z</td>
+<td>[nB,T,1536]</td>
+<td>前 12 层产生带因果上下文的特征</td>
+</tr>
+<tr>
+<td>分段 / first-token pooling</td>
+<td>[nB,T/S,1536]</td>
+<td>T 可整除 S 的训练情形；一般末段要处理 padding</td>
+</tr>
+<tr>
+<td>Router logits g</td>
+<td>[nB,T/S,44,212]</td>
+<td>44 个后续 MoE 层，每层 212 个专家</td>
+</tr>
+<tr>
+<td>Mask M</td>
+<td>与 g 同形状</td>
+<td>推理选择 k 个专家；训练用 SoftTopK 松弛</td>
+</tr>
+<tr>
+<td>Transformer 总层数</td>
+<td>56=12 Dense+44 MoE</td>
+<td>Attention 仍属于每层 token 执行路径</td>
+</tr>
+<tr>
+<td>Attention heads</td>
+<td>文中 12 Query、12 KV</td>
+<td>按字面没有 Q/KV 分组压缩比例</td>
+</tr>
+<tr>
+<td>Expert hidden dimension</td>
+<td>256</td>
+<td>212 是字面值，不是 2¹²</td>
+</tr>
+<tr>
+<td>Dense FFN expansion</td>
+<td>2×</td>
+<td>官方精确总参数仍缺 vocabulary 等项</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>输入、输出与控制流。</strong>模型输入文本与预算，输出 next-token logits。router 接收的是 Dense hidden，输出全层专家 mask；它不是独立生成模型。每层仍计算 Attention 和被选专家。专家输出不使用常规 router 分数加权；论文没有给出明确的求和/平均归一化，也未交代 shared experts 数量，不能补写为确定实现。</p>
+<p><strong>SoftTopK 的确定信息与空白。</strong>原文称用 SoftTopK 产生 M∈{0,1}，同时通过该操作训练 router。二值部署 mask 与可导训练松弛是两个层面。外部 CoDA 的附录 D 给出了 entropy regularized capped-simplex 松弛，可解释其思想：输出在 0–1 间、总质量受 k 约束，温度降低后更接近选择。本文没有披露温度、hard/soft forward、梯度估计或负载均衡细节，不能把 CoDA 推导直接当作本文源码。</p>
+<h3 id="subsection-6">2.4 Training recipe：共享参数下的多预算学习</h3>
+<h4>2.4.1 Pre-training：样本复制并不产生新数据</h4>
+<p><strong>Paper。</strong>每个样本复制 n 次，在各预算下分别执行。前段 Dense 按 token 处理序列，每个 segment 的第一个 hidden 决定本段后续 MoE 专家。预算向量可以随机分配，也可以按固定档位模式填充；主要实验采用复制以让每档看到同样输入。</p>
+<p><strong>为什么需要。</strong>只在同一批样本里分配不同预算时，每档只接到一部分训练。复制给每档相同数据暴露，提升多预算优化强度。代价是 processed examples 和训练计算增加。主实验 B=2048、n=4，有效 batch 为 8192；1T 是 unique tokens，不是四档累计计算只处理 1T。</p>
+<p>因果性来自选择位置：训练时用 segment first hidden，它只看该位置及此前信息，然后控制本段。在自回归代码中还必须明确 input token 与预测 target 的一位 shift；本文没有发布对应实现，下面的推理示意不会替作者固定未知的具体 offset。</p>
+<h4>2.4.2 Loss formulation：三个原公式与一个条件性推理</h4>
+<div class="equation" id="equation-1"><span class="equation-label">ORIGINAL EQUATION (1)</span><math alttext="L=\frac{1}{n\times B}\Sigma_{i}^{n}\Sigma_{j=i\times B}^{(i+1)\times B}\text{CE}(y_{j},f(W_{i},x_{j}))." class="ltx_Math" display="block" id="S2.E1.m1" intent=":literal"><semantics><mrow><mrow><mi>L</mi><mo>=</mo><mrow><mfrac><mn>1</mn><mrow><mi>n</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>B</mi></mrow></mfrac><mo lspace="0em" rspace="0em">​</mo><msubsup><mi mathvariant="normal">Σ</mi><mi>i</mi><mi>n</mi></msubsup><mo lspace="0em" rspace="0em">​</mo><msubsup><mi mathvariant="normal">Σ</mi><mrow><mi>j</mi><mo>=</mo><mrow><mi>i</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>B</mi></mrow></mrow><mrow><mrow><mo stretchy="false">(</mo><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow><mo rspace="0.055em" stretchy="false">)</mo></mrow><mo rspace="0.222em">×</mo><mi>B</mi></mrow></msubsup><mo lspace="0em" rspace="0em">​</mo><mtext>CE</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>y</mi><mi>j</mi></msub><mo>,</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>W</mi><mi>i</mi></msub><mo>,</mo><msub><mi>x</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></semantics></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>L=\frac{1}{n\times B}\Sigma_{i}^{n}\Sigma_{j=i\times B}^{(i+1)\times B}\text{CE}(y_{j},f(W_{i},x_{j})).</code></details></div>
+<p><strong>符号。</strong>L 为标量；n 为预算档数，B 为每档 batch，i 为预算索引，j 为样本索引；xⱼ/yⱼ 是输入与目标；Wᵢ 是该样本在预算 i 下选择的权重；f 的 token logits 可表示为 [T,V]，CE 经有效 target 聚合为样本标量。原文没有完整规定 token reduction 与 padding 处理。</p>
+<p><strong>逐步理解。</strong>同一个共享 checkpoint 以不同 active set 执行，分别计算 CE，再对 nB 个样本取平均。Wᵢ 随输入变化，不是对所有样本永久固定的一套专家。</p>
+<p><strong>原式索引审计。</strong>论文没有写 i 的下限，j 的闭区间端点可能使相邻块重叠。解释性规范写法应取 i=0,…,n−1，j=iB,…,(i+1)B−1；这是说明计数的修正，页面上方仍保留原式，不静默替换。</p>
+<div class="equation" id="equation-2"><span class="equation-label">ORIGINAL EQUATION (2)</span><math alttext="L=\frac{1}{2}(\text{CE}(y_{1},f(W_{1},x_{1}))+\text{CE}(y_{2},f(W_{2},x_{2})))," class="ltx_Math" display="block" id="S2.E2.m1" intent=":literal"><semantics><mrow><mrow><mi>L</mi><mo>=</mo><mrow><mfrac><mn>1</mn><mn>2</mn></mfrac><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mrow><mrow><mtext>CE</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>y</mi><mn>1</mn></msub><mo>,</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>W</mi><mn>1</mn></msub><mo>,</mo><msub><mi>x</mi><mn>1</mn></msub><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>+</mo><mrow><mtext>CE</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>y</mi><mn>2</mn></msub><mo>,</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>W</mi><mn>2</mn></msub><mo>,</mo><msub><mi>x</mi><mn>2</mn></msub><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>,</mo></mrow></semantics></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>L=\frac{1}{2}(\text{CE}(y_{1},f(W_{1},x_{1}))+\text{CE}(y_{2},f(W_{2},x_{2}))),</code></details></div>
+<p><strong>Toy example。</strong>B=1、n=2 时，两份相同文本分别用小预算和大预算执行，loss 是两份 CE 的平均。作者接着假设 W₁⊂W₂，写 W₂=[W₁,Wₑ]。在这个条件下，共享部分接到两份梯度，额外部分只在大预算中更新。</p>
+<p><strong>关键条件。</strong>相同 routing logits 下，TopK(g,k₁)⊆TopK(g,k₂) 成立（还需一致 tie-breaking）。但本文 h₀=TokenEmb(x)+Wₖ，使预算影响 Dense hidden 与 g。假设两档 logits 分别为 [9,8,1] 与 [1,8,9]，小档 top-1 选第一个，大档 top-2 选第二、第三，就没有嵌套。作者 TeX 里关于共享 logits 保证嵌套的早期说明已注释。现有材料支持“共享 checkpoint、多预算训练”，尚不足以证明最终架构对所有输入都严格嵌套。</p>
+<div class="equation" id="equation-3"><span class="equation-label">ORIGINAL EQUATION (3)</span><math alttext="L=\frac{1}{n\times B}\Sigma_{i}^{n}\alpha_{i}\times\Sigma_{j=i\times B}^{(i+1)\times B}\text{CE}(y_{j},f(W_{i},x_{j}))," class="ltx_Math" display="block" id="S2.E3.m1" intent=":literal"><semantics><mrow><mrow><mi>L</mi><mo>=</mo><mrow><mrow><mrow><mfrac><mn>1</mn><mrow><mi>n</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>B</mi></mrow></mfrac><mo lspace="0em" rspace="0em">​</mo><msubsup><mi mathvariant="normal">Σ</mi><mi>i</mi><mi>n</mi></msubsup><mo lspace="0em" rspace="0em">​</mo><msub><mi>α</mi><mi>i</mi></msub></mrow><mo lspace="0.222em" rspace="0.222em">×</mo><msubsup><mi mathvariant="normal">Σ</mi><mrow><mi>j</mi><mo>=</mo><mrow><mi>i</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>B</mi></mrow></mrow><mrow><mrow><mo stretchy="false">(</mo><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow><mo rspace="0.055em" stretchy="false">)</mo></mrow><mo rspace="0.222em">×</mo><mi>B</mi></mrow></msubsup></mrow><mo lspace="0em" rspace="0em">​</mo><mtext>CE</mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><msub><mi>y</mi><mi>j</mi></msub><mo>,</mo><mrow><mi>f</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><msub><mi>W</mi><mi>i</mi></msub><mo>,</mo><msub><mi>x</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="false">)</mo></mrow></mrow></mrow><mo>,</mo></mrow></semantics></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>L=\frac{1}{n\times B}\Sigma_{i}^{n}\alpha_{i}\times\Sigma_{j=i\times B}^{(i+1)\times B}\text{CE}(y_{j},f(W_{i},x_{j})),</code></details></div>
+<p><strong>αᵢ 的作用。</strong>每档 CE 先乘预算权重再聚合，用更大的惩罚补偿大预算额外权重更新较少的问题。它会缩放该档经过的所有参数梯度，包括 Dense、Attention 和共享专家，因此是一个便捷代理，不等同于给稀少激活专家单独设学习率。论文也承认逐专家学习率更直接但实现更复杂；实际 α 数值未公布。</p>
+<p><strong>训练成本。</strong>忽略 router 等细项时，多预算复制的 FLOPs 近似随 ΣᵢP_active,i 增长。共享存储减少 checkpoint 数量，却不会免费提供每档的梯度与计算。</p>
+<h4>2.4.3 Supervised Fine-tuning：prompt mask 与训练目标</h4>
+<p><strong>Paper。</strong>短例子拼接至最大序列长度；只对 assistant target tokens 算 loss。用最后一个 prompt token 的 Dense hidden 选初始专家，应用于整个 prompt 和第一响应段。后续每段按 first token 选 mask，以保持响应因果性。</p>
+<p><strong>Interpretation。</strong>整个 prompt 已知时，以最后 prompt hidden 控制 prompt 专家是条件生成设置；这不能直接等同于在连续文本预训练中使用未来 token 路由。服务实现还需验证：获得 prompt-last Dense hidden 后，MoE prompt prefill 如何安排，是否发生二阶段调度或中间激活缓存。这些属于 TTFT 链路成本，论文没有测清。</p>
+<h3 id="subsection-7">2.5 Inference：边界时刻、异步加载和 KV</h3>
+<p><strong>Paper。</strong>Dense 前段常驻 DRAM；用户选活跃预算，分配当前专家所需空间。prompt 最后 token 决定初始专家，在 S 个生成步骤内有效。一次知道所有后层专家，因此执行前层时可以异步加载后层权重。</p>
+<figure class="generated" id="diagram-execution"><div class="diagram-scroll" tabindex="0"><img alt="Agent-created simplified execution diagram" src="assets/generated/execution.svg"/></div><figcaption>Agent-created Visualization · simplified dependencies, not an original paper figure. <a href="assets/generated/execution.mmd">Mermaid source</a></figcaption></figure>
+<p><strong>Interpretation · 简化执行图。</strong>箭头表示依赖；存储加载和逐层执行是两条可重叠的路径。预取是否成功取决于某层权重是否赶在该层 deadline 前到达，异步 API 的存在本身并不能保证隐藏 IO。</p>
+<div class="code-frame"><div class="code-head"><span>EXPLANATORY CODE / FORMULA</span><button class="copy-button" type="button">Copy</button></div><pre><code class="language-python"># Explanatory pseudocode: offset and prompt-prefill scheduling need official code.
+budget = choose_request_budget()
+dense_weights = resident_backbone()
+mask = route(dense_prompt_last_hidden(prompt, budget), budget)
+schedule_expert_loads(mask)       # all 44 layers become known
+for step in autoregressive_decode_steps():
+    dense_hidden = execute_dense(step.input_token, budget, persistent_kv)
+    if step.starts_later_segment:
+        mask = route(dense_hidden, budget)
+        schedule_expert_loads(mask)
+    for layer in moe_layers:
+        await_required_weights(layer, mask)
+        hidden = execute_token_layer(layer, hidden, mask, persistent_kv)
+    emit_next_token(hidden)
+</code></pre></div>
+<p>这段代码只表达“全层选择→预取→等待所需权重→执行→刷新”的依赖，不是一份可直接运行的生成器；hidden 初始来自 Dense，真实边界的 token/target offset 仍需官方实现确认。图中 segment 同一集合可复用，不表示 token 能全并行生成。</p>
+<p><strong>KV cache。</strong>专家切换属于 FFN 分支，不会自动使历史 Attention KV 失效，正常 decode 持续追加并保留缓存。预算 embedding 改变执行路径；若中途换预算，历史 KV 来自旧预算，是否保持输出质量与一致性需要单独验证。论文支持预算选择，不提供 mid-request budget switching 的保真证明。</p>
+<p><strong>解释性成本模型：</strong></p>
+<div class="code-frame"><div class="code-head"><span>EXPLANATORY CODE / FORMULA</span><button class="copy-button" type="button">Copy</button></div><pre><code class="language-text">D_new = q × Σ(layer l) Σ(expert e ∈ A_l \ C_l) P_e
+mean extra IO time / token ≈ D_new / (S × BW_effective)
+boundary stall ≈ Σ(unhidden layer loading time) + router overhead
+</code></pre></div>
+<p>q 为每参数字节数，Pₑ 为单专家参数量，BW_effective 为真实存储到目标内存有效带宽。第二式是均摊估算，假定每段加载量已知；它不保证 S 倍端到端提速。TPOT 还包括 Attention、FFN、runtime 调度，段边界 stall 会在平均值之外影响 p95。双缓冲、旧专家延迟释放、加载对齐、页缓存都可能让实际峰值超过 active weights。</p>
+<h2 id="section-5">3. Experiments：质量收益与成本证据分别看</h2>
+<h3 id="subsection-8">3.1 Pre-training：主设置与完整 Table 1</h3>
+<p><strong>Paper。</strong>12B 总参数 Flexible 支持 1/2/3/4B 活跃；Dense 有 1–4B，Static S-MoE 有独立训练的 1B 与 3B；3B active / 12B total Vanilla MoE 作为质量上界参照。预训练为 1T unique tokens、长度 8192、基础 batch 2048，Flexible 复制四档。AXLearn/JAX，简化 µParam 优化器与 decoupled weight decay。主预训练没有完整披露硬件、训练精度、学习率、weight decay 数值和随机种子。</p>
+<p>Core-En-0s 汇总 ARC-challenge、ARC-easy、HellaSwag、WinoGrande、PiQA、LAMBADA-OpenAI、SciQ 的 zero-shot；Core-En-1s 汇总 TriviaQA、WebQS 的 one-shot；MMLU 是 5-shot accuracy，GSM8K 是 8-shot exact match，HumanEval-python 是 pass@1。Table 1–3、5–9 用 0–1 分数，越高越好；不要与 Table 4 的百分数混算。</p>
+<figure class="original-table" id="table-1"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 1</span>: </span><span class="ltx_text">Pre-training results; results for the same active parameters are same color coded and best results are in bold.</span></figcaption><div aria-label="Original Table 1" class="table-wrap" role="region" tabindex="0"><table><tr><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">Model Type</span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">    Active Parameters</span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-0s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-1s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+MMLU-5s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+GSM-8k
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+humaneval-py
+</span><span class="ltx_text"></span></span></th></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_4" rowspan="4"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Dense</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">1B</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-red" data-original-color="#FF0000">0.662</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.19</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.470</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.174</span></td><td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.132</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-blue" data-original-color="#0000FF">2B</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold paper-color-blue" data-original-color="#0000FF">0.690</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-blue" data-original-color="#0000FF">0.251</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-blue" data-original-color="#0000FF">0.552</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-blue" data-original-color="#0000FF">0.260</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text paper-color-blue" data-original-color="#0000FF">0.156</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">3B</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.704</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.282</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.578</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.345</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.184</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-brown" data-original-color="#BF8040">4B</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold paper-color-brown" data-original-color="#BF8040">0.716</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold paper-color-brown" data-original-color="#BF8040">0.296</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-brown" data-original-color="#BF8040">0.610</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-brown" data-original-color="#BF8040">0.411</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text paper-color-brown" data-original-color="#BF8040">0.205</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Static S-MoE</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">1B</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.652</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-red" data-original-color="#FF0000">0.212</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.544</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.186</span></td><td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.156</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">3B</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.704</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.264</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.621</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.460</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.264</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_4" rowspan="4"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Flexible S-MoE</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">1B</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.640</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text paper-color-red" data-original-color="#FF0000">0.196</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-red" data-original-color="#FF0000">0.5706</span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-red" data-original-color="#FF0000">0.283</span></td><td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-red" data-original-color="#FF0000">0.170</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-blue" data-original-color="#0000FF">2B</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-blue" data-original-color="#0000FF">0.683</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold paper-color-blue" data-original-color="#0000FF">0.259</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold paper-color-blue" data-original-color="#0000FF">0.6144</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold paper-color-blue" data-original-color="#0000FF">0.459</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold paper-color-blue" data-original-color="#0000FF">0.243</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">3B</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.701</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.279</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.6227</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold paper-color-teal" data-original-color="#008080">0.480</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text paper-color-teal" data-original-color="#008080">0.243</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-brown" data-original-color="#BF8040">4B</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-brown" data-original-color="#BF8040">0.712</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text paper-color-brown" data-original-color="#BF8040">0.29</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold paper-color-brown" data-original-color="#BF8040">0.6317</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold paper-color-brown" data-original-color="#BF8040">0.483</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold paper-color-brown" data-original-color="#BF8040">0.248</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Vanilla MoE</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span class="ltx_text paper-color-teal" data-original-color="#008080">3B</span></td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-teal" data-original-color="#008080">0.725</span></td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-teal" data-original-color="#008080">0.305</span></td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-teal" data-original-color="#008080">0.662</span></td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-teal" data-original-color="#008080">0.528</span></td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span class="ltx_text ltx_font_bold paper-color-teal" data-original-color="#008080">0.278</span></td></tr></table></div><p class="fine">Source: Original paper · Table 1. Scores on 0–1 scale; higher is better.</p></figure>
+<p><strong>怎样比较。</strong>原颜色表示相同 active budget；粗体按原表保留，包括 Vanilla MoE 的质量上界。相同 active 参数不代表总存储或训练 FLOPs 一致。</p>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>活跃预算</th>
+<th style="text-align: right;">Flexible−Dense MMLU</th>
+<th style="text-align: right;">MMLU 相对提升</th>
+<th style="text-align: right;">Flexible−Dense Core-En-0s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1B</td>
+<td style="text-align: right;">+10.06 pp</td>
+<td style="text-align: right;">+21.40%</td>
+<td style="text-align: right;">−2.20 pp</td>
+</tr>
+<tr>
+<td>2B</td>
+<td style="text-align: right;">+6.24 pp</td>
+<td style="text-align: right;">+11.30%</td>
+<td style="text-align: right;">−0.70 pp</td>
+</tr>
+<tr>
+<td>3B</td>
+<td style="text-align: right;">+4.47 pp</td>
+<td style="text-align: right;">+7.73%</td>
+<td style="text-align: right;">−0.30 pp</td>
+</tr>
+<tr>
+<td>4B</td>
+<td style="text-align: right;">+2.17 pp</td>
+<td style="text-align: right;">+3.56%</td>
+<td style="text-align: right;">−0.40 pp</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>关键结果。</strong>3B 的 GSM8K 从 .345 到 .480，+13.5 pp（相对 +39.13%）；HumanEval 从 .184 到 .243，+5.9 pp。Vanilla MoE 3B 在五列均高于 Flexible 3B，体现提前且分段路由的质量约束。</p>
+<p><strong>审计。</strong>摘要中的“2–5%”不能推广为所有指标统一收益；1B MMLU 的绝对提升更大，而四档 Core-En-0s 都略低于 Dense。主文把前 12 层约占总层数 21% 作为小预算受限的解释，但层数比例不是参数或延迟比例，也没有通过独立 Dense-depth 消融确认因果关系。</p>
+<h3 id="subsection-9">3.2 Pre-training Ablations：哪个组件改善了哪一档</h3>
+<figure class="original-table" id="table-2"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 2</span>: </span><span class="ltx_text">Ablations showing the impact of incremental changes to make Flexible S-MoE work</span></figcaption><div aria-label="Original Table 2" class="table-wrap" role="region" tabindex="0"><table><tr><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">Model Type</span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">    Active Parameters</span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-0s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-1s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+MMLU-5s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+GSM-8k
+</span><span class="ltx_text"></span></span></th></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Dense</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.662</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.19</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.470</td><td class="ltx_td ltx_align_center ltx_border_t">0.174</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.704</td><td class="ltx_td ltx_align_center ltx_border_r">0.282</td><td class="ltx_td ltx_align_center ltx_border_r">0.578</td><td class="ltx_td ltx_align_center">0.345</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Static S-MoE</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.652</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.212</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.544</td><td class="ltx_td ltx_align_center ltx_border_t">0.186</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.704</td><td class="ltx_td ltx_align_center ltx_border_r">0.264</td><td class="ltx_td ltx_align_center ltx_border_r">0.621</td><td class="ltx_td ltx_align_center">0.460</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Flexible S-MoE</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.650</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.204</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.500</td><td class="ltx_td ltx_align_center ltx_border_t">0.200</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.686</td><td class="ltx_td ltx_align_center ltx_border_r">0.254</td><td class="ltx_td ltx_align_center ltx_border_r">0.584</td><td class="ltx_td ltx_align_center">0.405</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">+ Batch Replication</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.657</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.202</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.576</td><td class="ltx_td ltx_align_center ltx_border_t">0.304</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.698</td><td class="ltx_td ltx_align_center ltx_border_r">0.264</td><td class="ltx_td ltx_align_center ltx_border_r">0.598</td><td class="ltx_td ltx_align_center">0.414</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">+ Weighted CE</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.635</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.184</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.556</td><td class="ltx_td ltx_align_center ltx_border_t">0.277</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.699</td><td class="ltx_td ltx_align_center ltx_border_r">0.254</td><td class="ltx_td ltx_align_center ltx_border_r">0.617</td><td class="ltx_td ltx_align_center">0.459</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">+ Active Size Embedding</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.640</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.196</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.5706</td><td class="ltx_td ltx_align_center ltx_border_t">0.283</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.701</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.279</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.6227</td><td class="ltx_td ltx_align_center ltx_border_bb">0.480</td></tr></table></div><p class="fine">Source: Original paper · Table 2. Scores on 0–1 scale; higher is better.</p></figure>
+<p><strong>读法。</strong>这些是逐项累积修改，行组依次为未复制的 Flexible、加入复制、再加 weighted CE、再加 size embedding。不能把最后结果归因于某一项的独立效果。</p>
+<p><strong>Batch replication。</strong>1B MMLU .500→.576，+7.6 pp；3B .584→.598，+1.4 pp。效果伴随更多预算执行，不能称“相同单模型训练计算的免费收益”。</p>
+<p><strong>Weighted CE。</strong>1B MMLU .576→.556，−2.0 pp；3B .598→.617，+1.9 pp。GSM8K 也出现小预算下降、大预算上升。这符合重新分配梯度压力，而非所有档位一起改善。</p>
+<p><strong>Size embedding。</strong>1B MMLU .556→.5706，+1.46 pp，仍低于仅复制的 .576；3B .617→.6227，+0.57 pp。显式预算信号有益，但严格嵌套性质需另行检验。</p>
+<figure class="original-table" id="table-3"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 3</span>: </span><span class="ltx_text">Ablations showing the impact of segment length</span></figcaption><div aria-label="Original Table 3" class="table-wrap" role="region" tabindex="0"><table><tr><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">Model Type</span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">    Active Parameters</span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-0s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-1s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+MMLU-5s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+GSM-8k
+</span><span class="ltx_text"></span></span></th></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Flexible S-MoE</span>
+<span class="ltx_text ltx_font_bold">Segment length=32</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.640</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.196</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.5706</td><td class="ltx_td ltx_align_center ltx_border_t">0.283</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.701</td><td class="ltx_td ltx_align_center ltx_border_r">0.279</td><td class="ltx_td ltx_align_center ltx_border_r">0.6227</td><td class="ltx_td ltx_align_center">0.480</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Flexible S-MoE</span>
+<span class="ltx_text ltx_font_bold">Segment length=16</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.666</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.223</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.601</td><td class="ltx_td ltx_align_center ltx_border_t">0.305</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.722</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.298</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.653</td><td class="ltx_td ltx_align_center ltx_border_bb">0.513</td></tr></table></div><p class="fine">Source: Original paper · Table 3. Scores on 0–1 scale; higher is better.</p></figure>
+<p><strong>分段长度。</strong>独立训练的 S=16 模型相较 S=32，在两档的四列都更好。例如 3B MMLU .6227→.653，+3.03 pp；Core-En-1s .279→.298，+1.9 pp。更频繁路由能适应变化，但增加 router 与换入机会。</p>
+<p><strong>不能混淆的实验。</strong>Table 3 比较不同 S 训练配置；A.7 / Table 9 则用同一个 S_train=16 checkpoint 改推理 S_eval。前者说明训练适应能力，后者才直接支撑部署时切换 segment length。</p>
+<h3 id="subsection-10">3.3 Supervised fine-tuning：完整 Table 4 与非单调结果</h3>
+<p><strong>Paper。</strong>SFT 30k steps，长度 16K；Dense batch 512，Flexible 是基础 batch 128×4=512，不是四档各 512。数据混合：35% instruction、20% multilingual、20% math、10% code、10% tool、5% safety。具体语料、judge 配置及置信区间没有完整给出。</p>
+<figure class="original-table" id="table-4"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 4</span>: </span><span class="ltx_text">Performance comparison between Dense models, Static Stepped-MoE (S-MoE) and Flexible Stepped MoE (S-MoE). All S-MoE models have 12B total parameters.
+</span></figcaption><div aria-label="Original Table 4" class="table-wrap" role="region" tabindex="0"><table><tr><th class="ltx_td ltx_align_center ltx_border_tt ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text ltx_font_bold">Category</span></th><th class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">    Dataset</span></span>
+</span></th><th class="ltx_td ltx_align_center ltx_border_tt ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_smallcaps">Dense</span> 3B
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_smallcaps">Dense</span> 6B
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Static S-MoE
+</span><span class="ltx_text"></span></th><th class="ltx_td ltx_align_center ltx_border_tt ltx_colspan ltx_colspan_4" colspan="4">Flexible S-MoE</th></tr><tr><th class="ltx_td ltx_align_left ltx_align_top ltx_border_r"></th><th class="ltx_td ltx_align_center ltx_border_r">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>3B</th><th class="ltx_td ltx_align_center">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>1B</th><th class="ltx_td ltx_align_center">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>2B</th><th class="ltx_td ltx_align_center">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>3B</th><th class="ltx_td ltx_align_center">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>4B</th></tr><tr><td class="ltx_td ltx_align_center ltx_border_t ltx_rowspan ltx_rowspan_4" rowspan="4"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Instruction</span>
+<span class="ltx_text ltx_font_bold">Following</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">IFEval-Instruction</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_t">83.693</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">86.451</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">83.813</td><td class="ltx_td ltx_align_center ltx_border_t">76.739</td><td class="ltx_td ltx_align_center ltx_border_t">82.494</td><td class="ltx_td ltx_align_center ltx_border_t">85.252</td><td class="ltx_td ltx_align_center ltx_border_t">85.372</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">IFEval-Prompt</span>
+</span></td><td class="ltx_td ltx_align_center">76.895</td><td class="ltx_td ltx_align_center ltx_border_r">79.852</td><td class="ltx_td ltx_align_center ltx_border_r">77.449</td><td class="ltx_td ltx_align_center">66.543</td><td class="ltx_td ltx_align_center">74.677</td><td class="ltx_td ltx_align_center">79.482</td><td class="ltx_td ltx_align_center">78.743</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">AlpacaEval-Prompt</span>
+</span></td><td class="ltx_td ltx_align_center">16.479</td><td class="ltx_td ltx_align_center ltx_border_r">27.333</td><td class="ltx_td ltx_align_center ltx_border_r">22.951</td><td class="ltx_td ltx_align_center">13.597</td><td class="ltx_td ltx_align_center">20.409</td><td class="ltx_td ltx_align_center">22.111</td><td class="ltx_td ltx_align_center">25.021</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Arena-Hard</span>
+</span></td><td class="ltx_td ltx_align_center">10.85</td><td class="ltx_td ltx_align_center ltx_border_r">19.49</td><td class="ltx_td ltx_align_center ltx_border_r">19.07</td><td class="ltx_td ltx_align_center">10.95</td><td class="ltx_td ltx_align_center">17.72</td><td class="ltx_td ltx_align_center">19.75</td><td class="ltx_td ltx_align_center">18.49</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">Tool Use</span></td><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Tool Execution</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_t">75.736</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">80.102</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">77.97</td><td class="ltx_td ltx_align_center ltx_border_t">67.614</td><td class="ltx_td ltx_align_center ltx_border_t">76.244</td><td class="ltx_td ltx_align_center ltx_border_t">77.056</td><td class="ltx_td ltx_align_center ltx_border_t">78.071</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text ltx_font_bold">Math</span></td><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">COT-Minerva</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_t">36.900</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">46.229</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">43.514</td><td class="ltx_td ltx_align_center ltx_border_t">33.657</td><td class="ltx_td ltx_align_center ltx_border_t">42.943</td><td class="ltx_td ltx_align_center ltx_border_t">43.414</td><td class="ltx_td ltx_align_center ltx_border_t">45.071</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">GSM-8k</span>
+</span></td><td class="ltx_td ltx_align_center">64.600</td><td class="ltx_td ltx_align_center ltx_border_r">73.800</td><td class="ltx_td ltx_align_center ltx_border_r">70.000</td><td class="ltx_td ltx_align_center">52.200</td><td class="ltx_td ltx_align_center">68.100</td><td class="ltx_td ltx_align_center">72.200</td><td class="ltx_td ltx_align_center">74.100</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bbb ltx_border_t ltx_rowspan ltx_rowspan_3" rowspan="3"><span class="ltx_text ltx_font_bold">Coding</span></td><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">MBPP</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_t">38.300</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">45.900</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">45.600</td><td class="ltx_td ltx_align_center ltx_border_t">35.300</td><td class="ltx_td ltx_align_center ltx_border_t">46.200</td><td class="ltx_td ltx_align_center ltx_border_t">46.200</td><td class="ltx_td ltx_align_center ltx_border_t">46.500</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">HumanEval</span>
+</span></td><td class="ltx_td ltx_align_center">35.600</td><td class="ltx_td ltx_align_center ltx_border_r">48.400</td><td class="ltx_td ltx_align_center ltx_border_r">44.250</td><td class="ltx_td ltx_align_center">34.600</td><td class="ltx_td ltx_align_center">44.550</td><td class="ltx_td ltx_align_center">45.700</td><td class="ltx_td ltx_align_center">46.100</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_bbb ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">MultiPL-E</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_bbb">24.150</td><td class="ltx_td ltx_align_center ltx_border_bbb ltx_border_r">29.900</td><td class="ltx_td ltx_align_center ltx_border_bbb ltx_border_r">34.450</td><td class="ltx_td ltx_align_center ltx_border_bbb">21.500</td><td class="ltx_td ltx_align_center ltx_border_bbb">32.550</td><td class="ltx_td ltx_align_center ltx_border_bbb">32.900</td><td class="ltx_td ltx_align_center ltx_border_bbb">32.950</td></tr></table></div><p class="fine">Source: Original paper · Table 4. Scores in percent; higher is better.</p></figure>
+<p><strong>指标与单位。</strong>该表数字以百分数尺度报告，均按越高越好解释；包含 instruction following、judge 偏好评测、tool execution、数学及代码。不同任务的评分程序不同，不能简单把十列平均为一个“总准确率”。</p>
+<p><strong>3B 对 Dense 3B。</strong>GSM8K 64.6→72.2，+7.6 pp；HumanEval 35.6→45.7，+10.1 pp；IFEval-Prompt 76.895→79.482，+2.587 pp；Arena-Hard 10.85→19.75，+8.90 pp。相同 active 档位下的优势较广，但总参数是 12B，并不等于 Dense 3B 存储。</p>
+<p><strong>与 Dense 6B。</strong>Flexible 4B 的 GSM8K 74.1 高于 73.8，MBPP 46.5 高于 45.9；HumanEval 46.1 低于 48.4，Tool Execution 78.071 低于 80.102。可以说部分任务达到或超过更大的 Dense，不可说全面超过。</p>
+<p><strong>更大预算未必更好。</strong>Flexible 3B→4B 时 IFEval-Prompt 79.482→78.743、Arena-Hard 19.75→18.49。没有多 seed 方差，无法区分优化冲突、数据因素与评测波动；结果本身已说明每次升档都提升质量不是保证。</p>
+<h3 id="subsection-11">3.4 Inference profiling：模拟器测到了什么</h3>
+<figure class="original" id="figure-3"><img alt="Original Figure 3:  Decoding length vs Latency of various models and CHR: Cache Hit Rate; ratio of experts already present in DRAM from previous decoding step. Left ⇒ Right we vary CHR from 0 to 0.6 to show the latency decreasing for Vanilla and Stepped-MoE models" loading="lazy" src="assets/original/latency_v1.png"/><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 3</span>: </span><span class="ltx_text">Decoding length vs Latency of various models and CHR: Cache Hit Rate; ratio of experts already present in DRAM from previous decoding step. Left <math alttext="\Rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">⇒</mo></semantics></math> Right we vary CHR from 0 to 0.6 to show the latency decreasing for Vanilla and Stepped-MoE models</span><br/>Source: Original paper · Figure 3 · author-provided PNG. Click to zoom.</figcaption></figure>
+<p><strong>如何阅读。</strong>四个面板从左到右 CHR=0、0.2、0.4、0.6；CHR 是当前要用专家中已经在 DRAM 的比例。横轴是 Extend length（0–2048 token），纵轴为 Extend latency（ms），是 10²–10⁶ 的对数轴。比较 Dense 3/4/6B、3B active /12B total Vanilla MoE，以及 r=16/32/64 的 Stepped MoE。</p>
+<p><strong>Paper。</strong>作者使用 NPU simulator，包含真实矩阵乘延迟和 NAND→DRAM 时间。降低逐 token 换专家频率，使 Stepped 曲线明显靠近 Dense；CHR 更高时两类 MoE 的加载代价降低。更长驻留段提供更好的摊销空间。</p>
+<p><strong>Interpretation。</strong>这里有说服力的机制证据是曲线间距和随 CHR 的变化。图没有底层延迟数值表，不能从低分辨率点位编出精确倍数；原文的“exponentially higher”“nearly flat”不宜作为复杂度结论。纵轴为 log，不足以证明指数增长；图显示累计延迟随长度增长，并非 TPOT 随长度恒定的单独测量。</p>
+<p><strong>缺失的设备信息。</strong>设备型号、权重与 KV 精度、有效带宽、DRAM 容量、runtime 实现、并发、首 token 冷启动、p95、热状态、电池消耗未完整公布。论文的 near-Dense latency 是指定模拟设置下的主张；不能直接把它表述为 iPhone 或 HTP 上已经实现的端到端速度。</p>
+<p>对端侧部署，首轮还需加载 Dense 与 prompt 专家，TTFT 可能受 prompt Dense→route→MoE prefill 的两阶段链路影响。Decode 的平均 TPOT 与边界 p95 要分别测。这个论文特别值得做的是逐层时间线与 bytes loaded 归因，证明多少 IO 真正被 compute 隐藏。</p>
+<h2 id="section-6">4. Related Works：论文自身的定位</h2>
+<p><strong>Paper。</strong>作者将工作放在 MoE、query-level pruning 和多预算模型之间。MoE 提供条件计算；IFP 提供 query-conditioned active subset；MatFormer 讨论共享权重的多粒度模型。Stepped 的组合点是全层早路由、segment 固定与预算条件训练。</p>
+<p><strong>Interpretation。</strong>新意更接近架构与服务约束共同设计：在训练阶段主动创造 runtime 可以利用的未来权重可知性。它不单是把现有 token MoE 的 router 每隔 S 次执行；后者仍可能依赖各层当下 hidden，无法同样提前给出全部层选择。</p>
+<p>相关论文、官方实现和截至阅读日的并行路线在最后单独整理；不会把 2026 年其他架构结果当成本论文后续复现。</p>
+<h2 id="section-7">5. Conclusion and Limitations：论文支持的边界</h2>
+<p><strong>Paper。</strong>作者认为分段专家选择在知识和推理任务上接近 token MoE，并以多预算 checkpoint 提供运行时灵活性。局限包括小预算精度、段长选择和模型扩展，模拟推理尚不能覆盖全部实际部署条件。</p>
+<p><strong>Interpretation。</strong>主结果支持“用额外总容量提升同 active budget 的若干任务质量，并创造更可安排的加载路径”。尚不支持“全面优于 Dense、始终保持预算嵌套、真实端侧 near-Dense、训练成本更低”的强版本。Appendix A.6 对最后两点尤其重要，不能只读正文跳过。</p>
+<h2 id="section-8">Appendix A：逐项补齐与核查</h2>
+<h3 id="subsection-12">A.1 Impact Statement</h3>
+<p><strong>Paper。</strong>作者讨论本地推理可能带来的隐私与环境收益，以及通用模型已有的风险。<strong>Interpretation。</strong>这是影响声明，没有独立能耗测量、隐私威胁实验或安全评测支持“没有额外风险”。本地运行减少云端上传需求，但不能自动证明完整应用链路安全。</p>
+<h3 id="subsection-13">A.2 Scalability：活跃参数不变，总容量增大</h3>
+<figure class="original-table" id="table-5"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 5</span>: </span><span class="ltx_text">Pre-training results for larger total parameters S-MoE models</span></figcaption><div aria-label="Original Table 5" class="table-wrap" role="region" tabindex="0"><table><tr><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">Model Type</span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">    Active Parameters /</span>
+<span class="ltx_text ltx_font_bold">Total parameters</span>
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-0s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-1s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+MMLU-5s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+GSM-8k
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+humaneval-py
+</span><span class="ltx_text"></span></span></th></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Static S-MoE</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">3B/12B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.704</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.264</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.621</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.460</td><td class="ltx_td ltx_align_center ltx_border_t">0.264</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B/20B</td><td class="ltx_td ltx_align_center ltx_border_r">0.703</td><td class="ltx_td ltx_align_center ltx_border_r">0.27</td><td class="ltx_td ltx_align_center ltx_border_r">0.634</td><td class="ltx_td ltx_align_center ltx_border_r">0.508</td><td class="ltx_td ltx_align_center">0.260</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_tt ltx_rowspan ltx_rowspan_8" rowspan="8"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Flexible S-MoE</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">1B/12B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">0.640</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">0.196</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">0.5706</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">0.283</td><td class="ltx_td ltx_align_center ltx_border_tt">0.170</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">2B/12B</td><td class="ltx_td ltx_align_center ltx_border_r">0.683</td><td class="ltx_td ltx_align_center ltx_border_r">0.259</td><td class="ltx_td ltx_align_center ltx_border_r">0.6144</td><td class="ltx_td ltx_align_center ltx_border_r">0.459</td><td class="ltx_td ltx_align_center">0.243</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B/12B</td><td class="ltx_td ltx_align_center ltx_border_r">0.701</td><td class="ltx_td ltx_align_center ltx_border_r">0.279</td><td class="ltx_td ltx_align_center ltx_border_r">0.6227</td><td class="ltx_td ltx_align_center ltx_border_r">0.480</td><td class="ltx_td ltx_align_center">0.243</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">4B/12B</td><td class="ltx_td ltx_align_center ltx_border_r">0.712</td><td class="ltx_td ltx_align_center ltx_border_r">0.29</td><td class="ltx_td ltx_align_center ltx_border_r">0.6317</td><td class="ltx_td ltx_align_center ltx_border_r">0.483</td><td class="ltx_td ltx_align_center">0.248</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B/20B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.648</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.2185</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.591</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.317</td><td class="ltx_td ltx_align_center ltx_border_t">0.178</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">2B/20B</td><td class="ltx_td ltx_align_center ltx_border_r">0.687</td><td class="ltx_td ltx_align_center ltx_border_r">0.2725</td><td class="ltx_td ltx_align_center ltx_border_r">0.634</td><td class="ltx_td ltx_align_center ltx_border_r">0.478</td><td class="ltx_td ltx_align_center">0.247</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B/20B</td><td class="ltx_td ltx_align_center ltx_border_r">0.701</td><td class="ltx_td ltx_align_center ltx_border_r">0.295</td><td class="ltx_td ltx_align_center ltx_border_r">0.646</td><td class="ltx_td ltx_align_center ltx_border_r">0.507</td><td class="ltx_td ltx_align_center">0.256</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">4B/20B</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.705</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.307</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.65</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.517</td><td class="ltx_td ltx_align_center ltx_border_bb">0.255</td></tr></table></div><p class="fine">Source: Original paper · Table 5. Scores on 0–1 scale; higher is better.</p></figure>
+<p><strong>读法。</strong>12B 与 20B 是总参数；1/2/3/4B 是活跃参数。固定活跃预算下，增加可供路由的总容量，多数知识、数学和代码指标改善。例如 Flexible 3B MMLU .6227→.646、GSM8K .480→.507。</p>
+<p><strong>Trade-off。</strong>磁盘权重与管理成本增加；active budget 相同不保证 cache hit rate、路由难度和预取效率相同。20B 不代表“20B 全部驻留”。</p>
+<p><strong>例外。</strong>Flexible 4B Core-En-0s .712→.705；Static 3B HumanEval .264→.260。扩大专家池并未在每个任务上单调改善，也缺少更大规模与更多设备验证。</p>
+<h3 id="subsection-14">A.3 Batch replication vs more training data</h3>
+<figure class="original-table" id="table-6"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 6</span>: </span><span class="ltx_text">Pre-training results for batch replication vs more training data with no batch replication</span></figcaption><div aria-label="Original Table 6" class="table-wrap" role="region" tabindex="0"><table><tr><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">Model Type</span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">    Active Parameters</span>
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-0s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Core-En-1s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+MMLU-5s
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+GSM-8k
+</span><span class="ltx_text"></span></span></th></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t ltx_rowspan ltx_rowspan_8" rowspan="8"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_text ltx_font_bold">Flexible S-MoE</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.640</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.196</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.570</td><td class="ltx_td ltx_align_center ltx_border_t">0.283</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">2B</td><td class="ltx_td ltx_align_center ltx_border_r">0.683</td><td class="ltx_td ltx_align_center ltx_border_r">0.259</td><td class="ltx_td ltx_align_center ltx_border_r">0.614</td><td class="ltx_td ltx_align_center">0.459</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.701</td><td class="ltx_td ltx_align_center ltx_border_r">0.279</td><td class="ltx_td ltx_align_center ltx_border_r">0.623</td><td class="ltx_td ltx_align_center">0.480</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">4B</td><td class="ltx_td ltx_align_center ltx_border_r">0.712</td><td class="ltx_td ltx_align_center ltx_border_r">0.290</td><td class="ltx_td ltx_align_center ltx_border_r">0.632</td><td class="ltx_td ltx_align_center">0.483</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.633</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.190</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.573</td><td class="ltx_td ltx_align_center ltx_border_t">0.296</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">2B</td><td class="ltx_td ltx_align_center ltx_border_r">0.690</td><td class="ltx_td ltx_align_center ltx_border_r">0.251</td><td class="ltx_td ltx_align_center ltx_border_r">0.637</td><td class="ltx_td ltx_align_center">0.486</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.710</td><td class="ltx_td ltx_align_center ltx_border_r">0.276</td><td class="ltx_td ltx_align_center ltx_border_r">0.648</td><td class="ltx_td ltx_align_center">0.528</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">4B</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.719</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.291</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.652</td><td class="ltx_td ltx_align_center ltx_border_bb">0.546</td></tr></table></div><p class="fine">Source: Original paper · Table 6. Scores on 0–1 scale; higher is better.</p></figure>
+<p><strong>设置。</strong>原表同为 Flexible 的八行，前四行是复制相同数据，后四行是更多训练数据、不复制；原表本身未在每行重复标出这层区别。正文与 caption 确认了分组，本文保留原始行列并解释。</p>
+<p><strong>结果。</strong>3B MMLU .623→.648，+2.5 pp；GSM8K .480→.528，+4.8 pp。更多 unique data 对高预算有益，但 1B Core-En-0s .640→.633、Core-En-1s .196→.190。</p>
+<p><strong>公平性。</strong>新增 unique token 数与计算量未完整披露，不能归因成纯数据优势、纯复制劣势或等成本结论。需要匹配 processed tokens、unique tokens 和 FLOPs 的二维实验。</p>
+<h3 id="subsection-15">A.4 Routing mask validation：三个例子与缓存含义</h3>
+<figure class="original" id="figure-4"><img alt="Original Figure 4:  i: Starting from topic A and slowly transitioning to a slightly related topic B. ii: Starting from topic A and abruptly switching to unrelated topic B. iii: Starting from topic A, switching to unrelated topic B and coming back to topic A." loading="lazy" src="assets/original/cosine_similarity.png"/><figcaption><span class="ltx_tag ltx_tag_figure"><span class="ltx_text">Figure 4</span>: </span><span class="ltx_text">i: Starting from topic A and slowly transitioning to a slightly related topic B. ii: Starting from topic A and abruptly switching to unrelated topic B. iii: Starting from topic A, switching to unrelated topic B and coming back to topic A.</span><br/>Source: Original paper · Figure 4 · author-provided PNG. Click to zoom.</figcaption></figure>
+<p><strong>如何读。</strong>每幅热图用两条轴表示 segment 编号，颜色编码 routing mask cosine similarity。i 是 A 逐渐转向相关 B，ii 是 A 突然切换到不相关 B，iii 是 A→不相关 B→A。看对角线外的块，判断哪些段的专家集合相似。</p>
+<p><strong>关键观察。</strong>部分相邻段保持相似，话题切换时出现不同块结构，返回话题时可能再现相似集合。这表明路由能响应文本变化；但第 0 段与后段也有较低相似度，不能概括为“所有相邻段都高命中”。</p>
+<p><strong>数学解释。</strong>等 k 的二值 mask，cosine=|A∩B|/k。这可以表示两个集合的重叠比例；只有缓存恰好保留前段、每个专家同存储大小等特定条件下，它才与实际 CHR 一致。跨层聚合、不同 k、LRU 或额外缓存会改变关系。</p>
+<p><strong>证据级别。</strong>这是三个定性样例，缺少全数据集分布、confidence interval、热图与实际 bytes 命中的配对测量。只能支持可适应话题变化的示例，不能证明普遍高 CHR。</p>
+<h3 id="subsection-16">A.5 Fine-Grained Core-En Results</h3>
+<figure class="original-table" id="table-7"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 7</span>: </span><span class="ltx_text">Fine-grained Core-En results. Flexible S-MoE has 12B total parameters. Each <math alttext="S" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>S</mi></semantics></math> configuration is trained and evaluated at the indicated segment length. Composite scores are reproduced as reported.</span></figcaption><div aria-label="Original Table 7" class="table-wrap" role="region" tabindex="0"><table><tr><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Task
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_tt ltx_colspan ltx_colspan_2" colspan="2">Dense</th><th class="ltx_td ltx_align_center ltx_border_tt ltx_colspan ltx_colspan_2" colspan="2">Flexible, <math alttext="S=32" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>S</mi><mo>=</mo><mn>32</mn></mrow></semantics></math></th><th class="ltx_td ltx_align_center ltx_border_tt ltx_colspan ltx_colspan_2" colspan="2">Flexible, <math alttext="S=16" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>S</mi><mo>=</mo><mn>16</mn></mrow></semantics></math></th></tr><tr><th class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_t">3B</th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_t">3B</th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</th><th class="ltx_td ltx_align_center ltx_border_t">3B</th></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">ARC-Challenge</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.4189</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.4838</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.3686</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.4625</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">0.4369</span></td><td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">0.5128</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">ARC-Easy</td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">0.7605</span></td><td class="ltx_td ltx_align_center ltx_border_r">0.7997</td><td class="ltx_td ltx_align_center ltx_border_r">0.6987</td><td class="ltx_td ltx_align_center ltx_border_r">0.7912</td><td class="ltx_td ltx_align_center ltx_border_r">0.7563</td><td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.8207</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">HellaSwag</td><td class="ltx_td ltx_align_center ltx_border_r">0.5043</td><td class="ltx_td ltx_align_center ltx_border_r">0.5517</td><td class="ltx_td ltx_align_center ltx_border_r">0.5129</td><td class="ltx_td ltx_align_center ltx_border_r">0.5704</td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">0.5202</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.5810</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">WinoGrande</td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">0.6283</span></td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">0.6803</span></td><td class="ltx_td ltx_align_center ltx_border_r">0.6140</td><td class="ltx_td ltx_align_center ltx_border_r">0.6559</td><td class="ltx_td ltx_align_center ltx_border_r">0.6188</td><td class="ltx_td ltx_align_center">0.6725</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">LAMBADA</td><td class="ltx_td ltx_align_center ltx_border_r">0.6144</td><td class="ltx_td ltx_align_center ltx_border_r">0.6720</td><td class="ltx_td ltx_align_center ltx_border_r">0.6346</td><td class="ltx_td ltx_align_center ltx_border_r">0.6953</td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">0.6427</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.7167</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">SciQ</td><td class="ltx_td ltx_align_center ltx_border_r">0.9410</td><td class="ltx_td ltx_align_center ltx_border_r">0.9550</td><td class="ltx_td ltx_align_center ltx_border_r">0.9330</td><td class="ltx_td ltx_align_center ltx_border_r">0.9580</td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">0.9460</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.9610</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">PiQA</td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">0.7639</span></td><td class="ltx_td ltx_align_center ltx_border_r">0.7851</td><td class="ltx_td ltx_align_center ltx_border_r">0.7149</td><td class="ltx_td ltx_align_center ltx_border_r">0.7704</td><td class="ltx_td ltx_align_center ltx_border_r">0.7454</td><td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.7867</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Core-En-0s</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.662</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.704</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.640</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.701</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">0.667</span></td><td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">0.722</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">TriviaQA</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.2797</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.3789</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.2607</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.3725</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">0.3168</span></td><td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">0.4042</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">WebQS</td><td class="ltx_td ltx_align_center ltx_border_r">0.0999</td><td class="ltx_td ltx_align_center ltx_border_r">0.1885</td><td class="ltx_td ltx_align_center ltx_border_r">0.1240</td><td class="ltx_td ltx_align_center ltx_border_r">0.1816</td><td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">0.1299</span></td><td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">0.1909</span></td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">Core-En-1s</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">0.190</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">0.284</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">0.192</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t">0.277</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">0.223</span></td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span class="ltx_text ltx_font_bold">0.298</span></td></tr></table></div><p class="fine">Source: Original paper · Table 7. Scores on 0–1 scale; higher is better.</p></figure>
+<p><strong>逐项读法。</strong>上半部七个 zero-shot 任务与 Core-En-0s；下半部 TriviaQA、WebQS 和 Core-En-1s。每个 S 配置在该 S 下独立训练并评估。</p>
+<p><strong>细粒度结果。</strong>Flexible S=32 1B 的 ARC-Challenge .3686 低于 Dense .4189，PiQA .7149 低于 .7639；HellaSwag .5129 高于 .5043，LAMBADA .6346 高于 .6144。总体 Core 下降并不表示每个任务都下降。3B S=16 在多数列上更好，但 WinoGrande .6725 仍低于 Dense .6803。</p>
+<p><strong>作者的短 prompt 假说。</strong>A.5 称约 70% 的 ARC prompts 很短；预训练评测按首 token 选初始专家，短输入可能在有充分上下文的刷新前就结束。因此 S 缩短后的改善与这个解释一致。它与 SFT/服务中的 prompt-last 初始路由不同；论文未给出把 prompt 长度、初始化位置、段长分别控制的消融，不能认定该假说已经证实。</p>
+<p><strong>原文不一致。</strong>Table 7 S=16 1B Core0 为 .667，Table 3 是 .666；Dense 3B Core1 为 .284，Table 1 为 .282；Flexible S=32 1B/3B Core1 为 .192/.277，Table 1 为 .196/.279。七个 Core0 任务的简单平均也不能完全复现 reported composite。这里保留各表原数，不能自行统一为某个“正确值”；精确聚合与 eval harness 尚待作者澄清。</p>
+<h3 id="subsection-17">A.6 Compute-Normalized Training Comparison：训练收益应如何判断</h3>
+<figure class="original-table" id="table-8"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 8</span>: </span><span class="ltx_text">Compute-normalized results. The shared Flexible S-MoE checkpoint supports both active sizes. The combined approximate training-FLOP budget of the two baselines within each model family is matched to that of the flexible checkpoint.</span></figcaption><div aria-label="Original Table 8" class="table-wrap" role="region" tabindex="0"><table><tr><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Model</th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Active size</th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Core-En-0s</th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Core-En-1s</th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">MMLU-5s</th><th class="ltx_td ltx_align_center ltx_border_tt">GSM-8k</th></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Dense</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.664</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.192</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.476</td><td class="ltx_td ltx_align_center ltx_border_t">0.179</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">Dense</td><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.692</td><td class="ltx_td ltx_align_center ltx_border_r">0.278</td><td class="ltx_td ltx_align_center ltx_border_r">0.570</td><td class="ltx_td ltx_align_center">0.341</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Static S-MoE</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.662</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.217</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.552</td><td class="ltx_td ltx_align_center ltx_border_t">0.188</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r">Static S-MoE</td><td class="ltx_td ltx_align_center ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_r">0.690</td><td class="ltx_td ltx_align_center ltx_border_r">0.264</td><td class="ltx_td ltx_align_center ltx_border_r">0.610</td><td class="ltx_td ltx_align_center">0.436</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Flexible S-MoE</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1B</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.650</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.191</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.498</td><td class="ltx_td ltx_align_center ltx_border_t">0.181</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">Flexible S-MoE</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">3B</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.686</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.262</td><td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">0.602</td><td class="ltx_td ltx_align_center ltx_border_bb">0.425</td></tr></table></div><p class="fine">Source: Original paper · Table 8. Scores on 0–1 scale; higher is better.</p></figure>
+<p><strong>公平比较单位是组合。</strong>Flexible 只训练 1B/3B 两档，1T unique tokens，每档都执行，近似 FLOPs 为 6×(1B+3B)×1T≈24×10²¹。Dense / Static 两个独立基线分别训练 1B×2T 与 3B×667B，同一族的组合 FLOPs 约等于 Flexible。不是每一个 Dense 都单独匹配整个 Flexible 的预算。</p>
+<p><strong>质量。</strong>Flexible 相较 Dense，在两档 MMLU/GSM8K 略高，但 Core0/Core1 均低。Static 在两档四列全部高于 Flexible。例如 3B Static MMLU .610、GSM .436，对应 Flexible .602/.425。主文常规 1T 配置的优势不能推广为 equal-compute 下优于 Static。</p>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>训练族</th>
+<th style="text-align: right;">论文 TPU core-hours</th>
+<th>对应资源</th>
+<th>本文计算</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dense 组合</td>
+<td style="text-align: right;">30,720+29,123=59,843</td>
+<td>两个 run 各 1024 cores</td>
+<td>基准</td>
+</tr>
+<tr>
+<td>Static 组合</td>
+<td style="text-align: right;">92,160+82,375=174,535</td>
+<td>两个 run 各 1024 cores</td>
+<td>Dense 的 2.917×</td>
+</tr>
+<tr>
+<td>Flexible 两档</td>
+<td style="text-align: right;">203,435</td>
+<td>2048 cores</td>
+<td>Dense 的 3.399×；Static 的 1.166×</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>实际成本。</strong>Flexible 比 Static 组合多 16.56% core-hours。理论 FLOP 估计与实际训练耗时并不等价；同步、多预算复制、稀疏 kernel 利用率与训练规模不同都可能影响效率，论文没有细分归因。共享一个 checkpoint 的产品价值可以成立，但不能据此宣称训练更便宜。</p>
+<h3 id="subsection-18">A.7 Cross-Segment-Length Evaluation：真正的推理调节证据</h3>
+<figure class="original-table" id="table-9"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 9</span>: </span><span class="ltx_text">Cross-segment-length evaluation of a single Flexible S-MoE checkpoint with 3B active and 12B total parameters, trained at <math alttext="S_{\mathrm{train}}=16" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msub><mi>S</mi><mi>train</mi></msub><mo>=</mo><mn>16</mn></mrow></semantics></math>.</span></figcaption><div aria-label="Original Table 9" class="table-wrap" role="region" tabindex="0"><table><tr><th class="ltx_td ltx_align_right ltx_border_tt"><math alttext="S_{\mathrm{eval}}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi>S</mi><mi>eval</mi></msub></semantics></math></th><th class="ltx_td ltx_align_right ltx_border_tt">Core-En-0s</th><th class="ltx_td ltx_align_right ltx_border_tt">Core-En-1s</th><th class="ltx_td ltx_align_right ltx_border_tt">MMLU-5s</th><th class="ltx_td ltx_align_right ltx_border_tt">GSM-8k</th></tr><tr><td class="ltx_td ltx_align_right ltx_border_t">16</td><td class="ltx_td ltx_align_right ltx_border_t">0.722</td><td class="ltx_td ltx_align_right ltx_border_t">0.298</td><td class="ltx_td ltx_align_right ltx_border_t">0.653</td><td class="ltx_td ltx_align_right ltx_border_t">0.513</td></tr><tr><td class="ltx_td ltx_align_right">32</td><td class="ltx_td ltx_align_right">0.706</td><td class="ltx_td ltx_align_right">0.284</td><td class="ltx_td ltx_align_right">0.654</td><td class="ltx_td ltx_align_right">0.508</td></tr><tr><td class="ltx_td ltx_align_right ltx_border_bb">64</td><td class="ltx_td ltx_align_right ltx_border_bb">0.695</td><td class="ltx_td ltx_align_right ltx_border_bb">0.217</td><td class="ltx_td ltx_align_right ltx_border_bb">0.650</td><td class="ltx_td ltx_align_right ltx_border_bb">0.489</td></tr></table></div><p class="fine">Source: Original paper · Table 9. Scores on 0–1 scale; higher is better.</p></figure>
+<p><strong>同一个模型。</strong>固定 3B active /12B total、S_train=16，在 S_eval=16/32/64 评估。MMLU .653/.654/.650 差异较小，但 Core1 .298/.284/.217 明显下降，GSM .513/.508/.489 也下降。S=64 相对 16 的 Core1 下降 8.1 pp，相对 −27.18%。预算之外，驻留时长是另一条质量–IO 取舍轴。</p>
+<section aria-labelledby="segment-title" class="interactive" id="segment-explorer">
+<span class="component-label">AGENT-CREATED · TABLE 9 DATA + ANALYTICAL SCHEDULE</span>
+<h4 id="segment-title">驻留更久，会少多少决策，损失哪些分数？</h4>
+<p>质量数据固定为一个 S_train=16、3B active /12B total checkpoint；长度只改变算术决策次数，不改变下方原测分数。</p>
+<div class="controls">
+<label for="segment-size">Segment length<select id="segment-size"><option value="16">16 tokens</option><option value="32">32 tokens</option><option value="64">64 tokens</option></select></label>
+<label for="output-length">Output length <input id="output-length" max="2048" min="64" step="64" type="range" value="1024"/><span id="output-length-value">1024 tokens</span></label>
+</div>
+<div class="metric-bars" id="quality-bars"></div>
+<output aria-live="polite" id="segment-result"></output>
+<p class="fine">分数条使用统一 0–100% 尺度；refresh 不等于实际加载，减次数不等于同倍数 speedup。</p>
+</section>
+<p><strong>交互解释。</strong>上面的质量条使用 Table 9 原数；加载决策组数用 ceil(output length/S) 算，包括初始组，后续 refresh 次数为组数−1。它是调度次数估算，不是加载次数实测：有缓存时 refresh 可以不搬任何新专家；缺失延迟数据时不能把刷新减少直接画成速度提升。</p>
+<h2 id="section-9">Interpretation：内存账单、实现建议与研究判断</h2>
+<h3 id="subsection-19">权重、KV 与峰值：active budget 只占其中一部分</h3>
+<p><strong>条件性估算。</strong>若专家采用三矩阵 SwiGLU，一个专家为 3×1536×256=1,179,648 参数；44×212 个专家约 11.004B。由于 FFN 精确形式、shared experts、embedding tying、vocabulary、router 中间维度未全披露，这只能作为规模一致性检查，不是官方 12B 的精确参数复现。</p>
+<p>BF16 下，12B 全量权重约 24 GB；1/2/3/4B 活跃权重分别约 2/4/6/8 GB。这里 GB 为十进制；不包含 KV、激活、allocator、双缓冲与量化元数据。总权重在磁盘上也有真实存储成本。</p>
+<p>按文中 56 层、12 KV heads、head_dim=1536/12=128、BF16 KV，单序列每 token：</p>
+<div class="code-frame"><div class="code-head"><span>EXPLANATORY CODE / FORMULA</span><button class="copy-button" type="button">Copy</button></div><pre><code class="language-text">KV bytes/token = 2 × 56 × 12 × 128 × 2 = 344,064 bytes = 336 KiB
+8,192 tokens → 2.625 GiB; 16,384 tokens → 5.25 GiB
+</code></pre></div>
+<p>这是按纸面 12/12 heads 的估算；文中虽称 GQA，却不能凭名称自动假设 4 KV heads。若真正实现使用更少 heads，需以配置修正。batch 与并发进一步线性放大；KV 量化、PagedAttention 的页开销和精度需单独验证。</p>
+<section aria-labelledby="memory-title" class="interactive" id="memory-explorer">
+<span class="component-label">AGENT-CREATED · CONDITIONAL CAPACITY ESTIMATE</span>
+<h4 id="memory-title">活跃权重之外，KV 要占多少空间？</h4>
+<div class="controls">
+<label for="active-budget">Active parameters<select id="active-budget"><option value="1">1B</option><option value="2">2B</option><option selected="" value="3">3B</option><option value="4">4B</option></select></label>
+<label for="weight-bits">Weight storage<select id="weight-bits"><option value="16">BF16 · 16 bits</option><option value="8">INT8 · ideal packing</option><option value="4">INT4 · ideal packing</option></select></label>
+<label for="context-length">Context tokens<input id="context-length" max="32768" min="1024" step="1024" type="range" value="8192"/><span id="context-value">8192 tokens</span></label>
+<label for="kv-heads">KV heads<select id="kv-heads"><option value="12">12 · paper literal configuration</option><option value="4">4 · hypothetical GQA</option><option value="1">1 · hypothetical MQA</option></select></label>
+</div>
+<div class="metric-bars" id="memory-bars"></div>
+<output aria-live="polite" id="memory-result"></output>
+<p class="fine">单序列、56 层、head_dim=128、KV=BF16。下界不含 scratch、双缓冲、缓存冗余及量化元数据。容量可算，质量和延迟不能从位宽推断；context 滑块也不意味着论文支持全部长度。</p>
+</section>
+<p><strong>使用方式。</strong>切换 active budget、存储位宽、context 与实际 KV heads，观察权重和 KV 下界。INT8/INT4 仅表示理想打包容量，不表示论文采用此精度，更不提供其质量与速度结论。KV 保持 BF16 独立计算，避免把权重量化误当 KV 自动量化。</p>
+<h3 id="subsection-20">Native runtime 中值得先测的链路</h3>
+<ol>
+<li><strong>Prompt 路径。</strong>记录 Dense prefill、mask、prompt MoE prefill、首次加载与首 token，拆清 TTFT。</li>
+<li><strong>Segment 边界。</strong>记录每层 router-ready、copy-start、copy-done、compute-start 与等待时间，判断异步是否赶上 deadline。</li>
+<li><strong>内存峰值。</strong>分别记录 active experts、缓存专家、旧/新双缓冲、KV、临时激活；端侧可把 dma-buf/ION 与 CPU VmHWM 对齐到同一时间线。</li>
+<li><strong>质量路径。</strong>首先核对路由 hard/soft、expert reduction、预算 embedding、prefill/decode mask 与 next-token shift，再评估量化导出。不要把这些路径误差归因成小预算天然能力不足。</li>
+<li><strong>资源适配。</strong>在实际可用 RAM 中预留 KV 与 scratch，再选择预算；动态降档需重新验证缓存语义和输出，不宜仅靠“换 k”实现。</li>
+</ol>
+<h3 id="subsection-21">强项、弱项与隐含取舍</h3>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>本文判断</th>
+<th>证据 / 待补项</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Novelty</td>
+<td>架构主动创造全层提前可知性与跨 token 复用</td>
+<td>Figure 1/2，区别于只改 router 频率</td>
+</tr>
+<tr>
+<td>Correctness</td>
+<td>基本机制清晰；嵌套推理有条件缺口</td>
+<td>size embedding 改变 logits，缺官方实现</td>
+</tr>
+<tr>
+<td>Experiment quality</td>
+<td>主文与附录覆盖质量和预算消融</td>
+<td>缺 seed、variance、精确 eval composite</td>
+</tr>
+<tr>
+<td>Engineering complexity</td>
+<td>加载可重叠，但 runtime 仍复杂</td>
+<td>double buffer、层 deadline、边界 p95</td>
+</tr>
+<tr>
+<td>Scalability</td>
+<td>20B 总容量初步可扩展</td>
+<td>磁盘成本及大专家池 CHR 未测清</td>
+</tr>
+<tr>
+<td>Generalization</td>
+<td>多任务有益，Core 指标有代价</td>
+<td>不能只汇总 math/code</td>
+</tr>
+<tr>
+<td>Compute cost</td>
+<td>inference active FLOPs 可调；训练不免费</td>
+<td>A.6 core-hours 高于组合基线</td>
+</tr>
+<tr>
+<td>Memory cost</td>
+<td>降专家驻留，不消除 Attention KV</td>
+<td>8K 条件估算已达 2.625 GiB KV</td>
+</tr>
+<tr>
+<td>Hardware dependency</td>
+<td>最适合 IO 成为瓶颈的部署</td>
+<td>DRAM 足够全常驻时优势可能减小</td>
+</tr>
+<tr>
+<td>Reproducibility</td>
+<td>完整公式与表，但复现要素不足</td>
+<td>代码、权重、精度、设备、路由细节未定位</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>我的判断。</strong>最有价值的思想是“改变参数何时可知、能驻留多久”。如果部署瓶颈是 NAND→DRAM，而不是算力，损失一点 token-level 路由自由度可能换到可观系统收益。部署预算必须围绕实际 KV 与边界峰值决定；以 active 3B 直接推断 6GB 就能跑，并不成立。</p>
+<h3 id="subsection-22">下一步实验与改进方向</h3>
+<p>优先补真实设备固定输出长度的 TTFT、mean/p50/p95 TPOT 与 bytes loaded，同列 Dense、Static、Vanilla offload，在相同精度、RAM、context 下测。然后给每层的 IO overlap、cache-hit 分布与专家池扩大后的命中变化；这能验证论文核心因果链。</p>
+<p>数学侧可直接测多预算 mask 的包含率，若要严格嵌套，可研究共享 budget-independent logits 再改 k，或者保留预算条件化但放弃严格嵌套声明。训练侧需要逐专家激活频率与梯度幅度，对比 weighted CE 与按频率更新；服务侧可以研究基于话题变化与带宽的 adaptive S，但需独立训练/评测，不能宣称本文已有这种算法。</p>
+<h2 id="section-10">External：技术演进与截至 2026-10-29 的相关研究</h2>
+<h3 id="subsection-23">Before / This paper / Concurrent / Current state</h3>
+<figure class="generated" id="diagram-evolution"><div class="diagram-scroll" tabindex="0"><img alt="Agent-created simplified evolution diagram" src="assets/generated/evolution.svg"/></div><figcaption>Agent-created Visualization · simplified dependencies, not an original paper figure. <a href="assets/generated/evolution.mmd">Mermaid source</a></figcaption></figure>
+<p><strong>时间关系。</strong>2017 MoE 奠定稀疏条件计算；2023–2024 的 MatFormer、CoDA、CoLT5 和 offloading 工作分别推进预算、选择与存储；2025 IFP、Gemma 3n 展示端侧子网络与条件加载；2026-10 Stepped MoE 将分段路由和多预算训练结合。Edge0 与 SlimWise 在 2026-09 出现，属于先于本文的并行路线，不是 Stepped 的后续改进。本文发布仅 24 天，截至阅读日未找到可核实的直接 follow-up 或独立复现。</p>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>论文 / 系统</th>
+<th style="text-align: right;">年份</th>
+<th>核心思路</th>
+<th>优势</th>
+<th>局限</th>
+<th>与 Stepped 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://arxiv.org/abs/1701.06538">Sparsely-Gated MoE</a></td>
+<td style="text-align: right;">2017</td>
+<td>token-level 稀疏专家</td>
+<td>增总容量、限制 active compute</td>
+<td>路由和负载均衡，低 RAM 需搬运</td>
+<td>结构基础；<a href="../sparse-moe/">站内精读</a></td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2304.04947">CoDA</a></td>
+<td style="text-align: right;">2023</td>
+<td>可导条件选择</td>
+<td>提供 SoftTopK 思路</td>
+<td>不等于全层专家预取机制</td>
+<td>本文 SoftTopK 引用来源</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2303.09752">CoLT5</a></td>
+<td style="text-align: right;">2023</td>
+<td>条件 token FFN / Attention</td>
+<td>选择高价值 token 分配计算</td>
+<td>着重长输入、非端侧专家驻留</td>
+<td>可导选择相关</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2310.07707">MatFormer</a></td>
+<td style="text-align: right;">2023/2024</td>
+<td>nested FFN、多粒度共享网络</td>
+<td>一个模型多预算</td>
+<td>多档训练仍需计算，结构嵌套约束</td>
+<td>多预算训练前驱</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2312.11514">LLM in a flash</a></td>
+<td style="text-align: right;">2023/2024</td>
+<td>windowing、row-column bundling</td>
+<td>优化 flash 权重访问</td>
+<td>依赖稀疏性及 IO 成本模型</td>
+<td>存储方法正交可结合</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2312.17238">Mixtral offloading</a></td>
+<td style="text-align: right;">2023</td>
+<td>cache、prefetch、mixed quantization</td>
+<td>不改已有 MoE 训练即可部署</td>
+<td>仍承受 token-level 路由变化</td>
+<td>runtime 替代路线</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2501.02086">IFP</a></td>
+<td style="text-align: right;">2025</td>
+<td>prompt-conditioned FFN pruning</td>
+<td>请求内固定权重</td>
+<td>长响应适应性有限</td>
+<td>Stepped 的直接前驱</td>
+</tr>
+<tr>
+<td><a href="https://ai.google.dev/gemma/docs/gemma-3n">Gemma 3n</a></td>
+<td style="text-align: right;">2025</td>
+<td>E4B/E2B nested、PLE cache、条件加载</td>
+<td>官方开放权重与端侧设计</td>
+<td>不同多模态架构与测法</td>
+<td>产品化预算路线，不是本文实现</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2609.18063">Edge0</a></td>
+<td style="text-align: right;">2026-09</td>
+<td>early routing 与 SSD 执行</td>
+<td>同样瞄准低 RAM、大存储</td>
+<td>单源性能主张、硬件不同</td>
+<td>并行系统路线</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2609.34117">SlimWise</a></td>
+<td style="text-align: right;">2026-09</td>
+<td>full prefill、pruned decode、KV handoff</td>
+<td>复用 full prefill 质量、减少 decode 成本</td>
+<td>GPU / vLLM 与端侧不直接可比</td>
+<td>并行预算与 PD 路线</td>
+</tr>
+<tr>
+<td>Stepped MoE</td>
+<td style="text-align: right;">2026-10</td>
+<td>segment all-layer routing + size-conditioned training</td>
+<td>兼顾可预取与响应适应</td>
+<td>模拟器、训练成本、嵌套条件缺口</td>
+<td>本文</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="subsection-24">当前 SOTA 能说到哪一步</h3>
+<p><strong>截止 2026-10-29，未找到 Stepped 专属统一 benchmark、公开权重比较或直接复现。</strong>不能把不同系统 headline 拼成排行榜。需要同时匹配模型规模、精度、设备、context、输出长度、RAM、cache 与质量水平。</p>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>一手资料</th>
+<th>原作者 / 官方报告的结果</th>
+<th>测试条件与可比性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stepped MoE v1</td>
+<td>主文知识、数学与代码收益；模拟曲线接近 Dense</td>
+<td>12B 总 /1–4B active；NPU simulator，无足够设备参数</td>
+</tr>
+<tr>
+<td>IFP</td>
+<td>3B 子模型 math/code 相较 Dense 报告 5–8 pp 改善</td>
+<td>是 IFP 自身实验，不是与 Stepped 同数据直接对照</td>
+</tr>
+<tr>
+<td>Edge0 v2</td>
+<td>35B 模型、24GB 机器，约 3GiB active footprint、20 tok/s</td>
+<td>单源论文报告；设备与 RAM 定义不同，未独立验证</td>
+</tr>
+<tr>
+<td>SlimWise v1</td>
+<td>50% pruning 最多 1.81× decode throughput</td>
+<td>Qwen3.6-35B-A3B / vLLM；文中主吞吐设置为 2×A100 80GB、BF16，不是手机</td>
+</tr>
+<tr>
+<td>Gemma 3n 官方</td>
+<td>E4B 包含 E2B 子网络、PLE cache、条件多模态加载</td>
+<td>开放权重，但 effective 参数与本文 active 口径不同</td>
+</tr>
+</tbody>
+</table></div>
+<p>SlimWise 的 PD 图例还涉及 1K input、8K output 与 50 tok/s SLO；不能与另一张 GPU 吞吐图条件合并成同一个实测。最稳妥的“当前状态”结论是：低内存推理正同时沿训练时早路由、runtime offload、嵌套预算与 prefill/decode 子网交接发展，尚无本文所需条件下的统一优胜者。</p>
+<h3 id="subsection-25">References / Sources</h3>
+<ol>
+<li><strong>Paper</strong> Kundu et al., <em>Stepped MoE</em>, 2026，<a href="https://arxiv.org/abs/2610.07348">arXiv v1</a>；指定 <a href="https://arxiv.org/pdf/2610.07348v1">PDF</a>、<a href="https://arxiv.org/html/2610.07348v1">HTML</a> 与作者 TeX 交叉核查，覆盖 §1–5、A.1–A.7。</li>
+<li><strong>External</strong> <a href="https://arxiv.org/abs/2501.02086">IFP</a>、<a href="https://arxiv.org/abs/2310.07707">MatFormer</a>、<a href="https://arxiv.org/html/2304.04947v1">CoDA v1 HTML / Appendix D</a>、<a href="https://arxiv.org/abs/2303.09752">CoLT5</a>。</li>
+<li><strong>External</strong> <a href="https://arxiv.org/abs/2312.11514">LLM in a flash</a>、<a href="https://arxiv.org/abs/2312.17238">Mixtral offloading</a>、<a href="https://ai.google.dev/gemma/docs/gemma-3n">Gemma 3n 官方</a>。</li>
+<li><strong>External</strong> <a href="https://arxiv.org/abs/2609.18063">Edge0</a>、<a href="https://arxiv.org/abs/2609.34117">SlimWise</a> / <a href="https://arxiv.org/html/2609.34117v1">v1 HTML</a>，均为并行工作，无共同端侧 benchmark。</li>
+<li><strong>External</strong> <a href="https://github.com/apple/axlearn">Apple AXLearn</a>，官方框架仓库不等于 Stepped 专属模型发布。</li>
+</ol>
+<p>继续阅读：<a href="../sparse-moe/">Sparsely-Gated MoE</a> · <a href="../gqa/">GQA：KV 容量与 TP</a> · <a href="../awq/">AWQ：权重量化</a> · <a href="../gptq/">GPTQ</a> · <a href="../smoothquant/">SmoothQuant</a>。量化和 KV 压缩是正交方案，需分别评估质量、转换链路与 kernel 性能。</p>
+<p class="fine">完整保留 4 张作者原图、9 张原表和 3 个编号公式。解释图及交互为 Agent-created Visualization；原图 caption 和中文讲解在图片之外，图内原有轴、legend 和标签完整保留。</p></main></div><footer class="site-footer"><a href="../">← All Paper Readings</a><span>Read & reviewed · October 29, 2026</span></footer></div><dialog class="image-modal" id="figure-modal"><div class="modal-top"><p id="modal-caption"></p><button id="modal-close" type="button">Close</button></div><img id="modal-image" alt=""><a id="modal-source" target="_blank" rel="noopener">Open original asset</a></dialog><script src="assets/reading.js" defer></script></body></html>

@@ -1,0 +1,340 @@
+{
+  "url": "http://localhost:8873/papers/stepped-moe/",
+  "checks": [
+    {
+      "width": 375,
+      "scrollWidth": 375,
+      "tables": 9,
+      "figures": 4,
+      "equations": 3,
+      "diagrams": 2,
+      "badImages": [],
+      "mathBoxes": [
+        {
+          "w": 329.46875,
+          "h": 38.875
+        },
+        {
+          "w": 385.3125,
+          "h": 38.359375
+        },
+        {
+          "w": 369.09375,
+          "h": 38.875
+        }
+      ],
+      "brokenAnchors": [],
+      "tableSpans": [
+        {
+          "rows": 12,
+          "merged": 3
+        },
+        {
+          "rows": 13,
+          "merged": 6
+        },
+        {
+          "rows": 5,
+          "merged": 2
+        },
+        {
+          "rows": 12,
+          "merged": 7
+        },
+        {
+          "rows": 11,
+          "merged": 2
+        },
+        {
+          "rows": 9,
+          "merged": 1
+        },
+        {
+          "rows": 13,
+          "merged": 4
+        },
+        {
+          "rows": 7,
+          "merged": 0
+        },
+        {
+          "rows": 4,
+          "merged": 0
+        }
+      ],
+      "mobileContents": false,
+      "segment": "1024 tokens / S=64\n16 mask groups incl. initial group; 15 later refreshes\nSource: original Table 9. Refresh count: arithmetic, not a latency measurement.",
+      "memory": "Active weights: 6.000 GB / 5.588 GiB\nBF16 KV: 2.625 GiB (336 KiB/token)\nSubtotal lower bound: 8.213 GiB\nFull 12B weights on storage: 24.0 GB\nPaper literal 12 KV heads.",
+      "reduced": "Active weights: 1.500 GB / 1.397 GiB\nBF16 KV: 0.875 GiB (112 KiB/token)\nSubtotal lower bound: 2.272 GiB\nFull 12B weights on storage: 6.0 GB\nHypothetical head count; not a configuration reported for Stepped MoE.",
+      "errors": []
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "tables": 9,
+      "figures": 4,
+      "equations": 3,
+      "diagrams": 2,
+      "badImages": [],
+      "mathBoxes": [
+        {
+          "w": 329.46875,
+          "h": 38.875
+        },
+        {
+          "w": 385.3125,
+          "h": 38.359375
+        },
+        {
+          "w": 369.09375,
+          "h": 38.875
+        }
+      ],
+      "brokenAnchors": [],
+      "tableSpans": [
+        {
+          "rows": 12,
+          "merged": 3
+        },
+        {
+          "rows": 13,
+          "merged": 6
+        },
+        {
+          "rows": 5,
+          "merged": 2
+        },
+        {
+          "rows": 12,
+          "merged": 7
+        },
+        {
+          "rows": 11,
+          "merged": 2
+        },
+        {
+          "rows": 9,
+          "merged": 1
+        },
+        {
+          "rows": 13,
+          "merged": 4
+        },
+        {
+          "rows": 7,
+          "merged": 0
+        },
+        {
+          "rows": 4,
+          "merged": 0
+        }
+      ],
+      "mobileContents": false,
+      "segment": "1024 tokens / S=64\n16 mask groups incl. initial group; 15 later refreshes\nSource: original Table 9. Refresh count: arithmetic, not a latency measurement.",
+      "memory": "Active weights: 6.000 GB / 5.588 GiB\nBF16 KV: 2.625 GiB (336 KiB/token)\nSubtotal lower bound: 8.213 GiB\nFull 12B weights on storage: 24.0 GB\nPaper literal 12 KV heads.",
+      "reduced": "Active weights: 1.500 GB / 1.397 GiB\nBF16 KV: 0.875 GiB (112 KiB/token)\nSubtotal lower bound: 2.272 GiB\nFull 12B weights on storage: 6.0 GB\nHypothetical head count; not a configuration reported for Stepped MoE.",
+      "errors": []
+    },
+    {
+      "width": 430,
+      "scrollWidth": 430,
+      "tables": 9,
+      "figures": 4,
+      "equations": 3,
+      "diagrams": 2,
+      "badImages": [],
+      "mathBoxes": [
+        {
+          "w": 348,
+          "h": 38.875
+        },
+        {
+          "w": 385.3125,
+          "h": 38.359375
+        },
+        {
+          "w": 369.09375,
+          "h": 38.875
+        }
+      ],
+      "brokenAnchors": [],
+      "tableSpans": [
+        {
+          "rows": 12,
+          "merged": 3
+        },
+        {
+          "rows": 13,
+          "merged": 6
+        },
+        {
+          "rows": 5,
+          "merged": 2
+        },
+        {
+          "rows": 12,
+          "merged": 7
+        },
+        {
+          "rows": 11,
+          "merged": 2
+        },
+        {
+          "rows": 9,
+          "merged": 1
+        },
+        {
+          "rows": 13,
+          "merged": 4
+        },
+        {
+          "rows": 7,
+          "merged": 0
+        },
+        {
+          "rows": 4,
+          "merged": 0
+        }
+      ],
+      "mobileContents": false,
+      "segment": "1024 tokens / S=64\n16 mask groups incl. initial group; 15 later refreshes\nSource: original Table 9. Refresh count: arithmetic, not a latency measurement.",
+      "memory": "Active weights: 6.000 GB / 5.588 GiB\nBF16 KV: 2.625 GiB (336 KiB/token)\nSubtotal lower bound: 8.213 GiB\nFull 12B weights on storage: 24.0 GB\nPaper literal 12 KV heads.",
+      "reduced": "Active weights: 1.500 GB / 1.397 GiB\nBF16 KV: 0.875 GiB (112 KiB/token)\nSubtotal lower bound: 2.272 GiB\nFull 12B weights on storage: 6.0 GB\nHypothetical head count; not a configuration reported for Stepped MoE.",
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "tables": 9,
+      "figures": 4,
+      "equations": 3,
+      "diagrams": 2,
+      "badImages": [],
+      "mathBoxes": [
+        {
+          "w": 814,
+          "h": 38.875
+        },
+        {
+          "w": 814,
+          "h": 38.359375
+        },
+        {
+          "w": 814,
+          "h": 38.875
+        }
+      ],
+      "brokenAnchors": [],
+      "tableSpans": [
+        {
+          "rows": 12,
+          "merged": 3
+        },
+        {
+          "rows": 13,
+          "merged": 6
+        },
+        {
+          "rows": 5,
+          "merged": 2
+        },
+        {
+          "rows": 12,
+          "merged": 7
+        },
+        {
+          "rows": 11,
+          "merged": 2
+        },
+        {
+          "rows": 9,
+          "merged": 1
+        },
+        {
+          "rows": 13,
+          "merged": 4
+        },
+        {
+          "rows": 7,
+          "merged": 0
+        },
+        {
+          "rows": 4,
+          "merged": 0
+        }
+      ],
+      "mobileContents": true,
+      "segment": "1024 tokens / S=64\n16 mask groups incl. initial group; 15 later refreshes\nSource: original Table 9. Refresh count: arithmetic, not a latency measurement.",
+      "memory": "Active weights: 6.000 GB / 5.588 GiB\nBF16 KV: 2.625 GiB (336 KiB/token)\nSubtotal lower bound: 8.213 GiB\nFull 12B weights on storage: 24.0 GB\nPaper literal 12 KV heads.",
+      "reduced": "Active weights: 1.500 GB / 1.397 GiB\nBF16 KV: 0.875 GiB (112 KiB/token)\nSubtotal lower bound: 2.272 GiB\nFull 12B weights on storage: 6.0 GB\nHypothetical head count; not a configuration reported for Stepped MoE.",
+      "errors": []
+    },
+    {
+      "width": 1920,
+      "scrollWidth": 1920,
+      "tables": 9,
+      "figures": 4,
+      "equations": 3,
+      "diagrams": 2,
+      "badImages": [],
+      "mathBoxes": [
+        {
+          "w": 814,
+          "h": 38.875
+        },
+        {
+          "w": 814,
+          "h": 38.359375
+        },
+        {
+          "w": 814,
+          "h": 38.875
+        }
+      ],
+      "brokenAnchors": [],
+      "tableSpans": [
+        {
+          "rows": 12,
+          "merged": 3
+        },
+        {
+          "rows": 13,
+          "merged": 6
+        },
+        {
+          "rows": 5,
+          "merged": 2
+        },
+        {
+          "rows": 12,
+          "merged": 7
+        },
+        {
+          "rows": 11,
+          "merged": 2
+        },
+        {
+          "rows": 9,
+          "merged": 1
+        },
+        {
+          "rows": 13,
+          "merged": 4
+        },
+        {
+          "rows": 7,
+          "merged": 0
+        },
+        {
+          "rows": 4,
+          "merged": 0
+        }
+      ],
+      "mobileContents": true,
+      "segment": "1024 tokens / S=64\n16 mask groups incl. initial group; 15 later refreshes\nSource: original Table 9. Refresh count: arithmetic, not a latency measurement.",
+      "memory": "Active weights: 6.000 GB / 5.588 GiB\nBF16 KV: 2.625 GiB (336 KiB/token)\nSubtotal lower bound: 8.213 GiB\nFull 12B weights on storage: 24.0 GB\nPaper literal 12 KV heads.",
+      "reduced": "Active weights: 1.500 GB / 1.397 GiB\nBF16 KV: 0.875 GiB (112 KiB/token)\nSubtotal lower bound: 2.272 GiB\nFull 12B weights on storage: 6.0 GB\nHypothetical head count; not a configuration reported for Stepped MoE.",
+      "errors": []
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+<figure class="original-table" id="table-4"><figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 4</span>: </span><span class="ltx_text">Performance comparison between Dense models, Static Stepped-MoE (S-MoE) and Flexible Stepped MoE (S-MoE). All S-MoE models have 12B total parameters.
+</span></figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 4"><table><tr><th class="ltx_td ltx_align_center ltx_border_tt ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text ltx_font_bold">Category</span></th><th class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">    Dataset</span></span>
+</span></th><th class="ltx_td ltx_align_center ltx_border_tt ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+<span class="ltx_text ltx_font_smallcaps">Dense</span> 3B
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+<span class="ltx_text ltx_font_smallcaps">Dense</span> 6B
+</span><span class="ltx_text"></span></span></th><th class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+Static S-MoE
+</span><span class="ltx_text"></span></th><th class="ltx_td ltx_align_center ltx_border_tt ltx_colspan ltx_colspan_4" colspan="4">Flexible S-MoE</th></tr><tr><th class="ltx_td ltx_align_left ltx_align_top ltx_border_r"></th><th class="ltx_td ltx_align_center ltx_border_r">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>3B</th><th class="ltx_td ltx_align_center">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>1B</th><th class="ltx_td ltx_align_center">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>2B</th><th class="ltx_td ltx_align_center">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>3B</th><th class="ltx_td ltx_align_center">12B<math alttext="\rightarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">→</mo></semantics></math>4B</th></tr><tr><td class="ltx_td ltx_align_center ltx_border_t ltx_rowspan ltx_rowspan_4" rowspan="4"><span class="ltx_text"><span class="ltx_text"></span> <span class="ltx_text">
+
+
+<span class="ltx_text ltx_font_bold">Instruction</span>
+
+<span class="ltx_text ltx_font_bold">Following</span>
+</span><span class="ltx_text"></span></span></td><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">IFEval-Instruction</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_t">83.693</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">86.451</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">83.813</td><td class="ltx_td ltx_align_center ltx_border_t">76.739</td><td class="ltx_td ltx_align_center ltx_border_t">82.494</td><td class="ltx_td ltx_align_center ltx_border_t">85.252</td><td class="ltx_td ltx_align_center ltx_border_t">85.372</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">IFEval-Prompt</span>
+</span></td><td class="ltx_td ltx_align_center">76.895</td><td class="ltx_td ltx_align_center ltx_border_r">79.852</td><td class="ltx_td ltx_align_center ltx_border_r">77.449</td><td class="ltx_td ltx_align_center">66.543</td><td class="ltx_td ltx_align_center">74.677</td><td class="ltx_td ltx_align_center">79.482</td><td class="ltx_td ltx_align_center">78.743</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">AlpacaEval-Prompt</span>
+</span></td><td class="ltx_td ltx_align_center">16.479</td><td class="ltx_td ltx_align_center ltx_border_r">27.333</td><td class="ltx_td ltx_align_center ltx_border_r">22.951</td><td class="ltx_td ltx_align_center">13.597</td><td class="ltx_td ltx_align_center">20.409</td><td class="ltx_td ltx_align_center">22.111</td><td class="ltx_td ltx_align_center">25.021</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Arena-Hard</span>
+</span></td><td class="ltx_td ltx_align_center">10.85</td><td class="ltx_td ltx_align_center ltx_border_r">19.49</td><td class="ltx_td ltx_align_center ltx_border_r">19.07</td><td class="ltx_td ltx_align_center">10.95</td><td class="ltx_td ltx_align_center">17.72</td><td class="ltx_td ltx_align_center">19.75</td><td class="ltx_td ltx_align_center">18.49</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">Tool Use</span></td><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">Tool Execution</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_t">75.736</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">80.102</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">77.97</td><td class="ltx_td ltx_align_center ltx_border_t">67.614</td><td class="ltx_td ltx_align_center ltx_border_t">76.244</td><td class="ltx_td ltx_align_center ltx_border_t">77.056</td><td class="ltx_td ltx_align_center ltx_border_t">78.071</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_t ltx_rowspan ltx_rowspan_2" rowspan="2"><span class="ltx_text ltx_font_bold">Math</span></td><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">COT-Minerva</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_t">36.900</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">46.229</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">43.514</td><td class="ltx_td ltx_align_center ltx_border_t">33.657</td><td class="ltx_td ltx_align_center ltx_border_t">42.943</td><td class="ltx_td ltx_align_center ltx_border_t">43.414</td><td class="ltx_td ltx_align_center ltx_border_t">45.071</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">GSM-8k</span>
+</span></td><td class="ltx_td ltx_align_center">64.600</td><td class="ltx_td ltx_align_center ltx_border_r">73.800</td><td class="ltx_td ltx_align_center ltx_border_r">70.000</td><td class="ltx_td ltx_align_center">52.200</td><td class="ltx_td ltx_align_center">68.100</td><td class="ltx_td ltx_align_center">72.200</td><td class="ltx_td ltx_align_center">74.100</td></tr><tr><td class="ltx_td ltx_align_center ltx_border_bbb ltx_border_t ltx_rowspan ltx_rowspan_3" rowspan="3"><span class="ltx_text ltx_font_bold">Coding</span></td><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">MBPP</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_t">38.300</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">45.900</td><td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">45.600</td><td class="ltx_td ltx_align_center ltx_border_t">35.300</td><td class="ltx_td ltx_align_center ltx_border_t">46.200</td><td class="ltx_td ltx_align_center ltx_border_t">46.200</td><td class="ltx_td ltx_align_center ltx_border_t">46.500</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">HumanEval</span>
+</span></td><td class="ltx_td ltx_align_center">35.600</td><td class="ltx_td ltx_align_center ltx_border_r">48.400</td><td class="ltx_td ltx_align_center ltx_border_r">44.250</td><td class="ltx_td ltx_align_center">34.600</td><td class="ltx_td ltx_align_center">44.550</td><td class="ltx_td ltx_align_center">45.700</td><td class="ltx_td ltx_align_center">46.100</td></tr><tr><td class="ltx_td ltx_align_left ltx_align_top ltx_border_bbb ltx_border_r">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p">MultiPL-E</span>
+</span></td><td class="ltx_td ltx_align_center ltx_border_bbb">24.150</td><td class="ltx_td ltx_align_center ltx_border_bbb ltx_border_r">29.900</td><td class="ltx_td ltx_align_center ltx_border_bbb ltx_border_r">34.450</td><td class="ltx_td ltx_align_center ltx_border_bbb">21.500</td><td class="ltx_td ltx_align_center ltx_border_bbb">32.550</td><td class="ltx_td ltx_align_center ltx_border_bbb">32.900</td><td class="ltx_td ltx_align_center ltx_border_bbb">32.950</td></tr></table></div><p class="fine">Source: Original paper · Table 4. Scores in percent; higher is better.</p></figure>

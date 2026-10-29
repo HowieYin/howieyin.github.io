@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "stepped-moe",
+      "title": "Stepped MoE：让专家驻留一段，让路由提前发生",
+      "metadata": "2026 · Apple · arXiv v1 · Read October 29, 2026 · MoE / Edge Inference / Systems",
+      "readDate": "2026-10-29",
+      "description": "All 4 original figures, 9 complete tables and 3 numbered equations; segment-level all-layer routing, multi-budget training, measured quality and analytical KV/weight explorers, NPU-simulator and TPU-cost audits, and research through October 29, 2026.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "dflash",
       "title": "DFlash：让目标模型提供上下文，让扩散模型并行起草",
       "metadata": "2026 · ICML · arXiv v2 · Read October 27, 2026 · LLM / Inference / Systems",

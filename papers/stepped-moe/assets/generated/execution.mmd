@@ -1,0 +1,14 @@
+flowchart TD
+    A["Tokens + budget embedding"] --> B["Dense backbone · 12 layers"]
+    B --> C["First-token pooling → router"]
+    C --> D["Masks · all 44 MoE layers"]
+    D --> E["NAND → DRAM · schedule loads"]
+    D --> F["Execute tokens with selected experts"]
+    E --> G{"Layer weights ready?"}
+    G -->|yes| F
+    G -->|no| H["Boundary / layer stall"]
+    H --> F
+    F --> I["Reuse expert set for S tokens"]
+    I --> J["Next segment · refresh masks"]
+    J --> C
+    F --> K["Attention KV persists and grows"]
