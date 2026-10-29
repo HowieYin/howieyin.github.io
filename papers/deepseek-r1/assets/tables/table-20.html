@@ -1,0 +1,163 @@
+<figure class="original-table prompt-table" id="table-20"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 20: </span>LiveCodeBench aims to evaluate model performance on the algorithm competition task, which collects new problems over time from contests across three competition platforms, namely LeetCode, AtCoder, and CodeForces. </figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 20"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T20.4">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Question:
+There is a stack of N cards, and the ith card from the top has an integer </span><math alttext="A_{i}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi mathsize="0.900em">A</mi><mi mathsize="0.900em">i</mi></msub></semantics></math><span class="ltx_text"> written on it.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">You take K cards from the bottom of the stack and place them on top of the stack, maintaining their order.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Print the integers written on the cards from top to bottom after the operation.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Input</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">The input is given from Standard Input in the following format:</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">N K</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><math alttext="A_{1}A_{2}\ldots A_{N}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msub><mi mathsize="0.900em">A</mi><mn mathsize="0.900em">1</mn></msub><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">A</mi><mn mathsize="0.900em">2</mn></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em" mathvariant="normal">…</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">A</mi><mi mathsize="0.900em">N</mi></msub></mrow></semantics></math></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Output</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Let </span><math alttext="B_{i}" class="ltx_Math" display="inline" intent=":literal"><semantics><msub><mi mathsize="0.900em">B</mi><mi mathsize="0.900em">i</mi></msub></semantics></math><span class="ltx_text"> be the integer written on the ith card from the top of the stack after the operation. Print </span><math alttext="B_{1},B_{2},\ldots,B_{N}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msub><mi mathsize="0.900em">B</mi><mn mathsize="0.900em">1</mn></msub><mo mathsize="0.900em">,</mo><msub><mi mathsize="0.900em">B</mi><mn mathsize="0.900em">2</mn></msub><mo mathsize="0.900em">,</mo><mi mathsize="0.900em" mathvariant="normal">…</mi><mo mathsize="0.900em">,</mo><msub><mi mathsize="0.900em">B</mi><mi mathsize="0.900em">N</mi></msub></mrow></semantics></math><span class="ltx_text"> in this order, separated by spaces.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Constraints</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><math alttext="-1\leqslant K&lt;N\leqslant 100" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">1</mn></mrow><mo mathsize="0.900em">⩽</mo><mi mathsize="0.900em">K</mi><mo mathsize="0.900em">&lt;</mo><mi mathsize="0.900em">N</mi><mo mathsize="0.900em">⩽</mo><mn mathsize="0.900em">100</mn></mrow></semantics></math></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><math alttext="-1\leqslant A_{i}\leqslant 100" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><mo mathsize="0.900em">−</mo><mn mathsize="0.900em">1</mn></mrow><mo mathsize="0.900em">⩽</mo><msub><mi mathsize="0.900em">A</mi><mi mathsize="0.900em">i</mi></msub><mo mathsize="0.900em">⩽</mo><mn mathsize="0.900em">100</mn></mrow></semantics></math></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">All input values are integers.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Sample Input 1</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">5 3</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">1 2 3 4 5</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Sample Output 1</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">3 4 5 1 2</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Initially, the integers written on the cards are 1,2,3,4,5 from top to bottom.
+After taking three cards from the bottom of the stack and placing them on top, the integers written on the cards become 3,4,5,1,2 from top to bottom.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Sample Input 2</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">6 2</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">1 2 1 2 1 2</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Sample Output 2</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">1 2 1 2 1 2</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">The integers written on the cards are not necessarily distinct.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Please write a python code to solve the above problem. Your code must read the inputs from stdin and output the results to stdout.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Extract the code wrapped by </span><span class="ltx_text ltx_font_typewriter">‘‘‘</span><span class="ltx_text">python</span><span class="ltx_text ltx_font_typewriter">‘‘‘</span><span class="ltx_text"> in response to judge if the answer passes the test cases.</span></p>
+</span></td></tr>
+</tbody>
+</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 20 · all original cells and emphasis retained.</p></figure>

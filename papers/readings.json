@@ -41,6 +41,14 @@
       "category": "model-architecture"
     },
     {
+      "slug": "deepseek-r1",
+      "title": "DeepSeek-R1：奖励怎样把预训练能力变成可用的推理",
+      "metadata": "Nature 2025 · arXiv v2 · Read October 29, 2026 · RL / Reasoning / Distillation / Systems",
+      "readDate": "2026-10-29",
+      "description": "All 18 original figures, 32 complete tables, 13 numbered equations and 8 listings; chapter-ordered GRPO and multi-stage training, three interactive explainers, evaluation and safety audits, analytical MLA/latency costs, and dated research through October 29, 2026.",
+      "category": "training-scaling"
+    },
+    {
       "slug": "glm5",
       "title": "GLM-5：从生成代码，走向持续完成工程任务",
       "metadata": "2026 · arXiv v2 · Read October 29, 2026 · MoE / DSA / Agentic Engineering",

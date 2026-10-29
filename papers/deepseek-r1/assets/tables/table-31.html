@@ -1,0 +1,124 @@
+<figure class="original-table prompt-table" id="table-31"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 31: </span>An example of C-SimpleQA. It measures a model’s ability to answer short, fact-seeking questions in Chinese with precise, verifiable correctness. </figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 31"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T31.4">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">显脉香茶菜可以用来治疗急性的什么类型的黄疸型肝炎？</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">请根据给定问题、标准答案和模型预测的答案来评估模型的回答是否正确。您的任务是将结果评定为：【正确】、【错误】或【未尝试】。</span></p>
+<p class="ltx_p"><span class="ltx_text">首先，我们将列出每个评定类别的示例，然后请您对新问题的预测答案进行评定。</span></p>
+<p class="ltx_p"><span class="ltx_text">以下是【正确】的答复示例：</span></p>
+<p class="ltx_p"><span class="ltx_text">问题：贝拉克·奥巴马的孩子叫什么名字？</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">标准答案：玛丽亚·奥巴马和萨莎·奥巴马</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">模型预测1：Malia Obama and Sasha Obama</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">模型预测2：玛丽亚和萨沙</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">…</span></p>
+<p class="ltx_p"><span class="ltx_text">以下是【错误】的答复示例：</span></p>
+<p class="ltx_p"><span class="ltx_text">问题：巴拉克·奥巴马的孩子叫什么名字？</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">标准答案：玛丽亚·奥巴马和萨莎·奥巴马</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">模型预测1：玛丽亚</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">模型预测2：玛丽亚、萨莎和苏珊</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">…</span></p>
+<p class="ltx_p"><span class="ltx_text">以下是【未尝试】的答复示例：</span></p>
+<p class="ltx_p"><span class="ltx_text">问题：巴拉克·奥巴马的孩子叫什么名字？</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">标准答案：玛丽亚·奥巴马和萨莎·奥巴马</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">模型预测1：我不知道。</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">模型预测2：我需要更多关于您所指奥巴马的上下文。</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">…</span></p>
+<p class="ltx_p"><span class="ltx_text">下面是一个新的问题示例。请只回复A、B、C之一，不要道歉或纠正自己的错误，只需要评估该回答。</span></p>
+<p class="ltx_p"><span class="ltx_text">问题: 显脉香茶菜可以用来治疗急性的什么类型的黄疸型肝炎？</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">正确答案: 黄疸型肝炎</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">预测答案: …</span></p>
+<p class="ltx_p"><span class="ltx_text">将此新问题的预测答案评定为以下之一：</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">A:【正确】</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">B:【错误】</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">C:【未尝试】</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">只返回字母"A"、"B"或"C"，无须添加其他文本。</span></p>
+</span></td></tr>
+</tbody>
+</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 31 · all original cells and emphasis retained.</p></figure>

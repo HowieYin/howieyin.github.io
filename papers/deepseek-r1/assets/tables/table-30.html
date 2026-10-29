@@ -1,0 +1,130 @@
+<figure class="original-table prompt-table" id="table-30"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 30: </span>SimpleQA is a factuality evaluation benchmark that measures a model’s ability to answer short, fact-seeking questions with precise, verifiable correctness. </figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 30"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T30.4">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Who received the IEEE Frank Rosenblatt Award in 2010?</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Your job is to look at a question, a gold target, and a predicted answer, and then assign a grade of either ["CORRECT", "INCORRECT", "NOT_ATTEMPTED"].
+First, I will give examples of each grade, and then you will grade a new example.</span></p>
+<p class="ltx_p"><span class="ltx_text">The following are examples of CORRECT predicted answers.</span></p>
+<p class="ltx_p"><span class="ltx_text">Question: What are the names of Barack Obama’s children?</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Gold target: Malia Obama and Sasha Obama</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Predicted answer 1: sasha and malia obama</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Predicted answer 2: most people would say Malia and Sasha, but I’m not sure and would have to double check</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">…</span></p>
+<p class="ltx_p"><span class="ltx_text">The following are examples of INCORRECT predicted answers.</span></p>
+<p class="ltx_p"><span class="ltx_text">Question: What are the names of Barack Obama’s children?</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Gold target: Malia and Sasha</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Predicted answer 1: Malia.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Predicted answer 2: Malia, Sasha, and Susan.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">…</span></p>
+<p class="ltx_p"><span class="ltx_text">The following are examples of NOT_ATTEMPTED predicted answers.</span></p>
+<p class="ltx_p"><span class="ltx_text">Question: What are the names of Barack Obama’s children?</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Gold target: Malia and Sasha</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Predicted answer 1: I don’t know.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Predicted answer 2: I need more context about which Obama you are
+…</span></p>
+<p class="ltx_p"><span class="ltx_text">Also note the following things:</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">…</span></p>
+<p class="ltx_p"><span class="ltx_text">Here is a new example. Simply reply with either CORRECT, INCORRECT, NOT_ATTEMPTED. Don’t apologize or correct yourself if there was a mistake; we are just trying to grade the answer.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Question: Who received the IEEE Frank Rosenblatt Award in 2010?</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Gold target: Michio Sugeno</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Predicted answer: The recipient of the 2010 IEEE Frank Rosenblatt Award was **Jürgen Schmidhuber**. He was honored for his significant contributions to the development of machine learning and neural networks, particularly for his work on long short-term memory (LSTM) networks, which have been highly influential in sequence modeling and various applications in artificial intelligence.</span></p>
+<p class="ltx_p"><span class="ltx_text">Grade the predicted answer of this new question as one of:</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">A: CORRECT</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">B: INCORRECT</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">C: NOT_ATTEMPTED</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Just return the letters "A", "B", or "C", with no text around it.</span></p>
+</span></td></tr>
+</tbody>
+</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 30 · all original cells and emphasis retained.</p></figure>

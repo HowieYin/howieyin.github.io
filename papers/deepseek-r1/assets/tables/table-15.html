@@ -1,0 +1,85 @@
+<figure class="original-table" id="table-15"><figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 15: </span>Comparison of DeepSeek-R1 distilled models and other comparable models on reasoning-related benchmarks. Numbers in bold denote the performance is statistically significant (t<math alttext="-" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>−</mo></semantics></math>test with <math alttext="p&lt;0.01" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>p</mi><mo>&lt;</mo><mn>0.01</mn></mrow></semantics></math>).</figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 15"><table class="ltx_tabular ltx_figure_panel ltx_align_middle" id="A6.T15.1">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt" rowspan="3"><span class="ltx_text ltx_font_bold ltx_align_center">Model</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" colspan="2" rowspan="2"><span class="ltx_text ltx_font_bold">AIME 2024</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" rowspan="2"><span class="ltx_text ltx_font_bold">MATH</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GPQA</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">LiveCode</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" rowspan="2"><span class="ltx_text ltx_font_bold">CodeForces</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">Diamond</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">Bench</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">pass@1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">cons@64</td>
+<td class="ltx_td ltx_align_center">pass@1</td>
+<td class="ltx_td ltx_align_center">pass@1</td>
+<td class="ltx_td ltx_align_center">pass@1</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">rating</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text ltx_font_bold">GPT-4o-0513</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">9.3</td>
+<td class="ltx_td ltx_align_center ltx_border_t">13.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t">74.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">49.9</td>
+<td class="ltx_td ltx_align_center ltx_border_t">32.9</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">759</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text ltx_font_bold">Claude-3.5-Sonnet-1022</span></td>
+<td class="ltx_td ltx_align_center">16.0</td>
+<td class="ltx_td ltx_align_center">26.7</td>
+<td class="ltx_td ltx_align_center">78.3</td>
+<td class="ltx_td ltx_align_center">65.0</td>
+<td class="ltx_td ltx_align_center">38.9</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">717</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text ltx_font_bold">DeepSeek-R1-Distill-Qwen-1.5B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">28.9</td>
+<td class="ltx_td ltx_align_center ltx_border_t">52.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">83.9</td>
+<td class="ltx_td ltx_align_center ltx_border_t">33.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">16.9</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">954</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text ltx_font_bold">DeepSeek-R1-Distill-Qwen-7B</span></td>
+<td class="ltx_td ltx_align_center">55.5</td>
+<td class="ltx_td ltx_align_center">83.3</td>
+<td class="ltx_td ltx_align_center">92.8</td>
+<td class="ltx_td ltx_align_center">49.1</td>
+<td class="ltx_td ltx_align_center">37.6</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">1189</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text ltx_font_bold">DeepSeek-R1-Distill-Qwen-14B</span></td>
+<td class="ltx_td ltx_align_center">69.7</td>
+<td class="ltx_td ltx_align_center">80.0</td>
+<td class="ltx_td ltx_align_center">93.9</td>
+<td class="ltx_td ltx_align_center">59.1</td>
+<td class="ltx_td ltx_align_center">53.1</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">1481</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text ltx_font_bold">DeepSeek-R1-Distill-Qwen-32B</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">72.6</span></td>
+<td class="ltx_td ltx_align_center">83.3</td>
+<td class="ltx_td ltx_align_center">94.3</td>
+<td class="ltx_td ltx_align_center">62.1</td>
+<td class="ltx_td ltx_align_center">57.2</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">1691</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text ltx_font_bold">DeepSeek-R1-Distill-Llama-8B</span></td>
+<td class="ltx_td ltx_align_center">50.4</td>
+<td class="ltx_td ltx_align_center">80.0</td>
+<td class="ltx_td ltx_align_center">89.1</td>
+<td class="ltx_td ltx_align_center">49.0</td>
+<td class="ltx_td ltx_align_center">39.6</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">1205</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb"><span class="ltx_text ltx_font_bold">DeepSeek-R1-Distill-Llama-70B</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb">70.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">86.7</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">94.5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">65.2</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">57.5</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">1633</span></td></tr>
+</tbody>
+</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 15 · all original cells and emphasis retained.</p></figure>

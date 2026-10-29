@@ -1,0 +1,18 @@
+flowchart TD
+  Q["Questions [B]"] --> O["Frozen old policy<br/>G outputs per question"]
+  O --> T["Tokens + masks [B,G,T]"]
+  T --> V["Rule / model verifier"]
+  V --> R["Rewards [B,G]"]
+  R --> A["Within-question mean / std<br/>Advantages [B,G]"]
+  T --> P["Trainable policy log-probs"]
+  T --> F["Reference log-probs"]
+  A --> J["Clipped objective + KL"]
+  P --> J
+  F --> J
+  O -. "old probabilities" .-> J
+  J --> U["Policy gradient update"]
+  U -. "sync after update" .-> O
+  classDef core fill:#1d3247,stroke:#7898b6,color:#e5eff8
+  classDef reward fill:#19362f,stroke:#7aab9b,color:#dfede7
+  class Q,O,T,P,F,J,U core
+  class V,R,A reward

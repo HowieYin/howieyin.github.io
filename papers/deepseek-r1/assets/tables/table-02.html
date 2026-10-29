@@ -1,0 +1,35 @@
+<figure class="original-table prompt-table" id="table-2"><figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 2: </span>An interesting “aha moment” of an intermediate version of DeepSeek-R1-Zero. The model learns to rethink using an anthropomorphic tone. This is also an aha moment for us, allowing us to witness the power and beauty of reinforcement learning.</figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 2"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T2.2">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt">Question: If <math alttext="a&gt;1" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>a</mi><mo>&gt;</mo><mn>1</mn></mrow></semantics></math>, then the sum of the real solutions of <math alttext="\sqrt{a-\sqrt{a+x}}=x" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>=</mo><mi>x</mi></mrow></semantics></math> is equal to</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">Response: <span class="ltx_text ltx_font_typewriter">&lt;think&gt;</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">To solve the equation <math alttext="\sqrt{a-\sqrt{a+x}}=x" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>=</mo><mi>x</mi></mrow></semantics></math>, let’s start by squaring both <math alttext="\cdots" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>⋯</mo></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><math alttext="\left(\sqrt{a-\sqrt{a+x}}\right)^{2}=x^{2}\implies a-\sqrt{a+x}=x^{2}." class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><msup><mrow><mo>(</mo><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>)</mo></mrow><mn>2</mn></msup><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo stretchy="false">⟹</mo><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo lspace="0em">.</mo></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Rearrange to isolate the inner square root term:</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><math alttext="(a-x^{2})^{2}=a+x\implies a^{2}-2ax^{2}+(x^{2})^{2}=a+x\implies x^{4}-2ax^{2}-x+(a^{2}-a)=0" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msup><mrow><mo stretchy="false">(</mo><mrow><mi>a</mi><mo>−</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo stretchy="false">)</mo></mrow><mn>2</mn></msup><mo>=</mo><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow><mo stretchy="false">⟹</mo><mrow><mrow><msup><mi>a</mi><mn>2</mn></msup><mo>−</mo><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>x</mi><mn>2</mn></msup></mrow></mrow><mo>+</mo><msup><mrow><mo stretchy="false">(</mo><msup><mi>x</mi><mn>2</mn></msup><mo stretchy="false">)</mo></mrow><mn>2</mn></msup></mrow><mo>=</mo><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow><mo stretchy="false">⟹</mo><mrow><mrow><msup><mi>x</mi><mn>4</mn></msup><mo>−</mo><mrow><mn>2</mn><mo lspace="0em" rspace="0em">​</mo><mi>a</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo>−</mo><mi>x</mi></mrow><mo>+</mo><mrow><mo stretchy="false">(</mo><mrow><msup><mi>a</mi><mn>2</mn></msup><mo>−</mo><mi>a</mi></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mn>0</mn></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">…</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text paper-color-red" data-original-color="#FF0000">Wait, wait. Wait. That’s an aha moment I can flag here</span>.</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Let’s reevaluate this step-by-step to identify if the correct sum can be <math alttext="\cdots" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>⋯</mo></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">We started with the equation:</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><math alttext="\sqrt{a-\sqrt{a+x}}=x" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><msqrt><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow></msqrt><mo>=</mo><mi>x</mi></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">First, let’s square both sides:</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><math alttext="a-\sqrt{a+x}=x^{2}\implies\sqrt{a+x}=a-x^{2}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mrow><mi>a</mi><mo>−</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt></mrow><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo stretchy="false">⟹</mo><msqrt><mrow><mi>a</mi><mo>+</mo><mi>x</mi></mrow></msqrt><mo>=</mo><mrow><mi>a</mi><mo>−</mo><msup><mi>x</mi><mn>2</mn></msup></mrow></mrow></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Next, I could square both sides again, treating the equation:
+<math alttext="\cdots" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>⋯</mo></semantics></math></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_b">…</td></tr>
+</tbody>
+</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 2 · all original cells and emphasis retained.</p></figure>
