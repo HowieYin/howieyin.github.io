@@ -41,6 +41,62 @@
       "category": "training-scaling"
     },
     {
+      "slug": "kimi-k2",
+      "title": "Kimi K2：万亿参数，如何训练成能执行任务的 Agent",
+      "metadata": "2025 · Moonshot AI · arXiv v2 · Read October 29, 2026 · MoE / MuonClip / Agentic RL",
+      "readDate": "2026-10-29",
+      "description": "All 13 original figures, 6 complete tables, the MuonClip algorithm and 11 formula groups; MLA tensors and cache, 384-to-8 routing, agent data and RL, H800 memory and communication, three interactive explainers, source audits and dated follow-up research.",
+      "category": "model-architecture"
+    },
+    {
+      "slug": "llama",
+      "title": "LLaMA：把训练多花的钱，换成每次推理少花的钱",
+      "metadata": "2023 · Meta AI · arXiv v1 · Read October 29, 2026 · LLM / Training / Inference",
+      "readDate": "2026-10-29",
+      "description": "All 3 original figures, 16 complete tables and 16 appendix samples; historical MHA/RMSNorm/RoPE/SwiGLU code checks, analytical KV and lifetime-cost explorers, per-op costs, experiment audits, and dated follow-up research.",
+      "category": "model-architecture"
+    },
+    {
+      "slug": "llama3",
+      "title": "Llama 3：从数据、训练系统到多模态接口的完整工程账本",
+      "metadata": "2024 · arXiv v3 · Read October 29, 2026 · LLM / Training / Systems / Multimodal",
+      "readDate": "2026-10-29",
+      "description": "All 30 original figures and 35 complete tables; chapter-ordered Llama 3.1 analysis, GQA and 4D parallel costs, FP8 kernel checks, vision and speech interfaces, three interactive explainers, source discrepancy audits, and research through October 29, 2026.",
+      "category": "training-scaling"
+    },
+    {
+      "slug": "llama2",
+      "title": "Llama 2：从基础模型到聊天助手，真正困难的是反馈链路",
+      "metadata": "2023 · arXiv v2 · Read October 29, 2026 · Pretraining / RLHF / Safety / GQA",
+      "readDate": "2026-10-29",
+      "category": "training-scaling",
+      "description": "Chapter-by-chapter reading of v2 and every appendix: all 33 original figures, 52 complete tables and 5 formula groups; iterative feedback, two reward models, GAtt loss masks, GQA/TP cache costs, three interactive explainers, and dated research through October 29, 2026."
+    },
+    {
+      "slug": "kimi-k2-5",
+      "title": "Kimi K2.5：让视觉进入训练，让并行进入策略",
+      "metadata": "2026 · Moonshot AI · arXiv v2 · Read October 29, 2026 · VLM / MoE / Agent Swarm",
+      "readDate": "2026-10-29",
+      "description": "All 12 original figures, 6 complete tables and 5 display equations; joint vision-text training, Zero-Vision SFT, PARL and context sharding, MoonViT-3D shapes and MLA cache explorers, DEP and evaluation audits, and dated research through October 29, 2026.",
+      "category": "model-architecture"
+    },
+    {
+      "slug": "deepseek-v3",
+      "title": "DeepSeek-V3：把低成本训练，落实到每一次数据移动",
+      "metadata": "2024 · arXiv v2 · Read October 29, 2026 · MLA / MoE / FP8 / Systems",
+      "readDate": "2026-10-29",
+      "description": "All 11 original figure groups, 9 complete tables and 28 numbered equations; MLA cache and weight absorption, routing bias, MTP cost explorers, DualPipe and FP8 gradient analysis, experiment audits, and dated research through October 29, 2026.",
+      "category": "model-architecture"
+    },
+    {
+      "slug": "instructgpt",
+      "title": "InstructGPT：把会续写的模型，训练成更愿意完成任务的助手",
+      "metadata": "NeurIPS 2022 · arXiv v1 · Read October 29, 2026 · RLHF / Reward Model / PPO",
+      "readDate": "2026-10-29",
+      "description": "All 50 original figures, 14 complete tables and 2 original equations; grouped ranking, sequence KL and PPO lifecycle interactions, SFT initialization and ptx audits, conditional safety and capability results, and primary-source research through October 29, 2026.",
+      "category": "training-scaling"
+    },
+    {
       "slug": "gpt3",
       "title": "GPT-3：参数规模如何改变上下文学习",
       "metadata": "NeurIPS 2020 · arXiv v4 · Read October 29, 2026 · Training / Scaling / In-Context Learning",

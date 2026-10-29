@@ -1,0 +1,9 @@
+flowchart TD
+  C["2022 · Chinchilla<br/>Training compute optimum"] --> L["2023 · LLaMA v1<br/>Dense MHA · 1T / 1.4T tokens"]
+  L --> Q["GQA<br/>Shared KV heads + uptraining"]
+  L --> CPP["Quantized runtimes<br/>Weight formats / backend kernels"]
+  Q --> L2["2023 · Llama 2<br/>2T tokens · larger models use GQA"]
+  L2 --> L3["2024 · Llama 3<br/>More data · 128k context · dense 405B"]
+  L3 --> L4["2025 · Llama 4<br/>Multimodal MoE · active ≠ total"]
+  L --> Q3["2025 · Qwen3<br/>Dense / MoE · thinking budget"]
+  Q3 --> Q38["2026 · Qwen3.8<br/>Hybrid recurrent + attention state"]

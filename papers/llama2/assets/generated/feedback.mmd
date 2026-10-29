@@ -1,0 +1,11 @@
+flowchart TD
+  A["Public-source corpus · 2T tokens"] --> B["Dense base · 7 / 13 / 34 / 70B"]
+  B --> C["High-quality SFT · 27,540 examples"]
+  C --> D["Current policy candidates"]
+  D --> E["Fresh human preference pairs"]
+  E --> F["Helpful RM + Safety RM"]
+  F --> G["70B best-of-K selection"]
+  G --> H["Selected-answer distillation"]
+  H --> I["Later stages: PPO + KL reference"]
+  I --> D
+  E -. "refresh distribution" .-> D

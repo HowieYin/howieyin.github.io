@@ -1,0 +1,11 @@
+flowchart TB
+  A["K2 near-end checkpoint"] --> C["Joint vision-text pre-training"]
+  B["SigLIP → MoonViT-3D<br/>caption CE + projector alignment"] --> C
+  C --> D["Text-only SFT<br/>activate reasoning and tool behavior"]
+  D --> E["Joint outcome RL + GRM<br/>text and visual tasks"]
+  E --> F["Successful visual trajectories<br/>rejection fine-tuning"]
+  E --> G["PARL: update orchestrator"]
+  H["Frozen subagent checkpoint"] --> G
+  G --> I["Learned task decomposition<br/>independent contexts + aggregation"]
+  F --> J["Visual tool-using model"]
+  I --> J

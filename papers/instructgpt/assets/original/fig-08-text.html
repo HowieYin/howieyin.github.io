@@ -1,0 +1,76 @@
+<figure class="ltx_figure" id="S4.F8">
+<table class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_tt" colspan="2"><span class="ltx_text ltx_font_bold" style="font-size:80%;">Prompt:</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top" colspan="2">
+<span class="ltx_inline-block ltx_align_top" style="width:327.8pt;">
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">Écrivez une courte histoire sur une grenouille qui voyage dans le temps jusqu’à la Grèce antique en français.</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top" style="width:165.6pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold" style="font-size:80%;">GPT-3 175B completion:</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top" style="width:165.6pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold" style="font-size:80%;">InstructGPT 175B completion:</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top" style="width:165.6pt;">
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">Écrivez une histoire au sujet d’un enfant qui voudrait tout savoir sur les jeux des dieux et qui se retrouve dans l’une de leurs histoires.</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">Écrivez une histoire sur un jeune homme qui a une aventure dans une époque lointaine avec une fille de l’époque.</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">Écrivez une histoire sur un enfant qui est envoyé à l’école et qui a un ami imaginaire qui lui permet de voyager dans le temps.</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top" style="width:165.6pt;">
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">La grenouille était perdue et épuisée. Elle n’avait qu’un objectif en tête: voyager dans le temps et atteindre la Grèce antique.</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">Premier problème, trouver un moyen de transport. Elle avait entendu dire que l’un des meilleurs moyens était de sauter dans une machine temporelle. Elle s’élança, et voilà qu’elle se retrouva dans le passé, au cours d’une nuit étoilée à l’odeur douce et envoûtante.</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">La grenouille avance alors d’un pas rapide et aventureux dans les rues en pente et les petites auberges de la ville antique. […]</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t" colspan="2"><span class="ltx_text ltx_font_bold" style="font-size:80%;">Prompt:</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top" colspan="2">
+<span class="ltx_inline-block" style="width:327.8pt;">
+<span class="ltx_block ltx_minipage ltx_align_middle" style="width:345.0pt;">
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">What is the purpose of the list C in the code below?</span></span>
+<span class="ltx_p"><span class="ltx_text ltx_font_typewriter" style="font-size:80%;">def binomial_coefficient(n, r):
+<br class="ltx_break"/>    C = [0 for i in range(r + 1)];
+<br class="ltx_break"/>    C[0] = 1;
+<br class="ltx_break"/>    for i in range(1, n + 1):
+<br class="ltx_break"/>        j = min(i, r);
+<br class="ltx_break"/>        while j &gt; 0:
+<br class="ltx_break"/>            C[j] += C[j - 1];
+<br class="ltx_break"/>            j -= 1;
+<br class="ltx_break"/>    return C[r]
+</span></span>
+</span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top" style="width:165.6pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold" style="font-size:80%;">GPT-3 175B completion:</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top" style="width:165.6pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold" style="font-size:80%;">InstructGPT 175B completion:</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb">
+<span class="ltx_inline-block ltx_align_top" style="width:165.6pt;">
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">A. to store the value of C[0]</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">B. to store the value of C[1]</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">C. to store the value of C[i]</span></span>
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">D. to store the value of C[i - 1]</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb">
+<span class="ltx_inline-block ltx_align_top" style="width:165.6pt;">
+<span class="ltx_p"><span class="ltx_text" style="font-size:80%;">The list C in this code is used to store the values of the binomial coefficient as the function iterates through the values of n and r. It is used to calculate the value of the binomial coefficient for a given value of n and r, and stores the result in the final return value of the function.</span></span>
+</span></td></tr>
+</tbody>
+</table>
+
+</figure>

@@ -1,0 +1,15 @@
+flowchart TB
+  P["Old policy · version v"] --> V["Verifiable tasks · sample K responses"]
+  P --> G["General tasks · sample K responses"]
+  V --> TEST["Code / math / rules / grounded judge"]
+  G --> CRIT["K2 critic · pairwise rubric ranking"]
+  TEST --> RW["Group rewards and advantages"]
+  CRIT --> RW
+  TEST -. "Calibrate critic with objective feedback" .-> CRIT
+  RW --> LOSS["Squared reward vs log-ratio loss + PTX"]
+  LOSS --> OPT["Muon update · task budgets · temperature decay"]
+  OPT --> W["New training weights · version v+1"]
+  W --> CE["CPU shards → checkpoint engine → broadcast chunks"]
+  CE --> IP["IPC buffers → reload inference shards"]
+  IP --> NEXT["Verify reload complete → next rollout"]
+  NEXT --> P

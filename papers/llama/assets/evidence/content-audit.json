@@ -1,0 +1,21 @@
+{
+  "status": "pass",
+  "tables": 16,
+  "table16_rows": 64,
+  "samples": 16,
+  "sample_code_blocks": 5,
+  "figures": 3,
+  "diagrams": 2,
+  "explicit_relations": 3,
+  "derived_formulas": 8,
+  "table_cells": 1610,
+  "checks": [
+    "cell text",
+    "row/column spans",
+    "bold",
+    "chapter order",
+    "formula labels",
+    "all appendix samples",
+    "local link targets"
+  ]
+}

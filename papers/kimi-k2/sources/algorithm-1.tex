@@ -1,0 +1,24 @@
+\begin{algorithm}[t]
+\caption{MuonClip Optimizer}
+\label{alg:muonclip}
+\begin{algorithmic}[1]
+\For{each training step $t$}
+   \State \textcolor{gray}{// 1. Muon optimizer step}
+   \For{each weight $\mathbf W\in\mathbb{R}^{n\times m}$}
+        \State $\mathbf M_t = \mu \mathbf M_{t-1} + \mathbf G_t$ \Comment{$\mathbf M_0 = \mathbf 0$, $\mathbf G_t$ is the grad of $\mathbf W_t$, $\mu$ is momentum}
+        \State $\mathbf O_t = \operatorname{Newton-Schulz}(\mathbf M_t)\cdot \sqrt{\max(n,m)}\cdot 0.2$ \Comment{Match Adam RMS}
+        \State $\mathbf W_t = \mathbf W_{t-1} - \eta \bigl(\mathbf O_t + \lambda \mathbf W_{t-1}\bigr)$ \Comment{learning rate $\eta$, weight decay $\lambda$}
+   \EndFor
+   \State \textcolor{gray}{// 2. QK-Clip}
+   \For{each attention head $h$ in every attention layer of the model}
+       \State Obtain $S_{\max}^{h}$ already computed during forward
+       \If{$S_{\max}^{h} > \tau$}
+           \State $\gamma \gets \tau / S_{\max}^{h}$
+           \State $\mathbf W_{qc}^{h} \gets \mathbf W_{qc}^{h} \cdot \sqrt{\gamma}$
+           \State $\mathbf W_{kc}^{h} \gets \mathbf W_{kc}^{h} \cdot \sqrt{\gamma}$
+           \State $\mathbf W_{qr}^{h} \gets \mathbf W_{qr}^{h} \cdot \gamma$
+       \EndIf
+   \EndFor
+\EndFor
+\end{algorithmic}
+\end{algorithm}

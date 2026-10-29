@@ -1,0 +1,46 @@
+<figure class="original-table" id="table-4"><div aria-label="Original Table 4" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S3.T4.3">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GPUs</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">TP</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">CP</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">PP</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">DP</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Seq. Len.</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Batch size/DP</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">Tokens/Batch</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">TFLOPs/GPU</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">BF16 MFU</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">8,192</td>
+<td class="ltx_td ltx_align_center ltx_border_t">8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">16</td>
+<td class="ltx_td ltx_align_center ltx_border_t">64</td>
+<td class="ltx_td ltx_align_center ltx_border_t">8,192</td>
+<td class="ltx_td ltx_align_center ltx_border_t">32</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">16M</td>
+<td class="ltx_td ltx_align_center ltx_border_t">430</td>
+<td class="ltx_td ltx_align_center ltx_border_t">43%</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">16,384</td>
+<td class="ltx_td ltx_align_center">8</td>
+<td class="ltx_td ltx_align_center">1</td>
+<td class="ltx_td ltx_align_center">16</td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td ltx_align_center">8,192</td>
+<td class="ltx_td ltx_align_center">16</td>
+<td class="ltx_td ltx_align_center ltx_border_r">16M</td>
+<td class="ltx_td ltx_align_center">400</td>
+<td class="ltx_td ltx_align_center">41%</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">16,384</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">16</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">16</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">131,072</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">16</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">16M</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">380</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">38%</td></tr>
+</table></div><figcaption><span class="ltx_tag ltx_tag_table"><span class="ltx_text">Table 4</span>: </span><span class="ltx_text ltx_font_bold">Scaling configurations and MFU for each stage of Llama 3 405B pre-training.<span class="ltx_text ltx_font_medium"> See text and Figure <a class="ltx_ref" href="https://arxiv.org/html/2407.21783v3#S3.F5" title="Figure 5 ‣ 3.3.2 Parallelism for Model Scaling ‣ 3.3 Infrastructure, Scaling, and Efficiency ‣ 3 Pre-Training ‣ The Llama 3 Herd of Models"><span class="ltx_text ltx_ref_tag">5</span></a> for descriptions of each type of parallelism.</span></span></figcaption></figure>

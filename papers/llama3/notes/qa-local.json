@@ -1,0 +1,290 @@
+{
+  "url": "http://127.0.0.1:8884/papers/llama3/",
+  "results": [
+    {
+      "width": 375,
+      "scrollWidth": 375,
+      "figures": 30,
+      "images": 38,
+      "tables": 35,
+      "tablePanels": 36,
+      "equations": 3,
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "w": 388.296875,
+          "h": 23.765625
+        },
+        {
+          "w": 699.078125,
+          "h": 31.640625
+        },
+        {
+          "w": 293,
+          "h": 20.515625
+        },
+        {
+          "w": 122,
+          "h": 20.984375
+        },
+        {
+          "w": 645.15625,
+          "h": 44.078125
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 826.8125,
+          "h": 37.53125
+        },
+        {
+          "w": 670.015625,
+          "h": 63.453125
+        }
+      ],
+      "placeholders": false,
+      "kv": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=63.0000 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "shard": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=3.9375 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "parallel": "Illustration CP=4: rank i owns blocks i and 8-1-i\nPaired causal work=8 units for every rank\nContiguous pairs range=2 to 14 units\nPaper config: TP8 × CP16 × PP16 × DP8=16384 GPUs\nSequence × batch/DP × DP=16,777,216 tokens/global batch (~16M)\nPaper MFU=38% (not availability)",
+      "metrics": "Expected counts: N=10000, positives=100, negatives=9900\nTP=71.4, FP=99.0, TN=9801.0, FN=28.6\nAccuracy=98.72%; Precision=41.90%\nRecall=71.40%; F1=52.81%; FPR=1.00%\nIllustrative expectation, not paper experiment counts.",
+      "errors": []
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "figures": 30,
+      "images": 38,
+      "tables": 35,
+      "tablePanels": 36,
+      "equations": 3,
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "w": 388.296875,
+          "h": 23.765625
+        },
+        {
+          "w": 699.078125,
+          "h": 31.640625
+        },
+        {
+          "w": 308,
+          "h": 20.515625
+        },
+        {
+          "w": 122,
+          "h": 20.984375
+        },
+        {
+          "w": 645.15625,
+          "h": 44.078125
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 826.8125,
+          "h": 37.53125
+        },
+        {
+          "w": 670.015625,
+          "h": 63.453125
+        }
+      ],
+      "placeholders": false,
+      "kv": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=63.0000 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "shard": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=3.9375 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "parallel": "Illustration CP=4: rank i owns blocks i and 8-1-i\nPaired causal work=8 units for every rank\nContiguous pairs range=2 to 14 units\nPaper config: TP8 × CP16 × PP16 × DP8=16384 GPUs\nSequence × batch/DP × DP=16,777,216 tokens/global batch (~16M)\nPaper MFU=38% (not availability)",
+      "metrics": "Expected counts: N=10000, positives=100, negatives=9900\nTP=71.4, FP=99.0, TN=9801.0, FN=28.6\nAccuracy=98.72%; Precision=41.90%\nRecall=71.40%; F1=52.81%; FPR=1.00%\nIllustrative expectation, not paper experiment counts.",
+      "errors": []
+    },
+    {
+      "width": 430,
+      "scrollWidth": 430,
+      "figures": 30,
+      "images": 38,
+      "tables": 35,
+      "tablePanels": 36,
+      "equations": 3,
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "w": 388.296875,
+          "h": 23.765625
+        },
+        {
+          "w": 699.078125,
+          "h": 31.640625
+        },
+        {
+          "w": 348,
+          "h": 20.515625
+        },
+        {
+          "w": 122,
+          "h": 20.984375
+        },
+        {
+          "w": 645.15625,
+          "h": 44.078125
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 826.8125,
+          "h": 37.53125
+        },
+        {
+          "w": 670.015625,
+          "h": 63.453125
+        }
+      ],
+      "placeholders": false,
+      "kv": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=63.0000 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "shard": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=3.9375 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "parallel": "Illustration CP=4: rank i owns blocks i and 8-1-i\nPaired causal work=8 units for every rank\nContiguous pairs range=2 to 14 units\nPaper config: TP8 × CP16 × PP16 × DP8=16384 GPUs\nSequence × batch/DP × DP=16,777,216 tokens/global batch (~16M)\nPaper MFU=38% (not availability)",
+      "metrics": "Expected counts: N=10000, positives=100, negatives=9900\nTP=71.4, FP=99.0, TN=9801.0, FN=28.6\nAccuracy=98.72%; Precision=41.90%\nRecall=71.40%; F1=52.81%; FPR=1.00%\nIllustrative expectation, not paper experiment counts.",
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "figures": 30,
+      "images": 38,
+      "tables": 35,
+      "tablePanels": 36,
+      "equations": 3,
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "w": 814,
+          "h": 23.765625
+        },
+        {
+          "w": 814,
+          "h": 31.640625
+        },
+        {
+          "w": 814,
+          "h": 20.515625
+        },
+        {
+          "w": 122,
+          "h": 20.984375
+        },
+        {
+          "w": 814,
+          "h": 44.078125
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 826.8125,
+          "h": 37.53125
+        },
+        {
+          "w": 814,
+          "h": 63.453125
+        }
+      ],
+      "placeholders": false,
+      "kv": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=63.0000 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "shard": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=3.9375 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "parallel": "Illustration CP=4: rank i owns blocks i and 8-1-i\nPaired causal work=8 units for every rank\nContiguous pairs range=2 to 14 units\nPaper config: TP8 × CP16 × PP16 × DP8=16384 GPUs\nSequence × batch/DP × DP=16,777,216 tokens/global batch (~16M)\nPaper MFU=38% (not availability)",
+      "metrics": "Expected counts: N=10000, positives=100, negatives=9900\nTP=71.4, FP=99.0, TN=9801.0, FN=28.6\nAccuracy=98.72%; Precision=41.90%\nRecall=71.40%; F1=52.81%; FPR=1.00%\nIllustrative expectation, not paper experiment counts.",
+      "errors": []
+    },
+    {
+      "width": 1920,
+      "scrollWidth": 1920,
+      "figures": 30,
+      "images": 38,
+      "tables": 35,
+      "tablePanels": 36,
+      "equations": 3,
+      "diagrams": 2,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "w": 814,
+          "h": 23.765625
+        },
+        {
+          "w": 814,
+          "h": 31.640625
+        },
+        {
+          "w": 814,
+          "h": 20.515625
+        },
+        {
+          "w": 122,
+          "h": 20.984375
+        },
+        {
+          "w": 814,
+          "h": 44.078125
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 227.328125,
+          "h": 38.625
+        },
+        {
+          "w": 826.8125,
+          "h": 37.53125
+        },
+        {
+          "w": 814,
+          "h": 63.453125
+        }
+      ],
+      "placeholders": false,
+      "kv": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=63.0000 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "shard": "GQA=63.0000 GiB; MHA=1008.0000 GiB\nSaving factor=16×; ideal GQA per partition=3.9375 GiB\nBytes=2 × 126 × 1 × 131072 × 8 × 128 × 2",
+      "parallel": "Illustration CP=4: rank i owns blocks i and 8-1-i\nPaired causal work=8 units for every rank\nContiguous pairs range=2 to 14 units\nPaper config: TP8 × CP16 × PP16 × DP8=16384 GPUs\nSequence × batch/DP × DP=16,777,216 tokens/global batch (~16M)\nPaper MFU=38% (not availability)",
+      "metrics": "Expected counts: N=10000, positives=100, negatives=9900\nTP=71.4, FP=99.0, TN=9801.0, FN=28.6\nAccuracy=98.72%; Precision=41.90%\nRecall=71.40%; F1=52.81%; FPR=1.00%\nIllustrative expectation, not paper experiment counts.",
+      "errors": []
+    }
+  ]
+}

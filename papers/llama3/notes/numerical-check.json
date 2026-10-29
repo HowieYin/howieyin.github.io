@@ -1,0 +1,420 @@
+{
+  "kvGiB_128k_bf16": {
+    "32": 16.0,
+    "80": 40.0,
+    "126": 63.0
+  },
+  "405B_TP8_PP2_KV_GiB": 3.9375,
+  "scaling_tokens": 10463652401050.807,
+  "dominant_training_flops": 3.7908e+25,
+  "humanEval_drop_pp": -6.700000000000003,
+  "tokenizer_chars_gain_pct": 24.29022082018928,
+  "speech_bleu_gain": {
+    "absolute": 11.800000000000004,
+    "relative_pct": 53.881278538812815
+  },
+  "interruptions": {
+    "rows": [
+      [
+        "Faulty GPU",
+        "GPU",
+        "148",
+        "30.1%"
+      ],
+      [
+        "GPU HBM3 Memory",
+        "GPU",
+        "72",
+        "17.2%"
+      ],
+      [
+        "Software Bug",
+        "Dependency",
+        "54",
+        "12.9%"
+      ],
+      [
+        "Network Switch/Cable",
+        "Network",
+        "35",
+        "8.4%"
+      ],
+      [
+        "Host Maintenance",
+        "Unplanned Maintenance",
+        "32",
+        "7.6%"
+      ],
+      [
+        "GPU SRAM Memory",
+        "GPU",
+        "19",
+        "4.5%"
+      ],
+      [
+        "GPU System Processor",
+        "GPU",
+        "17",
+        "4.1%"
+      ],
+      [
+        "NIC",
+        "Host",
+        "7",
+        "1.7%"
+      ],
+      [
+        "NCCL Watchdog Timeouts",
+        "Unknown",
+        "7",
+        "1.7%"
+      ],
+      [
+        "Silent Data Corruption",
+        "GPU",
+        "6",
+        "1.4%"
+      ],
+      [
+        "GPU Thermal Interface + Sensor",
+        "GPU",
+        "6",
+        "1.4%"
+      ],
+      [
+        "SSD",
+        "Host",
+        "3",
+        "0.7%"
+      ],
+      [
+        "Power Supply",
+        "Host",
+        "3",
+        "0.7%"
+      ],
+      [
+        "Server Chassis",
+        "Host",
+        "2",
+        "0.5%"
+      ],
+      [
+        "IO Expansion Board",
+        "Host",
+        "2",
+        "0.5%"
+      ],
+      [
+        "Dependency",
+        "Dependency",
+        "2",
+        "0.5%"
+      ],
+      [
+        "CPU",
+        "Host",
+        "2",
+        "0.5%"
+      ],
+      [
+        "System Memory",
+        "Host",
+        "2",
+        "0.5%"
+      ]
+    ],
+    "sum_counts": 419,
+    "sum_reported_pct": 94.9,
+    "faulty_gpu_recomputed_pct": 35.32219570405728,
+    "gpu_category_count": 268,
+    "gpu_category_recomputed_pct": 63.961813842482094
+  },
+  "4D": [
+    {
+      "gpu": 8192,
+      "global_tokens": 16777216
+    },
+    {
+      "gpu": 16384,
+      "global_tokens": 16777216
+    },
+    {
+      "gpu": 16384,
+      "global_tokens": 16777216
+    }
+  ],
+  "CP_pair_weights": {
+    "2": [
+      4.0,
+      4.0
+    ],
+    "4": [
+      8.0,
+      8.0,
+      8.0,
+      8.0
+    ],
+    "8": [
+      16.0,
+      16.0,
+      16.0,
+      16.0,
+      16.0,
+      16.0,
+      16.0,
+      16.0
+    ],
+    "16": [
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0,
+      32.0
+    ]
+  },
+  "quant_scale_1200": 2.6785714285714284,
+  "expected_confusion_1pct": {
+    "TP": 71.4,
+    "FP": 99.0,
+    "TN": 9801.0,
+    "FN": 28.6,
+    "Accuracy": 0.98724,
+    "Precision": 0.41901408450704225
+  },
+  "inventory": {
+    "figures": 30,
+    "tables": 35,
+    "panels": 38
+  },
+  "table_fidelity": [
+    {
+      "table": 1,
+      "source_id": "S1.T1.3",
+      "rows": 11,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 2,
+      "source_id": "S1.T2.3.1",
+      "rows": 17,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 3,
+      "source_id": "S3.T3.3",
+      "rows": 10,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 4,
+      "source_id": "S3.T4.3",
+      "rows": 4,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 5,
+      "source_id": "S3.T5.3",
+      "rows": 19,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 6,
+      "source_id": "S4.T6.3",
+      "rows": 7,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 7,
+      "source_id": "S4.T7.3",
+      "rows": 9,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 8,
+      "source_id": "S5.T8.3",
+      "rows": 7,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 9,
+      "source_id": "S5.T10.fig1.1",
+      "rows": 11,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 10,
+      "source_id": "S5.T10.fig2.1",
+      "rows": 11,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 11,
+      "source_id": "S5.T11.3",
+      "rows": 10,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 12,
+      "source_id": "S5.T12.3",
+      "rows": 11,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 13,
+      "source_id": "S5.T13.3",
+      "rows": 11,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 14,
+      "source_id": "S5.T15.3",
+      "rows": 4,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 15,
+      "source_id": "S5.T15.7.1",
+      "rows": 23,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 16,
+      "source_id": "S5.T16.3",
+      "rows": 6,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 17,
+      "source_id": "S5.T17.3",
+      "rows": 25,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 18,
+      "source_id": "S5.T18.3",
+      "rows": 12,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 19,
+      "source_id": "S5.T19.3",
+      "rows": 7,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 20,
+      "source_id": "S5.T20.3",
+      "rows": 11,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 21,
+      "source_id": "S5.T21.3",
+      "rows": 8,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 22,
+      "source_id": "S5.T22.3",
+      "rows": 12,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 23,
+      "source_id": "S5.T23.3",
+      "rows": 5,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 24,
+      "source_id": "S5.T24.3",
+      "rows": 6,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 25,
+      "source_id": "S5.T25.3",
+      "rows": 10,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 26,
+      "source_id": "S5.T26.3",
+      "rows": 16,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 27,
+      "source_id": "S5.T27.3",
+      "rows": 5,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 28,
+      "source_id": "S5.T28.3",
+      "rows": 4,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 29,
+      "source_id": "S7.T29.3.1",
+      "rows": 7,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 30,
+      "source_id": "S7.T30.3.1",
+      "rows": 5,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 31,
+      "source_id": "S8.T31.3.1",
+      "rows": 5,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 32,
+      "source_id": "S8.T32.3",
+      "rows": 3,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 33,
+      "source_id": "S8.T33.3",
+      "rows": 4,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 34,
+      "source_id": "S8.T34.3",
+      "rows": 4,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 35,
+      "source_id": "S8.T35.3",
+      "rows": 3,
+      "cell_text_and_spans": "exact"
+    },
+    {
+      "table": 35,
+      "source_id": "S8.T35.4",
+      "rows": 3,
+      "cell_text_and_spans": "exact"
+    }
+  ],
+  "local_model_benchmark_run": false
+}

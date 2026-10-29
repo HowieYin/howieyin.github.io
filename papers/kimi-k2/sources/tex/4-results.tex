@@ -1,0 +1,176 @@
+\section{Evaluations}
+
+
+This section begins with the post-training evaluation of Kimi-K2-Instruct, followed by a brief overview of the capabilities of Kimi-K2-Base. We conclude with a comprehensive safety evaluation.
+
+
+\subsection{Post-training Evaluations}
+
+
+
+\subsubsection{Evaluation Settings}
+
+
+\paragraph{Benchmarks}
+We assess Kimi-K2-Instruct across different areas.
+For coding, we adopt LiveCodeBench v6~\citep{jain2024livecodebench}(questions from August 2024 to May 2025), OJBench~\citep{wang2025ojbenchcompetitionlevelcode}, MultiPL-E~\citep{10103177}, SWE-bench Verified~\citep{jimenez2024swebench,yang2025swesmith}, TerminalBench~\citep{tbench_2025}, Multi-SWE-bench~\citep{zan2025multi}, SWE-Lancer~\citep{miserendino2025swelancer}, PaperBench~\citep{starace2025paperbench}, and Aider-Polyglot~\citep{aider}. 
+For tool use tasks, we evaluate performance on $\tau^2$-Bench~\citep{barres2025tau2} and AceBench~\citep{chen2025acebench}, which emphasize multi-turn tool-calling capabilities.
+In reasoning, we include a wide range of mathematical, science and logical tasks: AIME 2024/2025, MATH-500, HMMT 2025, CNMO 2024, PolyMath-en, ZebraLogic~\citep{lin2025zebralogicscalinglimitsllms}, AutoLogi~\citep{zhu2025autologiautomatedgenerationlogic}, GPQA-Diamond~\citep{rein2024gpqa}, SuperGPQA~\citep{du2025supergpqa}, and Humanity's Last Exam (Text-Only)~\citep{phan2025humanitysexam}.
+We benchmark the long-context capabilities on:  MRCR\footnote{\url{https://huggingface.co/datasets/openai/mrcr}} for long-context retrieval, and  DROP~\citep{DBLP:journals/corr/abs-1903-00161}, FRAMES~\citep{krishna2025factfetchreasonunified}  and  LongBench v2~\citep{bai2025longbenchv2deeperunderstanding} for  long-context reasoning.
+For factuality, we evaluate FACTS Grounding~\citep{jacovi2025factsgroundingleaderboardbenchmarking}, the Vectara Hallucination Leaderboard~\citep{hhem-2.1-open}, and FaithJudge~\citep{tamber2025benchmarking}.
+Finally, general capabilities are assessed using MMLU~\citep{hendrycks2021measuringmassivemultitasklanguage}, MMLU-Redux~\citep{gema2024we}, MMLU-Pro~\citep{wang2024mmluprorobustchallengingmultitask}, IFEval~\citep{Zhou2023InstructionFollowingEF}, Multi-Challenge~\citep{sirdeshmukh2025multichallengerealisticmultiturnconversation}, SimpleQA~\citep{wei2024measuring}, and LiveBench~\citep{livebench} (as of 2024-11-25).
+
+
+\paragraph{Baselines}{
+We benchmark against both open-source and proprietary frontier models, ensuring every candidate is evaluated under its non-thinking configuration to eliminate additional gains from test-time compute.
+Open-source baselines: DeepSeek-V3-0324 and Qwen3-235B-A22B, with the latter run in the vendor-recommended no-thinking regime.
+Proprietary baselines: Claude Sonnet 4, Claude Opus 4, GPT-4.1, and Gemini 2.5 Flash Preview (2025-05-20). Each invoked in its respective non-thinking mode via official APIs under unified temperature and top-p settings.
+
+\textbf{Evaluation Configurations} All runs query models in their non-thinking mode. Output token length is capped at 8192 tokens everywhere except SWE-bench Verified (Agentless), which is raised to 16384. 
+For benchmarks with high per-question variance, we adopt repeated sampling $k$ times and average the results to obtain stable scores, denoted as Avg@k.
+For long-context tasks, we set the context window size to 128K tokens during evaluation, truncating any input that exceeds this limit to fit within the window.
+SWE-bench Verified is evaluated in two modes: Agentless Coding via Single Patch without Test (Acc) and Agentic Coding via bash/editor tools under both Single Attempt (Acc) and Multiple Attempts (Acc) using best-of-N selection with an internal verifier; SWE-bench Multilingual is tested only in the single-attempt agentic setting. Some data points have been omitted due to prohibitively expensive evaluation costs.
+}
+
+\input{tables/instruct_eval}
+
+\subsubsection{Evaluation Results}
+
+A comprehensive evaluation results of Kimi-K2-Instruct is shown in Table~\ref{tab:instruct_eval}, with detailed explanation provided in the Appendix~\ref{sec:k2-post-train-eval-details}. Below, we highlight key results across four core domains:
+
+\paragraph{Agentic and Competitive Coding}
+Kimi-K2-Instruct demonstrates state-of-the-art open-source performance on real-world SWE tasks. It outperforms most baselines on SWE-bench Verified (65.8\%, 71.6\% with multiple attemps), SWE-bench Multilingual (47.3\%), and SWE-lancer (39.1\%), significantly closing the gap with Claude 4 Opus and Sonnet. On competitive coding benchmarks (e.g., LiveCodeBench v6 53.7\%, OJBench 27.1\%), it also leads among all models, highlighting its practical coding proficiency across difficulty levels.
+
+\paragraph{Agentic Tool Use}
+On multi-turn tool-use benchmarks, Kimi-K2-Instruct sets a new standard. It achieves 66.1 Pass@1 on $\tau^2$-Bench and 76.5 on ACEBench, substantially outperforming all baselines. These results affirm its strength in grounded, controlled, and agent-driven tool orchestration across domains.
+
+\paragraph{General Capabilities}
+Kimi-K2-Instruct exhibits strong, balanced performance across general knowledge, math, instruction following, and long-context tasks. It surpasses open-source peers on SimpleQA (31.0\%), MMLU (89.5\%) and MMLU-Redux (92.7\%), and leads all models on instruction benchmarks (IFEval: 89.8\%, Multi-Challenge: 54.1\%). In math and STEM, it achieves top-tier scores (AIME 2024: 69.6\%, GPQA-Diamond: 75.1\%), and remains competitive on long-context factuality and retrieval (DROP: 93.5\%, MRCR: 55.0\%). These results position Kimi-K2-Instruct as a well-rounded and capable generalist across both short- and long-context settings.
+
+\paragraph{Open-Ended Evaluation}
+On the LMSYS Arena leaderboard (July 17, 2025), Kimi-K2-Instruct ranks as the top-1 open-source model and 5th overall based on over 3,000 user votes. This real-world preference signal—across diverse, blind prompts—underscores Kimi-K2's strengths in generating high-quality responses on open-ended tasks.
+
+
+
+
+
+
+
+
+\subsection{Pre-training Evaluations}
+
+
+
+\subsubsection{Evaluation Settings}
+
+
+
+\paragraph{Benchmarks}
+We evaluate Kimi-K2-Base across diverse capability areas.
+For general capabilities, we assess on MMLU~\citep{hendrycks2021measuringmassivemultitasklanguage}, MMLU-Pro~\citep{wang2024mmluprorobustchallengingmultitask}, MMLU-Redux~\citep{gema2024we}, BBH~\citep{suzgun2022challengingbigbenchtaskschainofthought}, TriviaQA~\citep{joshi2017triviaqalargescaledistantly}, SuperGPQA~\citep{du2025supergpqa}, SimpleQA~\citep{wei2024measuring}, HellaSwag~\citep{zellers2019hellaswag}, AGIEval~\citep{zhong2023agieval}, GPQA-Diamond~\citep{rein2024gpqa}, ARC-Challenge~\citep{clark2018think}, and WinoGrande~\citep{sakaguchi2021winogrande}.
+For coding capabilities, we employ EvalPlus~\citep{liu2023your} (averaging HumanEval~\citep{chen2021codex}, MBPP~\citep{austin2021programsynthesislargelanguage}, HumanEval+, and MBPP+), LiveCodeBench v6~\citep{jain2024livecodebench}, and CRUXEval~\citep{gu2024cruxeval}.
+For mathematical reasoning, we utilize GSM8K~\citep{cobbe2021trainingverifierssolvemath}, GSM8K-Platinum~\citep{vendrow2025large}, MATH~\citep{hendrycks2021measuringmathematicalproblemsolving}, and CMATH~\citep{wei2023cmathlanguagemodelpass}.
+For Chinese language capabilities, we evaluate on C-Eval~\citep{huang2023cevalmultilevelmultidisciplinechinese}, CMMLU~\citep{li2024cmmlumeasuringmassivemultitask}, and CSimpleQA~\citep{he2411chinese}.
+
+
+
+\paragraph{Baselines}
+We benchmark against leading open-source foundation models: DeepSeek-V3-Base~\citep{deepseekai2024deepseekv3technicalreport}, Qwen2.5-72B-Base~\citep{qwen2025qwen25technicalreport} (Note that Qwen3-235B-A22B-Base is not open-sourced, and the largest open-sourced base model in the Qwen series is Qwen2.5-72B-Base), and Llama 4-Maverick~\citep{metaLlamaHerd} (Llama 4-Behemoth is also not open-sourced). All models are evaluated under identical configurations to ensure fair comparison.
+
+
+\paragraph{Evaluation Configurations}
+
+We employ perplexity-based evaluation for MMLU, MMLU-Redux, GPQA-Diamond, HellaSwag, ARC-Challenge, C-Eval, and CMMLU. Generation-based evaluation is used for MMLU-Pro, SuperGPQA, TriviaQA, BBH, CSimpleQA, MATH, CMATH, GSM8K, GSM8K-Platinum, CRUXEval, LiveCodeBench, and EvalPlus. To mitigate the high variance inherent to GPQA-Diamond, we report the mean score across eight independent runs. All evaluations are conducted using our internal framework derived from LM-Harness-Evaluation~\citep{biderman2024lessons}, ensuring consistent settings across all models.
+
+
+\subsubsection{Evaluation Results}
+
+Table~\ref{tab:pretrain-eval} presents a comprehensive comparison of Kimi-K2-Base against leading open-source foundation models across diverse evaluation benchmarks. The results demonstrate that Kimi-K2-Base achieves state-of-the-art performance across the majority of evaluated tasks, establishing it as a leading foundation model in the open-source landscape.
+
+\paragraph{General Language Understanding}
+Kimi-K2-Base achieves state-of-the-art performance on 10 out of 12 English language benchmarks. Notable results include MMLU (87.79\%), MMLU-Pro (69.17\%), MMLU-Redux (90.17\%), SuperGPQA (44.67\%), and SimpleQA (35.25\%), significantly outperforming all baselines.
+
+\paragraph{Coding Capabilities}
+On coding benchmarks, Kimi-K2-Base sets new standards with leading performance across all metrics. It achieves 74.00\% on CRUXEval-I-cot, 83.50\% on CRUXEval-O-cot, 26.29\% on LiveCodeBench v6, and 80.33\% on EvalPlus, demonstrating superior code generation and comprehension abilities, particularly in scenarios requiring step-by-step reasoning.
+
+\paragraph{Mathematical Reasoning}
+Kimi-K2-Base exhibits exceptional mathematical capabilities, leading on three out of four benchmarks: MATH (70.22\%), GSM8K (92.12\%), and GSM8K-Platinum (94.21\%). It maintains competitive performance on CMATH (90.26\%), narrowly behind DeepSeek-V3-Base (90.53\%). These results highlight the model's robust mathematical problem-solving abilities across varying difficulty levels.
+
+\paragraph{Chinese Language Understanding}
+The model demonstrates superior multilingual capabilities, achieving state-of-the-art results across all Chinese language benchmarks: C-Eval (92.50\%), CMMLU (90.90\%), and CSimpleQA (77.57\%). These results establish Kimi-K2-Base as a leading model for Chinese language understanding while maintaining strong performance across other languages.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\input{tables/base_eval}
+
+
+
+\subsection{Safety Evaluation}
+
+\subsubsection{Experiment Settings}
+
+We conducted red-teaming evaluations on Kimi K2 compare with other open-source LLMs. The evaluation covered a range of attack scenarios—including harmful content, privacy content, and security content, as well as different attack strategies such as prompt injection and iterative jailbreak.
+
+We choose \emph{Promptfoo}\footnote{\url{https://github.com/promptfoo/promptfoo}} to generate adversarial prompts and analyze the responses. By this way, we can evaluate model in a scalable ways.
+
+\textbf{Model Selection} We compare Kimi K2 with three other open-source LLMs: DeepSeek-V3, DeepSeek-R1, and Qwen3.
+
+\textbf{Promptfoo Settings} Table~\ref{tab:safety-stategy} lists plugins and strategies evaluated, with each plugin paired with all strategies to assess their performance.
+
+\renewcommand{\arraystretch}{1.2}
+\begin{table}[h]
+\centering
+\footnotesize
+\caption{Enabled Plugins and Strategies}
+\label{tab:safety-stategy}
+\setlength{\tabcolsep}{1.9pt}
+\begin{tabular}{|c|c|p{12cm}|}    
+\hline
+\multirow{5}{*}{Plugin} & Harmful & Graphic Content, Harassment and Bullying, Hate Speech, Insults, Profanity, Radicalization, Self Harm, Sexual Content, ToxicChat \\ \cline{2-3}
+                      & Criminal & Chemical\&Biological Weapons, Child Exploitation, Copyright Violations, Cybercrime, Illegal Activities, Illegal Drugs, Indiscriminate Weapons, Intellectual Property Violation, Non-Violent Crime, Violent Crime, Sex Crimes \\ \cline{2-3}
+                      & Misinformation & Competitor Endorsement, Unsupervised Contracts, Excessive Agency, Hallucination, Misinformation and Disinformation, Specialized Advice, Unsafe Practices, Imitation, Overreliance, Political Opinions, Religious Sensitivity \\ \cline{2-3}
+                      & Privacy & Privacy Violation, PII in API/Database, Direct PII Exposure, PII in Session Data, PII via Social Engineering \\ \cline{2-3}
+                      & Security & ASCII Smuggling, CyberSecEval, Harmbench, Debug Access, Divergent Repetition, DoNotAnswer, Malicious Code, Pliny, Prompt Extraction, Reasoning DoS, Tool Discovery \\ \hline
+Strategy              & \multicolumn{2}{p{10cm}|}{Basic, Prompt Injection, Iterative Jailbreak, Crescendo} \\ \hline
+\end{tabular}
+\label{tab:plugin-strategy}
+\end{table}
+\renewcommand{\arraystretch}{1.0}
+
+
+\textbf{Test Case Count} Given the inherent non-determinism of large language model inference, single-pass outputs may exhibit variability. To account for this, we generated 3 attack prompts per plugin for each strategy.
+
+\textbf{Prompt Language Settings} We pre-tested the language compatibility for each plugin-strategy combination. Some plugins support both English and Chinese, while others only support English. For combinations that support both, we generated 3 prompts in each language, resulting in 6 prompts per combination.
+
+\textbf{Manual Review} We incorporated human review into the evaluation process. To minimize subjectivity problem, we conducted multiple rounds of review and assigned the same reviewer to evaluate all cases within a given test set to ensure consistency and reduce variability in judgment.
+
+\subsubsection{Safety Evaluation Results}
+Table~\ref{tab:safety-eval} presents the passing rates of different models under various plugin–strategy combinations.
+
+\input{tables/safety_eval}
+
+Without targeted optimization for specific evaluation scenarios, the passing rate of some complex cases (e.g., Harmful–Iterative Jailbreak) was relatively higher compared to other models.
+
+Across different attack strategies, the models exhibited varying trends. Under the Base64 strategy, passing rates generally approached or reached 100\%, suggesting that encoding transformations had minimal impact on the models’ basic robustness. In contrast, the Crescendo strategy led to a general drop in passing rates, indicating stronger adversarial effectiveness.
+
+In addition, complex attack strategies do not always outperform basic prompts. Some originally adversarial prompts may lose their intended meaning after multiple rounds of transformation, rendering the resulting model outputs less meaningful.
+
+\textbf{Automated Red-teaming Limitations }Due to the involvement of human review, the evaluation results inevitably contain a degree of subjectivity. Additionally, certain plugin types involve API misuse or external tool invocation, which are more suitable for evaluating agent models with tool-calling capabilities. In the context of base LLMs, such tests may have limited relevance.
+
+
+
+
+
+

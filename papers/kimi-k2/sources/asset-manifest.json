@@ -1,0 +1,410 @@
+[
+  {
+    "path": "assets/dm-sans-OFL.txt",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "7ec15e79c59bc14b86436a17e5eb7926b46cbcaeb08e1a7e6c110b415e6eb2a2",
+    "bytes": 4388
+  },
+  {
+    "path": "assets/dm-sans.woff2",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "468d56b6b25b05b70190b6c233d773f6f1770e8579827ce022a57f03fa8002fb",
+    "bytes": 36980
+  },
+  {
+    "path": "assets/favicon.svg",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "05bf498905fc6668d9719cf42489dbe7990e478b5f55a0ed877cf6da047e8f45",
+    "bytes": 289
+  },
+  {
+    "path": "assets/figures/3x_stream.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "95e4f99d10d3d6a4e158d9d1803659829ccc2bd831784fc7567de7c1372dd353",
+    "bytes": 107443
+  },
+  {
+    "path": "assets/figures/doubleQheads.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "75cb80270c99db226d2f63db32f57f9915a4643360e2c69513a964b46dc69a06",
+    "bytes": 193495
+  },
+  {
+    "path": "assets/figures/k2-bench-bar-chart.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "9373cbf3416fcde6d1bd3b118bc6623a5395c942e4259d51a92a69bab0aee333",
+    "bytes": 366576
+  },
+  {
+    "path": "assets/figures/loss_vs_tokens_white.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "38d6eb70948c3bec9231705f483c1c4b85b131a3704a0baa57075ceb9b259789",
+    "bytes": 160490
+  },
+  {
+    "path": "assets/figures/muon-K2-max-logits.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "f87fea2ae500b266173b09f1015abf89eea82cd0ca09a4c4161a15c42026c381",
+    "bytes": 136080
+  },
+  {
+    "path": "assets/figures/muon-MN-max-logits.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "5b180e1e5af2b02e6a247590a8fcdc1288abb401e66a5f6e61cfe36bd259734b",
+    "bytes": 144389
+  },
+  {
+    "path": "assets/figures/muon-qkclip_vs_noclip.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "baf0ffcff0cba79fa389f269ad215ea87d434bf92de6ed37525c50435bae8662",
+    "bytes": 131126
+  },
+  {
+    "path": "assets/figures/new-rl-reload-2-stage-pipeline.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "db4c5d8a1aaa4731f9b0bee31d0cac767c9e9bfeea84539f32f3215113d88d70",
+    "bytes": 18092
+  },
+  {
+    "path": "assets/figures/new-rl-reload-3-stage-pipeline.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "d883d0ee0a899edb0c176299818236efeaa7539a37e004d90641529af830d867",
+    "bytes": 74542
+  },
+  {
+    "path": "assets/figures/new-rl-reload-pcie-bound-3-stage-pipeline.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "3fed1ef26c0998196bdebaecb12ced7dd70a2b057099dfb43b63b23513cad4d7",
+    "bytes": 16352
+  },
+  {
+    "path": "assets/figures/posttrain_inhouse_eval.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "24d59b2223858f1136380cef9374806c7f3c4a1f1885282b34428d0f6916dbb2",
+    "bytes": 123896
+  },
+  {
+    "path": "assets/figures/rl-ipc.drawio.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "324d0ea3295bceed98d2988bf1691683405064ce57cf4b7494a513d498cc0d91",
+    "bytes": 41965
+  },
+  {
+    "path": "assets/figures/scaling_law_validation_loss.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "c7769b8a494bffd75288c1548111142be6359a4ced6b6810fb9f88d8f31848c3",
+    "bytes": 314147
+  },
+  {
+    "path": "assets/figures/synthetic_data_rephrase.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "e63c8259c73e17f52220b6f25d401778c9a3c4eae8a538875d4010e5f3613441",
+    "bytes": 69107
+  },
+  {
+    "path": "assets/figures/tool_repo_synthesis.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "4b7cda8bd2a79166c3d1fba06d249386b2b6d5b45bd6a263fab3520f74ae0b49",
+    "bytes": 60868
+  },
+  {
+    "path": "assets/figures/tool_traj_synthesis.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "7707fad32c9beec3d22f61a047c6228e3028b67bb16ef85bbcdd48a59726cac4",
+    "bytes": 64639
+  },
+  {
+    "path": "assets/figures/tsne_tool_mcp.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "ad12604aa090c74d681c77d04c01e3bbeec0ec91ff10b14f191b0e1f660d986f",
+    "bytes": 680131
+  },
+  {
+    "path": "assets/figures/tsne_tool_synthetic.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "f9e463e7e16ae2f842bd6b5ae62c9056c550463ec15e55e8213c22f651cd9d22",
+    "bytes": 1463043
+  },
+  {
+    "path": "assets/generated/architecture.mmd",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "d19281af80a7359e4beadd883d565dd731309ff257402d5be528423bda3a556b",
+    "bytes": 773
+  },
+  {
+    "path": "assets/generated/architecture.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "a468d18bb0cf6d9ace47caa78629b4a452397e4d58579ad2219e170c1128a7e4",
+    "bytes": 191567
+  },
+  {
+    "path": "assets/generated/architecture.svg",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "01802264a60f11d9788b1225c0ea233c37d3e4e0b0118d78d6f9a90e30e646b2",
+    "bytes": 26506
+  },
+  {
+    "path": "assets/generated/rl-loop.mmd",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "a969438182250e04529fb718a91f35d5ce5fbe82686d0581b82db03ebf6e659d",
+    "bytes": 736
+  },
+  {
+    "path": "assets/generated/rl-loop.png",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "d6ed42ef3d4a27acd98ba23c59fc2d9182687978e38370392f7ccae0dcdb108d",
+    "bytes": 181147
+  },
+  {
+    "path": "assets/generated/rl-loop.svg",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "9fa2e64707c9bc14b5f8c73d5aeaf7e955ecf2b7adeb92913450412914dd5c6d",
+    "bytes": 24835
+  },
+  {
+    "path": "assets/ibm-plex-mono-OFL.txt",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "d741e57d5f865e294df801f96b7b5161a88b211df65887e4358d271c9fc5fb4f",
+    "bytes": 4362
+  },
+  {
+    "path": "assets/ibm-plex-mono.woff2",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "c36f509c0a8f9f85f29cb44bc8701d8a9e0b14c499e77a884f789ead7093a7ac",
+    "bytes": 10052
+  },
+  {
+    "path": "assets/original/3x_stream.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "d7e20bc58ead0e401c692fb99642ef262ee97c12184731ca78598219cad1657e",
+    "bytes": 24947
+  },
+  {
+    "path": "assets/original/doubleQheads.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "5755e336faaf742a5824f5fa51ca9d8fe345a4223b6d261fef96dd16752f90cc",
+    "bytes": 24668
+  },
+  {
+    "path": "assets/original/k2-bench-bar-chart.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "fd2206d93acff4eaf0ed7145e68437f43e25de93afb7e5c2d4e8fb4a5fc898fc",
+    "bytes": 423919
+  },
+  {
+    "path": "assets/original/loss_vs_tokens_white.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "3093eb3e2a9d62ce8750ce73b262656f50ac4f1c2498b6086d1226449133310f",
+    "bytes": 126692
+  },
+  {
+    "path": "assets/original/muon-K2-max-logits.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "1e3638306c7826f6c15787fdd755e7edfe418f96cd3083cf651bab3d81437d80",
+    "bytes": 128950
+  },
+  {
+    "path": "assets/original/muon-MN-max-logits.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "27e133d94013d5239520fc686985878250ff4595869edc919e1477bdf546a360",
+    "bytes": 38879
+  },
+  {
+    "path": "assets/original/muon-qkclip_vs_noclip.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "fe323f9e85cc0463aa1791cbf67a03f664671aca920e5304a5aadd70b549a243",
+    "bytes": 14731
+  },
+  {
+    "path": "assets/original/new-rl-reload-2-stage-pipeline.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "f8b1bd5c30ce336e7a3aa7cb113d5470d67bfdfc949e19ff3cc7941c5bc22b0b",
+    "bytes": 4867
+  },
+  {
+    "path": "assets/original/new-rl-reload-3-stage-pipeline.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "949336089138c1fb8173e76bf0fe71b0d920b1208e6515e94ddf4eb94710f19a",
+    "bytes": 19349
+  },
+  {
+    "path": "assets/original/new-rl-reload-pcie-bound-3-stage-pipeline.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "b1afd27deae7cd9ed9ed52ca263077de4788bd6cefbb1c96245eaf44b8f1355d",
+    "bytes": 3912
+  },
+  {
+    "path": "assets/original/posttrain_inhouse_eval.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "d15acf4751eeb9049f1786f1eb135b6f39b3d3f4695667553f0eb0acec848494",
+    "bytes": 23537
+  },
+  {
+    "path": "assets/original/rl-ipc.drawio.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "49b65968ee05f9fcad2fcbeb9d6d298ce68b510fbfbf50c447e70db0ad3366bc",
+    "bytes": 35526
+  },
+  {
+    "path": "assets/original/scaling_law_validation_loss.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "8e69ef256ac29a5b1acf698bc9b702c710c5bfa391cc0fb9bf7460e11cc63283",
+    "bytes": 50141
+  },
+  {
+    "path": "assets/original/synthetic_data_rephrase.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "c07d137f459a0b5ef0f73c6f64c6e5ce0429938c667e810f6629584336228be1",
+    "bytes": 30583
+  },
+  {
+    "path": "assets/original/tool_repo_synthesis.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "529ef02d92a0c43362c37986af7a45b4db71b7319bcf3169e943ad25044cd940",
+    "bytes": 24027
+  },
+  {
+    "path": "assets/original/tool_traj_synthesis.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "13883fa491be9ba540bc51e4bcae990422bc7a7ca32e39d1688db18d431ce90e",
+    "bytes": 23258
+  },
+  {
+    "path": "assets/original/tsne_tool_mcp.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "b85d3c886316ccc59ef554de24b5cf81778782e16e79c9f7cdeb27633669b5da",
+    "bytes": 575456
+  },
+  {
+    "path": "assets/original/tsne_tool_synthetic.pdf",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "97643038724e1edfceafa5c87b98f674c470c3e03952cae6b589e0ca27d9b5ec",
+    "bytes": 2876381
+  },
+  {
+    "path": "assets/reading.css",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "a4489673cf23c1a314f11301b8ba636abfef91ae27b40e1d9179911e55a43c1f",
+    "bytes": 18686
+  },
+  {
+    "path": "assets/reading.js",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "a483cf1d8115555e6c28bffbe15df46136b44f5447dd3683eee6d4ba4be88072",
+    "bytes": 6580
+  },
+  {
+    "path": "assets/site.css",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "ba659b3c249a1aec6e665f6694735043a3ac0ae9856bd15a08ae2f462f1b08f8",
+    "bytes": 7351
+  },
+  {
+    "path": "assets/tables/table-1.csv",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "c2c725042555922afc3c01c201db694fcf4c648ad006ced882a5a4d91ad1118c",
+    "bytes": 94
+  },
+  {
+    "path": "assets/tables/table-1.html",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "f284c61b304d601824078fef724e6e7055f56129411ac7c117688ca1604988a9",
+    "bytes": 237
+  },
+  {
+    "path": "assets/tables/table-1.tex",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "a0b05df07af254bcf318eead69b36325b140729c5b65439ec5812ba95a2121eb",
+    "bytes": 352
+  },
+  {
+    "path": "assets/tables/table-2.csv",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "643dd531f81dc3a1b8882d0b24ad66adb2058317efa967839e9802571e588ec6",
+    "bytes": 300
+  },
+  {
+    "path": "assets/tables/table-2.html",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "2c23d0148a9568a272c9635449413fe8532cfd090cb977a69fe3b2534c7c1326",
+    "bytes": 766
+  },
+  {
+    "path": "assets/tables/table-2.tex",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "bd70a898f507c4b3147ade6cb692edaac3b48ffcd6fa78beb5f2823647d00881",
+    "bytes": 668
+  },
+  {
+    "path": "assets/tables/table-3.csv",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "5f643652eae8592c88ab1ddbba299244ea07ce2b71b83a99234e04827984f646",
+    "bytes": 2801
+  },
+  {
+    "path": "assets/tables/table-3.html",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "a18fb26d6c5a7ad4be4bcebc0647aa9e1a0f26322f89d8392a1c29d1b9f64c7c",
+    "bytes": 8049
+  },
+  {
+    "path": "assets/tables/table-3.tex",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "e518c06a47bce7ceaa11015cfb21d7640ca7b4f7c0e45d6389913333812d99a5",
+    "bytes": 5944
+  },
+  {
+    "path": "assets/tables/table-4.csv",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "9eda8124b81f21a100aee877e4a224501df13be4d34f220bc4dc2bd2ca6cd182",
+    "bytes": 1349
+  },
+  {
+    "path": "assets/tables/table-4.html",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "19349285a64453d4f221a68d97db95d3b760ed298905a7441e718ee95eb2b8b5",
+    "bytes": 3585
+  },
+  {
+    "path": "assets/tables/table-4.tex",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "f61bb6ccef181a118b563a55b85bc45667b871b6ee978b66c7a79a4c78cbf5fb",
+    "bytes": 2330
+  },
+  {
+    "path": "assets/tables/table-5.csv",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "24188cb61758c7edfa96864debd662a7ebd5dd8509c6c9d09f770fa1e2e1b89e",
+    "bytes": 984
+  },
+  {
+    "path": "assets/tables/table-5.html",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "1c3b17e5de55433cffbc7b0e6ade088692f94be56c97220a1e354cb9dc0b7e01",
+    "bytes": 1187
+  },
+  {
+    "path": "assets/tables/table-5.tex",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "c812e9c5b587d5ccad84099101e12c6ab3051a4f5a4688b228113f8bf11f19c7",
+    "bytes": 1445
+  },
+  {
+    "path": "assets/tables/table-6.csv",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "dcc2b53433b3319d8d2024bab1ab7c3e4a6138afe5011dd1b7d3315429ffd71f",
+    "bytes": 1215
+  },
+  {
+    "path": "assets/tables/table-6.html",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "51a0b339535298c7a06a143bd5f22a171629cdb444d61367b0e8e337df8dc48d",
+    "bytes": 2788
+  },
+  {
+    "path": "assets/tables/table-6.tex",
+    "source": "arXiv:2507.20534v2 official TeX",
+    "sha256": "bc8bcef6e021d5d1d3623b0f16e084917a01314375809281823f50f608dbfaa7",
+    "bytes": 1784
+  }
+]

@@ -1,0 +1,62 @@
+<figure class="ltx_figure" id="A4.F24">
+<table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_align_top ltx_th ltx_th_column ltx_border_tt"><span class="ltx_text ltx_font_bold" style="font-size:90%;">WSC (Winograd Schema Challenge)</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top" style="width:327.8pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold" style="font-size:90%;">Example prompt</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top" style="width:327.8pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_typewriter" style="font-size:90%;">Final Exam with Answer Key</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top" style="width:327.8pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_typewriter" style="font-size:90%;">Instructions: Please carefully read the following passages. For each passage, you must identify which noun the pronoun marked in bold refers to.</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top" style="width:327.8pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_typewriter" style="font-size:90%;">Passage: Jane gave Joan candy because she was hungry.</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top" style="width:327.8pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_typewriter" style="font-size:90%;">Question: In the passage above, what does the pronoun ‘‘she’’ refer to?</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top" style="width:327.8pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_typewriter" style="font-size:90%;">Answer: [target completion: ‘‘Joan’’]</span></span>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb ltx_border_t">
+<span class="ltx_inline-block ltx_align_top" style="width:327.8pt;">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold" style="font-size:90%;">Dataset features</span></span>
+<span class="ltx_itemize">
+<span class="ltx_item" style="list-style-type:none;"><span class="ltx_tag ltx_tag_item">•</span>
+<span class="ltx_para">
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">104 binary multiple choice questions.</span></span>
+</span></span>
+<span class="ltx_item" style="list-style-type:none;"><span class="ltx_tag ltx_tag_item">•</span>
+<span class="ltx_para">
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">In the few-shot setting, there are 15 additional question/answer pairs.</span></span>
+</span></span>
+<span class="ltx_item" style="list-style-type:none;"><span class="ltx_tag ltx_tag_item">•</span>
+<span class="ltx_para">
+<span class="ltx_p"><span class="ltx_text" style="font-size:90%;">Note that the task as originally constructed in the SuperGLUE is in the format of a binary question (e.g. “the pronoun she refers to Joan, True or False?”). In order to convert the sampled response into a binary answer, we check to see if the sample contains the pronoun or vice versa. If so, we reply “True”, otherwise “False”.</span></span>
+</span></span>
+</span>
+</span></td></tr>
+</tbody>
+</table>
+
+</figure>
