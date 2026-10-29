@@ -156,7 +156,7 @@
 <p><strong>Paper。</strong>首次后训练只用文本 SFT，包含推理、代码和工具交互行为。此时模型已通过联合预训练学会把视觉编码映射到语言空间，因此在图像任务中能调用 IPython 做裁切、计算或视觉验证。作者报告加入视觉 SFT 的初步尝试反而较差，并推测可能与视觉指令数据质量不足有关。</p>
 <p><strong>重构数据流。</strong>图像 → 视觉编码 / projector → 语言 hidden；用户问题 → 生成工具调用 → 环境执行 → 工具结果加入上下文 → 模型继续推理 → 输出答案。text-only SFT 主要教会后半段的行为格式与工具策略，前半段对齐由预训练提供。迁移不是“图像 token 变成文本字符”，而是共享 backbone 接收不同来源的 embedding 后，使用已经学会的 action vocabulary。</p>
 <p><strong>证据边界。</strong>没有完整、等 token、等训练计算的 text-only 对 text+vision SFT 数值消融，无法证明视觉 SFT 一般有害。Appendix B 的预训练数据明确含人工 GUI 轨迹；后续视觉 RL 与 rejection fine-tuning 又产生视觉轨迹。零视觉只限定这个 SFT 阶段。</p>
-<figure class="generated" id="training-flow"><img alt="共享表征、行为迁移与可学习分工" src="assets/generated/training-flow.svg"/><figcaption>Agent-created Visualization · 共享表征、行为迁移与可学习分工。<a href="assets/generated/training-flow.mmd">Mermaid source</a>。解释性简化图，不替代原论文图。</figcaption></figure>
+<figure class="generated" id="training-flow"><picture><source media="(max-width: 600px)" srcset="assets/generated/training-flow-mobile.svg"/><img alt="共享表征、行为迁移与可学习分工" src="assets/generated/training-flow.svg"/></picture><figcaption>Agent-created Visualization · 共享表征、行为迁移与可学习分工。<a href="assets/generated/training-flow.mmd">Mermaid source</a>。解释性简化图，不替代原论文图。点击可放大。</figcaption></figure>
 <p><strong>解释图如何读。</strong>上半部分形成共享视觉—语言表示，下半部分激活工具与结果导向行为。PARL 是另一个训练目标：学习任务调度。图中的冻结执行者表示该阶段不更新其参数，并不表示它从来没有训练。</p>
 <h3 id="subsection-3">2.3 Joint Multimodal RL：用可验证结果约束视觉推理</h3>
 <p><strong>Paper · How。</strong>视觉 outcome RL 覆盖 grounding / counting、图表与文档理解，以及必须观察图像才能解答的 STEM 问题。成功轨迹经过 rejection sampling，再用于 fine-tuning，形成自我改进链路。任务设计试图阻止模型仅凭语言先验猜答案。</p>
@@ -351,7 +351,7 @@ r(x,y)&amp;\text{if }\lfloor t/m\rfloor\pmod{2}=1\ (\mathrm{{Phase1}})\end{cases
 <p><strong>Figure 5 如何读。</strong>分别看能力雷达和 token usage 雷达，比较 token-efficient RL 前后；更短输出需结合得分解释。这张图的模型是 <strong>Kimi K2 Thinking</strong>，作者报告输出减少约 25–30%，并非 K2.5 独立 Toggle 消融。Table 5 更接近最终 K2.5 的得分—长度观察，也仍包含整个训练链路的变化。</p>
 <h3 id="subsection-11">4.5 Infrastructure：DEP 把视觉工作移出 PP0 瓶颈</h3>
 <p><strong>Paper · Decoupled Encoder Process。</strong>若 ViT 只放在 pipeline 第一阶段，视觉比例和图像大小变化会导致 PP0 负载抖动，后级等待。DEP 在各 GPU 复制视觉编码器，把视觉输入分布处理；保留视觉输出、丢弃中间 activation，汇集到 PP0；文本 backbone forward / backward 后，视觉重计算并执行 backward，再同步梯度。</p>
-<figure class="generated" id="dep-flow"><img alt="Decoupled Encoder Process 的三个阶段" src="assets/generated/dep-flow.svg"/><figcaption>Agent-created Visualization · Decoupled Encoder Process 的三个阶段。<a href="assets/generated/dep-flow.mmd">Mermaid source</a>。解释性简化图，不替代原论文图。</figcaption></figure>
+<figure class="generated" id="dep-flow"><picture><source media="(max-width: 600px)" srcset="assets/generated/dep-flow-mobile.svg"/><img alt="Decoupled Encoder Process 的三个阶段" src="assets/generated/dep-flow.svg"/></picture><figcaption>Agent-created Visualization · Decoupled Encoder Process 的三个阶段。<a href="assets/generated/dep-flow.mmd">Mermaid source</a>。解释性简化图，不替代原论文图。点击可放大。</figcaption></figure>
 <p><strong>箭头与成本。</strong>视觉 forward 分散了负载；gather 把结果送入语言 pipeline；recompute 以计算换激活内存。复制 ViT 增加权重驻留，gather / 梯度同步增加通信。作者称多模态训练保持约 90% 的纯文本训练效率，但未给足可独立复算的绝对吞吐、模态组成、硬件 / batch / denominator。因此不能推为所有工作负载仅 10% 开销。</p>
 <p><strong>TTFT / TPOT 关联。</strong>DEP 是训练并行，不是公开 serving 的直接优化。在线视觉编码和长视觉 prefill 会增加 TTFT；decode 的每 token MLA 历史读取和 MoE 权重 / EP 通信影响 TPOT；Swarm 的用户任务完成时间还包含工具与汇总。这三种时间不能相互替代。</p>
 <h2 id="section-7">5. Evaluations：完整结果与预算对齐</h2>

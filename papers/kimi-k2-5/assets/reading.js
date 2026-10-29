@@ -32,10 +32,10 @@
     img.setAttribute('aria-label', 'Zoom: ' + img.alt);
     const open = () => {
       previousFocus = img;
-      byId('modal-image').src = img.src;
+      byId('modal-image').src = img.currentSrc || img.src;
       byId('modal-image').alt = img.alt;
       byId('modal-caption').textContent = img.closest('figure').querySelector('figcaption')?.textContent || img.alt;
-      byId('modal-source').href = img.src;
+      byId('modal-source').href = img.currentSrc || img.src;
       modal.showModal();
     };
     img.addEventListener('click', open);
