@@ -1,0 +1,81 @@
+<figure class="original-table" id="table-8">
+<div aria-label="Original Table 8" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_right ltx_border_tt" scope="col">Params</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" colspan="2" scope="col">HumanEval</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" colspan="2" scope="col">MBPP</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left" scope="col">pass@</th>
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td ltx_align_center" scope="col">@1</th>
+<th class="ltx_td ltx_align_center" scope="col">@100</th>
+<th class="ltx_td ltx_align_center" scope="col">@1</th>
+<th class="ltx_td ltx_align_center" scope="col">@80</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">LaMDA</td>
+<td class="ltx_td ltx_align_right ltx_border_t">137B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">14.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">47.3</td>
+<td class="ltx_td ltx_align_center ltx_border_t">14.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">62.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM</td>
+<td class="ltx_td ltx_align_right">8B</td>
+<td class="ltx_td ltx_align_center">3.6<sup class="ltx_sup">∗</sup></td>
+<td class="ltx_td ltx_align_center">18.7<sup class="ltx_sup">∗</sup></td>
+<td class="ltx_td ltx_align_center">5.0<sup class="ltx_sup">∗</sup></td>
+<td class="ltx_td ltx_align_center">35.7<sup class="ltx_sup">∗</sup></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">15.9</td>
+<td class="ltx_td ltx_align_center">46.3<sup class="ltx_sup">∗</sup></td>
+<td class="ltx_td ltx_align_center">21.4</td>
+<td class="ltx_td ltx_align_center">63.2<sup class="ltx_sup">∗</sup></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM-cont</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">23.7</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">31.2</td>
+<td class="ltx_td ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM</td>
+<td class="ltx_td ltx_align_right">540B</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">26.2</strong></td>
+<td class="ltx_td ltx_align_center">76.2</td>
+<td class="ltx_td ltx_align_center">36.8</td>
+<td class="ltx_td ltx_align_center">75.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">10.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">36.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">17.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">56.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">15.8</td>
+<td class="ltx_td ltx_align_center">52.5</td>
+<td class="ltx_td ltx_align_center">22.0</td>
+<td class="ltx_td ltx_align_center">64.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center">21.7</td>
+<td class="ltx_td ltx_align_center">70.7</td>
+<td class="ltx_td ltx_align_center">30.2</td>
+<td class="ltx_td ltx_align_center">73.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">23.7</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">79.3</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">37.7</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">76.8</strong></td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 8: </span>
+<strong class="ltx_text ltx_font_bold">Model performance for code generation.</strong>
+We report the pass@ score on HumanEval and MBPP. HumanEval generations are done in zero-shot and MBBP with 3-shot prompts similar to <cite class="ltx_cite ltx_citemacro_citet">Austin et al. (2021)</cite>. The values marked with <sup class="ltx_sup">∗</sup> are read from figures in <cite class="ltx_cite ltx_citemacro_citet">Chowdhery et al. (2022)</cite>.
+
+</figcaption>
+<p class="fine">Original paper · Table 8. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>

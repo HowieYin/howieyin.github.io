@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "llama",
+      "title": "LLaMA：把训练多花的钱，换成每次推理少花的钱",
+      "metadata": "2023 · Meta AI · arXiv v1 · Read October 29, 2026 · LLM / Training / Inference",
+      "readDate": "2026-10-29",
+      "description": "All 3 original figures, 16 complete tables and 16 appendix samples; historical MHA/RMSNorm/RoPE/SwiGLU code checks, analytical KV and lifetime-cost explorers, per-op costs, experiment audits, and dated follow-up research.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "gpt3",
       "title": "GPT-3：参数规模如何改变上下文学习",
       "metadata": "NeurIPS 2020 · arXiv v4 · Read October 29, 2026 · Training / Scaling / In-Context Learning",
