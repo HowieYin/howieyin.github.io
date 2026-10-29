@@ -1,0 +1,2215 @@
+{
+  "url": "http://127.0.0.1:8894/papers/deepseek-v2/",
+  "results": [
+    {
+      "width": 375,
+      "scrollWidth": 375,
+      "figures": 5,
+      "images": 6,
+      "equations": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "tables": 37,
+      "diagrams": 3,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 17.015625,
+          "height": 17.390625
+        },
+        {
+          "width": 80.875,
+          "height": 22.203125
+        },
+        {
+          "width": 17.640625,
+          "height": 18.421875
+        },
+        {
+          "width": 80.140625,
+          "height": 22.03125
+        },
+        {
+          "width": 16.859375,
+          "height": 13.765625
+        },
+        {
+          "width": 79.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 44.9375,
+          "height": 24.140625
+        },
+        {
+          "width": 159.1875,
+          "height": 25.234375
+        },
+        {
+          "width": 45.5625,
+          "height": 20.75
+        },
+        {
+          "width": 161.0625,
+          "height": 21.84375
+        },
+        {
+          "width": 44.78125,
+          "height": 20.75
+        },
+        {
+          "width": 158.71875,
+          "height": 21.84375
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 246.34375,
+          "height": 59.390625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 22.09375,
+          "height": 23.1875
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.3125,
+          "height": 21.15625
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 21.46875,
+          "height": 24.25
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 417.015625,
+          "height": 25.546875
+        },
+        {
+          "width": 392.125,
+          "height": 41
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 358.59375,
+          "height": 56.53125
+        },
+        {
+          "width": 18.171875,
+          "height": 23.65625
+        },
+        {
+          "width": 393.3125,
+          "height": 55.0625
+        },
+        {
+          "width": 25.203125,
+          "height": 19.40625
+        },
+        {
+          "width": 375.859375,
+          "height": 62
+        },
+        {
+          "width": 22.875,
+          "height": 15.71875
+        },
+        {
+          "width": 174.6875,
+          "height": 23.703125
+        },
+        {
+          "width": 57.109375,
+          "height": 20.640625
+        },
+        {
+          "width": 120.671875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.1875,
+          "height": 18.4375
+        },
+        {
+          "width": 320.578125,
+          "height": 55.1875
+        },
+        {
+          "width": 16.03125,
+          "height": 17.3125
+        },
+        {
+          "width": 106.984375,
+          "height": 55.1875
+        },
+        {
+          "width": 57.578125,
+          "height": 17.6875
+        },
+        {
+          "width": 121.296875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.5,
+          "height": 23.671875
+        },
+        {
+          "width": 123.03125,
+          "height": 50.328125
+        },
+        {
+          "width": 16.34375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 74.5625,
+          "height": 17.703125
+        },
+        {
+          "width": 129.578125,
+          "height": 55.0625
+        },
+        {
+          "width": 20.640625,
+          "height": 23.671875
+        },
+        {
+          "width": 338.890625,
+          "height": 55.1875
+        },
+        {
+          "width": 20.484375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 293,
+          "height": 36.828125
+        },
+        {
+          "width": 817.71875,
+          "height": 98.1875
+        },
+        {
+          "width": 415.1875,
+          "height": 45.5625
+        },
+        {
+          "width": 259.609375,
+          "height": 45.4375
+        },
+        {
+          "width": 164.328125,
+          "height": 22.1875
+        },
+        {
+          "width": 471.953125,
+          "height": 22.1875
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 200.34375,
+          "height": 27.0625
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 202.84375,
+          "height": 26
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 199.71875,
+          "height": 24.21875
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        }
+      ],
+      "contentsOpen": false,
+      "initialCache": "S=131072, batch=1, nominal bits=16\nV2 MLA=8.4375 GiB; 67B GQA8=47.5000 GiB; expanded V2=600.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 2\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "sixCache": "S=131072, batch=1, nominal bits=6\nV2 MLA=3.1641 GiB; 67B GQA8=17.8125 GiB; expanded V2=225.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 7\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "absorption": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[0.680000, 0.020000]\nScores=[0.554256, -0.427239, 1.004589]\nSoftmax weights=[0.339722, 0.127311, 0.532967]\nLatent aggregate z=[1.278346, 0.273787]\nAbsorbed output=[0.557037, 1.077434]\nExpanded reference=[0.557037, 1.077434]\nMaximum absolute error=2.22e-16",
+      "second": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[-0.400000, 0.600000]\nScores=[0.375278, 0.606218, -0.952628]\nSoftmax weights=[0.396069, 0.498961, 0.104971]\nLatent aggregate z=[0.107049, 1.186127]\nAbsorbed output=[-0.302313, 0.322865]\nExpanded reference=[-0.302313, 0.322865]\nMaximum absolute error=1.11e-16",
+      "route": "Allowed device groups: 0, 1, 2\nSelected experts: 0, 20, 40, 8, 27, 46\nActual device fan-out=3 ≤ 3; routed expert assignments=6\nOverlap with unrestricted top-6: 3/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "unrestricted": "Allowed device groups: 0, 1, 2, 3, 4, 5, 6, 7\nSelected experts: 0, 20, 40, 60, 80, 100\nActual device fan-out=6 ≤ 8; routed expert assignments=6\nOverlap with unrestricted top-6: 6/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "errors": []
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "figures": 5,
+      "images": 6,
+      "equations": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "tables": 37,
+      "diagrams": 3,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 17.015625,
+          "height": 17.390625
+        },
+        {
+          "width": 80.875,
+          "height": 22.203125
+        },
+        {
+          "width": 17.640625,
+          "height": 18.421875
+        },
+        {
+          "width": 80.140625,
+          "height": 22.03125
+        },
+        {
+          "width": 16.859375,
+          "height": 13.765625
+        },
+        {
+          "width": 79.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 44.9375,
+          "height": 24.140625
+        },
+        {
+          "width": 159.1875,
+          "height": 25.234375
+        },
+        {
+          "width": 45.5625,
+          "height": 20.75
+        },
+        {
+          "width": 161.0625,
+          "height": 21.84375
+        },
+        {
+          "width": 44.78125,
+          "height": 20.75
+        },
+        {
+          "width": 158.71875,
+          "height": 21.84375
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 246.34375,
+          "height": 59.390625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 22.09375,
+          "height": 23.1875
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.3125,
+          "height": 21.15625
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 21.46875,
+          "height": 24.25
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 417.015625,
+          "height": 25.546875
+        },
+        {
+          "width": 392.125,
+          "height": 41
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 358.59375,
+          "height": 56.53125
+        },
+        {
+          "width": 18.171875,
+          "height": 23.65625
+        },
+        {
+          "width": 393.3125,
+          "height": 55.0625
+        },
+        {
+          "width": 25.203125,
+          "height": 19.40625
+        },
+        {
+          "width": 375.859375,
+          "height": 62
+        },
+        {
+          "width": 22.875,
+          "height": 15.71875
+        },
+        {
+          "width": 174.6875,
+          "height": 23.703125
+        },
+        {
+          "width": 57.109375,
+          "height": 20.640625
+        },
+        {
+          "width": 120.671875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.1875,
+          "height": 18.4375
+        },
+        {
+          "width": 320.578125,
+          "height": 55.1875
+        },
+        {
+          "width": 16.03125,
+          "height": 17.3125
+        },
+        {
+          "width": 106.984375,
+          "height": 55.1875
+        },
+        {
+          "width": 57.578125,
+          "height": 17.6875
+        },
+        {
+          "width": 121.296875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.5,
+          "height": 23.671875
+        },
+        {
+          "width": 123.03125,
+          "height": 50.328125
+        },
+        {
+          "width": 16.34375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 74.5625,
+          "height": 17.703125
+        },
+        {
+          "width": 129.578125,
+          "height": 55.0625
+        },
+        {
+          "width": 20.640625,
+          "height": 23.671875
+        },
+        {
+          "width": 338.890625,
+          "height": 55.1875
+        },
+        {
+          "width": 20.484375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 308,
+          "height": 36.828125
+        },
+        {
+          "width": 817.71875,
+          "height": 98.1875
+        },
+        {
+          "width": 415.1875,
+          "height": 45.5625
+        },
+        {
+          "width": 259.609375,
+          "height": 45.4375
+        },
+        {
+          "width": 164.328125,
+          "height": 22.1875
+        },
+        {
+          "width": 471.953125,
+          "height": 22.1875
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 200.34375,
+          "height": 27.0625
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 202.84375,
+          "height": 26
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 199.71875,
+          "height": 24.21875
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        }
+      ],
+      "contentsOpen": false,
+      "initialCache": "S=131072, batch=1, nominal bits=16\nV2 MLA=8.4375 GiB; 67B GQA8=47.5000 GiB; expanded V2=600.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 2\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "sixCache": "S=131072, batch=1, nominal bits=6\nV2 MLA=3.1641 GiB; 67B GQA8=17.8125 GiB; expanded V2=225.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 7\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "absorption": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[0.680000, 0.020000]\nScores=[0.554256, -0.427239, 1.004589]\nSoftmax weights=[0.339722, 0.127311, 0.532967]\nLatent aggregate z=[1.278346, 0.273787]\nAbsorbed output=[0.557037, 1.077434]\nExpanded reference=[0.557037, 1.077434]\nMaximum absolute error=2.22e-16",
+      "second": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[-0.400000, 0.600000]\nScores=[0.375278, 0.606218, -0.952628]\nSoftmax weights=[0.396069, 0.498961, 0.104971]\nLatent aggregate z=[0.107049, 1.186127]\nAbsorbed output=[-0.302313, 0.322865]\nExpanded reference=[-0.302313, 0.322865]\nMaximum absolute error=1.11e-16",
+      "route": "Allowed device groups: 0, 1, 2\nSelected experts: 0, 20, 40, 8, 27, 46\nActual device fan-out=3 ≤ 3; routed expert assignments=6\nOverlap with unrestricted top-6: 3/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "unrestricted": "Allowed device groups: 0, 1, 2, 3, 4, 5, 6, 7\nSelected experts: 0, 20, 40, 60, 80, 100\nActual device fan-out=6 ≤ 8; routed expert assignments=6\nOverlap with unrestricted top-6: 6/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "errors": []
+    },
+    {
+      "width": 430,
+      "scrollWidth": 430,
+      "figures": 5,
+      "images": 6,
+      "equations": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "tables": 37,
+      "diagrams": 3,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 17.015625,
+          "height": 17.390625
+        },
+        {
+          "width": 80.875,
+          "height": 22.203125
+        },
+        {
+          "width": 17.640625,
+          "height": 18.421875
+        },
+        {
+          "width": 80.140625,
+          "height": 22.03125
+        },
+        {
+          "width": 16.859375,
+          "height": 13.765625
+        },
+        {
+          "width": 79.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 44.9375,
+          "height": 24.140625
+        },
+        {
+          "width": 159.1875,
+          "height": 25.234375
+        },
+        {
+          "width": 45.5625,
+          "height": 20.75
+        },
+        {
+          "width": 161.0625,
+          "height": 21.84375
+        },
+        {
+          "width": 44.78125,
+          "height": 20.75
+        },
+        {
+          "width": 158.71875,
+          "height": 21.84375
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 246.34375,
+          "height": 59.390625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 22.09375,
+          "height": 23.1875
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.3125,
+          "height": 21.15625
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 21.46875,
+          "height": 24.25
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 417.015625,
+          "height": 25.546875
+        },
+        {
+          "width": 392.125,
+          "height": 41
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 358.59375,
+          "height": 56.53125
+        },
+        {
+          "width": 18.171875,
+          "height": 23.65625
+        },
+        {
+          "width": 393.3125,
+          "height": 55.0625
+        },
+        {
+          "width": 25.203125,
+          "height": 19.40625
+        },
+        {
+          "width": 375.859375,
+          "height": 62
+        },
+        {
+          "width": 22.875,
+          "height": 15.71875
+        },
+        {
+          "width": 174.6875,
+          "height": 23.703125
+        },
+        {
+          "width": 57.109375,
+          "height": 20.640625
+        },
+        {
+          "width": 120.671875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.1875,
+          "height": 18.4375
+        },
+        {
+          "width": 320.578125,
+          "height": 55.1875
+        },
+        {
+          "width": 16.03125,
+          "height": 17.3125
+        },
+        {
+          "width": 106.984375,
+          "height": 55.1875
+        },
+        {
+          "width": 57.578125,
+          "height": 17.6875
+        },
+        {
+          "width": 121.296875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.5,
+          "height": 23.671875
+        },
+        {
+          "width": 123.03125,
+          "height": 50.328125
+        },
+        {
+          "width": 16.34375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 74.5625,
+          "height": 17.703125
+        },
+        {
+          "width": 129.578125,
+          "height": 55.0625
+        },
+        {
+          "width": 20.640625,
+          "height": 23.671875
+        },
+        {
+          "width": 338.890625,
+          "height": 55.1875
+        },
+        {
+          "width": 20.484375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 348,
+          "height": 36.828125
+        },
+        {
+          "width": 817.71875,
+          "height": 98.1875
+        },
+        {
+          "width": 415.1875,
+          "height": 45.5625
+        },
+        {
+          "width": 259.609375,
+          "height": 45.4375
+        },
+        {
+          "width": 164.328125,
+          "height": 22.1875
+        },
+        {
+          "width": 471.953125,
+          "height": 22.1875
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 200.34375,
+          "height": 27.0625
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 202.84375,
+          "height": 26
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 199.71875,
+          "height": 24.21875
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        }
+      ],
+      "contentsOpen": false,
+      "initialCache": "S=131072, batch=1, nominal bits=16\nV2 MLA=8.4375 GiB; 67B GQA8=47.5000 GiB; expanded V2=600.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 2\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "sixCache": "S=131072, batch=1, nominal bits=6\nV2 MLA=3.1641 GiB; 67B GQA8=17.8125 GiB; expanded V2=225.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 7\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "absorption": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[0.680000, 0.020000]\nScores=[0.554256, -0.427239, 1.004589]\nSoftmax weights=[0.339722, 0.127311, 0.532967]\nLatent aggregate z=[1.278346, 0.273787]\nAbsorbed output=[0.557037, 1.077434]\nExpanded reference=[0.557037, 1.077434]\nMaximum absolute error=2.22e-16",
+      "second": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[-0.400000, 0.600000]\nScores=[0.375278, 0.606218, -0.952628]\nSoftmax weights=[0.396069, 0.498961, 0.104971]\nLatent aggregate z=[0.107049, 1.186127]\nAbsorbed output=[-0.302313, 0.322865]\nExpanded reference=[-0.302313, 0.322865]\nMaximum absolute error=1.11e-16",
+      "route": "Allowed device groups: 0, 1, 2\nSelected experts: 0, 20, 40, 8, 27, 46\nActual device fan-out=3 ≤ 3; routed expert assignments=6\nOverlap with unrestricted top-6: 3/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "unrestricted": "Allowed device groups: 0, 1, 2, 3, 4, 5, 6, 7\nSelected experts: 0, 20, 40, 60, 80, 100\nActual device fan-out=6 ≤ 8; routed expert assignments=6\nOverlap with unrestricted top-6: 6/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "figures": 5,
+      "images": 6,
+      "equations": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "tables": 37,
+      "diagrams": 3,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 17.015625,
+          "height": 17.390625
+        },
+        {
+          "width": 80.875,
+          "height": 22.203125
+        },
+        {
+          "width": 17.640625,
+          "height": 18.421875
+        },
+        {
+          "width": 80.140625,
+          "height": 22.03125
+        },
+        {
+          "width": 16.859375,
+          "height": 13.765625
+        },
+        {
+          "width": 79.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 44.9375,
+          "height": 24.140625
+        },
+        {
+          "width": 159.1875,
+          "height": 25.234375
+        },
+        {
+          "width": 45.5625,
+          "height": 20.75
+        },
+        {
+          "width": 161.0625,
+          "height": 21.84375
+        },
+        {
+          "width": 44.78125,
+          "height": 20.75
+        },
+        {
+          "width": 158.71875,
+          "height": 21.84375
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 246.34375,
+          "height": 59.390625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 22.09375,
+          "height": 23.1875
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.3125,
+          "height": 21.15625
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 21.46875,
+          "height": 24.25
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 814,
+          "height": 25.546875
+        },
+        {
+          "width": 814,
+          "height": 41
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 814,
+          "height": 56.53125
+        },
+        {
+          "width": 18.171875,
+          "height": 23.65625
+        },
+        {
+          "width": 393.3125,
+          "height": 55.0625
+        },
+        {
+          "width": 25.203125,
+          "height": 19.40625
+        },
+        {
+          "width": 375.859375,
+          "height": 62
+        },
+        {
+          "width": 22.875,
+          "height": 15.71875
+        },
+        {
+          "width": 174.6875,
+          "height": 23.703125
+        },
+        {
+          "width": 57.109375,
+          "height": 20.640625
+        },
+        {
+          "width": 120.671875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.1875,
+          "height": 18.4375
+        },
+        {
+          "width": 320.578125,
+          "height": 55.1875
+        },
+        {
+          "width": 16.03125,
+          "height": 17.3125
+        },
+        {
+          "width": 106.984375,
+          "height": 55.1875
+        },
+        {
+          "width": 57.578125,
+          "height": 17.6875
+        },
+        {
+          "width": 121.296875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.5,
+          "height": 23.671875
+        },
+        {
+          "width": 123.03125,
+          "height": 50.328125
+        },
+        {
+          "width": 16.34375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 74.5625,
+          "height": 17.703125
+        },
+        {
+          "width": 129.578125,
+          "height": 55.0625
+        },
+        {
+          "width": 20.640625,
+          "height": 23.671875
+        },
+        {
+          "width": 338.890625,
+          "height": 55.1875
+        },
+        {
+          "width": 20.484375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 814,
+          "height": 36.828125
+        },
+        {
+          "width": 817.71875,
+          "height": 98.1875
+        },
+        {
+          "width": 415.1875,
+          "height": 45.5625
+        },
+        {
+          "width": 259.609375,
+          "height": 45.4375
+        },
+        {
+          "width": 164.328125,
+          "height": 22.1875
+        },
+        {
+          "width": 471.953125,
+          "height": 22.1875
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 200.34375,
+          "height": 27.0625
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 202.84375,
+          "height": 26
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 199.71875,
+          "height": 24.21875
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        }
+      ],
+      "contentsOpen": true,
+      "initialCache": "S=131072, batch=1, nominal bits=16\nV2 MLA=8.4375 GiB; 67B GQA8=47.5000 GiB; expanded V2=600.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 2\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "sixCache": "S=131072, batch=1, nominal bits=6\nV2 MLA=3.1641 GiB; 67B GQA8=17.8125 GiB; expanded V2=225.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 7\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "absorption": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[0.680000, 0.020000]\nScores=[0.554256, -0.427239, 1.004589]\nSoftmax weights=[0.339722, 0.127311, 0.532967]\nLatent aggregate z=[1.278346, 0.273787]\nAbsorbed output=[0.557037, 1.077434]\nExpanded reference=[0.557037, 1.077434]\nMaximum absolute error=2.22e-16",
+      "second": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[-0.400000, 0.600000]\nScores=[0.375278, 0.606218, -0.952628]\nSoftmax weights=[0.396069, 0.498961, 0.104971]\nLatent aggregate z=[0.107049, 1.186127]\nAbsorbed output=[-0.302313, 0.322865]\nExpanded reference=[-0.302313, 0.322865]\nMaximum absolute error=1.11e-16",
+      "route": "Allowed device groups: 0, 1, 2\nSelected experts: 0, 20, 40, 8, 27, 46\nActual device fan-out=3 ≤ 3; routed expert assignments=6\nOverlap with unrestricted top-6: 3/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "unrestricted": "Allowed device groups: 0, 1, 2, 3, 4, 5, 6, 7\nSelected experts: 0, 20, 40, 60, 80, 100\nActual device fan-out=6 ≤ 8; routed expert assignments=6\nOverlap with unrestricted top-6: 6/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "errors": []
+    },
+    {
+      "width": 1920,
+      "scrollWidth": 1920,
+      "figures": 5,
+      "images": 6,
+      "equations": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "tables": 37,
+      "diagrams": 3,
+      "interactions": 3,
+      "badImages": [],
+      "badAnchors": [],
+      "math": [
+        {
+          "width": 17.015625,
+          "height": 17.390625
+        },
+        {
+          "width": 80.875,
+          "height": 22.203125
+        },
+        {
+          "width": 17.640625,
+          "height": 18.421875
+        },
+        {
+          "width": 80.140625,
+          "height": 22.03125
+        },
+        {
+          "width": 16.859375,
+          "height": 13.765625
+        },
+        {
+          "width": 79.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 44.9375,
+          "height": 24.140625
+        },
+        {
+          "width": 159.1875,
+          "height": 25.234375
+        },
+        {
+          "width": 45.5625,
+          "height": 20.75
+        },
+        {
+          "width": 161.0625,
+          "height": 21.84375
+        },
+        {
+          "width": 44.78125,
+          "height": 20.75
+        },
+        {
+          "width": 158.71875,
+          "height": 21.84375
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 246.34375,
+          "height": 59.390625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 22.09375,
+          "height": 23.1875
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.3125,
+          "height": 21.15625
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 21.46875,
+          "height": 24.25
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 814,
+          "height": 25.546875
+        },
+        {
+          "width": 814,
+          "height": 41
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        },
+        {
+          "width": 814,
+          "height": 56.53125
+        },
+        {
+          "width": 18.171875,
+          "height": 23.65625
+        },
+        {
+          "width": 393.3125,
+          "height": 55.0625
+        },
+        {
+          "width": 25.203125,
+          "height": 19.40625
+        },
+        {
+          "width": 375.859375,
+          "height": 62
+        },
+        {
+          "width": 22.875,
+          "height": 15.71875
+        },
+        {
+          "width": 174.6875,
+          "height": 23.703125
+        },
+        {
+          "width": 57.109375,
+          "height": 20.640625
+        },
+        {
+          "width": 120.671875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.1875,
+          "height": 18.4375
+        },
+        {
+          "width": 320.578125,
+          "height": 55.1875
+        },
+        {
+          "width": 16.03125,
+          "height": 17.3125
+        },
+        {
+          "width": 106.984375,
+          "height": 55.1875
+        },
+        {
+          "width": 57.578125,
+          "height": 17.6875
+        },
+        {
+          "width": 121.296875,
+          "height": 55.0625
+        },
+        {
+          "width": 16.5,
+          "height": 23.671875
+        },
+        {
+          "width": 123.03125,
+          "height": 50.328125
+        },
+        {
+          "width": 16.34375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 74.5625,
+          "height": 17.703125
+        },
+        {
+          "width": 129.578125,
+          "height": 55.0625
+        },
+        {
+          "width": 20.640625,
+          "height": 23.671875
+        },
+        {
+          "width": 338.890625,
+          "height": 55.1875
+        },
+        {
+          "width": 20.484375,
+          "height": 22.546875
+        },
+        {
+          "width": 94.09375,
+          "height": 43.15625
+        },
+        {
+          "width": 814,
+          "height": 36.828125
+        },
+        {
+          "width": 817.71875,
+          "height": 98.1875
+        },
+        {
+          "width": 415.1875,
+          "height": 45.5625
+        },
+        {
+          "width": 259.609375,
+          "height": 45.4375
+        },
+        {
+          "width": 164.328125,
+          "height": 22.1875
+        },
+        {
+          "width": 471.953125,
+          "height": 22.1875
+        },
+        {
+          "width": 20.625,
+          "height": 23.4375
+        },
+        {
+          "width": 90.703125,
+          "height": 22.203125
+        },
+        {
+          "width": 200.34375,
+          "height": 27.0625
+        },
+        {
+          "width": 93.5625,
+          "height": 23.4375
+        },
+        {
+          "width": 199.84375,
+          "height": 26.890625
+        },
+        {
+          "width": 153.359375,
+          "height": 23.4375
+        },
+        {
+          "width": 26.625,
+          "height": 19.109375
+        },
+        {
+          "width": 109.1875,
+          "height": 25.96875
+        },
+        {
+          "width": 28.859375,
+          "height": 20.90625
+        },
+        {
+          "width": 98.9375,
+          "height": 22.03125
+        },
+        {
+          "width": 202.84375,
+          "height": 26
+        },
+        {
+          "width": 101.0625,
+          "height": 22.03125
+        },
+        {
+          "width": 21.59375,
+          "height": 23.015625
+        },
+        {
+          "width": 150.171875,
+          "height": 22.03125
+        },
+        {
+          "width": 27.25,
+          "height": 20.140625
+        },
+        {
+          "width": 104.78125,
+          "height": 24.90625
+        },
+        {
+          "width": 199.71875,
+          "height": 24.21875
+        },
+        {
+          "width": 100.859375,
+          "height": 22.03125
+        },
+        {
+          "width": 25.953125,
+          "height": 15.71875
+        },
+        {
+          "width": 279.171875,
+          "height": 71.765625
+        },
+        {
+          "width": 17.921875,
+          "height": 13.859375
+        },
+        {
+          "width": 214.0625,
+          "height": 25.015625
+        }
+      ],
+      "contentsOpen": true,
+      "initialCache": "S=131072, batch=1, nominal bits=16\nV2 MLA=8.4375 GiB; 67B GQA8=47.5000 GiB; expanded V2=600.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 2\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "sixCache": "S=131072, batch=1, nominal bits=6\nV2 MLA=3.1641 GiB; 67B GQA8=17.8125 GiB; expanded V2=225.0000 GiB\nSame-precision MLA reduction vs 67B: 82.2368%\nKV-only budget 24 GiB → MLA maximum batch 7\nHeadline reconstruction: V2 6-bit vs 67B BF16 = 93.3388% nominal byte reduction.",
+      "absorption": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[0.680000, 0.020000]\nScores=[0.554256, -0.427239, 1.004589]\nSoftmax weights=[0.339722, 0.127311, 0.532967]\nLatent aggregate z=[1.278346, 0.273787]\nAbsorbed output=[0.557037, 1.077434]\nExpanded reference=[0.557037, 1.077434]\nMaximum absolute error=2.22e-16",
+      "second": "Persistent cache: c1,c2,c3 + rotated kR. UK and UV are model weights.\nEffective query UKᵀqC=[-0.400000, 0.600000]\nScores=[0.375278, 0.606218, -0.952628]\nSoftmax weights=[0.396069, 0.498961, 0.104971]\nLatent aggregate z=[0.107049, 1.186127]\nAbsorbed output=[-0.302313, 0.322865]\nExpanded reference=[-0.302313, 0.322865]\nMaximum absolute error=1.11e-16",
+      "route": "Allowed device groups: 0, 1, 2\nSelected experts: 0, 20, 40, 8, 27, 46\nActual device fan-out=3 ≤ 3; routed expert assignments=6\nOverlap with unrestricted top-6: 3/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "unrestricted": "Allowed device groups: 0, 1, 2, 3, 4, 5, 6, 7\nSelected experts: 0, 20, 40, 60, 80, 100\nActual device fan-out=6 ≤ 8; routed expert assignments=6\nOverlap with unrestricted top-6: 6/6\nShared experts=2; total active experts=8. Affinities are synthetic, no latency measured.",
+      "errors": []
+    }
+  ]
+}

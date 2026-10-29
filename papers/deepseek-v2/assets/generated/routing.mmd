@@ -1,0 +1,12 @@
+flowchart TD
+ H["Token hidden"] --> G["160 expert affinities"]
+ G --> MAX["8 device groups × 20 experts<br/>group score = maximum affinity"]
+ MAX --> DEV["Choose at most 3 device groups"]
+ DEV --> TOP["Top-6 experts inside allowed groups"]
+ TOP --> DIS["Dispatch to ≤3 target devices"]
+ DIS --> EXP["6 routed expert FFNs"]
+ H --> SHARE["2 shared expert FFNs · always active"]
+ EXP --> COM["Weighted combine"]
+ SHARE --> COM
+ H --> COM
+ COM --> OUT["Residual output"]

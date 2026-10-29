@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "deepseek-v2",
+      "title": "DeepSeek-V2：把模型容量、激活计算和 KV 存储分开设计",
+      "metadata": "2024 · arXiv v5 · Read October 29, 2026 · MLA / MoE / LLM Systems",
+      "readDate": "2026-10-29",
+      "description": "All 5 original figures, 37 complete tables and 47 numbered equations; MLA absorption and decoupled RoPE, device-limited top-6 routing, three interactive explainers, GRPO and per-op/cache audits, and dated research through October 29, 2026.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "deepseek-v3",
       "title": "DeepSeek-V3：把低成本训练，落实到每一次数据移动",
       "metadata": "2024 · arXiv v2 · Read October 29, 2026 · MLA / MoE / FP8 / Systems",
