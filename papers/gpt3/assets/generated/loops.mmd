@@ -1,0 +1,7 @@
+flowchart TD
+ A["海量文本 · 预训练"] --> B["next-token loss · backward · Adam"]
+ B --> C["固定权重 θ"]
+ C --> D["任务描述 + K 个演示 + query"]
+ D --> E["prefill · 建立条件状态与 KV"]
+ E --> F["decode · 生成答案"]
+ F --> G["任务 metric / split / 污染审计"]

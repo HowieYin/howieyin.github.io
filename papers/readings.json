@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "gpt3",
+      "title": "GPT-3：参数规模如何改变上下文学习",
+      "metadata": "NeurIPS 2020 · arXiv v4 · Read October 29, 2026 · Training / Scaling / In-Context Learning",
+      "readDate": "2026-10-29",
+      "description": "All 89 original figures and 21 complete tables, including the full H.1 result matrix; chapter-ordered analysis, prompt and result explorers, analytical KV/weight costs, source discrepancy and contamination audits, and dated research through October 29, 2026.",
+      "category": "training-scaling"
+    },
+    {
       "slug": "pagedattention",
       "title": "PagedAttention：把 KV Cache 的容量，变成可用的并发",
       "metadata": "SOSP 2023 · arXiv v1 · Read October 29, 2026 · LLM Serving / KV Cache / Systems",

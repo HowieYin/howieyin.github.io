@@ -1,0 +1,9 @@
+flowchart TD
+ A["token + position → [B,T,d]"] --> B["LayerNorm"]
+ B --> C["Q / K / V → [B,H,T,dh]"]
+ C --> D["causal dense / local sparse attention"]
+ D --> E["output projection + residual"]
+ E --> F["LayerNorm → MLP d→4d→d"]
+ F --> G["residual · 重复 96 层"]
+ G --> H["final norm / logits [B,T,V]"]
+ C --> I["K/V 保存与 decode 增长"]

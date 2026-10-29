@@ -1,0 +1,51 @@
+<figure class="original-table" id="table-2-2">
+<div aria-label="Original Table 2.2" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt">Dataset</th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">
+<span class="ltx_inline-block">
+<span class="ltx_p">Quantity</span>
+<span class="ltx_p">(tokens)</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">
+<span class="ltx_inline-block">
+<span class="ltx_p">Weight in</span>
+<span class="ltx_p">training mix</span>
+</span></th>
+<th class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">
+<span class="ltx_inline-block">
+<span class="ltx_p">Epochs elapsed when</span>
+<span class="ltx_p">training for 300B tokens</span>
+</span></th></tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">Common Crawl (filtered)</th>
+<td class="ltx_td ltx_align_center ltx_border_t">410 billion</td>
+<td class="ltx_td ltx_align_center ltx_border_t">60%</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.44</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">WebText2</th>
+<td class="ltx_td ltx_align_center">19 billion</td>
+<td class="ltx_td ltx_align_center">22%</td>
+<td class="ltx_td ltx_align_center">2.9</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">Books1</th>
+<td class="ltx_td ltx_align_center">12 billion</td>
+<td class="ltx_td ltx_align_center">8%</td>
+<td class="ltx_td ltx_align_center">1.9</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row">Books2</th>
+<td class="ltx_td ltx_align_center">55 billion</td>
+<td class="ltx_td ltx_align_center">8%</td>
+<td class="ltx_td ltx_align_center">0.43</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Wikipedia</th>
+<td class="ltx_td ltx_align_center ltx_border_bb">3 billion</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3%</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">3.4</td></tr>
+</tbody>
+</table></div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 2.2: </span><span class="ltx_text ltx_font_bold">Datasets used to train GPT-3</span>. “Weight in training mix” refers to the fraction of examples during training that are drawn from a given dataset, which we intentionally do not make proportional to the size of the dataset. As a result, when we train for 300 billion tokens, some datasets are seen up to 3.4 times during training while other datasets are seen less than once.<p class="source-note">Original Paper · Table 2.2 · arXiv v4. Original text / formatting retained.</p></figcaption>
+</figure>
