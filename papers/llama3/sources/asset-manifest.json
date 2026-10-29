@@ -1,0 +1,344 @@
+[
+  {
+    "figure": 1,
+    "path": "assets/original/llama3_language_architecture.png",
+    "source": "assets/llama3_language_architecture.pdf",
+    "width": 5244,
+    "height": 1272,
+    "sha256": "8532fd2b29efc8776e8ecd7d7743c92e706c7034c68fa15fc04dd8ac99d8b4e0",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 2,
+    "path": "assets/original/isoflops.png",
+    "source": "assets/isoflops.pdf",
+    "width": 1316,
+    "height": 980,
+    "sha256": "00b7a34b91fce4681526e57f1cb4ddc9d3af5fd1e9abd5f360969890b7125701",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 3,
+    "path": "assets/original/datacompute.png",
+    "source": "assets/datacompute.pdf",
+    "width": 1290,
+    "height": 965,
+    "sha256": "0da62d4cc0588b7d75262fe152cf3792663b699891045405896aa86af38b3402",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 4,
+    "path": "assets/original/scaling_laws_benchmark.png",
+    "source": "assets/scaling_laws_benchmark.pdf",
+    "width": 2254,
+    "height": 1008,
+    "sha256": "ffc73626ea4ba85e784643471f72940894e00e876fdbbd6e03777b2fc2d63d9a",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 5,
+    "path": "assets/original/4D_parallelism.png",
+    "source": "assets/4D_parallelism.pdf",
+    "width": 5280,
+    "height": 2532,
+    "sha256": "38eb65b8b8f66ea591934253c01e827418ed26ff0169c0e9fd9a17cbc16ea57a",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 6,
+    "path": "assets/original/pipeline_parallelism.png",
+    "source": "assets/pipeline_parallelism.pdf",
+    "width": 4602,
+    "height": 996,
+    "sha256": "431f4914d76b1dffad26188229d3a19cd7343c5c956eb6ecebd78a6790cb17bc",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 7,
+    "path": "assets/original/posttraining_overview.png",
+    "source": "assets/posttraining_overview.pdf",
+    "width": 5427,
+    "height": 2469,
+    "sha256": "86eab6cf170a58345975b062f951c9440048b80eadf4f9204123faff2ca37c3a",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 8,
+    "path": "assets/original/code_translation_example.png",
+    "source": "posttraining/assets/code_translation_example.pdf",
+    "width": 2823,
+    "height": 1218,
+    "sha256": "5f14b69dd487cc59d5b44d1acdbbc26e6990361e498637751dcd3c680cf655ee",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 9,
+    "path": "assets/original/code_system_prompt_example.png",
+    "source": "posttraining/assets/code_system_prompt_example.pdf",
+    "width": 2334,
+    "height": 1050,
+    "sha256": "80bc7bb2fa23f8e2a2e5153c8d3c05d80e8d50147bf20e0a349b1fa5f51cec49",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 10,
+    "path": "assets/original/llama-search-code.png",
+    "source": "assets/llama-search-code.pdf",
+    "width": 4620,
+    "height": 2766,
+    "sha256": "d14e9cf281b5612c29ece87080964ad8ef2647bfe8db995d3234132325a3bb99",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 11,
+    "path": "assets/original/llama-file-upload-6x.png",
+    "source": "assets/llama-file-upload-6x.png",
+    "width": 9240,
+    "height": 6968,
+    "sha256": "6498ff7c8f21f3223e509f7f864ccb72cdd8b228dfaeea9ae51b7a9b9e594688",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 12,
+    "path": "assets/original/aggregate_benchmark_results_8b.png",
+    "source": "assets/pretraining_results/aggregate_benchmark_results_8b.pdf",
+    "width": 1242,
+    "height": 1072,
+    "sha256": "82eb5f9b73b5901b8e316dde86251af2d228f2876d73f40719ee58bce450c8b2",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 12,
+    "path": "assets/original/aggregate_benchmark_results_70b.png",
+    "source": "assets/pretraining_results/aggregate_benchmark_results_70b.pdf",
+    "width": 1242,
+    "height": 1072,
+    "sha256": "2065082c59ae2839f0789288c9437835145259d3777135fad690d2806dc1f48f",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 13,
+    "path": "assets/original/mmlu_label_variants.png",
+    "source": "assets/pretraining_results/mmlu_label_variants.pdf",
+    "width": 1508,
+    "height": 860,
+    "sha256": "1c910ec650572909c68f472b3bd7a348bcba349e49ac468ff78f067695d23172",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 13,
+    "path": "assets/original/fewshot_label_bias_mmlu.png",
+    "source": "assets/pretraining_results/fewshot_label_bias_mmlu.pdf",
+    "width": 1027,
+    "height": 873,
+    "sha256": "d17e02c14fffff14091942948ee612edee6e264b4609f1708cb31e21f4acf24a",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 14,
+    "path": "assets/original/permutation_robustness_mmlu_swarm.png",
+    "source": "assets/pretraining_results/permutation_robustness_mmlu_swarm.pdf",
+    "width": 1027,
+    "height": 873,
+    "sha256": "019d2d37c19c56bfce67c206da2fffcdef1e955d52f1dc8b2634e5d758a42199",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 14,
+    "path": "assets/original/paraphrase_robustness_MMLU.png",
+    "source": "assets/pretraining_results/paraphrase_robustness_MMLU.pdf",
+    "width": 1006,
+    "height": 860,
+    "sha256": "9a86109a94ecf014aef2345eff72859a535dca5d6827efda5a029f9faa41abad",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 15,
+    "path": "assets/original/adversarial_scores_pretrained.png",
+    "source": "assets/pretraining_results/adversarial_scores_pretrained.pdf",
+    "width": 772,
+    "height": 798,
+    "sha256": "08854c33cb339fee4775d3427488f83f22c901904b3ceaab82822c42d988da3f",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 15,
+    "path": "assets/original/adversarial_scores_post_trained.png",
+    "source": "assets/pretraining_results/adversarial_scores_post_trained.pdf",
+    "width": 772,
+    "height": 798,
+    "sha256": "31df6ddfd8b09f4a6958ae9c88412e45c4eafac8f38526904511911676bfa62a",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 16,
+    "path": "assets/original/tool_human_evals.png",
+    "source": "assets/tool_human_evals.pdf",
+    "width": 2160,
+    "height": 1215,
+    "sha256": "6a34cbd01983a93e98ac8e890a77ec15add0429e70d648c65de32b93c69d65ca",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 17,
+    "path": "assets/original/heval-gpt4preview-overall.png",
+    "source": "assets/heval-gpt4preview-overall.pdf",
+    "width": 1800,
+    "height": 1800,
+    "sha256": "918ac29f3d6b1f77d7c9f493d52f9a74252515e8f7720ac93210c8ecb998924d",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 17,
+    "path": "assets/original/heval-gpt4o-overall.png",
+    "source": "assets/heval-gpt4o-overall.pdf",
+    "width": 1576,
+    "height": 1800,
+    "sha256": "81c48ad0a26b35a668c66b49eb6015d338803cae8adf599dc83fdcef141d71bd",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 17,
+    "path": "assets/original/heval-claude3.5sonnet-overall.png",
+    "source": "assets/heval-claude3.5sonnet-overall.pdf",
+    "width": 1576,
+    "height": 1800,
+    "sha256": "bc89889d25a34dcb385582880b0c1a1927844080ee0a00582d32646453e9bdb8",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 18,
+    "path": "assets/original/newplot_hailey.png",
+    "source": "safety_evals/newplot_hailey.pdf",
+    "width": 899,
+    "height": 546,
+    "sha256": "b4bc86d72d4fbabc0b2b40140a98ea9cafe985bcc4c5759449c09684d8bea80e",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 19,
+    "path": "assets/original/ml_grouped_bar_comparison.png",
+    "source": "safety_evals/ml_grouped_bar_comparison.pdf",
+    "width": 3559,
+    "height": 1569,
+    "sha256": "a6d7b5b888f464b81422cf27fa14caa7eaac0de7a5feccf436fc5670082aac14",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 20,
+    "path": "assets/original/long_grouped_bar_comparison.png",
+    "source": "safety_evals/long_grouped_bar_comparison.pdf",
+    "width": 3559,
+    "height": 818,
+    "sha256": "46a743e9e68929992af3f90865f5b74d2e38d069ac52ab9f05a9ba827e3a7b0a",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 21,
+    "path": "assets/original/FRR_VR_sys_model.png",
+    "source": "safety_evals/FRR_VR_sys_model.pdf",
+    "width": 2718,
+    "height": 1840,
+    "sha256": "5ef3d6937cff9c7fb97dcfed856a33e5fe04529b35fc3d83ec41d8c1ec1cf968",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 22,
+    "path": "assets/original/cyber-text_prompt_injection.png",
+    "source": "safety_evals/cyber-text_prompt_injection.pdf",
+    "width": 2987,
+    "height": 1261,
+    "sha256": "a92a7147ced8dbafd9679e681582508c6315bad78cf8a0beb6c646835258cedd",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 23,
+    "path": "assets/original/cyber-spear_phishing.png",
+    "source": "safety_evals/cyber-spear_phishing.pdf",
+    "width": 2125,
+    "height": 1261,
+    "sha256": "e117ca8ed9f58c9eedd5657fd88515abce92420f1324d8b04140fdb7a7659fb7",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 24,
+    "path": "assets/original/prefill_micro.png",
+    "source": "assets/prefill_micro.pdf",
+    "width": 2700,
+    "height": 1800,
+    "sha256": "b087dcd983afdcfb50fffc561af8338e6fae24b35efea3d0a612b58846eb55bd",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 24,
+    "path": "assets/original/decode_micro.png",
+    "source": "assets/decode_micro.pdf",
+    "width": 2700,
+    "height": 1800,
+    "sha256": "5d9659aca5035c7eafe00e60bb942104f4a79542ff391f4ee46cb20902ef1c31",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 25,
+    "path": "assets/original/llama3-figure-25.png",
+    "source": "assets/llama3-figure-25-eps-converted-to.pdf",
+    "width": 5211,
+    "height": 2100,
+    "sha256": "d43793c6cd319c549dda926ced7d8e9dad5bfe3819189ac9ef2da4ddb638abee",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 26,
+    "path": "assets/original/bf16_vs_fp8_new.png",
+    "source": "assets/bf16_vs_fp8_new.pdf",
+    "width": 2160,
+    "height": 648,
+    "sha256": "8c9a4e525821f13fd2dc2610c4a0a7a3b08ca50219fadae874bf4dd652093aa7",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 27,
+    "path": "assets/original/prefill_fp8.png",
+    "source": "assets/prefill_fp8.png",
+    "width": 1200,
+    "height": 800,
+    "sha256": "8bb748f2cfd65efeb663a124cc430c890525541842892d209e4681332583f348",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 27,
+    "path": "assets/original/decode_fp8.png",
+    "source": "assets/decode_fp8.png",
+    "width": 1200,
+    "height": 800,
+    "sha256": "2fd4cd0c34f8eacbbbf6b65c47c5d8e6c71e54aea8d9ca346438c90b75eb8848",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 28,
+    "path": "assets/original/llama3_architecture.png",
+    "source": "assets/llama3_architecture.pdf",
+    "width": 6864,
+    "height": 3861,
+    "sha256": "27c5cdd8254810e595afcf5b67f86e01a6de27693171403a93dd811465ad2f43",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 29,
+    "path": "assets/original/llama-speech-6x.png",
+    "source": "assets/llama-speech-6x.png",
+    "width": 12150,
+    "height": 2958,
+    "sha256": "c7fd8844b9da1df337431aee5bedccf874326545019f3e51f785e47f2c53cb30",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  },
+  {
+    "figure": 30,
+    "path": "assets/original/llama-voice-language.png",
+    "source": "assets/llama-voice-language.pdf",
+    "width": 4560,
+    "height": 1824,
+    "sha256": "746efcbd80322dd073b4bbebe418449a9462c1a59c11946063ea7a056ab1cee9",
+    "processing": "Original author asset; vector PDF rendered at 3×. Caption is separate HTML."
+  }
+]

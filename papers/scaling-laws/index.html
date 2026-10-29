@@ -963,6 +963,7 @@ Run-to-run variation is at the level of  0.05 in the loss, so averaging multiple
 <p><strong>Official Code / Reproduction。</strong><a href="https://github.com/formll/resolving-scaling-law-discrepancies" rel="noopener">formll/resolving-scaling-law-discrepancies</a>；<a href="https://github.com/huggingface/datablations" rel="noopener">huggingface/datablations</a>；<a href="https://arxiv.org/src/2401.00448v3/anc" rel="noopener">Sardana ancillary files</a>。原 Kaplan 仓库与 2026 两篇独立官方代码链接未定位，已明确区分。</p>
 <p><strong>Related Readings。</strong><a href="../transformer/">Attention Is All You Need</a> → 原始 dense Transformer 数据流；<a href="../longformer/">Longformer</a> → 长上下文改变 attention 连接与系统成本。二者不是 scaling-law 的直接复现，而是理解 shape 与计算口径的站内补充。</p>
 <p><strong>Related Reading。</strong><a href="../gpt3/">GPT-3：参数规模如何改变上下文学习</a> → 175B / 300B token 的预算选择、少样本任务矩阵与训练计算的实际应用范围，并区分统计规律和推理成本。</p>
+<p><strong>Related Reading。</strong><a href="../llama3/">Llama 3：数据、训练系统与多模态接口</a> → IsoFLOPs 外推如何用于 405B 规模选择，以及小模型过度训练、实际并行效率与推理成本如何改变预算目标。</p>
 <p><strong>复核记录。</strong>已分别完成排版可读性与原文准确性两轮复核；核对原图顺序、完整表格、全部编号公式与关键数字，检查五种宽度下的真实渲染和交互。详见 <a href="notes/review.md">两轮复核与验证证据</a>。</p>
 <h2 id="section-19">我的判断与研究方向</h2>
 <p><strong>最值得迁移的是研究方法。</strong>从小模型日志重建联合 loss 面、取预算前沿、保留配方与口径，再用更大尺度验证。2020 的幂律框架为这种 planning 提供语言；其经验常数不应脱离条件直接写进生产配置。</p>
