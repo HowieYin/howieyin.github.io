@@ -1,0 +1,49 @@
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{1.9pt}
+\caption{Performance comparison of Kimi-K2-Base against leading open-source models across diverse tasks. }
+\label{tab:pretrain-eval}
+\begin{tabular}{@{}c l | c | c | c c c}
+\toprule
+& \textbf{Benchmark {\tiny (Metric)}} &  \textbf{\#Shots} &{\textbf{Kimi-K2-Base}} & \textbf{DeepSeek-V3-Base} & \textbf{Llama4-Maverick-Base}  & \textbf{Qwen2.5-72B-Base}  \\
+\midrule
+    \midrule
+    & Architecture & - & MoE & MoE & MoE & Dense \\
+    & \# Activated Params & - & 32B & 37B & 17B & 72B \\
+    & \# Total Params & - & 1043B & 671B & 400B & 72B \\
+
+\midrule
+\multirow{13}{*}{English} 
+ & MMLU & 5-shots & \textbf{87.79} & 87.10 & 84.87 & 86.08 \\
+ & MMLU-pro & 5-shots & \textbf{69.17} & 60.59 & 63.47 & 62.80 \\
+ & MMLU-redux & 5-shots & \textbf{90.17} & 89.53 & 88.18 & 87.77 \\
+ & SuperGPQA & 5-shots & \textbf{44.67} & 39.20 & 38.84 & 34.23 \\
+ & GPQA-Diamond({\tiny avg@8}) & 5-shots & 48.11 & \textbf{50.51} & 49.43 & 40.78 \\
+ & SimpleQA & 5-shots & \textbf{35.25} & 26.49 & 23.74 & 10.31 \\
+ & TriviaQA & 5-shots & \textbf{85.09} & 84.11 & 79.25 & 76.03 \\
+ & BBH & 3-shots & \textbf{88.71} & 88.37 & 87.10 & 84.09 \\
+ & HellaSwag & 5-shots & 94.60 & 89.44 & 86.02 & \textbf{95.27} \\
+ & AGIEval & - & \textbf{84.23} & 81.57 & 67.55 & 76.87 \\
+ & ARC-Challenge & 0-shot & \textbf{95.73} & 93.77 & 94.03 & 95.56 \\
+ & WinoGrande & 5-shots & \textbf{85.32} & 84.21 & 77.58 & 84.14 \\
+ \midrule
+\multirow{4}{*}{Code}
+ & CRUXEval-I-cot & 0-shots & \textbf{74.00} & 62.75 & 67.13 & 61.12 \\
+ & CRUXEval-O-cot & 0-shots & \textbf{83.50} & 75.25 & 75.88 & 66.13 \\
+ & LiveCodeBench(v6) & 1-shots& \textbf{26.29} & 24.57 & 25.14 & 22.29 \\
+ & EvalPlus & - & \textbf{80.33} & 65.61 & 65.48 & 66.04 \\
+ \midrule
+\multirow{4}{*}{Math}  
+ & MATH & 4-shots & \textbf{70.22} & 61.70 & 63.02 & 62.68 \\
+ & GSM8k & 8-shots & \textbf{92.12} & 91.66 & 86.35 & 90.37 \\
+ & GSM8k-platinum & 8-shots & \textbf{94.21} & 93.38 & 88.83 & 92.47 \\
+ & CMATH & 6-shots & 90.26 & \textbf{90.53} & 88.07 & 86.98 \\
+\midrule
+\multirow{3}{*}{Chinese} 
+ & C-Eval & 5-shots & \textbf{92.50} & 90.04 & 80.91 & 90.86 \\
+ & CMMLU & 5-shots & \textbf{90.90} & 88.84 & 81.24 & 90.55 \\
+ & CSimpleQA & 5-shots & \textbf{77.57} & 72.13 & 53.47 & 50.53 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,12 @@
+flowchart TD
+  A["人工比较 / 编辑响应"] --> B["训练 Reward Model"]
+  C["最新 Policy + 新 prompts"] --> D["生成 K=10–30 候选"]
+  B --> E["RM 选优 + 外部检查"]
+  D --> E
+  E --> F["SFT: target CE / prompt mask"]
+  A --> G["DPO: relative preference + 0.2 chosen NLL"]
+  F --> G
+  G --> H["模型平均 / 质量与能力回归"]
+  H --> C
+  T["工具执行 / 固定测试"] --> E
+  T --> H

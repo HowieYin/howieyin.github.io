@@ -1,0 +1,16 @@
+flowchart TB
+  X["Token states · N × 7168"] --> Q["Query compression · rank 1536"]
+  X --> KV["KV compression · latent 512 + shared RoPE 64"]
+  Q --> H["64 heads · qC 128 + qR 64"]
+  KV --> A["MLA attention · content + rotary scores"]
+  H --> A
+  A --> O["64 × 128 values → hidden 7168"]
+  O --> R["Router · sigmoid scores + choice bias"]
+  R --> T["Select top 8 of 384 experts"]
+  T --> E["8 routed SwiGLU experts · hidden 2048"]
+  O --> S["1 always-active shared expert"]
+  E --> C["Weighted combine · original scores normalized × 2.827"]
+  S --> C
+  C --> N["Residual → next layer"]
+  KV -. "Optimized inference layout" .-> CACHE["Cache 512 + 64 values / token / layer"]
+  KV -. "Public PyTorch reference" .-> EXP["Expand heads → K/V → DynamicCache"]

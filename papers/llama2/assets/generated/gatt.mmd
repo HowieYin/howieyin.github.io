@@ -1,0 +1,9 @@
+flowchart TD
+  T["Teacher: instruction at every user turn"] --> G["Generate consistent answers"]
+  G --> S["Student prefix: instruction only at first turn"]
+  S --> P["Earlier user + assistant tokens"]
+  S --> A["Final assistant target"]
+  P --> M["Loss mask = 0"]
+  A --> N["Loss mask = 1"]
+  P -. "still visible in causal attention" .-> A
+  N --> W["Train weights to retain first-turn attributes"]

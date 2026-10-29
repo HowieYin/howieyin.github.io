@@ -1,0 +1,13 @@
+flowchart TB
+  X["当前 hidden x<br/>B × S × 6144"] --> Q["MLA Query<br/>64 heads × (192 + 64)"]
+  X --> IQ["Indexer Query<br/>32 heads × 128"]
+  H["所有因果历史 L<br/>缓存不会因 top-k 删除"] --> IK["历史 Index Keys<br/>B × L × 128"]
+  H --> KV["Compressed KV<br/>512 latent + 64 RoPE"]
+  IQ --> SCORE["全历史低维打分 + ReLU<br/>prefill 仍随 L² 增长"]
+  IK --> SCORE
+  SCORE --> TOP["Top-k = 2048<br/>返回历史位置索引"]
+  TOP --> G["Gather 选中位置"]
+  KV --> G
+  Q --> A["Sparse Attention Core<br/>prefill 约 Lk · decode 约 k"]
+  G --> A
+  A --> O["输出投影 + Residual<br/>后接 MoE，仍需路由与通信"]

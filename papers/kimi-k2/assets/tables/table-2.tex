@@ -1,0 +1,20 @@
+\begin{table}[htbp]
+\centering
+\caption{Architectural comparison between Kimi K2 and DeepSeek-V3}
+\label{tab:k2_arch_comparison}
+\begin{tabular}{lccc}
+\toprule
+  & \textbf{DeepSeek-V3} & \textbf{Kimi K2} & \textbf{$\Delta$} \\
+\midrule
+\#Layers & 61 & 61 & = \\
+Total Parameters & 671B & 1.04T & $\uparrow$ 54\% \\
+Activated Parameters & 37B & 32.6B & $\downarrow$ 13\% \\
+Experts (total) & 256 & 384 & $\uparrow$ 50\% \\
+Experts Active per Token & 8 & 8 & = \\
+Shared Experts & 1 & 1 & = \\
+Attention Heads & 128 & 64 & $\downarrow$ 50\% \\
+Number of Dense Layers & 3 & 1 & $\downarrow$ 67\% \\
+Expert Grouping & Yes & No  & - \\
+\bottomrule
+\end{tabular}
+\end{table}

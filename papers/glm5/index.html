@@ -1,0 +1,1627 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>GLM-5：从生成代码，走向持续完成工程任务 — Paper Readings · Howie Yin</title><meta name="description" content="GLM-5 2602.15763v2逐章精读：13原图、13完整原表、DSA张量与KV成本、异步RL/TITO/精度链、工程评测审计与截至2026-10-29的后续调研。"><link rel="canonical" href="https://howieyin.github.io/papers/glm5/"><meta property="og:title" content="GLM-5：从生成代码，走向持续完成工程任务"><meta property="og:description" content="GLM-5 2602.15763v2逐章精读：13原图、13完整原表、DSA张量与KV成本、异步RL/TITO/精度链、工程评测审计与截至2026-10-29的后续调研。"><meta property="og:type" content="article"><meta property="og:image" content="https://howieyin.github.io/papers/glm5/assets/original/fig-01-panel-1.png"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="page-tools"><span>13 FIGURES · 13 TABLES · 5 NUMBERED EQUATIONS · V2</span><button type="button" id="theme-toggle">Light mode</button></div><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents</summary><ol><li><a href="#section-1">Abstract 与 TL;DR</a></li><li><a href="#section-2">1 · Introduction：工程可靠性意味着什么</a></li><li><a href="#section-3">2 · Pre-Training：模型、数据与资源账</a></li><li><a href="#section-4">3 · Post-Training：从轨迹到稳定策略</a></li><li><a href="#section-5">4 · Agentic Engineering：异步系统与可验证环境</a></li><li><a href="#section-6">5 · Support for Chinese Chips：算子落地与精度链路</a></li><li><a href="#section-7">6 · Evaluation：把“接近前沿”拆成可检查指标</a></li><li><a href="#section-8">7 · Conclusion</a></li><li><a href="#section-9">8 · Easter Eggs：Pony Alpha 的匿名发布</a></li><li><a href="#section-10">9 · Contribution 与 Acknowledgement</a></li><li><a href="#section-11">Appendix A · Model Hyper-parameters</a></li><li><a href="#section-12">Appendix B · Evaluation Settings</a></li><li><a href="#section-13">扩展调研 · 技术路线、公开实现与截至 2026-10-29 的状态</a></li><li><a href="#section-14">我的分析 · 可迁移经验、隐性代价与下一步</a></li><li><a href="#section-15">References 与来源分级</a></li></ol></details></aside><main id="main" class="reading"><h1>GLM-5：从生成代码，走向持续完成工程任务</h1>
+<p class="lead">这份报告的主线是：把长上下文架构、可执行训练环境、异步强化学习和工程评测连成一条闭环，让模型在多次工具调用与环境反馈中维持任务进度。</p>
+<p class="metadata">GLM-5: from Vibe Coding to Agentic Engineering<br/>GLM-5 Team · Zhipu AI / Tsinghua University · arXiv technical report<br/>2602.15763v2 · 2026-02-24 · 40 页 · 精读与扩展检索：2026-10-29 · Last updated: 2026-10-29</p>
+<p><a href="https://arxiv.org/pdf/2602.15763v2" rel="noopener">指定版本 PDF</a> · <a href="https://arxiv.org/abs/2602.15763v2" rel="noopener">arXiv / 版本记录</a> · <a href="https://arxiv.org/html/2602.15763v2" rel="noopener">原文 HTML</a> · <a href="https://github.com/zai-org/GLM-5" rel="noopener">官方代码</a> · <a href="https://huggingface.co/zai-org/GLM-5" rel="noopener">公开权重</a> · <a href="https://doi.org/10.48550/arXiv.2602.15763" rel="noopener">DOI</a></p>
+<div class="callout"><strong>阅读口径</strong><p>正文按论文原章节顺序，包括附录。13 张原图（16 个面板）、13 张完整原表与 5 个编号公式均保留；英文 caption 放在图片外。标为“论文报告”的数字来自作者，标为“推导 / 解释”的内容是本页分析。没有执行 744B 模型训练或 GPU 性能复现。2026 年 3–10 月的后续资料单独列出，不用于改写 2 月论文。</p></div>
+<h2 id="section-1">Abstract 与 TL;DR</h2>
+<p><strong>一句话：</strong> GLM-5 用 DSA 降低长上下文 Attention 的计算，用可验证的工程环境训练行为，再以异步 RL、精确 token 记录和缓存亲和性支撑长时间运行的 agent。</p>
+<p><strong>一段话：</strong> “Vibe coding” 通常以一次生成是否看起来正确为中心；“agentic engineering” 要求模型能探索仓库、定位依赖、修改代码、运行检查、解释失败并继续迭代。作者把模型从 GLM-4.5 的 355B / 32B active 扩展到 744B / 40B active，训练 token 预算约 28.5T，改用 MLA + DSA，并围绕真实工具环境实施多阶段后训练。它在多项代码与工具评测上接近闭源强模型，但前端完整实例成功率、最新 SWE 任务与长任务链仍暴露明显缺口。</p>
+<p>五个关键点：</p>
+<ol>
+<li><strong>架构与系统协同。</strong> MLA 压缩 KV，DSA 选择历史 token 子集，MTP 共享参数；三者解决的成本不同。</li>
+<li><strong>训练数据变成可执行任务。</strong> 从网页、代码和数学语料，推进到 issue–PR、可启动仓库、终端、搜索与可渲染页面。</li>
+<li><strong>异步 RL 解决等待。</strong> rollout 与 learner 独立运行，以 buffer、版本约束和 token-level importance sampling 管理滞后。</li>
+<li><strong>精度一致性是训练前提。</strong> 同权重也可能因 kernel、量化、路由与重新分词产生 log-probability 差异。</li>
+<li><strong>评测要看成功单位。</strong> Build、check item、完整 instance、单个链内任务与整条任务链是不同指标，不能相互替代。</li>
+</ol>
+<figure class="original" id="figure-1"><img alt="Original Figure 1, panel 1: Figure 1 : Results of GLM-5, DeepSeek-V3.2, Claude Opus 4.5, Gemini 3 Pro, and GPT-5.2 (xhigh) on 8 agentic, reasoning, and coding benchmarks: Humanity’s Last Exam, SWE-bench Verified, SWE-bench Multilingual, Terminal-Bench 2.0, BrowseComp, MCP-Atlas, \tau^{2} -Bench, Vending Bench 2." loading="lazy" src="assets/original/fig-01-panel-1.png"/><figcaption>Figure 1 : Results of GLM-5, DeepSeek-V3.2, Claude Opus 4.5, Gemini 3 Pro, and GPT-5.2 (xhigh) on 8 agentic, reasoning, and coding benchmarks: Humanity’s Last Exam, SWE-bench Verified, SWE-bench Multilingual, Terminal-Bench 2.0, BrowseComp, MCP-Atlas, \tau^{2} -Bench, Vending Bench 2.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 1 怎么读。</strong> 这是八个 agentic / reasoning / coding 基准的概览。先辨认每组 benchmark，再在同一组比较模型；不同指标不适合跨组求平均。HLE 有 text-only 与 full-set 口径，Terminal 有原版与 verified 版，Vending 是经营结果而非百分比，准确条件以 Table 7 为准。图 caption 的比较对象含 DeepSeek-V3.2；§1 概述文字却把这一组对象写成 GLM-4.7，这是原文内部不一致，本页保留图的实际标签。</p>
+<h2 id="section-2">1 · Introduction：工程可靠性意味着什么</h2>
+<p>论文把目标从写出一段代码推进到<strong>持续交付可验证的结果</strong>。长任务必须把早期约束、当前状态与后续动作连接起来：工具执行失败不应该直接终止，局部修改不应该破坏前序功能，搜索结果过长不应该挤掉有效状态。</p>
+<p>作者的三个观察是：更强基础能力仍重要；长上下文的资源成本会限制 agent 持续工作；同步 RL 被复杂环境与长尾轨迹拖慢。对应方法是扩展模型与训练语料、采用 DSA、构建支持异步 agent rollout 的 slime 系统，并建立 CC-Bench-V2 等工程评测。</p>
+<figure class="original" id="figure-2"><img alt="Original Figure 2, panel 1: Figure 2 : Artificial Analysis Intelligence Index v4.0 incorporates 10 evaluations: GDPval-AA, \tau^{2} -Bench Telecom, Terminal-Bench Hard, SciCode, AA-LCR, AA-Omniscience, IFBench, Humanity’s Last Exam, GPQA Diamond, CritPt." loading="lazy" src="assets/original/fig-02-panel-1.png"/><figcaption>Figure 2 : Artificial Analysis Intelligence Index v4.0 incorporates 10 evaluations: GDPval-AA, \tau^{2} -Bench Telecom, Terminal-Bench Hard, SciCode, AA-LCR, AA-Omniscience, IFBench, Humanity’s Last Exam, GPQA Diamond, CritPt.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 2：能力指数是发布时的快照。</strong> Artificial Analysis Intelligence Index v4.0 组合十项评测，GLM-5 的图示分数为 50，GLM-4.7 为 42。这支持该指数下的整体进步，不能解释为所有任务增加 8 个百分点，也不是 2026-10-29 的实时排名。</p>
+<figure class="original" id="figure-3"><img alt="Original Figure 3, panel 1: Figure 3 : On LMArena, GLM-5 is the #1 open model in both Text Arena and Code Arena." loading="lazy" src="assets/original/fig-03-panel-1.jpeg"/><img alt="Original Figure 3, panel 2: Figure 3 : On LMArena, GLM-5 is the #1 open model in both Text Arena and Code Arena." loading="lazy" src="assets/original/fig-03-panel-2.jpeg"/><figcaption>Figure 3 : On LMArena, GLM-5 is the #1 open model in both Text Arena and Code Arena.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 3：两种偏好榜。</strong> 左右分别是 Text Arena 与 Code Arena，图中“开源第一”属于作者发布时的榜单陈述。Arena 测的是对展示输出的偏好，受样本、人群、prompt 与版本影响；它补充了使用体验证据，但不能代替运行测试与完整工程任务成功率。</p>
+<figure class="original" id="figure-4"><img alt="Original Figure 4, panel 1: Figure 4 : Results on several long-horizon tasks. Left: Vending-Bench 2; Right: CC-Bench-V2." loading="lazy" src="assets/original/fig-04-panel-1.jpeg"/><img alt="Original Figure 4, panel 2: Figure 4 : Results on several long-horizon tasks. Left: Vending-Bench 2; Right: CC-Bench-V2." loading="lazy" src="assets/original/fig-04-panel-2.png"/><figcaption>Figure 4 : Results on several long-horizon tasks. Left: Vending-Bench 2; Right: CC-Bench-V2.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 4：把时间拉长。</strong> 左图 Vending-Bench 2 测长期经营决策，右图 CC-Bench-V2 汇总工程结果。GLM-5 的 Vending 结果 4,432 相对 GLM-4.7 的 2,377 增加约 86.45%，仍低于 Opus 4.5 的 4,967。CC 的 frontend / backend / long-horizon 还应拆开看，§6 会展示完整表。</p>
+<figure class="original" id="figure-5"><img alt="Original Figure 5, panel 1: Figure 5 : Overall training pipeline of GLM-5." loading="lazy" src="assets/original/fig-05-panel-1.svg"/><figcaption>Figure 5 : Overall training pipeline of GLM-5.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 5：完整训练管线。</strong> 按箭头读：大规模预训练 → 扩上下文的 mid-training → SFT → reasoning / agentic / general RL → on-policy distillation。数据管线把可用环境、验证器与任务类型接入后训练。它说明最终能力来自整条管线；这张流程图没有隔离各环节的贡献，也没有给出全阶段 FLOPs 或端到端训练耗时。</p>
+<h2 id="section-3">2 · Pre-Training：模型、数据与资源账</h2>
+<h3 id="subsection-1">2.1 Architecture：744B 参数与 40B active</h3>
+<p>模型扩展主要增加容量与专家宽度：hidden dimension 6,144，256 个 routed experts，每 token 激活 8 个，加 1 个 shared expert；MoE intermediate 为 2,048。Table 10 的 744B 总参数 / 40B active <strong>计入 MTP，排除 embedding 与 output layer</strong>。部署段落的约 750B 是另一口径，不能混用来核对权重。</p>
+<p>主干为 3 个 dense + 75 个 MoE 层，公开配置 <code>num_hidden_layers=78</code>，另有一个共享 MTP 模块。正文提到“80 layers”，与附录和公开主干配置不一致；公开材料不足以推出“80 = 78 + 某两层”。本页的缓存推导明确使用 78 个主干 Attention 层。</p>
+<p><strong>MLA 的输入输出与 shape。</strong> 设 batch 为 B，序列长 S，隐藏向量 <code>x: [B,S,6144]</code>。Q 先压到 2,048 再展开为 64 heads；每 head 的 Q/K no-position 部分 192 维，再加 64 维 RoPE，共 256；V 是 256。KV latent 512 维与共享 RoPE key 64 维形成每层每 token 的 576 维压缩状态。解码 kernel 可以吸收上投影，避免永久保存 64 heads 的展开 K/V。</p>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>数量</th>
+<th>Shape / 数值</th>
+<th>生命周期与用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q latent</td>
+<td><code>[B,S,2048]</code></td>
+<td>当前查询的低秩中间表示</td>
+</tr>
+<tr>
+<td>Q</td>
+<td><code>[B,S,64,256]</code></td>
+<td>192 noPE + 64 RoPE</td>
+</tr>
+<tr>
+<td>压缩 KV latent</td>
+<td><code>[B,S,512]</code></td>
+<td>历史缓存，融合 kernel 使用</td>
+</tr>
+<tr>
+<td>共享 RoPE key</td>
+<td><code>[B,S,64]</code></td>
+<td>历史位置相关部分</td>
+</tr>
+<tr>
+<td>Indexer Q</td>
+<td><code>[B,S,32,128]</code></td>
+<td>廉价相关性打分</td>
+</tr>
+<tr>
+<td>Indexer K</td>
+<td><code>[B,S,128]</code></td>
+<td>历史索引缓存，另于 MLA KV</td>
+</tr>
+<tr>
+<td>选择索引</td>
+<td><code>[B,S,min(k,S)]</code>，k=2,048</td>
+<td>每 query 的候选历史位置</td>
+</tr>
+<tr>
+<td>Attention 输出</td>
+<td><code>[B,S,64,256] → [B,S,6144]</code></td>
+<td>经过输出投影，进入残差</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>MuonSplit 为什么出现。</strong> 作者观察到原 Muon 对整个 MLA KV up-projection 矩阵正交化时，576 维 latent 的小规模效果弱于 GQA-8 的 2,048 维 KV。MuonSplit 按 head 分开正交化 up-projection，改变优化约束的粒度；同时把 head 数从 96 调为 64，并增大 head dimension，以适配能力与 kernel 吞吐。</p>
+<figure class="original-table" id="table-1"><figcaption>Table 1: Evaluation results for GQA-8 and variants of MLA.</figcaption><div aria-label="Original Table 1" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T1.5">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text">Dataset</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">Hellaswag</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">MMLU</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">C-Eval</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">RACE</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">BBH</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">GSM8K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">HumanEval</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span class="ltx_text">GQA-8</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">77.3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">61.2</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">60.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">79.6</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">53.3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">47.6</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">38.5</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text">MLA</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">77.3</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">61.5</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">59.7</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">77.8</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">48.9</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">46.2</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">33.5</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text">MLA + Muon Split</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">77.8</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">62.5</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">62.1</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">79.9</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">51.8</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">45.0</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">36.7</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r"><span class="ltx_text">MLA-256 + Muon Split</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">77.4</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">62.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">59.9</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">79.6</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">51.3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">47.5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">36.6</span></td></tr>
+</table></div><p class="fine">Original paper · Table 1 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Table 1：优化器与架构一起变化。</strong> 原表比较 GQA-8、MLA 与修正变体，包含中英知识、推理与代码。MuonSplit 改善了 MLA 的多个指标，但 GQA-8 的 BBH 53.3、HumanEval 38.5 仍高于相应 MLA 变体的 51.8、36.7。它支持“可缩小差距”，不支持“MLA 在所有任务更好”。这是架构消融，不是最终 744B 后训练分数，完整规模与训练预算也未充分披露。</p>
+<p><strong>MTP 参数共享。</strong> 常规预测 n 个未来 token 可能需要 n 套模块；GLM-5 在训练中展开三步并共享一套 MTP 参数，使训练暴露于较后位置预测，同时保持 draft 参数较小。参数共享不意味着所有 activation、候选 KV 和验证费用恒定。</p>
+<figure class="original-table" id="table-2"><figcaption>Table 2 : Comparison of accept lengths of DeepSeek-V3.2 and GLM-5.</figcaption><div aria-label="Original Table 2" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T2.5">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Model</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">Accept Length</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">DeepSeek-V3.2</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.55</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">GLM-5</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">2.76</span></td></tr>
+</table></div><p class="fine">Original paper · Table 2 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Table 2：accept length ≠ speedup。</strong> 相同四步 speculation、内部 prompt 集下，2.55 → 2.76，绝对 +0.21，相对 +8.24%。accepted tokens 增加有助于降低目标模型执行次数，但 draft、verification、batch、内存访问都影响 TPOT；论文没有用这张表证明端到端快 8.24%。</p>
+<h3 id="subsection-2">2.1.1 Continued Pre-Training with DSA</h3>
+<p>DSA 给 MLA 增加一个 lightning indexer：当前 query 与所有因果历史的 index keys 做低维打分，选 top-k，再在这一子集执行多头 Attention。它能选择很远的 token；SWA 只能访问固定局部窗口。这是可访问范围的差异。</p>
+<figure class="generated" id="diagram-dsa"><div class="diagram-scroll" tabindex="0"><img alt="Agent-created GLM-5 dsa flow: operations, dependencies and scope" src="assets/generated/dsa.svg"/></div><figcaption>Agent-created Visualization · mechanism / chronology, not measured performance. <a href="assets/generated/dsa.mmd">Mermaid source</a></figcaption></figure>
+<p>下面的式子是对 DSA 数据流的重建，来源于本论文所引用的 DeepSeek-V3.2 §2，以及公开 GLM DSA 实现；不是本论文的编号公式：</p>
+<div class="equation" id="derived-dsa"><span class="equation-label">AGENT RECONSTRUCTION · DSA</span><math alttext="s_{t,j}=\sum_{h=1}^{32}w^I_{t,h}{\rm ReLU}\left((q^I_{t,h})^\top k^I_j\right),\quad I(t)={\rm TopK}_{j\le t}(s_{t,j},2048),\quad o_t=\sum_{j\in I(t)}{\rm softmax}_{I(t)}(q_t^\top k_j/\sqrt d)v_j" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>s</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>h</mi><mo>=</mo><mn>1</mn></mrow><mrow><mn>32</mn></mrow></munderover><msubsup><mi>w</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>I</mi></msubsup><mrow><mi mathvariant="normal">R</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">L</mi><mi mathvariant="normal">U</mi></mrow><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mo stretchy="false">(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>I</mi></msubsup><msup><mo stretchy="false">)</mo><mo>⊤</mo></msup><msubsup><mi>k</mi><mi>j</mi><mi>I</mi></msubsup><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo>,</mo><mspace width="1em"></mspace><mi>I</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mo>=</mo><msub><mrow><mi mathvariant="normal">T</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">K</mi></mrow><mrow><mi>j</mi><mo>≤</mo><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><msub><mi>s</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow></msub><mo>,</mo><mn>2048</mn><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><msub><mi>o</mi><mi>t</mi></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mi>I</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow></munder><msub><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">x</mi></mrow><mrow><mi>I</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow></msub><mo stretchy="false">(</mo><msubsup><mi>q</mi><mi>t</mi><mo>⊤</mo></msubsup><msub><mi>k</mi><mi>j</mi></msub><mo>/</mo><msqrt><mi>d</mi></msqrt><mo stretchy="false">)</mo><msub><mi>v</mi><mi>j</mi></msub></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>s_{t,j}=\sum_{h=1}^{32}w^I_{t,h}{\rm ReLU}\left((q^I_{t,h})^\top k^I_j\right),\quad I(t)={\rm TopK}_{j\le t}(s_{t,j},2048),\quad o_t=\sum_{j\in I(t)}{\rm softmax}_{I(t)}(q_t^\top k_j/\sqrt d)v_j</code></details></div>
+<p><code>qᴵ</code> 与 <code>kᴵ</code> 128 维，indexer 有 32 个 query heads，<code>w</code> 是 head 权重，<code>I(t)</code> 只包含当前 query 的因果候选。多个 heads 的 ReLU 分数汇聚后形成 <code>[B,S,L]</code> 的概念性打分矩阵，top-k 返回位置，随后 gather 历史 KV。生产 kernel 可分块实现，不一定物化整个矩阵。</p>
+<p><strong>为什么不是数学无损。</strong> 完整 Attention 对所有历史 logits 做 softmax；DSA 删除未选项并对剩余项重新归一化。例：三项权重为 0.6、0.3、0.1，top-2 后变成 2/3、1/3、0。如果第三项 value 很重要，输出会变化。“可以选任意远位置”不等于“保留所有远位置的贡献”。论文 §2.1.2 的 “lossless by construction” 应理解为设计动机与经验近似，不能当作等价性证明。</p>
+<p><strong>两阶段迁移。</strong> dense warm-up 冻结主体，只训练 indexer 模仿稠密注意力的重要性；再启用 sparse selection，联合适应。在 GLM-5 上 warm-up 为 1,000 steps，每 step 14 条 × 202,752 tokens，推导约 2.839B tokens；最高学习率 5e-3，结束 2e-4。随后从 mid-training 最后 checkpoint 做 20B tokens sparse adaptation，学习率 1e-5。不能把这一阶段预算与 DeepSeek-V3.2 的 943.7B 直接除出“训练效率倍数”：起点、数据与任务不同。</p>
+<figure class="original-table" id="table-3"><figcaption>Table 3 : Comparison of long-context benchmarks between MLA and DSA base models.</figcaption><div aria-label="Original Table 3" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T3.5">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_r ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">MQ-NIAH-128k</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">MV-NIAH-128k</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">SQuAD-128k</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">HotpotQA-128k</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">MLA</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">100.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">95.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">79.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">66.3</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">DSA</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">100.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">97.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">86.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb">63.0</td></tr>
+</table></div><p class="fine">Original paper · Table 3 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Table 3：有改善也有退步。</strong> 原表比较 MLA 与 DSA base 的长上下文能力。SQuAD 增加 6.3 pp，HotpotQA 从 66.3 降为 63.0，−3.3 pp；总体可接近，不是逐任务无损。这里是 base checkpoint，而非最终 agent RL。</p>
+<figure class="original" id="figure-6"><img alt="Original Figure 6, panel 1: Figure 6 : SFT loss curves comparison between MLA and DSA training. Results are smoothed by Running Average with a window size of 50." loading="lazy" src="assets/original/fig-06-panel-1.svg"/><figcaption>Figure 6 : SFT loss curves comparison between MLA and DSA training. Results are smoothed by Running Average with a window size of 50.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 6：损失趋势相似，证据粒度有限。</strong> 两条 SFT loss 经窗口 50 的 running average 平滑；横轴是 0–1 归一化训练进度，不是可读出原始 step / token 数的横轴。曲线说明迁移后优化趋势接近，但没有置信区间、原始方差或所有下游任务的等价性保证。</p>
+<p><strong>算力和缓存分开算。</strong> 对单层因果 prefill，dense core 约 <code>L² × H × d</code>；sparse core 约 <code>L × k × H × d</code>。Indexer 仍约 <code>L² × Hᴵ × dᴵ</code>，只是常数较小。decode 时每新 token 的 core 约 <code>kHd</code>，indexer 仍随历史 L 增长；另外还要付 top-k、gather、RoPE、projection、MoE dispatch/combine 与通信费用。128K / 2,048 = 64 只是一种 core 候选数比，不是整个模型快 64 倍。</p>
+<div class="equation" id="derived-cache"><span class="equation-label">AGENT RECONSTRUCTION · CACHE</span><math alttext="M_{\rm MLA}=N_{\rm layers}L(512+64)s_{\rm KV},\quad M_{\rm index}=N_{\rm layers}L(128)s_{\rm index},\quad M_{\rm payload}=M_{\rm MLA}+M_{\rm index}" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>M</mi><mrow><mi mathvariant="normal">M</mi><mi mathvariant="normal">L</mi><mi mathvariant="normal">A</mi></mrow></msub><mo>=</mo><msub><mi>N</mi><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">y</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">s</mi></mrow></msub><mi>L</mi><mo stretchy="false">(</mo><mn>512</mn><mo>+</mo><mn>64</mn><mo stretchy="false">)</mo><msub><mi>s</mi><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi></mrow></msub><mo>,</mo><mspace width="1em"></mspace><msub><mi>M</mi><mrow><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">x</mi></mrow></msub><mo>=</mo><msub><mi>N</mi><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">y</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">s</mi></mrow></msub><mi>L</mi><mo stretchy="false">(</mo><mn>128</mn><mo stretchy="false">)</mo><msub><mi>s</mi><mrow><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">x</mi></mrow></msub><mo>,</mo><mspace width="1em"></mspace><msub><mi>M</mi><mrow><mi mathvariant="normal">p</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">y</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">d</mi></mrow></msub><mo>=</mo><msub><mi>M</mi><mrow><mi mathvariant="normal">M</mi><mi mathvariant="normal">L</mi><mi mathvariant="normal">A</mi></mrow></msub><mo>+</mo><msub><mi>M</mi><mrow><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">x</mi></mrow></msub></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>M_{\rm MLA}=N_{\rm layers}L(512+64)s_{\rm KV},\quad M_{\rm index}=N_{\rm layers}L(128)s_{\rm index},\quad M_{\rm payload}=M_{\rm MLA}+M_{\rm index}</code></details></div>
+<p><strong>静态推导：</strong> 主干 compressed KV 用 BF16 为 <code>78 × (512+64) × 2 = 89,856 bytes/token = 87.75 KiB/token</code>。202,752 tokens 约 16.967 GiB。另加 BF16 index keys <code>78 × 128 × 2</code> 后约 20.738 GiB。Index key 设 FP8 是条件估算，还应计 scales；MTP、分页 padding、temporary workspace、跨 batch 容量和权重均不在上述数中。DSA 选择历史子集并不删除历史缓存。</p>
+<section aria-labelledby="dsa-title" class="interactive" id="dsa-explorer">
+<p class="eyebrow">AGENT-CREATED · ANALYTICAL ESTIMATE</p><h3 id="dsa-title">DSA：选中得少，历史仍要保存</h3>
+<p>调整历史长度和索引缓存精度。主干 78 层，MLA KV 576 维 BF16；Top-k 固定 2,048。读数只计算 payload 与候选数，不代表 GPU 实测速度。</p>
+<div class="controls"><label>历史 tokens<input id="dsa-length" max="202752" min="1" type="number" value="202752"/></label><label>Indexer key 精度<select id="dsa-precision"><option value="2">BF16 · 2 bytes</option><option value="1">FP8 · 1 byte（假设）</option></select></label></div>
+<div aria-label="MLA与索引缓存的解析内存估算" class="quant-chart" id="dsa-chart" role="img"></div><pre aria-live="polite" class="live-result" id="dsa-result"></pre><p class="fine">FP8 不含 scale / metadata；未计 MTP、权重、padding、workspace 和并发。历史变长时 indexer 仍扫描全历史。</p>
+</section>
+<h3 id="subsection-4">2.1.2 Efficient Attention Variants：SWA 与 Simple GDN</h3>
+<p>作者在 40 层 GLM-9B 上比较可替代路线。SWA 用 4,096 窗口，full:SWA 层为 1:1；搜索型方案 beam size 8，每次选两层，十步搜索，在 16K 的 RULER 上决定模式，再复用于其他长度。搜索有助于找到对全局信息更敏感的层，而非假定每层都同等适合局部化。</p>
+<figure class="original-table" id="table-4"><figcaption>Table 4: RULER benchmark results for the GLM-9B baseline and two SWA variants without any additional training . Both SWA methods use a 1:1 ratio of full-attention to SWA layers with a 4096-token window size. The search-based SWA pattern is discovered once at 16k context length and applied uniformly across all input lengths.</figcaption><div aria-label="Original Table 4" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T4.8">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">4K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">8K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">16K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">32K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">64K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">128K</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text">GLM-9B (Full Attn)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">95.19</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">93.67</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">92.01</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">91.09</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">85.35</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">75.28</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text">SWA Interleave</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">94.87</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">54.02</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">25.89</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">12.61</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">8.32</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">6.51</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb"><span class="ltx_text">SWA Pattern</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">95.78</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">92.54</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">88.92</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">82.52</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">70.23</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">53.95</span></td></tr>
+</table></div><p class="fine">Original paper · Table 4 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Table 4：不训练时能保多少能力。</strong> 比较原模型、固定交替 SWA 与搜索型 SWA。所有变体无额外训练，窗口和 full 层比例一致，适合检验 pattern 本身的影响。它不是完整规模 GLM-5 的端到端 latency / memory 对比。</p>
+<figure class="original-table" id="table-5"><figcaption>Table 5 : Long-context benchmark results. All efficient attention variants are continual-trained from the GLM-9B full-attention baseline. SWA pattern denotes search-based layer selection; SWA interleave denotes the fixed alternating pattern. \Delta @64K and \Delta @128K show the difference relative to the full-attention baseline at 64K and 128K context lengths, respectively.</figcaption><div aria-label="Original Table 5" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_align_middle" id="S2.T5.5.1">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">RULER (64K / 128K)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">MRCR (64K / 128K)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">HELMET-ICL (64K / 128K)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">RepoQA (64K / 128K)</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">GLM-9B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">85.35 / 75.28</td>
+<td class="ltx_td ltx_align_center ltx_border_t">36.53 / 35.39</td>
+<td class="ltx_td ltx_align_center ltx_border_t">77.68 / 77.36</td>
+<td class="ltx_td ltx_align_center ltx_border_t">69.00 / 65.83</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">SWA Interleave</td>
+<td class="ltx_td ltx_align_center ltx_border_t">65.94 / 44.93 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>19.41 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>30.35)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">30.03 / 28.83 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>6.50 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>6.56)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">75.96 / 63.52 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>1.72 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>13.84)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">50.33 / 39.33 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>18.67 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>26.50)</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">SWA Pattern</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">83.72 / 69.59</span> <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>1.63 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>5.69)</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">35.02 / 33.58</span> <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>1.51 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>1.81)</span></td>
+<td class="ltx_td ltx_align_center">76.48 / 74.60 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>1.20 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>2.76)</span></td>
+<td class="ltx_td ltx_align_center">62.33 / 51.17 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>6.67 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>14.66)</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">GDN</td>
+<td class="ltx_td ltx_align_center">76.76 / 64.00 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>8.59 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>11.28)</span></td>
+<td class="ltx_td ltx_align_center">31.72 / 30.22 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>4.81 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>5.17)</span></td>
+<td class="ltx_td ltx_align_center">76.88 / 74.84 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>0.80 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>2.52)</span></td>
+<td class="ltx_td ltx_align_center">65.50 / 56.17 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>3.50 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>9.66)</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">SimpleGDN</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">81.76 / 67.03 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>3.59 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>8.25)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb">33.03 / 31.27 <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>3.50 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>4.12)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">79.80 / 81.84</span> <span class="ltx_text">(<math alttext="\uparrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↑</mo></semantics></math>2.12 / <math alttext="\uparrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↑</mo></semantics></math>4.48)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">65.50 / 58.50</span> <span class="ltx_text">(<math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>3.50 / <math alttext="\downarrow" class="ltx_Math" display="inline" intent=":literal"><semantics><mo stretchy="false">↓</mo></semantics></math>7.33)</span></td></tr>
+</table></div><p class="fine">Original paper · Table 5 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Table 5：适应训练后仍有取舍。</strong> 同一 GLM-9B 基线继续训练 190B tokens、64K context；128K RULER 相对 full Attention，SWA interleave −30.35 pp，searched pattern −5.69 pp，Simple GDN −8.25 pp。Simple GDN 在 ICL 增加 4.48 pp，但 RepoQA 降 7.33 pp。Simple GDN 复用 Q/K/V 的线性递归，不加卷积或额外 gate；状态紧凑不等于在所有检索与代码任务更好。</p>
+<figure class="original-table" id="table-6"><figcaption>Table 6: RULER benchmark results for the GLM-4.7-Flash with DSA.
+The warmup-only variant trains only the indexer while
+keeping the base model frozen, the full DSA variant jointly trains both for
+150B tokens.</figcaption><div aria-label="Original Table 6" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T6.5">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">4K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">8K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">16K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">32K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">64K</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text">128K</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text">GLM-4.7-Flash</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">97.44</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">96.72</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">95.83</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">92.96</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">85.34</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text">79.21</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text">GLM-4.7-Flash + DSA warmup</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">97.51</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">96.54</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">95.40</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">90.09</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">84.05</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text">71.35</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb"><span class="ltx_text">GLM-4.7-Flash + DSA</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">96.77</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">96.25</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">96.69</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">93.45</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">87.06</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text">78.86</span></td></tr>
+</table></div><p class="fine">Original paper · Table 6 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Table 6：只训练 indexer 不够。</strong> 这是另一个 GLM-4.7-Flash 实验，不能混成 GLM-5 的 20B 阶段。128K RULER：full 79.21；warm-up only 71.35（−7.86 pp）；联合 DSA 训练 150B 后 78.86（−0.35 pp）。证据支持联合适应的重要性。DSA、SWA、GDN 的任务、训练成本与模型规模并非全部对齐，论文不能据此证明 DSA 在所有硬件上 Pareto 最优。</p>
+<h3 id="subsection-5">2.2 Pre-training Data</h3>
+<p><strong>Web：</strong> 质量筛选与跨域覆盖为语言和知识提供底座。筛选器的选择会影响哪些语域被强化；论文没有发布所有过滤阈值、数据清单与许可审计，使完整复现受限。</p>
+<p><strong>Code：</strong> 不只增加代码文本，还修复仓库 metadata 对齐、去除噪声并改善去重。作者报告 deduplicated unique tokens 增加约 28%，这是有效语料量，不是模型成绩 +28%。工程数据要保留文件关系、依赖与变更语义，单纯按文件随机拼接会损失仓库线索。</p>
+<p><strong>Math &amp; Science：</strong> 加强可验证推理与科学内容。最终 reasoning 能力包含后训练作用；不能由 token 配比直接推断某项数学结果的因果提升。</p>
+<h3 id="subsection-6">2.3 Mid-Training：把文本变成仓库与长序列</h3>
+<p>预训练约 27T，接着三个上下文阶段：32K / 1T tokens，128K / 500B，200K / 50B。直接相加为 28.55T，而全文写约 28.5T，是四舍五入预算；也不应把 warm-up、SFT 与 RL token 随意再加成所谓精确训练总量。</p>
+<p>Software engineering 部分收集约 1,000 万 issue–PR pairs，过滤后约 160B unique tokens。长上下文数据使模型接触多文件依赖和更长的代码片段。这改善“仓库作为整体”的训练输入，但 issue–PR 仍可能含不正确修复、重复内容或评测污染，需要执行验证与去重，不能用数量替代质量。</p>
+<h3 id="subsection-7">2.4 Training Infrastructure：峰值内存和调用时序</h3>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>原文方案</th>
+<th>具体改变</th>
+<th>主要成本与边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Flexible MTP placement</td>
+<td>MTP output 与主输出放最终 stage 共享参数，embedding / transformer 放前一 stage</td>
+<td>缓解 rank 峰值；改变 stage 边界通信</td>
+</tr>
+<tr>
+<td>Pipeline ZeRO2</td>
+<td>gradient 按 DP 分片，只留两套 full accumulation buffers，交替累积与同步</td>
+<td>持久 gradient 约每 stage 的 1/DP，另加两个完整 buffer</td>
+</tr>
+<tr>
+<td>Muon shard communication</td>
+<td>只 all-gather rank 所拥有参数分片，并与计算重叠</td>
+<td>降瞬时峰值与冗余通信；并非无需通信</td>
+</tr>
+<tr>
+<td>Activation offload</td>
+<td>forward 后按层搬到 host，backward 前 reload，配合 recompute</td>
+<td>生命周期变短；需避开 P2P、MoE 路由争用</td>
+</tr>
+<tr>
+<td>Chunked output projection</td>
+<td>分 sequence chunks 执行投影、CE、反传再释放</td>
+<td>降高精度 logits / activation 峰值；chunk 太小增加启动成本</td>
+</tr>
+<tr>
+<td>Deferred weight gradients</td>
+<td>把部分 weight-gradient 工作移出关键路径</td>
+<td>降 pipeline bubble；要管理待执行梯度的依赖和存储</td>
+</tr>
+<tr>
+<td>Long-sequence parallelism</td>
+<td>按 workload 重排序 sequence、动态分配 attention；DP ranks 分成不同大小 CP groups，QKV 用分层 all-to-all</td>
+<td>缓解长序列负载不均；需重叠节点内/间通信</td>
+</tr>
+<tr>
+<td>INT4 QAT</td>
+<td>在 SFT 引入与离线量化 kernel 按位一致的训练模拟</td>
+<td>降量化落差；不保证所有激活或整个网络 bitwise 一致</td>
+</tr>
+</tbody>
+</table></div>
+<p>这些方法共同处理的是<strong>同时活着的对象</strong>。分析峰值应沿 forward → offload → reload → backward → gradient sync 的时间线，而非只加各模块静态大小。论文的 “near-zero overhead” 属于作者系统观测，未提供所有 per-op 时间、host 带宽及相同 baseline 的独立消融。</p>
+<h2 id="section-4">3 · Post-Training：从轨迹到稳定策略</h2>
+<h3 id="subsection-8">3.1 Supervised Fine-Tuning</h3>
+<p>SFT 混合 general、reasoning、coding / agentic 轨迹，最大 context 202,752。重要改变是保留工具前的 reasoning 与跨轮状态，而不是每次用户消息都清空模型先前的思考。</p>
+<figure class="original" id="figure-7"><img alt="Original Figure 7, panel 1: Figure 7 : Illustration of Interleaved Thinking and Preserved Thinking." loading="lazy" src="assets/original/fig-07-panel-1.svg"/><figcaption>Figure 7 : Illustration of Interleaved Thinking and Preserved Thinking.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 7 的阅读顺序。</strong> 先看左侧同一轮的 step 1→2→3：每次 action 前可以插入思考，是 interleaved thinking。再比较右侧第二轮：没有 preserved thinking 时只留下工具调用/结果等信息；有 preservation 时保留早期 reasoning。Interleaved 解决“何时思考”，preserved 解决“哪些历史思考继续可用”，两者不是同一功能，也会增加上下文与缓存成本。</p>
+<p>模型支持 turn-level thinking 开关。轨迹通过 rejection sampling 等方式构建；错误片段保留在输入上下文里，但从 loss 中 mask，以学习失败后的纠正。mask 错误动作不意味着删掉失败事件：模型仍能看到它为什么要重新规划。</p>
+<h3 id="subsection-9">3.2 Reasoning RL：两个不同的比率</h3>
+<p>设 prompt x；组内第 i 条输出 <code>yᵢ</code>；token t；输出序列长度 <code>|yᵢ|</code>；组 reward <code>Rᵢ</code>；旧权重 <code>θold</code>、当前权重 θ。每条轨迹组归一化 advantage 在 token 上广播：<code>Aᵢ,t=(Rᵢ−mean(R))/std(R)</code>。</p>
+<div class="equation" id="equation-1"><span class="equation-label">ORIGINAL EQUATION (1) · GRPO + ICEPOP</span><math alttext="\mathcal L(\theta)=-\mathbb E_{x\sim\mathcal D,\{y_i\}_{i=1}^G\sim\pi_{\theta_{\rm old}}^{\rm infer}}\left[\frac1G\sum_{i=1}^G\frac1{|y_i|}\sum_{t=1}^{|y_i|}{\rm pop}(\rho_{i,t},1/\beta,\beta)\min\left(r_{i,t}\hat A_{i,t},{\rm clip}(r_{i,t},1-\epsilon_{\rm low},1+\epsilon_{\rm high})\hat A_{i,t}\right)\right]" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi mathvariant="script">L</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>=</mo><mo>−</mo><msub><mi mathvariant="double-struck">E</mi><mrow><mi>x</mi><mi>~</mi><mi mathvariant="script">D</mi><mo>,</mo><mo stretchy="false">{</mo><msub><mi>y</mi><mi>i</mi></msub><msubsup><mo stretchy="false">}</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>G</mi></msubsup><mi>~</mi><msubsup><mi>π</mi><mrow><msub><mi>θ</mi><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">d</mi></mrow></msub></mrow><mrow><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi></mrow></msubsup></mrow></msub><mrow><mo fence="true" form="prefix" stretchy="true">[</mo><mfrac><mn>1</mn><mi>G</mi></mfrac><msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>G</mi></msubsup><mfrac><mn>1</mn><mrow><mo stretchy="false">|</mo><msub><mi>y</mi><mi>i</mi></msub><mo stretchy="false">|</mo></mrow></mfrac><msubsup><mo>∑</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mrow><mo stretchy="false">|</mo><msub><mi>y</mi><mi>i</mi></msub><mo stretchy="false">|</mo></mrow></msubsup><mrow><mi mathvariant="normal">p</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">p</mi></mrow><mo stretchy="false">(</mo><msub><mi>ρ</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>,</mo><mn>1</mn><mo>/</mo><mi>β</mi><mo>,</mo><mi>β</mi><mo stretchy="false">)</mo><mo>min</mo><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><msub><mi>r</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><msub><mover accent="true"><mi>A</mi><mo>^</mo></mover><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>,</mo><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">p</mi></mrow><mo stretchy="false">(</mo><msub><mi>r</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>,</mo><mn>1</mn><mo>−</mo><msub><mi>ϵ</mi><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">w</mi></mrow></msub><mo>,</mo><mn>1</mn><mo>+</mo><msub><mi>ϵ</mi><mrow><mi mathvariant="normal">h</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">h</mi></mrow></msub><mo stretchy="false">)</mo><msub><mover accent="true"><mi>A</mi><mo>^</mo></mover><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo fence="true" form="postfix" stretchy="true">]</mo></mrow></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>\mathcal L(\theta)=-\mathbb E_{x\sim\mathcal D,\{y_i\}_{i=1}^G\sim\pi_{\theta_{\rm old}}^{\rm infer}}\left[\frac1G\sum_{i=1}^G\frac1{|y_i|}\sum_{t=1}^{|y_i|}{\rm pop}(\rho_{i,t},1/\beta,\beta)\min\left(r_{i,t}\hat A_{i,t},{\rm clip}(r_{i,t},1-\epsilon_{\rm low},1+\epsilon_{\rm high})\hat A_{i,t}\right)\right]</code></details></div>
+<div class="equation" id="derived-grpo-ratios"><span class="equation-label">AGENT RECONSTRUCTION · GRPO-RATIOS</span><math alttext="\rho_{i,t}=\frac{\pi_{\theta_{\rm old}}^{\rm train}(y_{i,t}\mid x,y_{i,&lt;t})}{\pi_{\theta_{\rm old}}^{\rm infer}(y_{i,t}\mid x,y_{i,&lt;t})},\quad r_{i,t}=\frac{\pi_\theta^{\rm train}(y_{i,t}\mid x,y_{i,&lt;t})}{\pi_{\theta_{\rm old}}^{\rm train}(y_{i,t}\mid x,y_{i,&lt;t})},\quad \hat A_{i,t}=\frac{R_i-{\rm mean}(R)}{{\rm std}(R)}" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>ρ</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>=</mo><mfrac><mrow><msubsup><mi>π</mi><mrow><msub><mi>θ</mi><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">d</mi></mrow></msub></mrow><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi></mrow></msubsup><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>∣</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mo>&lt;</mo><mi>t</mi></mrow></msub><mo stretchy="false">)</mo></mrow><mrow><msubsup><mi>π</mi><mrow><msub><mi>θ</mi><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">d</mi></mrow></msub></mrow><mrow><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi></mrow></msubsup><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>∣</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mo>&lt;</mo><mi>t</mi></mrow></msub><mo stretchy="false">)</mo></mrow></mfrac><mo>,</mo><mspace width="1em"></mspace><msub><mi>r</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>=</mo><mfrac><mrow><msubsup><mi>π</mi><mi>θ</mi><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi></mrow></msubsup><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>∣</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mo>&lt;</mo><mi>t</mi></mrow></msub><mo stretchy="false">)</mo></mrow><mrow><msubsup><mi>π</mi><mrow><msub><mi>θ</mi><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">d</mi></mrow></msub></mrow><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi></mrow></msubsup><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>∣</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mo>&lt;</mo><mi>t</mi></mrow></msub><mo stretchy="false">)</mo></mrow></mfrac><mo>,</mo><mspace width="1em"></mspace><msub><mover accent="true"><mi>A</mi><mo>^</mo></mover><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>=</mo><mfrac><mrow><msub><mi>R</mi><mi>i</mi></msub><mo>−</mo><mrow><mi mathvariant="normal">m</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">n</mi></mrow><mo stretchy="false">(</mo><mi>R</mi><mo stretchy="false">)</mo></mrow><mrow><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">d</mi></mrow><mo stretchy="false">(</mo><mi>R</mi><mo stretchy="false">)</mo></mrow></mfrac></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>\rho_{i,t}=\frac{\pi_{\theta_{\rm old}}^{\rm train}(y_{i,t}\mid x,y_{i,&lt;t})}{\pi_{\theta_{\rm old}}^{\rm infer}(y_{i,t}\mid x,y_{i,&lt;t})},\quad r_{i,t}=\frac{\pi_\theta^{\rm train}(y_{i,t}\mid x,y_{i,&lt;t})}{\pi_{\theta_{\rm old}}^{\rm train}(y_{i,t}\mid x,y_{i,&lt;t})},\quad \hat A_{i,t}=\frac{R_i-{\rm mean}(R)}{{\rm std}(R)}</code></details></div>
+<p><strong>逐步解释。</strong> <code>ρ</code> 比较同旧权重下 train 与 infer 两条执行路径；IcePop 在 <code>[1/β,β]</code> 内保留该比率，外面置零。<code>r</code> 比较 learner 当前权重与训练侧旧权重，是 PPO-style 更新比率。<code>min(rA,clip(r)A)</code> 防止过大更新；整体负号把希望最大化的 surrogate 转成最小化 loss。先按序列长度归一化，再按组平均。mask 应排除工具观察与 padding。</p>
+<p>论文设置 β=2，εlow=0.2，εhigh=0.28，group size 32、batch size 32，并删除原 IcePop 的 KL regularization。组内 reward 全相同使 std=0，实际必须 guard 或 skip；原文没披露该细节，本页不假装有固定处理实现。</p>
+<p><strong>“on-policy” 也会 mismatch。</strong> 权重相同仍可能因为推理 FP8、MLA 解码吸收、训练展开多头、reduction 顺序或不同 kernel 让 log-prob 不同。ρ=1 不是自动成立。这也是为何不能仅检查 checkpoint 版本就结束调试。</p>
+<p><strong>DSA 的 top-k 更敏感。</strong> MoE routed experts 通常只记录 top-8；DSA 每 token 要记录 top-2,048。按 78 层、202,752 tokens、int32 推导，一个轨迹仅 indices 就约 129.66 GB / 120.66 GiB，未计 metadata。全部 replay 的存储与传输成本高。</p>
+<p>作者用 <code>torch.topk</code> 替代其栈中非确定性 top-k，并默认冻结 indexer，在速度略有下降的同时缓解 RL 崩溃。<strong>外部核查：</strong> PyTorch 官方说明并列元素的 indices 不保证稳定；因此这里是作者特定数据、设备与实现的经验，不能推广为任何设备、任何 tie 都确定。要同时核对 indexer scores、tie-break、expert routing、精度、采样与缓存路径。</p>
+<p>Mixed-domain RL 覆盖数学、科学、代码与 tool-integrated reasoning 四域，配比大致均衡。难度筛选偏向 GLM-4.7 很少或无法解对、强 teacher 仍能解的问题；代码包括 Codeforces、TACO 等竞赛任务与科学编码；TIR 复用较难 STEM 问题。各域/来源用专门 judge 或执行系统产生 binary outcome reward。它需要避免只优化某一 reward 类型导致其他能力退化；后续阶段保留旧技能的做法是管线设计，原文没有完整量化每域的遗忘消融。</p>
+<h3 id="subsection-10">3.3 Agentic RL</h3>
+<p>agent reward 经环境执行后产生，因此动作序列可以很长、工具延迟差异很大。SWE、terminal、search 等任务混合训练，任务服务负责启动环境、返回 observation 和最终 reward。模型 token 用于训练；工具返回文本只作为条件输入。</p>
+<p>这里的环境失败有两个来源：策略确实做错，以及 sandbox / service 自身失败。把基础设施故障当负能力 reward 会污染训练，§4.1 专门讨论这种区分。</p>
+<h3 id="subsection-11">3.4 General RL</h3>
+<p>general 阶段分 foundational correctness、emotional intelligence、task-specific quality 三维：先减少事实/指令/逻辑错误，再改善沟通体验与任务质量。奖励结合 rules、ORM、GRM 与人工写作锚点。规则精确但表达范围有限，ORM 低方差而易被浅层模式利用，GRM 能给结构化评估但方差较高。人工锚点用于纠正过度模板化的模型文风。原文没有披露完整 reward 权重与所有 judge 校准数据，不能从流程直接复现结果。</p>
+<h3 id="subsection-12">3.5 On-Policy Distillation</h3>
+<div class="equation" id="equation-2"><span class="equation-label">ORIGINAL EQUATION (2)</span><math alttext="\hat{A}_{i,t}=\text{sg}\left[\log\frac{\pi_{\theta_{\text{teacher}}}^{\text{infer}}(y_{i,t}\mid x,y_{i,&lt;t})}{\pi_{\theta}^{\text{train}}(y_{i,t}\mid x,y_{i,&lt;t})}\right]." display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mover accent="true"><mrow><mi>A</mi></mrow><mo>^</mo></mover><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>=</mo><mtext>sg</mtext><mrow><mo fence="true" form="prefix" stretchy="true">[</mo><mi>log</mi><mfrac><mrow><msubsup><mi>π</mi><mrow><msub><mi>θ</mi><mrow><mtext>teacher</mtext></mrow></msub></mrow><mrow><mtext>infer</mtext></mrow></msubsup><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>∣</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mo>&lt;</mo><mi>t</mi></mrow></msub><mo stretchy="false">)</mo></mrow><mrow><msubsup><mi>π</mi><mrow><mi>θ</mi></mrow><mrow><mtext>train</mtext></mrow></msubsup><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mi>t</mi></mrow></msub><mo>∣</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mi>i</mi><mo>,</mo><mo>&lt;</mo><mi>t</mi></mrow></msub><mo stretchy="false">)</mo></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">]</mo></mrow><mo>.</mo></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>\hat{A}_{i,t}=\text{sg}\left[\log\frac{\pi_{\theta_{\text{teacher}}}^{\text{infer}}(y_{i,t}\mid x,y_{i,&lt;t})}{\pi_{\theta}^{\text{train}}(y_{i,t}\mid x,y_{i,&lt;t})}\right].</code></details></div>
+<p><code>sg</code> 是 stop-gradient，teacher 在<strong>student 采样的前缀</strong>上给 token 概率；advantage 是 teacher infer 与当前 student train 的 log-prob 差值。形状为每个 model token 的标量 <code>[B,S]</code>。某 token teacher 概率更高则局部倾向强化，反之减弱，但最终还经过 Eq.1 的比率控制与 mask。</p>
+<p>这不是复制一批 teacher completion 的普通 SFT，也不需要 GRPO 组内 reward 方差。前序阶段 final checkpoints 作为多个 teachers，prompt 从相应 RL sets 按比例混合，使蒸馏恢复旧技能。作者设置 group size 1、batch size 1,024。teacher 在 infer 路径、student 在 train 路径仍有执行差异；把 teacher 迁到训练引擎以缩小差异是论文中的后续计划，不是已经验证的结果。</p>
+<h3 id="subsection-13">3.6 slime：把 rollout 作为外部系统接入</h3>
+<p><strong>3.6.1 Free-form rollout。</strong> rollout 通过 HTTP 接口与学习引擎解耦，可接 OpenHands、Claude Code 等 agent framework，也可编写自定义环境。模型服务输出 token IDs、log-probs、mask 与版本元数据，环境服务负责工具调用和任务状态。接口规范是跨框架复用的关键。</p>
+<p><strong>3.6.2 Straggler mitigation。</strong> 某条轨迹几十步、另一条上百步；只提高大 batch 吞吐可能加剧小 batch 的长尾完成时间。作者结合 FP8、MTP 与 serving 优化缩短慢轨迹 per-token latency。吞吐和尾部 latency 是不同目标，论文没有完整展示这些措施各自贡献多少。</p>
+<p><strong>3.6.3 Heartbeat-based fault tolerance。</strong> heartbeat 发现坏服务后 unregister，并重试相关任务。工程上还要确认未完成回调、sandbox 清理、版本记录与重试幂等性。检测故障只是第一步，重复有副作用工具调用时尤其不能直接重放。</p>
+<h2 id="section-5">4 · Agentic Engineering：异步系统与可验证环境</h2>
+<h3 id="subsection-14">4.1 Asynchronous RL：生产者与学习者分开运行</h3>
+<p>同步 RL 等一组或一批轨迹都完成，learner 容易空闲。异步设计让 rollout 持续生产，buffer 累积到门槛即取 batch 训练；每若干 learner updates 把权重推给 serving。原文写更新 inference weights 后重置 optimizer，但没有披露周期 K 或完整 optimizer state 处理。任务轨迹数 K 与刷新周期 K 在文中复用符号，解释时必须分开。</p>
+<figure class="generated" id="diagram-async"><div class="diagram-scroll" tabindex="0"><img alt="Agent-created GLM-5 async flow: operations, dependencies and scope" src="assets/generated/async.svg"/></div><figcaption>Agent-created Visualization · mechanism / chronology, not measured performance. <a href="assets/generated/async.mmd">Mermaid source</a></figcaption></figure>
+<p><strong>调用链。</strong> task microservices 提供 domain-specific 环境；orchestrator 控制任务比例与 concurrency（作者报告超过 1,000）；TITO gateway 记录模型 token 流；rollout buffer 保存样本；learner 计算当前 log-probs 与 loss；weight refresh 再传播到 serving。微服务与 GPU pool 解耦提高灵活性，也引入排队、重试与状态一致性成本。</p>
+<p><strong>原文目标式需要审计。</strong></p>
+<div class="equation" id="equation-centered"><span class="equation-label">ORIGINAL EQUATION UNNUMBERED · §4.1</span><math alttext="L(\theta)=\mathbb{E}_{x\sim\mathcal{D}}\!\left[\frac{1}{K}\sum_{i=1}^{K}\left(r(x,y_{i})-\bar{r}(x)\right)\right]," display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>L</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>=</mo><msub><mi>𝔼</mi><mrow><mi>x</mi><mi>~</mi><mi>𝒟</mi></mrow></msub><mspace width="negativethinmathspace"></mspace><mrow><mo fence="true" form="prefix" stretchy="true">[</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>K</mi></mrow></mfrac><msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>K</mi></mrow></msubsup><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mi>r</mi><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mi>i</mi></mrow></msub><mo stretchy="false">)</mo><mo>−</mo><mover><mrow><mi>r</mi></mrow><mo stretchy="true">¯</mo></mover><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo fence="true" form="postfix" stretchy="true">)</mo></mrow><mo fence="true" form="postfix" stretchy="true">]</mo></mrow><mo>,</mo></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>L(\theta)=\mathbb{E}_{x\sim\mathcal{D}}\!\left[\frac{1}{K}\sum_{i=1}^{K}\left(r(x,y_{i})-\bar{r}(x)\right)\right],</code></details></div>
+<p>只要 <code>r̄(x)</code> 是同组 reward 平均值，就有 <code>Σ(rᵢ−r̄)=0</code>，这个式子按印刷形式恒为零。它可描述 centered rewards，但本身不能提供有效优化目标。下面的 policy-gradient 式才表达带 action log-prob 的更新。本页没有悄悄给原式补一个项。</p>
+<div class="equation" id="equation-3"><span class="equation-label">ORIGINAL EQUATION (3)</span><math alttext="L(\theta)=\mathbb{E}_{t}\left[f(r_{t}(\theta),\epsilon_{l},\epsilon_{h})\hat{A}_{t}\log\pi_{\theta}(a_{t}|s_{t})\right]" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>L</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>=</mo><msub><mi>𝔼</mi><mrow><mi>t</mi></mrow></msub><mrow><mo fence="true" form="prefix" stretchy="true">[</mo><mi>f</mi><mo stretchy="false">(</mo><msub><mi>r</mi><mrow><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>,</mo><msub><mi>ϵ</mi><mrow><mi>l</mi></mrow></msub><mo>,</mo><msub><mi>ϵ</mi><mrow><mi>h</mi></mrow></msub><mo stretchy="false">)</mo><msub><mover accent="true"><mrow><mi>A</mi></mrow><mo>^</mo></mover><mrow><mi>t</mi></mrow></msub><mi>log</mi><msub><mi>π</mi><mrow><mi>θ</mi></mrow></msub><mo stretchy="false">(</mo><msub><mi>a</mi><mrow><mi>t</mi></mrow></msub><mo stretchy="false">|</mo><msub><mi>s</mi><mrow><mi>t</mi></mrow></msub><mo stretchy="false">)</mo><mo fence="true" form="postfix" stretchy="true">]</mo></mrow></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>L(\theta)=\mathbb{E}_{t}\left[f(r_{t}(\theta),\epsilon_{l},\epsilon_{h})\hat{A}_{t}\log\pi_{\theta}(a_{t}|s_{t})\right]</code></details></div>
+<div class="equation" id="equation-4"><span class="equation-label">ORIGINAL EQUATION (4)</span><math alttext="r_{t}(\theta)=\exp\left(\log\pi_{\theta}(a_{t}|s_{t})-\log\pi_{\text{rollout}}(a_{t}|s_{t})\right)" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>r</mi><mrow><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>=</mo><mi>exp</mi><mrow><mo fence="true" form="prefix" stretchy="true">(</mo><mi>log</mi><msub><mi>π</mi><mrow><mi>θ</mi></mrow></msub><mo stretchy="false">(</mo><msub><mi>a</mi><mrow><mi>t</mi></mrow></msub><mo stretchy="false">|</mo><msub><mi>s</mi><mrow><mi>t</mi></mrow></msub><mo stretchy="false">)</mo><mo>−</mo><mi>log</mi><msub><mi>π</mi><mrow><mtext>rollout</mtext></mrow></msub><mo stretchy="false">(</mo><msub><mi>a</mi><mrow><mi>t</mi></mrow></msub><mo stretchy="false">|</mo><msub><mi>s</mi><mrow><mi>t</mi></mrow></msub><mo stretchy="false">)</mo><mo fence="true" form="postfix" stretchy="true">)</mo></mrow></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>r_{t}(\theta)=\exp\left(\log\pi_{\theta}(a_{t}|s_{t})-\log\pi_{\text{rollout}}(a_{t}|s_{t})\right)</code></details></div>
+<div class="equation" id="equation-5"><span class="equation-label">ORIGINAL EQUATION (5)</span><math alttext="f(x;\epsilon_{\ell},\epsilon_{h})=\begin{cases}x,&amp;\text{if }1-\epsilon_{\ell}&lt;x&lt;1+\epsilon_{h}\\
+0,&amp;\text{otherwise}\end{cases}" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mi>;</mi><msub><mi>ϵ</mi><mrow><mi>ℓ</mi></mrow></msub><mo>,</mo><msub><mi>ϵ</mi><mrow><mi>h</mi></mrow></msub><mo stretchy="false">)</mo><mo>=</mo><mrow><mo fence="true" form="prefix" stretchy="true">{</mo><mtable><mtr><mtd columnalign="left"><mi>x</mi><mo>,</mo></mtd><mtd columnalign="left"><mtext>if </mtext><mn>1</mn><mo>−</mo><msub><mi>ϵ</mi><mrow><mi>ℓ</mi></mrow></msub><mo>&lt;</mo><mi>x</mi><mo>&lt;</mo><mn>1</mn><mo>+</mo><msub><mi>ϵ</mi><mrow><mi>h</mi></mrow></msub></mtd></mtr><mtr><mtd columnalign="left"><mn>0</mn><mo>,</mo></mtd><mtd columnalign="left"><mtext>otherwise</mtext></mtd></mtr></mtable></mrow></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>f(x;\epsilon_{\ell},\epsilon_{h})=\begin{cases}x,&amp;\text{if }1-\epsilon_{\ell}&lt;x&lt;1+\epsilon_{h}\\
+0,&amp;\text{otherwise}\end{cases}</code></details></div>
+<p><strong>Eq.3–5 的符号和运算。</strong> 状态 sₜ 包括 prompt、历史模型动作与环境观察；aₜ 为 model token；Aₜ 为其 advantage；rollout log-prob 是生成当时 behavior policy 的记录，当前 <code>logπθ</code> 来自 learner forward。两者作差再 exp 得 importance ratio r。Eq.5 只保留<strong>严格开区间</strong>内的 r，边界与区间外置零，随后乘 A 和 logπ；Eq.3 正号是待最大化的 surrogate，采用梯度下降的代码需要负号。</p>
+<p>这里的 clipping 不同于 PPO <code>clip</code>：r=1.5 时 PPO 把某个分支限制到边界，Eq.5 的严格 mask 直接不让这个 token 贡献梯度。异步段没有披露 εlow / εhigh，不能照搬 §3.2 的 0.2 / 0.28 当作事实。实现一般 detach f(r)，否则会多出 ratio 的梯度；这是本页实现解释，原式没有明确注明。</p>
+<div class="code-frame"><div class="code-head"><span>PYTHON · EXPLANATORY PSEUDOCODE</span><button class="copy-button" type="button">Copy</button></div><pre><code class="language-python"><span class="c1"># 解释性伪代码：异步更新，非作者完整训练实现。</span>
+<span class="c1"># ids/logp_behavior/model_mask/version 来自生成时的 TITO 记录。</span>
+<span class="n">ratio</span> <span class="o">=</span> <span class="n">exp</span><span class="p">(</span><span class="n">logp_current</span> <span class="o">-</span> <span class="n">logp_behavior</span><span class="p">)</span> <span class="c1"># [B, S]</span>
+<span class="n">keep</span> <span class="o">=</span> <span class="p">(</span><span class="n">ratio</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="o">-</span><span class="n">eps_low</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">ratio</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="o">+</span><span class="n">eps_high</span><span class="p">)</span>
+<span class="n">weights</span> <span class="o">=</span> <span class="n">stop_gradient</span><span class="p">(</span><span class="n">ratio</span> <span class="o">*</span> <span class="n">keep</span><span class="p">)</span>
+<span class="n">valid</span> <span class="o">=</span> <span class="n">model_mask</span> <span class="o">&amp;</span> <span class="n">non_padding_mask</span>
+<span class="n">surrogate</span> <span class="o">=</span> <span class="n">weights</span> <span class="o">*</span> <span class="n">advantage</span> <span class="o">*</span> <span class="n">logp_current</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="o">-</span><span class="n">masked_mean</span><span class="p">(</span><span class="n">surrogate</span><span class="p">,</span> <span class="n">valid</span><span class="p">)</span> <span class="c1"># Eq.3 最大化转最小化</span>
+</code></pre></div>
+<p>实际 reduction 需明确按 token、trajectory 还是 task group 聚合；不同长度任务可能因此权重不同。上述 <code>masked_mean</code> 展示逻辑，不能冒充论文未披露的全套归一化策略。</p>
+<section aria-labelledby="async-title" class="interactive" id="async-explorer">
+<p class="eyebrow">AGENT-CREATED · TOY PARAMETERS</p><h3 id="async-title">严格 mask 与版本丢弃是两层控制</h3>
+<p>这里示例 εlow=.20、εhigh=.28、lag cutoff=4；均为解释参数，论文异步段未披露实际值。区间边界也置零。</p>
+<div class="controls"><label>Importance ratio<input id="async-ratio" max="3" min=".1" step=".01" type="number" value="1.00"/></label><label>起始版本 lag<input id="async-lag" max="10" min="0" type="number" value="2"/></label></div>
+<ol class="step-track"><li>TITO exact IDs + behavior logp</li><li id="lag-state">Lag filter</li><li id="ratio-state">Strict token mask</li><li id="loss-state">Gradient contribution</li></ol>
+<pre aria-live="polite" class="live-result" id="async-result"></pre><p class="fine">同 token、同前缀才可计算比率；model mask 还须排除工具观察与 padding。单 token 示例不能代表 batch 有效比例。</p>
+</section>
+<p><strong>TITO 不是记录纯文本。</strong> text-in-text-out 在 learner 重新分词时可能改变空格、special tokens、截断和模型/工具边界；结果是训练的 action 不再等于真正采样的 action。TITO 保存 exact IDs 与每 token log-prob、loss mask 和版本，才能让 Eq.4 的分子分母指向同一个 token 和相同前缀。无需为每个 behavior version 重新加载旧 checkpoint 计算分母。</p>
+<p><strong>Trajectory filtering。</strong> 一条长轨迹可能跨 <code>w₀,…,wₖ</code> 多个 serving versions；论文按当前 learner version <code>w′−w₀ &gt; τ</code> 丢弃太旧样本，τ 未披露。工具 sandbox 坏掉属于环境故障：组内有效数超过一半时重复补齐，否则丢整组。它避免把机器坏掉学成“动作错”，但重复样本改变任务权重与有效样本量，应该记录 retry 与 sample multiplicity。</p>
+<p><strong>Cache affinity 与 prefill。</strong> 对 rollout ID consistent hashing，使连续工具轮次优先路由到同一 DP rank，并做轻量 rebalance，可复用累积 prefix KV。命中仍依赖精确 tokens、版本、eviction 与上下文管理。说 prefill 与“增量 token 数”相关，是减少重新计算的 query；这些增量 queries 仍要对历史做 index / attention。</p>
+<p><strong>PD disaggregation。</strong> prefill 与 decode 分开可避免长 prefill 阻塞 decode，但 KV transfer 带宽、排队、不同 kernel 的首 token logits 一致性依然需要检查。论文 EP64 / DP64、八节点部署样例不是最小硬件需求或任何集群的通用最优设置。</p>
+<h3 id="subsection-16">4.2 Agent Environments</h3>
+<p><strong>4.2.1 SWE：</strong> 超过 10,000 个任务、数千 repositories、九种语言。RepoLaunch 自动探索依赖、搭建环境，验证 Fail-to-Pass 与 Pass-to-Pass tests：既要修好目标失败，也要保持已通过测试。自动环境扩展增大规模，但需要限制重复 repo、同源 issue 泄漏与 flaky tests。</p>
+<p><strong>4.2.2 Terminal：</strong> seed 合成采用任务 draft→construction→refinement 三阶段，产出 Harbor 格式的说明、Docker 和 tests；作者报告构建准确率超过 90%，这是 environment readiness，不是 agent 解决率。另一条 web-corpus 合成管线按技术主题/难度分层采样，让 construction agent 自己执行验证并修改到通过；自评闭环可能保留共享盲点。一个 Docker 能启动，仍可能缺真实数据、网络条件或正确验证器。</p>
+<p><strong>4.2.3 Search：</strong> 约 200 万网页构建 Web Knowledge Graph，围绕实体产生多跳问题，使用多 agent 双向验证，并过滤无需工具就能在八次尝试中解决的问题。目标是强化主动检索与证据整合；问题与 judge 同源时可能共享错误偏好，训练后还要用外部冻结评测验证。</p>
+<h3 id="subsection-17">4.2.4 Hybrid Context Management</h3>
+<p>原始记录可写为 <code>[(reasoningᵢ,actionᵢ,observationᵢ)]</code>。当 history 太长时，keep-recent 把较旧 tool observation 替换为 <code>Tool result is omitted to save tokens.</code>，仍保留 reasoning / action，保留最近五轮 observation。它压缩的是环境返回详情，不是把全部早期决策都删除。</p>
+<figure class="original" id="figure-8"><img alt="Original Figure 8, panel 1: Figure 8 : Accuracy of BrowseComp with different context management strategies from GLM-4.7 (gray baselines) to GLM-5 (colored strategies)." loading="lazy" src="assets/original/fig-08-panel-1.svg"/><figcaption>Figure 8 : Accuracy of BrowseComp with different context management strategies from GLM-4.7 (gray baselines) to GLM-5 (colored strategies).<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 8：读策略和预算，别捏造曲线点。</strong> 横轴为测试预算，纵轴为 BrowseComp accuracy，灰线是 GLM-4.7，彩线是 GLM-5 的 context strategies。文中 keep-recent 使 55.3 → 62.0，+6.7 pp（相对 +12.12%）；到达阈值再 discard-all / reset 后结合 keep-recent，参数搜索结果 75.9。不同 budget 与阈值下曲线变化说明策略重要，不能把 75.9−62.0 全当作基础模型提升。</p>
+<p><strong>口径冲突：</strong> Table 7 / §6 的 “without context management” 已含 keep-recent；附录 B.2 将 “with CM” 简写为 discard-all，§4.2.4 则描述 hybrid。复现必须固定完整 harness、阈值与每轮保留规则，不能只设置一个 <code>CM=true</code>。压缩也可能丢掉未来需要的原始证据或工具 state，最好允许通过文件/检索取回。</p>
+<h3 id="subsection-18">4.2.5 Slides：让奖励落到真实渲染</h3>
+<p>slides 的三级奖励分别查看 markup 合规、运行时 DOM 属性和感知布局。若只看源码，模型可以设置看似正确的 16:9 但运行时溢出，或者以大量空格、强行截断逃避检查。</p>
+<figure class="original" id="figure-9"><img alt="Original Figure 9, panel 1: Figure 9 : Examples of reward hacking in the slides RL training. Our runtime rendering obtains grounded attribute values, making the evaluation robust to such hacking behaviors." loading="lazy" src="assets/original/fig-09-panel-1.png"/><figcaption>Figure 9 : Examples of reward hacking in the slides RL training. Our runtime rendering obtains grounded attribute values, making the evaluation robust to such hacking behaviors.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 9：reward hacking 的两种例子。</strong> 看截断导致内容丢失与多余空白如何骗过浅层规则；运行时渲染把检查对象切换到真实页面。DOM 的尺寸与可见性更接近用户看到的结果，仍需内容完整性和审美 judge。作者结合 SFT→RL→best-of-N，并 mask 掉不合格 pages，以免低质 slide 污染训练。</p>
+<p>16:9 合规率由 40% 到 92%，是 +52 pp；人工对比的 content / layout / aesthetic / overall win rates 为 60% / 57.5% / 65% / 67.5%。原文未给完整样本数和 CI，不能断言统计显著，也不代表 SWE 程序正确率。</p>
+<h2 id="section-6">5 · Support for Chinese Chips：算子落地与精度链路</h2>
+<p>论文列出七家国产芯片支持，并以 Ascend 说明部署。msModelSlim 结合 QuaRot、Flex_AWQ_SSZ，attention / dense W8A8，experts W4A8。SFT 的 INT4 QAT 与部署量化 recipe 相关，但权重量化一致不保证激活、softmax、router、缓存和整个模型输出完全相同。</p>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Per-op / 系统环节</th>
+<th>作者方案</th>
+<th>需要测的真实变量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MLA preprocessing / output</td>
+<td>MLAPO，把约 13 个 ops 融合，映射 Vector / Cube</td>
+<td>小算子启动、转置、精度转换与 workspace</td>
+</tr>
+<tr>
+<td>Lightning Indexer</td>
+<td>score、ReLU、TopK 融合</td>
+<td>历史长度、tie-break、全历史读带宽</td>
+</tr>
+<tr>
+<td>Sparse FlashAttention</td>
+<td>选中位置 gather + attention</td>
+<td>不连续访存、selected KV layout、归约精度</td>
+</tr>
+<tr>
+<td>CPU↔device 调度</td>
+<td>D2H 异步与调度重叠</td>
+<td>回调生命周期、同步阻塞、host pinning</td>
+</tr>
+<tr>
+<td>Cache</td>
+<td>RadixCache、host prefix storage</td>
+<td>容量、eviction、迁移带宽、version key</td>
+</tr>
+<tr>
+<td>MoE / parallelism</td>
+<td>DP/EP、FlashComm</td>
+<td>dispatch/combine、负载偏斜、all-to-all</td>
+</tr>
+<tr>
+<td>MTP</td>
+<td>多 token draft 与验证</td>
+<td>acceptance、verification、首 token / TPOT</td>
+</tr>
+</tbody>
+</table></div>
+<p>“单 Atlas 800T A3 成本为某国际双 GPU 集群的 50%”是论文陈述，但 baseline 设备、batch、延迟目标、精度和成本模型未完整公开。这不足以生成可复现的性价比排名，更不能外推到手机 NPU。</p>
+<p><strong>面向端侧的可迁移经验（本页解释）。</strong> 应学习融合、控制原始 buffer 生命周期、统一首 token 路径和精度审计方法；744B 的专家权重不会因 active 仅 40B 就缩到 40B 常驻。只按 744B 参数粗估 BF16 权重约 1.488 TB，INT4 payload 约 372 GB，未含 scales、embedding / output 和冗余副本，显然不是可直接加载到嵌入式设备的模型。</p>
+<h2 id="section-7">6 · Evaluation：把“接近前沿”拆成可检查指标</h2>
+<h3 id="subsection-19">6.1 ARC：Reasoning、Coding、Agentic</h3>
+<figure class="original-table" id="table-7"><figcaption>Table 7 : Comparison between GLM-5 and open-source/proprietary models. Results marked with * are from the full set of HLE. Results marked with † are evaluated on a verified version of Terminal-Bench 2.0, fixing some ambiguous instructions. The GDPval-AA Elo scores are recorded on 15th Feb., 2026. The highest score for each benchmark is bolded , and the second highest is underlined .</figcaption><div aria-label="Original Table 7" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S6.T7.8">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-4.7</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<table class="ltx_tabular ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">DeepSeek</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">-V3.2</span></td></tr>
+</table></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<table class="ltx_tabular ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">Kimi</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">K2.5</span></td></tr>
+</table></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<table class="ltx_tabular ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">Claude</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">Opus 4.5</span></td></tr>
+</table></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<table class="ltx_tabular ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">Gemini</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">3 Pro</span></td></tr>
+</table></td>
+<td class="ltx_td ltx_align_center ltx_border_tt">
+<table class="ltx_tabular ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">GPT-5.2</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_font_bold">(xhigh)</span></td></tr>
+</table></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text ltx_font_italic">Reasoning &amp; General</span></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">HLE</td>
+<td class="ltx_td ltx_align_center">30.5</td>
+<td class="ltx_td ltx_align_center">24.8</td>
+<td class="ltx_td ltx_align_center">25.1</td>
+<td class="ltx_td ltx_align_center">31.5</td>
+<td class="ltx_td ltx_align_center">28.4</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">37.2</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">35.4</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">HLE (w/ Tools)</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">50.4</span></td>
+<td class="ltx_td ltx_align_center">42.8</td>
+<td class="ltx_td ltx_align_center">40.8</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">51.8</span></td>
+<td class="ltx_td ltx_align_center">43.4*</td>
+<td class="ltx_td ltx_align_center">45.8*</td>
+<td class="ltx_td ltx_align_center">45.5*</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">AIME 2026 I</td>
+<td class="ltx_td ltx_align_center">92.7</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">92.9</span></td>
+<td class="ltx_td ltx_align_center">92.7</td>
+<td class="ltx_td ltx_align_center">92.5</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">93.3</span></td>
+<td class="ltx_td ltx_align_center">90.6</td>
+<td class="ltx_td ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">HMMT Feb. 2025</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">97.9</span></td>
+<td class="ltx_td ltx_align_center">97.1</td>
+<td class="ltx_td ltx_align_center">92.5</td>
+<td class="ltx_td ltx_align_center">95.4</td>
+<td class="ltx_td ltx_align_center">92.9</td>
+<td class="ltx_td ltx_align_center">97.3</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">99.4</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">HMMT Nov. 2025</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">96.9</span></td>
+<td class="ltx_td ltx_align_center">93.5</td>
+<td class="ltx_td ltx_align_center">90.2</td>
+<td class="ltx_td ltx_align_center">91.1</td>
+<td class="ltx_td ltx_align_center">91.7</td>
+<td class="ltx_td ltx_align_center">93.0</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">97.1</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">IMO-AnswerBench</td>
+<td class="ltx_td ltx_align_center">82.5</td>
+<td class="ltx_td ltx_align_center">82.0</td>
+<td class="ltx_td ltx_align_center">78.3</td>
+<td class="ltx_td ltx_align_center">81.8</td>
+<td class="ltx_td ltx_align_center">78.5</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">83.3</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">86.3</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">GPQA-Diamond</td>
+<td class="ltx_td ltx_align_center">86.0</td>
+<td class="ltx_td ltx_align_center">85.7</td>
+<td class="ltx_td ltx_align_center">82.4</td>
+<td class="ltx_td ltx_align_center">87.6</td>
+<td class="ltx_td ltx_align_center">87.0</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">91.9</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">92.4</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">LongBench v2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">64.5</span></td>
+<td class="ltx_td ltx_align_center">59.1</td>
+<td class="ltx_td ltx_align_center">59.8</td>
+<td class="ltx_td ltx_align_center">61.0</td>
+<td class="ltx_td ltx_align_center">64.4</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">68.2</span></td>
+<td class="ltx_td ltx_align_center">59.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text ltx_font_italic">Coding</span></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">SWE-bench Verified</td>
+<td class="ltx_td ltx_align_center">77.8</td>
+<td class="ltx_td ltx_align_center">73.8</td>
+<td class="ltx_td ltx_align_center">73.1</td>
+<td class="ltx_td ltx_align_center">76.8</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">80.9</span></td>
+<td class="ltx_td ltx_align_center">76.2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">80.0</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">SWE-bench Multilingual</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">73.3</span></td>
+<td class="ltx_td ltx_align_center">66.7</td>
+<td class="ltx_td ltx_align_center">70.2</td>
+<td class="ltx_td ltx_align_center">73.0</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">77.5</span></td>
+<td class="ltx_td ltx_align_center">65.0</td>
+<td class="ltx_td ltx_align_center">72.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">
+<table class="ltx_tabular ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">Terminal-Bench 2.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left"><span class="ltx_text">(Terminus-2)</span></td></tr>
+</table></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_tabular ltx_align_middle">
+<span class="ltx_tr">
+<span class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_underline">56.2</span> /</span></span>
+<span class="ltx_tr">
+<span class="ltx_td ltx_nopad_r ltx_align_center">60.7<sup class="ltx_sup">†</sup></span></span>
+</span></span><span class="ltx_text"></span></td>
+<td class="ltx_td ltx_align_center">41.0</td>
+<td class="ltx_td ltx_align_center">39.3</td>
+<td class="ltx_td ltx_align_center">50.8</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">59.3</span></td>
+<td class="ltx_td ltx_align_center">54.2</td>
+<td class="ltx_td ltx_align_center">54.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">
+<table class="ltx_tabular ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">Terminal-Bench 2.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left"><span class="ltx_text">(Claude Code)</span></td></tr>
+</table></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text"></span> <span class="ltx_text">
+<span class="ltx_tabular ltx_align_middle">
+<span class="ltx_tr">
+<span class="ltx_td ltx_nopad_r ltx_align_center"><span class="ltx_text ltx_underline">56.2</span> /</span></span>
+<span class="ltx_tr">
+<span class="ltx_td ltx_nopad_r ltx_align_center">61.1<sup class="ltx_sup">†</sup></span></span>
+</span></span><span class="ltx_text"></span></td>
+<td class="ltx_td ltx_align_center">32.8</td>
+<td class="ltx_td ltx_align_center">46.4</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">57.9</span></td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">CyberGym</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">43.2</span></td>
+<td class="ltx_td ltx_align_center">23.5</td>
+<td class="ltx_td ltx_align_center">17.3</td>
+<td class="ltx_td ltx_align_center">41.3</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">50.6</span></td>
+<td class="ltx_td ltx_align_center">39.9</td>
+<td class="ltx_td ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text ltx_font_italic">Agentic</span></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_border_t"></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">BrowseComp</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">62.0</span></td>
+<td class="ltx_td ltx_align_center">52.0</td>
+<td class="ltx_td ltx_align_center">51.4</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">60.6</span></td>
+<td class="ltx_td ltx_align_center">37.0</td>
+<td class="ltx_td ltx_align_center">37.8</td>
+<td class="ltx_td ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">
+<table class="ltx_tabular ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">BrowseComp</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left"><span class="ltx_text">(w/ Context Manage)</span></td></tr>
+</table></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">75.9</span></td>
+<td class="ltx_td ltx_align_center">67.5</td>
+<td class="ltx_td ltx_align_center">67.6</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">74.9</span></td>
+<td class="ltx_td ltx_align_center">57.8</td>
+<td class="ltx_td ltx_align_center">59.2</td>
+<td class="ltx_td ltx_align_center">65.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">BrowseComp-ZH</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">72.7</span></td>
+<td class="ltx_td ltx_align_center">66.6</td>
+<td class="ltx_td ltx_align_center">65.0</td>
+<td class="ltx_td ltx_align_center">62.3</td>
+<td class="ltx_td ltx_align_center">62.4</td>
+<td class="ltx_td ltx_align_center">66.8</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">76.1</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><math alttext="\tau^{2}" class="ltx_Math" display="inline" intent=":literal"><semantics><msup><mi>τ</mi><mn>2</mn></msup></semantics></math>-Bench</td>
+<td class="ltx_td ltx_align_center">89.7</td>
+<td class="ltx_td ltx_align_center">87.4</td>
+<td class="ltx_td ltx_align_center">85.3</td>
+<td class="ltx_td ltx_align_center">80.2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">91.6</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">90.7</span></td>
+<td class="ltx_td ltx_align_center">85.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">MCP-Atlas (Public Set)</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">67.8</span></td>
+<td class="ltx_td ltx_align_center">52.0</td>
+<td class="ltx_td ltx_align_center">62.2</td>
+<td class="ltx_td ltx_align_center">63.8</td>
+<td class="ltx_td ltx_align_center">65.2</td>
+<td class="ltx_td ltx_align_center">66.6</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">68.0</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Tool-Decathlon</td>
+<td class="ltx_td ltx_align_center">39.2</td>
+<td class="ltx_td ltx_align_center">23.8</td>
+<td class="ltx_td ltx_align_center">35.2</td>
+<td class="ltx_td ltx_align_center">27.8</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">43.5</span></td>
+<td class="ltx_td ltx_align_center">36.4</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">46.3</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Vending-Bench 2</td>
+<td class="ltx_td ltx_align_center">$4,432</td>
+<td class="ltx_td ltx_align_center">$2,377</td>
+<td class="ltx_td ltx_align_center">$1,034</td>
+<td class="ltx_td ltx_align_center">$1,198</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_underline">$4,967</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">$5,478</span></td>
+<td class="ltx_td ltx_align_center">$3,591</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">GDPval-AA Elo</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_underline">1,409</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1,198</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1,195</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1,288</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1,400</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1,201</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">1,462</span></td></tr>
+</table></div><p class="fine">Original paper · Table 7 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>先读表的条件。</strong> 全部模型列、分域行、bold / underline、缺失值与脚注完整保留。<code>*</code> 是 HLE full set，其余默认 text-only；<code>†</code> 是 verified Terminal-Bench，修复部分歧义指令；GDPval-AA Elo 固定 2026-02-15。各榜并非相同规模、数据、test-time compute 或 harness 的受控实验。</p>
+<p><strong>Reasoning：</strong> HLE text 30.5、with tools 50.4 展示工具条件下更强解题，不能与 full-set <code>*</code> 分数严格对比。LongBench v2 64.5 低于 Gemini 3 Pro 68.2，说明长上下文能力没有全面领先。</p>
+<p><strong>Coding：</strong> SWE-bench Verified 77.8 vs GLM-4.7 73.8，+4.0 pp，相对 +5.42%；仍低于 Opus 4.5 80.9，−3.1 pp。Multilingual 73.3 vs 66.7，+6.6 pp，相对 +9.90%；低于 Opus 77.5，−4.2 pp。模型、instruction prompt 与 OpenHands 的组合形成这些结果。</p>
+<p><strong>Terminal：</strong> 56.2 是原版 Terminus 2；60.7† / 61.1† 分别为 verified Terminus / Claude Code 条件。不能把 verified 的 60.7 和另一模型原版的 59.3 当严格胜负。GLM-4.7 在两个 framework 的分数 41.0 与 32.8 也不同，harness 本身是大变量。</p>
+<p><strong>Agentic：</strong> CyberGym 43.2 vs 23.5，+19.7 pp；MCP-Atlas 67.8 vs 52.0，+15.8 pp，但低于 GPT-5.2 68.0；τ²-Bench 89.7 含 user simulator prompt 调整；Vending 的金额/经营结果与准确率单位不同。这些结果支持明显进步，但没有证明所有任务、所有硬件或今天所有模型的第一名。</p>
+<h3 id="subsection-20">6.2 Real-world Agentic Engineering Experience</h3>
+<figure class="original" id="figure-10"><img alt="Original Figure 10, panel 1: Figure 10 : Agent-as-a-Judge evaluation pipeline. Each generated frontend project is first built to verify static correctness. Successfully built instances are then interactively tested by an autonomous Judge Agent, which determines the functional correctness of each check item." loading="lazy" src="assets/original/fig-10-panel-1.png"/><figcaption>Figure 10 : Agent-as-a-Judge evaluation pipeline. Each generated frontend project is first built to verify static correctness. Successfully built instances are then interactively tested by an autonomous Judge Agent, which determines the functional correctness of each check item.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 10：先 build，再真的点。</strong> generated project 先跑 build；成功项目交给 Judge Agent 在浏览器操作，每个 check item 独立判定。页面有“保存”按钮不等于保存有效：judge 应执行输入、画图、擦除和本地保存，检查状态变化。这是把源码静态正确与运行功能拆开测。</p>
+<figure class="original-table" id="table-8"><figcaption>Table 8 : CC-Bench-V2 evaluation results across frontend, backend, and long-horizon tasks. BSR : Build Success Rate; ISR : Instance Success Rate; CSR : Check-item Success Rate.</figcaption><div aria-label="Original Table 8" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S6.T8.8">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt"><span class="ltx_text ltx_font_bold">Category</span></td>
+<td class="ltx_td ltx_align_left ltx_border_tt"><span class="ltx_text ltx_font_bold">Task</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Metric</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-4.7</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Claude Opus 4.5</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="6"><span class="ltx_text">Frontend</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t">HTML</td>
+<td class="ltx_td ltx_align_center ltx_border_t">ISR</td>
+<td class="ltx_td ltx_align_center ltx_border_t">38.9</td>
+<td class="ltx_td ltx_align_center ltx_border_t">35.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">52.2</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">CSR</td>
+<td class="ltx_td ltx_align_center">76.3</td>
+<td class="ltx_td ltx_align_center">64.9</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">82.2</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">React</td>
+<td class="ltx_td ltx_align_center">ISR</td>
+<td class="ltx_td ltx_align_center">34.6</td>
+<td class="ltx_td ltx_align_center">17.2</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">39.7</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">CSR</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">71.0</span></td>
+<td class="ltx_td ltx_align_center">49.4</td>
+<td class="ltx_td ltx_align_center">70.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Vue</td>
+<td class="ltx_td ltx_align_center">ISR</td>
+<td class="ltx_td ltx_align_center">32.7</td>
+<td class="ltx_td ltx_align_center">24.5</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">46.9</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">CSR</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">77.1</span></td>
+<td class="ltx_td ltx_align_center">53.8</td>
+<td class="ltx_td ltx_align_center">74.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="4"><span class="ltx_text">Build</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t">React</td>
+<td class="ltx_td ltx_align_center ltx_border_t">BSR</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">100</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">65.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">95.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Vue</td>
+<td class="ltx_td ltx_align_center">BSR</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">100</span></td>
+<td class="ltx_td ltx_align_center">70.0</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">100</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Svelte</td>
+<td class="ltx_td ltx_align_center">BSR</td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">100</span></td>
+<td class="ltx_td ltx_align_center">60.0</td>
+<td class="ltx_td ltx_align_center">90.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Next.js</td>
+<td class="ltx_td ltx_align_center">BSR</td>
+<td class="ltx_td ltx_align_center">95.0</td>
+<td class="ltx_td ltx_align_center">70.0</td>
+<td class="ltx_td ltx_align_center">80.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">Backend</td>
+<td class="ltx_td ltx_align_left ltx_border_t">Engineering</td>
+<td class="ltx_td ltx_align_center ltx_border_t">Pass@1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">25.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">19.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">26.9</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="2"><span class="ltx_text">Long-horizon</span></td>
+<td class="ltx_td ltx_align_left ltx_border_t">Repo Exploration</td>
+<td class="ltx_td ltx_align_center ltx_border_t">Pass@1</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><span class="ltx_text ltx_font_bold">65.6</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">47.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">64.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">Chained Tasks</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">Pass@1</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">52.3</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">43.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><span class="ltx_text ltx_font_bold">61.6</span></td></tr>
+</table></div><p class="fine">Original paper · Table 8 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Frontend 的三个分母。</strong> BSR 是项目能构建比例；CSR 是通过 check items / 全部 check items；ISR 是通过全部要求的实例 / 全部实例。Build 成功不意味着交互正确，部分功能成功不意味着整个实例成功。表里 React BSR 100 vs Opus 65、Vue 100 vs 70、Svelte 100 vs 60、Next.js 95 vs 70；正文约 98% 是另一汇总口径，不宜用四行未加权平均 98.75% 冒充精确复算。</p>
+<p><strong>完整功能仍有缺口。</strong> React CSR 71.0 vs Opus 70.7，Vue 77.1 vs 74.3，GLM-5 略强；React ISR 34.6 vs 39.7（−5.1 pp），Vue ISR 32.7 vs 46.9（−14.2 pp），HTML ISR 38.9 vs 52.2（−13.3 pp）。优势主要在 build 与部分功能，完整约束同时满足仍较弱。</p>
+<section aria-labelledby="quality-title" class="interactive" id="quality-explorer">
+<p class="eyebrow">AGENT-CREATED · PAPER DATA + SEPARATE TOY</p><h3 id="quality-title">部分功能通过，与完整实例通过</h3>
+<div class="controls"><label>原表技术栈<select id="quality-stack"><option value="react">React</option><option value="vue">Vue</option></select></label><label>Toy 错误分布<select id="quality-pattern"><option value="spread">分散：每实例错一项</option><option value="concentrated">集中：一个实例全错</option></select></label></div>
+<div aria-label="Table8的CSR与ISR对比" class="quant-chart" id="quality-chart" role="img"></div>
+<div aria-label="五实例各五检查项的解释示例" class="check-grid" id="quality-grid"></div><pre aria-live="polite" class="live-result" id="quality-result"></pre><p class="fine">下方 5×5 toy 均 20/25 项通过；每实例都错一项时 ISR=0%，错误集中一例时 ISR=80%。此分布不是原论文样本。</p>
+</section>
+<p>这个交互直接使用 Table 8 的 React / Vue CSR、ISR，以及一个明确标为 toy 的检查分布。只有每实例明细才可判断“错误集中还是分散”；原表汇总数不能重建该分布。</p>
+<p><strong>Backend：</strong> 85 个任务，每个 5–10 tests，覆盖六种语言。GLM-5 25.8 vs GLM-4.7 19.6，+6.2 pp，相对 +31.63%；略低于 Opus 26.9，−1.1 pp。后端测试比 build 更接近实际结果，仍要考虑 test coverage 和未测边界。</p>
+<p><strong>Long-horizon：</strong> repo exploration 65.6 vs GLM-4.7 47.8（+17.8 pp），略高于 Opus 64.5（+1.1 pp），测的是找到指定目标，并非完全理解仓库。chained tasks 52.3 vs 43.0（+9.3 pp），低于 Opus 61.6（−9.3 pp）。任务链长 3–15 steps，以真实 commits 做语义划分与 golden/test 验证；累积检查检验后续修改是否破坏前序功能。</p>
+<p>表中 chained tasks 是链内任务的 Pass@1，不是整条链全部通过的成功率。不能把 <code>0.523^n</code> 当作者测量的 end-to-end 成功率；独立性与每步同分布都没有得到证明。</p>
+<p><strong>Judge 可信度。</strong> 130 个 check items 的人工/agent agreement 约 94%；八模型排名 Spearman 0.857。Agreement 与 rank correlation 不足以推导 TP、FP、TN、FN、Accuracy / Precision / Recall / F1 的完整矩阵。需要逐项 gold labels、agent verdicts 及正类定义。94% 一致率还可能掩盖“功能错但误判对”的不对称错误。</p>
+<h3 id="subsection-22">6.2.4 Evolving SWE：新任务的进步更小</h3>
+<figure class="original-table" id="table-9"><figcaption>Table 9 : Performance on SWE-rebench, January 2026.</figcaption><div aria-label="Original Table 9" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S6.T9.5">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt">Model</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">Resolved Rate (%)</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">Resolved Rate SEM (<math alttext="\pm" class="ltx_Math" display="inline" intent=":literal"><semantics><mo>±</mo></semantics></math>, %)</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">Pass@5 (%)</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">Claude Opus 4.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">52.9%</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.06%</td>
+<td class="ltx_td ltx_align_center ltx_border_t">70.8%</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">GPT-5.2 (xhigh)</td>
+<td class="ltx_td ltx_align_center">51.7%</td>
+<td class="ltx_td ltx_align_center">1.21%</td>
+<td class="ltx_td ltx_align_center">58.3%</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Claude Sonnet 4.5</td>
+<td class="ltx_td ltx_align_center">47.1%</td>
+<td class="ltx_td ltx_align_center">1.69%</td>
+<td class="ltx_td ltx_align_center">60.4%</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Gemini 3 Pro</td>
+<td class="ltx_td ltx_align_center">46.7%</td>
+<td class="ltx_td ltx_align_center">2.04%</td>
+<td class="ltx_td ltx_align_center">58.3%</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Claude Opus 4.5</td>
+<td class="ltx_td ltx_align_center">43.8%</td>
+<td class="ltx_td ltx_align_center">0.93%</td>
+<td class="ltx_td ltx_align_center">58.3%</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">GLM-5</td>
+<td class="ltx_td ltx_align_center">42.1%</td>
+<td class="ltx_td ltx_align_center">1.21%</td>
+<td class="ltx_td ltx_align_center">50.0%</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">GLM-4.7</td>
+<td class="ltx_td ltx_align_center">41.3%</td>
+<td class="ltx_td ltx_align_center">2.12%</td>
+<td class="ltx_td ltx_align_center">56.3%</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">Kimi K2.5</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">37.9%</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1.21%</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">50.0%</td></tr>
+</table></div><p class="fine">Original paper · Table 9 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Table 9 是重要反证。</strong> 2026 年 1 月 SWE-rebench：GLM-5 Pass@1 42.1±1.21（SEM），GLM-4.7 41.3±2.12，差 +0.8 pp。假设独立，其差值 SEM 约 <code>sqrt(1.21²+2.12²)=2.44 pp</code>，远大于差值；若同任务配对，必须要逐题 covariance，不能据此宣称显著。Pass@5 50.0 vs 56.3，反而 −6.3 pp。Opus 4.6 52.9±1.06，高 10.8 pp。</p>
+<p>更近期 issue 可以减少陈旧公开基准的污染，但不能自动保证无泄漏。这里提示固定 SWE Verified 的大幅改善不一定完整迁移到新任务和多次尝试覆盖率。</p>
+<h3 id="subsection-23">6.3 General Ability：五个域，五种单位</h3>
+<figure class="original" id="figure-11"><img alt="Original Figure 11, panel 1: Figure 11 : Performance comparison between GLM-4.7 and GLM-5 across five real-world general ability domains." loading="lazy" src="assets/original/fig-11-panel-1.svg"/><figcaption>Figure 11 : Performance comparison between GLM-4.7 and GLM-5 across five real-world general ability domains.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 11 按小图分别读。</strong> 翻译含 ZTrans / MENT Elo 与人工打分；对话含 Arena 和人工评分；指令用百分比；知识用 QA accuracy；工具用任务正确率。不能把这些不同单位归一化后求一个未经定义的“整体提升”。</p>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>域</th>
+<th>原文 GLM-4.7 → GLM-5</th>
+<th>数据与解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Translation</td>
+<td>ZTrans 1016→1050；MENT 993→1013；human 2.85→3.12</td>
+<td>ZTrans 1,220 pairs / 七语言，MENT 753；Elo 与评分分开</td>
+</tr>
+<tr>
+<td>Dialogue</td>
+<td>Arena 1441→1452；human 8.44→8.57</td>
+<td>ZDial 141；偏好 / 人工评分不等于任务准确率</td>
+</tr>
+<tr>
+<td>Instruction</td>
+<td>BAD 78.5→83.2；IFBench 68.0→72.0；Multi 61.9→64.8</td>
+<td>现实指令集 450；保持各自分母</td>
+</tr>
+<tr>
+<td>Knowledge</td>
+<td>SimpleQA 31.0→36.9；中文 72.9→75.2</td>
+<td>闭卷事实与推理任务不同</td>
+</tr>
+<tr>
+<td>Tool</td>
+<td>60.8→95.8</td>
+<td>200 curated cases；需工具名和参数都正确</td>
+</tr>
+</tbody>
+</table></div>
+<p>工具评测检查正确 tool 与结构/语义正确 arguments。这个小规模内部集 95.8 不应覆盖外部 MCP-Atlas 的 67.8；难度、工具清单与 judge 不同。</p>
+<h2 id="section-8">7 · Conclusion</h2>
+<p>作者认为开放权重模型已能接近闭源系统在复杂工程流程中的能力，并鼓励社区从静态榜单转向真实 workflow。证据最强的是多项工程与工具任务的明显进步，以及训练/部署的系统细节。证据较弱的是“extreme efficiency”的可复现程度、跨任务稳定的完整交付能力与每个组件的因果贡献。</p>
+<p>因此这篇报告值得作为<strong>大模型工程管线案例</strong>阅读，而不应把每个宣传性的总体结论当成受控实验已经证明的定理。</p>
+<h2 id="section-9">8 · Easter Eggs：Pony Alpha 的匿名发布</h2>
+<p>作者在 OpenRouter 以 Pony Alpha 匿名发布，报告社区猜测身份的比例：25% Sonnet 5、20% DeepSeek、10% Grok，其余 GLM-5。匿名可以减少部分品牌先验，但这里没有抽样方法、样本量、对照组或随机化；它是发布故事与使用反馈，不是证明“消除所有偏见”的科学实验。</p>
+<h2 id="section-10">9 · Contribution 与 Acknowledgement</h2>
+<p>报告署名 GLM-5 Team。第 31 页分别列 core contributors、contributors、tech leads、advisors，按 first name 排序；完整名单收录在下面可展开文本中，避免把团队报告误记为某一位作者。感谢名单含开源框架、推理提供商、应用和网关，代表合作生态，不代表所有产品在相同配置下完成同一性能验证。</p>
+<details><summary>完整贡献者与感谢名单（原文第 31 页）</summary><div class="code-frame"><div class="code-head"><span>SOURCE TEXT</span><button class="copy-button" type="button">Copy</button></div><pre><code>9
+Contribution
+Contributors’ names are listed in alphabetical order by first name.
+Core Contributors
+Chendi Ge, Chenghua Huang, Chengxing Xie, Chenzheng Zhu, Congfeng Yin, Cunxiang Wang,
+Gengzheng Pan, Hao Zeng, Haoke Zhang, Haoran Wang, Huilong Chen, Jiajie Zhang, Jian Jiao,
+Jiaqi Guo, Jingsen Wang, Jingzhao Du, Jinzhu Wu, Kedong Wang, Lei Li, Lin Fan, Lucen Zhong,
+Mingdao Liu, Mingming Zhao, Pengfan Du, Qian Dong, Rui Lu, Shuang Li (李爽), Shulin Cao,
+Song Liu, Ting Jiang, Xiaodong Chen, Xiaohan Zhang, Xuancheng Huang, Xuezhen Dong, Yabo Xu,
+Yao Wei, Yifan An, Yilin Niu, Yitong Zhu, Yuanhao Wen, Yukuo Cen, Yushi Bai, Zhongpei Qiao,
+Zihan Wang, Zikang Wang, Zilin Zhu, Ziqiang Liu, Zixuan Li
+Contributors
+Bojie Wang, Bosi Wen, Can Huang, Changpeng Cai, Chao Yu, Chen Li, Chengwei Hu, Chenhui
+Zhang, Dan Zhang, Daoyan Lin, Dayong Yang, Di Wang, Ding Ai, Erle Zhu, Fangzhou Yi, Feiyu
+Chen, Guohong Wen, Hailong Sun, Haisha Zhao, Haiyi Hu, Hanchen Zhang, Hanrui Liu, Hanyu
+Zhang, Hao Peng, Hao Tai, Haobo Zhang, He Liu, Hongwei Wang, Hongxi Yan, Hongyu Ge, Huan
+Liu, Huanpeng Chu, Jia’ni Zhao, Jiachen Wang, Jiajing Zhao, Jiamin Ren, Jiapeng Wang, Jiaxin
+Zhang, Jiayi Gui, Jiayue Zhao, Jijie Li, Jing An, Jing Li, Jingwei Yuan, Jinhua Du, Jinxin Liu, Junkai
+Zhi, Junwen Duan, Kaiyue Zhou, Kangjian Wei, Ke Wang, Keyun Luo, Laiqiang Zhang, Leigang Sha,
+Liang Xu, Lindong Wu, Lintao Ding, Lu Chen, Minghao Li, Nianyi Lin, Pan Ta, Qiang Zou, Rongjun
+Song, Ruiqi Yang, Shangqing Tu, Shangtong Yang, Shaoxiang Wu, Shengyan Zhang, Shijie Li,
+Shuang Li (李泷), Shuyi Fan, Wei Qin, Wei Tian, Weining Zhang, Wenbo Yu, Wenjie Liang, Xiang
+Kuang, Xiangmeng Cheng, Xiangyang Li, Xiaoquan Yan, Xiaowei Hu, Xiaoying Ling, Xing Fan,
+Xingye Xia, Xinyuan Zhang, Xinze Zhang, Xirui Pan, Xu Zou, Xunkai Zhang, Yadi Liu, Yandong
+Wu, Yanfu Li, Yidong Wang, Yifan Zhu, Yijun Tan, Yilin Zhou, Yiming Pan, Ying Zhang, Yinpei
+Su, Yipeng Geng, Yong Yan, Yonglin Tan, Yuean Bi, Yuhan Shen, Yuhao Yang, Yujiang Li, Yunan
+Liu, Yunqing Wang, Yuntao Li, Yurong Wu, Yutao Zhang, Yuxi Duan, Yuxuan Zhang, Zezhen Liu,
+Zhengtao Jiang, Zhenhe Yan, Zheyu Zhang, Zhixiang Wei, Zhuo Chen, Zhuoer Feng, Zijun Yao,
+Ziwei Chai, Ziyuan Wang, Zuzhou Zhang
+Tech Leads
+Aohan Zeng, Xin Lv, Zhenyu Hou, Zhengxiao Du, Qinkai Zheng, Bin Chen, Da Yin
+Advisors
+Jie Tang, Yuxiao Dong, Juanzi Li, Hongning Wang, Minlie Huang, Bin Xu
+Acknowledgement
+We are grateful for all the support from our co-launch partners and community developers (Alphabet-
+ical order):
+Open-source Communities:
+Hugging Face, MLX, ModelScope, SGLang, Unsloth, vLLM, xLLM
+Inference Providers:
+Amazon Bedrock, Atlas Cloud, Baidu AI Cloud, Baseten, Cerebras, DeepIn-
+fra, Fireworks, FriendliAI, GMI Cloud, Google Cloud Vertex AI, Infinigence AI, Modal, Novita AI,
+Parasail, Phala, PPIO, SiliconFlow, StreamLake, Together AI, Venice, Weights &amp; Biases
+Applications:
+CatPaw, Cline, CodeBuddy, CodeRider, Coze, Crush, Factory AI, Kilo Code, Monk-
+eyCode, OpenClaw, OpenCode, Qoder, Roo Code, TRAE, Verdent AI, WPS, YouWare
+AI Gateways:
+AI Ping, EZmodel, iFlow, OpenRouter, Vercel, Yupp, ZenMux
+31
+</code></pre></div></details>
+<h2 id="section-11">Appendix A · Model Hyper-parameters</h2>
+<figure class="original-table" id="table-10"><figcaption>Table 10 : Model architecture of GLM-4.5 and GLM-5. When counting parameters, for all models we include the parameters of MTP layers but not word embeddings and the output layer.</figcaption><div aria-label="Original Table 10" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A1.T10.5">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r ltx_border_tt">Model</td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-4.5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-5</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r ltx_border_t"># Total Parameters</td>
+<td class="ltx_td ltx_align_center ltx_border_t">355B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">744B</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># Activated Parameters</td>
+<td class="ltx_td ltx_align_center">32B</td>
+<td class="ltx_td ltx_align_center">40B</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># Dense Layers</td>
+<td class="ltx_td ltx_align_center">3</td>
+<td class="ltx_td ltx_align_center">3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># MoE Layers</td>
+<td class="ltx_td ltx_align_center">89</td>
+<td class="ltx_td ltx_align_center">75</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># MTP Layers</td>
+<td class="ltx_td ltx_align_center">1</td>
+<td class="ltx_td ltx_align_center">1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r">Hidden Dim</td>
+<td class="ltx_td ltx_align_center">5120</td>
+<td class="ltx_td ltx_align_center">6144</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r">Dense Intermediate Dim</td>
+<td class="ltx_td ltx_align_center">12288</td>
+<td class="ltx_td ltx_align_center">12288</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r">MoE Intermediate Dim</td>
+<td class="ltx_td ltx_align_center">1536</td>
+<td class="ltx_td ltx_align_center">2048</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r ltx_border_t">QK Head Dim</td>
+<td class="ltx_td ltx_align_center ltx_border_t">128</td>
+<td class="ltx_td ltx_align_center ltx_border_t">192</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r">V Head Dim</td>
+<td class="ltx_td ltx_align_center">128</td>
+<td class="ltx_td ltx_align_center">256</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r">Q LoRA Dim</td>
+<td class="ltx_td ltx_align_center">–</td>
+<td class="ltx_td ltx_align_center">2048</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r">KV LoRA Dim</td>
+<td class="ltx_td ltx_align_center">–</td>
+<td class="ltx_td ltx_align_center">512</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># Attention Heads</td>
+<td class="ltx_td ltx_align_center">96</td>
+<td class="ltx_td ltx_align_center">64</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># Key-Value Heads</td>
+<td class="ltx_td ltx_align_center">8</td>
+<td class="ltx_td ltx_align_center">–</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># Indexer Attn Heads</td>
+<td class="ltx_td ltx_align_center">–</td>
+<td class="ltx_td ltx_align_center">32</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># Indexer Head Dim</td>
+<td class="ltx_td ltx_align_center">–</td>
+<td class="ltx_td ltx_align_center">128</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r ltx_border_t"># Experts (total)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">160</td>
+<td class="ltx_td ltx_align_center ltx_border_t">256</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># Routed Experts</td>
+<td class="ltx_td ltx_align_center">8</td>
+<td class="ltx_td ltx_align_center">8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_r"># Shared Experts</td>
+<td class="ltx_td ltx_align_center">1</td>
+<td class="ltx_td ltx_align_center">1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_r ltx_border_t">Vocabulary Size</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">151552</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">154880</td></tr>
+</table></div><p class="fine">Original paper · Table 10 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Table 10：最容易误算的地方。</strong> GLM-4.5 是 GQA-8，GLM-5 是 MLA，不能拿相同 <code>KV heads × head dim × 2</code> 套在两者上。GLM-5 表中 QK head dim 192 是 noPE；公开配置另列 RoPE 64，所以实际 query/key 每 head 256。Index head dim 128 是索引键，不能当 MLA latent 512。744B/40B 的参数统计边界由 caption 明确规定。</p>
+<p>论文沿用 GLM-4.5 的 Muon、cosine decay 等设置，但未公布完整各阶段训练配置、奖励实现与数据。因此能够核查结构和部分超参数，不能凭这一张表声称完全复现 recipe。</p>
+<h2 id="section-12">Appendix B · Evaluation Settings</h2>
+<h3 id="subsection-24">B.1 Base Model</h3>
+<figure class="original-table" id="table-11"><figcaption>Table 11 : Comparison among GLM-5-Base, GLM-4.5-Base and other representative open-source base models.</figcaption><div aria-label="Original Table 11" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_align_middle" id="A2.T11.5.1">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Benchmark (Metric)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">DeepSeek-V3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Kimi-K2</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-4.5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-5</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">Base</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">Base</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">Base</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">Base</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_t" rowspan="3"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Architecture</td>
+<td class="ltx_td ltx_align_center ltx_border_t">MoE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">MoE</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">MoE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">MoE</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center"># Activated Params</td>
+<td class="ltx_td ltx_align_center">37B</td>
+<td class="ltx_td ltx_align_center">32B</td>
+<td class="ltx_td ltx_align_center ltx_border_r">32B</td>
+<td class="ltx_td ltx_align_center">40B</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center"># Total Params</td>
+<td class="ltx_td ltx_align_center">671B</td>
+<td class="ltx_td ltx_align_center">1043B</td>
+<td class="ltx_td ltx_align_center ltx_border_r">355B</td>
+<td class="ltx_td ltx_align_center">744B</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="6"><span class="ltx_text ltx_font_bold">English</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">SimpleQA (EM)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">26.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">35.3</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">30.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">36.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">BBH (EM)</td>
+<td class="ltx_td ltx_align_center">88.4</td>
+<td class="ltx_td ltx_align_center">88.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r">86.2</td>
+<td class="ltx_td ltx_align_center">87.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">MMLU (EM)</td>
+<td class="ltx_td ltx_align_center">87.2</td>
+<td class="ltx_td ltx_align_center">87.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">86.1</td>
+<td class="ltx_td ltx_align_center">88.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">HellaSwag (EM)</td>
+<td class="ltx_td ltx_align_center">88.9</td>
+<td class="ltx_td ltx_align_center">94.6</td>
+<td class="ltx_td ltx_align_center ltx_border_r">87.1</td>
+<td class="ltx_td ltx_align_center">88.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">PIQA (EM)</td>
+<td class="ltx_td ltx_align_center">84.7</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center ltx_border_r">85.3</td>
+<td class="ltx_td ltx_align_center">84.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">TriviaQA (EM)</td>
+<td class="ltx_td ltx_align_center">82.9</td>
+<td class="ltx_td ltx_align_center">85.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r">80.0</td>
+<td class="ltx_td ltx_align_center">80.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2"><span class="ltx_text ltx_font_bold">Code</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">EvalPlus (Pass@1)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">65.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">80.3</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">78.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">87.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LiveCodeBench-Base (Pass@1)</td>
+<td class="ltx_td ltx_align_center">24.6</td>
+<td class="ltx_td ltx_align_center">26.3</td>
+<td class="ltx_td ltx_align_center ltx_border_r">28.1</td>
+<td class="ltx_td ltx_align_center">34.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2"><span class="ltx_text ltx_font_bold">Math</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">GSM8K (EM)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">87.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">92.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">79.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t">68.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">MATH (EM)</td>
+<td class="ltx_td ltx_align_center">62.6</td>
+<td class="ltx_td ltx_align_center">70.2</td>
+<td class="ltx_td ltx_align_center ltx_border_r">61.0</td>
+<td class="ltx_td ltx_align_center">56.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text ltx_font_bold">Chinese</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">CLUEWSC (EM)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">82.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">83.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">84.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">C-Eval (EM)</td>
+<td class="ltx_td ltx_align_center">90.1</td>
+<td class="ltx_td ltx_align_center">92.5</td>
+<td class="ltx_td ltx_align_center ltx_border_r">86.9</td>
+<td class="ltx_td ltx_align_center">88.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">C3 (EM)</td>
+<td class="ltx_td ltx_align_center">78.6</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center ltx_border_r">83.1</td>
+<td class="ltx_td ltx_align_center">80.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">Chinese-SimpleQA (EM)</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">72.1</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">77.6</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">70.1</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">74.6</td></tr>
+</table></div><p class="fine">Original paper · Table 11 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Table 11：base 并非每项都进步。</strong> EvalPlus 78.1→87.0，+8.9 pp；LiveCodeBench-Base 28.1→34.4，+6.3 pp。GSM8K 79.4→68.8，−10.6 pp；MATH 61.0→56.4，−4.6 pp；BBH 86.2→87.4 仅 +1.2 pp。Base EM 与后训练长思考 / tools 不是同一条件。它既说明代码能力较强，也提醒不能把 scale 本身当全域改善的充分原因。</p>
+<h3 id="subsection-25">B.2 ARC Benchmark Settings</h3>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>Harness 与生成条件</th>
+<th>比较时必须固定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HLE / reasoning</td>
+<td>temperature 1.0、top_p .95、max_new_tokens 131,072；HLE tools context 202,752；judge GPT-5.2 medium</td>
+<td>text-only / full、tools、judge</td>
+</tr>
+<tr>
+<td>SWE / Multilingual</td>
+<td>OpenHands、tailored instruction；T .7、top_p .95、max_new_tokens 16,384、200K context</td>
+<td>prompt、repo environment、工具</td>
+</tr>
+<tr>
+<td>BrowseComp</td>
+<td>无 CM 也保最近五轮；有 CM 附录写 discard-all</td>
+<td>§4 hybrid 与附录简写存在差异</td>
+</tr>
+<tr>
+<td>Terminal / Terminus 2</td>
+<td>2h；T .7、top_p 1、8,192 output、128K；16 CPUs / 32GB</td>
+<td>timeout、verified 版本</td>
+</tr>
+<tr>
+<td>Terminal / Claude Code</td>
+<td>2.1.14 think；T 1、top_p .95、65,536；移除 wall-clock limit，保 CPU/RAM；五次平均</td>
+<td>无时间上限不与 2h 直接等同</td>
+</tr>
+<tr>
+<td>CyberGym</td>
+<td>Claude Code 2.1.18 think、no web；T 1、top_p 1、32,000；250 min；1,507 tasks single-run Pass@1</td>
+<td>framework 与运行次数</td>
+</tr>
+<tr>
+<td>MCP-Atlas</td>
+<td>500-task public subset，think，10 min；Gemini 3 Pro judge</td>
+<td>subset、judge</td>
+</tr>
+<tr>
+<td>τ²-Bench</td>
+<td>Retail / Telecom user prompt 调整；Airline 使用 system-card domain fixes</td>
+<td>用户模拟器版本</td>
+</tr>
+<tr>
+<td>Vending-Bench 2</td>
+<td>Andon Labs 独立运行</td>
+<td>经营指标，不是百分比</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="subsection-26">B.3 Optimized User Simulator for τ²-Bench</h3>
+<figure class="original" id="figure-12"><img alt="Original Figure 12, panel 1: Figure 12 : The optimized user prompt for \tau^{2} -Bench Telecom." loading="lazy" src="assets/original/fig-12-panel-1.png"/><figcaption>Figure 12 : The optimized user prompt for \tau^{2} -Bench Telecom.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 12：电信转人工的结束条件。</strong> 不能在 agent 只是询问“是否转人工”时立即生成 <code>###TRANSFER###</code>，必须明确告知已经转接。原图 Case 2 将转接告知标成 <code>user</code>，与文字要求 agent 告知不一致，是角色标签笔误的可能性；本页保留原图与原文本，不悄悄换角色。</p>
+<div class="code-frame"><div class="code-head"><span>SOURCE TEXT</span><button class="copy-button" type="button">Copy</button></div><pre><code># Note:
+- Do not generate the ’###TRANSFER###’ before agent clearly tells "YOU ARE BEING
+TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.".
+    Example:
+    Case1:
+       - agent: "Would you like me to transfer you to a human agent who can assist
+        you with these options and help get your service restored?"
+       - user: "Yes, please transfer me to a human agent.".
+    Case2:
+       - user: "YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON."
+       - user: "###TRANSFER###"
+</code></pre></div>
+<figure class="original" id="figure-13"><img alt="Original Figure 13, panel 1: Figure 13 : The optimized user prompt for \tau^{2} -Bench Retail." loading="lazy" src="assets/original/fig-13-panel-1.png"/><img alt="Original Figure 13, panel 2: Figure 13 : The optimized user prompt for \tau^{2} -Bench Retail." loading="lazy" src="assets/original/fig-13-panel-2.png"/><figcaption>Figure 13 : The optimized user prompt for \tau^{2} -Bench Retail.<br/>Original paper · 2602.15763v2 · Click / Enter to zoom. Caption outside image.</figcaption></figure>
+<p><strong>Figure 13：零售用户不提前结束。</strong> 一次只提供当前步骤必要信息，不臆造 order ID / email，按原始约束确认，直到所有要求完成才输出 <code>###STOP###</code>；若系统明确无法执行，可以转人工。图跨两页，两个面板都保留。修正模拟器能减少 harness-induced failure，也使 τ² 分数依赖这一版本。</p>
+<div class="code-frame"><div class="code-head"><span>SOURCE TEXT</span><button class="copy-button" type="button">Copy</button></div><pre><code># Rules:
+- Just generate one line at a time to simulate the user’s message.
+- Do not give away all the instruction at once. Only provide the information that
+is necessary for the current step.
+- Do not hallucinate information that is not provided in the instruction. Follow
+these guidelines:
+    1. If the agent asks for information NOT in the instruction:
+       - Say you don’t remember or don’t have it
+       - Offer alternative information that IS mentioned in the instruction
+    2. Examples:
+       - If asked for order ID (not in instruction): "Sorry, I don’t remember the
+       order ID, can you search for it? My name/email/phone number/zipcode is ..."
+       - If asked for email (not in instruction): "I don’t have my email handy,
+       but I can give you my name and zip code which are..."
+- Do not repeat the exact instruction in the conversation. Instead, use your own
+words to convey the same information.
+- Try to make the conversation as natural as possible, and stick to the
+personalities in the instruction.
+# Constraint Handling:
+- Provide requests strictly based on what is explicitly stated in the instruction.
+- Do not assume, extend, substitute, or generalize in any form.
+- Do not modify or relax constraints on:
+- Time / Date
+- Budget
+- Specific terms (e.g., "same" must not be replaced with "similar")
+- Core Rule: Any attribute NOT mentioned in the instruction can be either changed
+or kept the same
+- Examples:
+    - If instruction says "exchange red item to blue": Only color must change,
+    other attributes (size, material, etc.) are flexible
+    - If instruction says "exchange red item to blue, keep the same size": Both
+    color must change AND size must stay the same
+- Exception: Only follow additional constraints when explicitly stated in the
+instruction
+# Domain-Specific Rules:
+## For Retail scenarios:
+- Focus on product attributes and exchange/return processes as specified in
+instructions.
+ - During confirmations: Always respond based strictly on the original instruction,
+  never deviate to match agent’s provided options. Restate your requirement from
+ the instruction rather than selecting from agent’s choices.
+    - Example: If the agent provides specific options (A/B/C) but the instruction
+    states a general requirement (e.g., "same as pending order"), always restate or
+     confirm based on what the instruction says, not by directly selecting from the
+     agent’s provided options.
+ # When NOT to finish the conversation:
+ - Do not end until you have clearly and completely expressed all your requirements
+  and constraints.
+ - Do not end until the agent has completed all tasks mentioned in the instruction
+ and verified no operations were missed.
+ - Do not end if the agent’s execution results do not match your expectations or
+ are incorrect/incomplete.
+ # When you CAN finish the conversation:
+ - Only when all above conditions are satisfied AND all tasks are completed
+ correctly.
+ - OR when you have clearly expressed complete requirements but the system
+ explicitly states it cannot complete them due to technical limitations - in this
+ case, accept transfer to human.
+ # How to finish the conversation:
+ - If the agent has completed all tasks, generate the ’###STOP###’ token to end the
+  conversation.
+ # Note:
+ - You should carefully check if the agent has completed all tasks mentioned in the
+  instruction before generating ’###STOP###’.
+</code></pre></div>
+<h3 id="subsection-27">B.4 Real-world Agentic Engineering Evaluation</h3>
+<figure class="original-table" id="table-12"><figcaption>Table 12: Distribution of frontend application scenarios.</figcaption><div aria-label="Original Table 12" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A2.T12.5">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt"><span class="ltx_text ltx_font_bold">Category</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_tt">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text ltx_font_bold">Description</span></span>
+</span></td>
+<td class="ltx_td ltx_align_right ltx_border_tt"><span class="ltx_text ltx_font_bold"># Tasks</span></td>
+<td class="ltx_td ltx_align_right ltx_border_tt"><span class="ltx_text ltx_font_bold"># Checkitems</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t"><span class="ltx_text">Business Systems</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text">Enterprise/Personal data and process management.</span></span>
+</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t"><span class="ltx_text">42</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t"><span class="ltx_text">167</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text">Web Games</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text">Interaction and entertainment-focused games.</span></span>
+</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">40</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">163</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text">SVG/Canvas</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text">Graphics rendering and interactive visualizations.</span></span>
+</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">32</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">166</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text">Creative Tools</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text">Content creation and online editing tools.</span></span>
+</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">28</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">160</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text">Showcase Pages</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text">Visual expression and information presentation.</span></span>
+</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">27</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">115</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left"><span class="ltx_text">Forms &amp; Tables</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text">Structured data entry and processing.</span></span>
+</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">26</span></td>
+<td class="ltx_td ltx_align_right"><span class="ltx_text">93</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb"><span class="ltx_text">Data Visualization</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb">
+<span class="ltx_inline-block ltx_align_top">
+<span class="ltx_p"><span class="ltx_text">Graphical data expression and analysis.</span></span>
+</span></td>
+<td class="ltx_td ltx_align_right ltx_border_bb"><span class="ltx_text">25</span></td>
+<td class="ltx_td ltx_align_right ltx_border_bb"><span class="ltx_text">85</span></td></tr>
+</table></div><p class="fine">Original paper · Table 12 · all rows, columns and emphasis retained.</p></figure>
+<figure class="original-table" id="table-13"><figcaption>Table 13 : Statistics of technology stacks and evaluation units.</figcaption><div aria-label="Original Table 13" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A2.T13.5">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt"><span class="ltx_text ltx_font_bold">Category</span></td>
+<td class="ltx_td ltx_align_left ltx_border_tt"><span class="ltx_text ltx_font_bold">Description</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold"># Tasks</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold"># Checkitems</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">HTML</td>
+<td class="ltx_td ltx_align_left ltx_border_t">Vanilla HTML/CSS/JS development.</td>
+<td class="ltx_td ltx_align_center ltx_border_t">113</td>
+<td class="ltx_td ltx_align_center ltx_border_t">490</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">React</td>
+<td class="ltx_td ltx_align_left">Component-based framework development.</td>
+<td class="ltx_td ltx_align_center">58</td>
+<td class="ltx_td ltx_align_center">249</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">Vue</td>
+<td class="ltx_td ltx_align_left ltx_border_bb">Vue 3 + Vite progressive solution.</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">49</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">210</td></tr>
+</table></div><p class="fine">Original paper · Table 13 · all rows, columns and emphasis retained.</p></figure>
+<p><strong>Tables 12–13：检查分母。</strong> 七类场景 42+40+32+28+27+26+25=220 tasks；三类技术栈 113+58+49=220；两表合计均为 949 check items。领域与技术栈是同一任务集的两种切分，不能合并成 440 个任务。JS / React 画板示例至少要分别执行 brush、eraser 和 save；只看到控件不算功能通过。</p>
+<p>Backend 的 tests 与 long-horizon 的 commit 语义划分是另一类验证。真实工程也需要跨操作回归：添加功能后既检查新增行为，也重新执行前面的关键功能，尤其是依赖更新、全局状态与共享样式会产生非局部破坏。</p>
+<h2 id="section-13">扩展调研 · 技术路线、公开实现与截至 2026-10-29 的状态</h2>
+<p>下面单独区分历史与后续。主论文中的实验是作者报告；后续博客与开源测试文档也属于各作者/维护者的一手陈述，不是本页独立 GPU 复现。</p>
+<h3 id="subsection-28">Before → This Paper → After</h3>
+<figure class="generated" id="diagram-evolution"><div class="diagram-scroll" tabindex="0"><img alt="Agent-created GLM-5 evolution flow: operations, dependencies and scope" src="assets/generated/evolution.svg"/></div><figcaption>Agent-created Visualization · mechanism / chronology, not measured performance. <a href="assets/generated/evolution.mmd">Mermaid source</a></figcaption></figure>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作 / 时间</th>
+<th>核心想法</th>
+<th>优点</th>
+<th>局限与本论文关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://arxiv.org/abs/2405.04434" rel="noopener">DeepSeek-V2 / 2024</a></td>
+<td>MLA 压缩历史 KV</td>
+<td>降长上下文缓存，支持吸收投影</td>
+<td>不直接消除 dense Attention 扫描；GLM-5 的 KV 基础</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2508.06471" rel="noopener">GLM-4.5 / 2025-08</a></td>
+<td>355B / 32B、23T、ARC 训练</td>
+<td>建立 reasoning / coding / agentic 管线</td>
+<td>GLM-5 在架构、语料和系统上继承再扩展</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2512.02556v1" rel="noopener">DeepSeek-V3.2 / 2025-12</a></td>
+<td>Lightning indexer + top-k sparse Attention</td>
+<td>历史位置可动态选择，core 降到 Lk</td>
+<td>Indexer prefill 仍 L²；本报告明确采用该 DSA 路线</td>
+</tr>
+<tr>
+<td>GLM-5 / 2026-02 v2</td>
+<td>DSA + 共享 MTP + 异步 agent RL</td>
+<td>把模型与工程环境/缓存/训练链连接</td>
+<td>缺端到端成本与充分因果消融</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2603.12201v1" rel="noopener">IndexCache / 2026-03</a></td>
+<td>跨层重用 top-k，保留部分 full indexers</td>
+<td>进一步降 indexer 常数费用</td>
+<td>30B DSA 实验最高 1.82× prefill / 1.48× decode，非 744B 通用倍数</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2607.07508v1" rel="noopener">SAO / 2026-07</a></td>
+<td>Single-Rollout Asynchronous Optimization，单 rollout + value model</td>
+<td>避免组式 GRPO 的 group straggler</td>
+<td>额外 value 学习/校准；用于 GLM-5.2，不是 2 月原方法</td>
+</tr>
+<tr>
+<td><a href="https://z.ai/blog/glm-5.3" rel="noopener">GLM-5.3 官方报告 / 2026-08</a></td>
+<td>同 GLM-5.2 base 上加强后训练</td>
+<td>显示 pipeline 继续改进</td>
+<td>厂商结果、不同 benchmark 版本，不宜拼接旧表比较</td>
+</tr>
+</tbody>
+</table></div>
+<p>IndexCache 的论文标题是这个名字，GLM-5.2 文档也以 “IndexShare” 指向同一论文；本页同时注明，避免误以为两项独立方法。跨层 reuse 有 training-free greedy 与 training-aware 多层 distillation 方案，减少 indexer 数量并不把剩余扫描变成与 L 无关。</p>
+<h3 id="subsection-29">公开代码核对：模型配置与真正 sparse kernel</h3>
+<p><a href="https://huggingface.co/zai-org/GLM-5/blob/c183ef8c61faee82855eca1ed9bb3a9a7ce3b0b2/config.json" rel="noopener">固定权重配置</a> 确认 78 layers、64 heads、KV rank 512、RoPE 64、index dim 128、top-k 2,048、max positions 202,752。该 artifact 的元数据更新至 2026-08；它是当前公开实现佐证，不意味着所有字段在论文发布日从未变动。</p>
+<p><a href="https://github.com/huggingface/transformers/blob/bb666bd013af423a4d57077afe1e8a3c76822621/src/transformers/models/glm_moe_dsa/modeling_glm_moe_dsa.py" rel="noopener">Transformers 固定源码</a> 中 indexer 返回 int32 <code>[B,S,k]</code>，历史 indexer keys 写独立 cache。默认 eager 路径会展开多头 K/V 并构造 dense mask 后做 masked attention，不能用 eager 的时间或显存代表生产 Sparse FlashAttention。当前代码还包含后续 IndexCache 的 full/shared 支持；不要据此说 2 月 GLM-5 已跨层复用 indexer。</p>
+<p>最重要的代码迁移边界是：<strong>结构语义可核查，性能特性依赖 backend。</strong> 搬到另一引擎后应检查是否仍压缩 KV、是否真正只 gather top-k、是否保存过大的 full score/mask，以及首 token 与 decode 是否采用一致数值路径。</p>
+<h3 id="subsection-30">训练—推理一致性的后续文档</h3>
+<p><a href="https://thudm.github.io/slime/advanced/reproducibility.html" rel="noopener">slime reproducibility 文档</a>（核查 2026-10-29，页面更新 2026-10-19）把一致性拆成 deterministic SGLang、batch-invariant DeepGEMM / DeepEP、Megatron patches、FP32 router、BF16 LM head 与缓存精度/selected gather。这验证了本页判断：修一个 top-k 不足以覆盖整条概率计算链。</p>
+<p>维护者报告的小规模 regression 是六层 GLM-5.2、单节点 EP8，log-prob gap &lt;1e-6，部分 layerwise exact zero。它属于外部文档报告，不是本页复现，也不能直接变成完整 744B、多节点、所有配置严格一致的保证。</p>
+<h3 id="subsection-31">Current State：有日期、有基准、有口径</h3>
+<p>截至 2026-10-29，<a href="https://github.com/zai-org/GLM-5/tree/83c03d317378f86f0a012f7c4cd48b6243c7e69b" rel="noopener">官方 GLM-5 仓库固定快照</a>（2026-10-15）已列 GLM-5.1 / 5.2 / 5.3 / 5.3-Flash 与权重入口。5.3-Flash 是 320B-A18B 的 hybrid sparse/linear + mHC、30T 路线，不能套用本页 744B 架构。</p>
+<p>GLM-5.3 官方博客称与 5.2 同 base，提升来自后训练；报告 Terminal-Bench 2.1 为 88.2 vs 81.0，Terminal 3.0 为 28.3 vs 4.6，CyberGym 84.5 vs 77.2，ALE CLI 28.5 vs 23.8，接近同表 GPT-5.6 的 28.6。TB 2.1 与本论文 TB 2.0 的 56.2 是不同版本，不能画成同一时间序列宣称“+32 pp”。这些是官方条件下结果，未完成所有对手相同 harness / budget 的独立审计，故不宣称全球严格 SOTA。</p>
+<p><strong>当前路线判断（解释）：</strong> 开放 agent 模型持续推进 index reuse、异步 rollout 与真实工具评测；端到端可靠性仍要看 fresh tasks、完整 instance、长任务回归及运行成本。一次排行榜排名不能替代上述证据。</p>
+<h2 id="section-14">我的分析 · 可迁移经验、隐性代价与下一步</h2>
+<h3 id="subsection-32">Strengths：最有价值的贡献</h3>
+<p>模型规模不是唯一重点。本文把<strong>动作概率一致性、可启动工具环境、长任务尾部与缓存路由</strong>一起处理，这是比单项 benchmark 更可复用的系统知识。完整前端交互和 chained regression 的方向也比只看生成代码更接近工程交付。</p>
+<p>DSA 的选择是明确的 trade-off：保留全历史可检索性，牺牲部分精确 Attention 等价性，换小常数 indexer 与 sparse core；选择依据需要长上下文任务与具体硬件共同评估。</p>
+<h3 id="subsection-33">Weaknesses 与 Hidden Trade-offs</h3>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>审计结论</th>
+<th>还需要什么证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Novelty</td>
+<td>DSA / MLA 继承已有工作；价值在集成与 agent 工程</td>
+<td>单项新模块和集成贡献分开消融</td>
+</tr>
+<tr>
+<td>Correctness</td>
+<td>centered reward 原式恒零；“lossless”不能作定理；层数口径冲突</td>
+<td>作者澄清公式、结构与 reduction</td>
+</tr>
+<tr>
+<td>Experiment quality</td>
+<td>表多、场景广，但 harness 与内部 judge 差异大</td>
+<td>同 budget、same tools、paired per-task logs</td>
+</tr>
+<tr>
+<td>Generalization</td>
+<td>fresh SWE 仅 +0.8 pp，Pass@5 下降；frontend ISR 落后</td>
+<td>新仓库、跨域、未见工具与不同难度</td>
+</tr>
+<tr>
+<td>Scalability</td>
+<td>异步避免等待，但版本滞后/失败样本会改变采样</td>
+<td>lag、有效样本率、drop / pad / retry 分布</td>
+</tr>
+<tr>
+<td>Compute / memory</td>
+<td>core 稀疏但 indexer 扫描、KV、全专家权重仍大</td>
+<td>每 op 与每 stage 内存峰值、通信和带宽</td>
+</tr>
+<tr>
+<td>Hardware dependency</td>
+<td>融合与 gather / TopK 对 backend 高度敏感</td>
+<td>同精度、batch、TTFT/TPOT 的硬件实测</td>
+</tr>
+<tr>
+<td>Reproducibility</td>
+<td>有权重与源码，无完整数据/训练配置/成本账</td>
+<td>固定版本的全 pipeline recipe 和验证 gates</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="subsection-34">我会要求补做的实验</h3>
+<ol>
+<li><strong>同权重双执行链比较。</strong> 首 token、prefill→decode、MTP verification 分别记录 log-prob / logits；分层消融 quantization、cache dtype、top-k、MoE routing、batch invariance。把误差追到转换/导出/kernel 环节。</li>
+<li><strong>DSA per-op 成本曲线。</strong> L=8K→200K，按 batch 分解 index scores、TopK、gather、core、MoE、通信，报告 TTFT、TPOT、p50/p95 与峰值显存。不能只报 core theoretical ratio。</li>
+<li><strong>异步策略的样本效率。</strong> 保持任务集与 GPU budget，扫描 weight refresh interval、lag cutoff、strict mask 阈值；同时报告 wall time、有效 token 比例、reward、entropy 与 fresh-test 成绩。</li>
+<li><strong>工具失败可归因。</strong> 区分模型无效 action、环境不可启动、timeout、服务错误与判断器错误；测 retry 是否重复副作用，以及 task group padding 对梯度权重的影响。</li>
+<li><strong>功能完整性。</strong> 发布每实例 check 向量、前序回归矩阵、judge confusion matrix。若能获得 gold labels，再报告 TP/FP/TN/FN、Accuracy、Precision、Recall、F1，并给 false-positive case 分析。</li>
+</ol>
+<h3 id="subsection-35">可能的改进方向</h3>
+<p><strong>状态压缩要可取回。</strong> HCM 将旧 observation 变占位符后，可把原始结果存外部 artifact 并保留定位标识；需要时再检索，这比不可恢复删除更适合工程日志和证据。</p>
+<p><strong>异步样本质量与调度联合优化。</strong> 仅按版本差丢弃可能偏向短任务；按 estimated task progress、reward confidence、importance ratio 有效比例调度，可研究如何保持长任务分布，同时避免高滞后污染。</p>
+<p><strong>先定义完整成功，再优化局部 reward。</strong> CSR 高但 ISR 低提示 reward 可能鼓励平均完成很多功能，却不够惩罚残留关键缺陷。可对 mandatory requirements、跨操作回归、验证可靠度采用更明确的成功定义，再分析是否导致过度保守。</p>
+<p>本页最重要的实践结论是：先让生成、工具状态、概率记录和训练输入指向同一条真实轨迹，再讨论更大模型或更快 kernel。调用链与精度链稳定以后，局部速度才会转化成可用的工程进度。</p>
+<h2 id="section-15">References 与来源分级</h2>
+<p><strong>主论文 / PAPER（单一主源）：</strong> <a href="https://arxiv.org/pdf/2602.15763v2" rel="noopener">2602.15763v2 PDF</a>、<a href="https://arxiv.org/html/2602.15763v2" rel="noopener">HTML</a>、<a href="https://arxiv.org/abs/2602.15763v2" rel="noopener">版本元数据</a>。本页原图、原表、原式与论文实验均来自该版本，不将转述当作独立复现。</p>
+<p><strong>相关论文 / EXTERNAL：</strong> <a href="https://arxiv.org/abs/2405.04434" rel="noopener">DeepSeek-V2 / MLA</a>、<a href="https://arxiv.org/abs/2508.06471" rel="noopener">GLM-4.5</a>、<a href="https://arxiv.org/abs/2512.02556v1" rel="noopener">DeepSeek-V3.2 / DSA</a>、<a href="https://arxiv.org/abs/2603.12201v1" rel="noopener">IndexCache</a>、<a href="https://arxiv.org/abs/2607.07508v1" rel="noopener">SAO</a>。<a href="https://arxiv.org/abs/2505.20411" rel="noopener">SWE-rebench</a> 与 <a href="https://arxiv.org/abs/2502.15840" rel="noopener">Vending-Bench</a> 的任务背景由本论文 references 引入，不宣称在本页重新执行。</p>
+<p><strong>官方 artifact / EXTERNAL：</strong> <a href="https://github.com/zai-org/GLM-5/tree/83c03d317378f86f0a012f7c4cd48b6243c7e69b" rel="noopener">GLM-5 固定仓库</a>、<a href="https://huggingface.co/zai-org/GLM-5/blob/c183ef8c61faee82855eca1ed9bb3a9a7ce3b0b2/config.json" rel="noopener">固定 HF config</a>、<a href="https://github.com/huggingface/transformers/blob/bb666bd013af423a4d57077afe1e8a3c76822621/src/transformers/models/glm_moe_dsa/modeling_glm_moe_dsa.py" rel="noopener">固定 Transformers 源码</a>、<a href="https://docs.pytorch.org/docs/stable/generated/torch.topk.html" rel="noopener">PyTorch topk 契约</a>、<a href="https://thudm.github.io/slime/advanced/reproducibility.html" rel="noopener">slime reproducibility</a>、<a href="https://z.ai/blog/glm-5.3" rel="noopener">GLM-5.3 官方博客</a>。核查截至 2026-10-29；官方 performance statements 保留其 reported 身份。</p>
+<p><strong>站内相关精读：</strong> <a href="../gqa/">GQA</a> · <a href="../flashattention/">FlashAttention</a> · <a href="../pagedattention/">PagedAttention</a> · <a href="../sparse-moe/">Sparsely-Gated MoE</a> · <a href="../eagle/">EAGLE</a> · <a href="../smoothquant/">SmoothQuant</a>。</p>
+<p class="fine">2026-10-29 · 首次精读发布。论文结构、图表公式与外部版本分开核查；数学与缓存计算为解析推导，交互为机制解释。原始来源与审校记录保存在本地 sources / notes。</p></main></div><footer class="site-footer"><a href="../">← All Paper Readings</a><span>Read & reviewed · October 29, 2026</span></footer></div><dialog class="image-modal" id="figure-modal"><div class="modal-top"><p id="modal-caption"></p><button id="modal-close" type="button">Close</button></div><img id="modal-image" alt=""><a id="modal-source" target="_blank" rel="noopener">Open original asset</a></dialog><script src="assets/vendor/echarts.min.js" defer></script><script src="assets/reading.js" defer></script></body></html>

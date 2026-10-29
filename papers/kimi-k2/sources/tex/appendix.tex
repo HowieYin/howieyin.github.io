@@ -1,0 +1,160 @@
+\input{appendix-contributions}
+
+\input{appendix-chat-template-and-enforcer}
+    
+\input{appendix-evaluation}
+
+\input{appendix-safety}
+
+\section{QK-Clip Does Not Impair Model Quality}
+\label{sec:qkclip_harmless}
+
+The QK-Clip design follows a \textbf{minimal intervention principle}: it activates only when necessary, and deactivates after training stabilizes. Empirical evidence and analysis converge on its negligible impact on model quality.
+
+\paragraph{Small-Scale Ablations}
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/muon-qkclip_vs_noclip.pdf}
+  \caption{Applying QK-Clip to Muon in a small-scale setting with an aggresive threshold ($\tau$ = 30) has negligible impact on loss, indicating that it is a safe and effective method for constraining attention logits.}
+
+  \label{fig:mini_muonclip_loss}
+\end{minipage}\hfill
+\end{figure}
+
+
+We train two small-scale 0.5B activated and 3B total parameters MoE models, one with vanilla Muon and the other with MuonClip using a low clipping threshold ($\tau = 30$). 
+As shown in Figure~\ref{fig:mini_muonclip_loss}, applying MuonClip has negligible effects on the loss curve, indicating that even aggressive clipping does not impair convergence or training dynamics with MuonClip. This demonstrates that MuonClip is a safe and effective method for bounding attention logits without degrading model performance. Furthermore, evaluation on downstream tasks reveals no statistically significant degradation in performance. These results collectively demonstrate that MuonClip is a safe and effective method for bounding attention logits without compromising model quality.
+
+
+\paragraph{Self-deactivation}
+In Kimi K2, QK-Clip was only transiently active:
+\begin{itemize}
+  \item \textbf{Initial {70000} steps:} $12.7\%$ of attention heads triggered QK-Clip for at least once, clamping $S_{\max}$ to $100$.
+  \item \textbf{Post-{70000} steps:} All heads at some point reduced their $S_{\max}$ below $100$, rendering QK-Clip inactive.
+\end{itemize}
+
+When QK-Clip is active, it is applied per-head (rather
+than per-layer) to minimize potential over-regularization on other heads.
+After training stabilizes, QK-clip is deactivated and has no effect at all.
+
+
+\section{Why Muon is More Prone to Logit Explosion}
+
+Logit explosion occurs when the largest pre-softmax attention score
+\begin{equation}
+S_{\max} = \max_{i,j} \bigl(q_i^{\vphantom{\top}}\! \cdot k_j\bigr)
+\end{equation}
+grows unboundedly during training.  Since
+\begin{equation}
+|q_i \!\cdot\! k_j| \le \|q_i\|\|k_j\| \le \|x_i\|\|x_j\|\|\mathbf W_q\|\|\mathbf W_k\|,
+\end{equation}
+and RMS-Norm keeps $\|x_i\|\|x_j\|$ bounded, the phenomenon is primarily driven by the growing spectral-norm of $\mathbf W_q$ or $\mathbf W_k$.  Empirically, we found that Muon is more susceptible to logit explosion. We give our hypothesis below.
+
+\paragraph{Structural difference in updates}
+Muon produces a weight update coming from the $\mathrm{msign}$ operation; as a result, \emph{all} singular values of the update matrix are equal --- its effective rank is full.  
+In contrast, a typical update matrix produced by Adam exhibits a skewed spectrum: a few large singular values dominate, and the effective rank is low.  This low-rank assumption for Adam is not new; higher-order muP makes the same assumption.
+
+Such phenomenon is verified on the 16\,B Moonlight model, which shows weights trained with Muon exhibit higher \emph{singular-value entropy} (i.e.\ higher effective rank) than those trained with Adam, corroborating the theoretical intuition.
+
+\paragraph{SVD formulation}  
+Let the parameter matrix at step $t-1$ have the singular value decomposition
+\begin{equation}
+\mathbf W_{t-1}=\sum_i \sigma_i\,u_i v_i^{\top}
+\end{equation}
+We write the update matrices as
+\begin{align}
+\Delta\mathbf W_t &= \sum_j \bar\sigma\,\bar u_j \bar v_j^{\top}
+\end{align}  
+The next parameter update is therefore
+\begin{align}
+\mathbf W_t \leftarrow \sum_i \sigma_i u_i v_i^{\top} + \sum_j \bar\sigma\,\bar u_j \bar v_j^{\top}
+\end{align}
+
+In Muon, as both the weights and the updates have a higher effective rank than Adam, we hypothesize there is a higher probability for singular-vector pair $u_i v_i^{\top}$ to align with $\bar u_j \bar v_j^{\top}$. This could cause the corresponding singular value of $\mathbf W_t$ to increase additively.
+
+\paragraph{Attention-specific amplification}  
+Attention logits are computed via the bilinear form
+\begin{equation}
+q_i\cdot k_j=(x_i \mathbf W_q)\cdot (x_j \mathbf W_k).
+\end{equation}
+The product $\mathbf W_q\mathbf W_k^{\top}$ squares the spectral norm, so any singular-value increase in either matrix is compounded.  Muon's tendency to enlarge singular values therefore translates into a higher risk of logit explosion.
+
+
+
+\section{K2 Critic Rubrics for General RL}
+
+\subsection{Core Rubrics}
+\label{sec:k2-critic-creteria}
+\begin{itemize}
+    \item \textbf{Clarity and Relevance:} Assesses the extent to which the response is succinct while fully addressing the user's intent. The focus is on eliminating unnecessary detail, staying aligned with the central query, and using efficient formats such as brief paragraphs or compact lists. Unless specifically required, long itemizations should be avoided. When a choice is expected, the response should clearly offer a single, well-defined answer.
+
+    \item \textbf{Conversational Fluency and Engagement:} Evaluates the response's contribution to a natural, flowing dialogue that extends beyond simple question-answering. This includes maintaining coherence, showing appropriate engagement with the topic, offering relevant observations or insights, potentially guiding the conversation constructively when appropriate, using follow-up questions judiciously, handling hypothetical or personal-analogy queries gracefully, and adapting tone effectively to suit the conversational context (e.g., empathetic, formal, casual).
+
+    \item \textbf{Objective and Grounded Interaction:} Assesses the response's ability to maintain an objective and grounded tone, focusing squarely on the substance of the user's request. It evaluates the avoidance of both metacommentary (analyzing the query's structure, topic combination, perceived oddity, or the nature of the interaction itself) and unwarranted flattery or excessive praise directed at the user or their input. Excellent responses interact respectfully but neutrally, prioritizing direct, task-focused assistance over commentary on the conversational dynamics or attempts to curry favor through compliments.
+\end{itemize}
+
+\subsection{Prescriptive Rubrics}
+\label{sec:k2-must-not-creteria}
+\begin{itemize}
+    \item \textbf{Initial Praise:} Responses must not begin with compliments directed at the user or the question (e.g., ``That's a beautiful question'', ``Good question!'').
+    \item \textbf{Explicit Justification:} Any sentence or clause that explains why the response is good or how it successfully fulfilled the user's request. This is different from simply describing the content.
+\end{itemize}
+
+\subsection{Limitations}
+One potential side effect of this evaluation framework is that it may favor responses that appear confident and assertive, even in contexts involving ambiguity or subjectivity. This stems from two key constraints in the current rubric:
+\begin{itemize}
+    \item \textbf{Avoidance of Self-Qualification:} The prescriptive rules prohibit self-assessments, explicit disclaimers, or hedging language (e.g., ``this may not be accurate'', ``I might be wrong''). While these phrases can reflect epistemic humility, they are often penalized as non-informative or performative.
+    \item \textbf{Preference for Clarity and Singularity:} The rubric reward direct, decisive answers when users ask for a recommendation or explanation. In complex or open-ended scenarios, this may disincentivize appropriately cautious or multi-perspective responses.
+\end{itemize}
+As a result, the model may occasionally overstate certainty in areas where ambiguity, nuance, or epistemic modesty would be more appropriate. Future iterations of the framework may incorporate more fine-grained handling of calibrated uncertainty.
+
+
+\section{Engine Switching Pipeline for RL Training}
+\label{sec:k2-rl-update-appendix}
+
+\begin{figure}[htb]
+   \centering
+   \begin{subfigure}[b]{0.7\textwidth}
+       \centering
+       \includegraphics[width=1\linewidth]{figures/new-rl-reload-3-stage-pipeline.pdf}
+       \caption{Theoretical perfect three-stage pipeline weight update}
+       \label{fig:mshrl:update-weight}
+   \end{subfigure}
+   \begin{subfigure}[b]{0.4\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/new-rl-reload-pcie-bound-3-stage-pipeline.pdf}
+        \caption{A PCIE bounded three-stage pipeline}
+        \label{fig:mshrl:update-overhead}
+   \end{subfigure}
+   \hspace{0.02\textwidth}
+   \begin{subfigure}[b]{0.35\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/new-rl-reload-2-stage-pipeline.pdf}
+        \caption{Fixed two-stage pipeline}
+        \label{fig:mshrl:update-final}
+   \end{subfigure}
+   \caption{pipeline for RL weight update}
+   \label{fig:mshrl-fixed-update}
+\end{figure}
+
+The \emph{checkpoint engine} manages three equal-size device buffers on each GPU: an H2D buffer for loading the offloaded model parameters, and two IPC buffers for GPU-to-GPU broadcast.
+The IPC buffers are shared to inference engines, allowing it to directly access the same physical memory.
+ These three buffers allow us to arrange the three steps in a pipeline.
+ 
+\paragraph{Theoretical three-stage pipeline.}  
+As illustrated in Figure~\ref{fig:mshrl:update-weight}, a three-stage pipeline is introduced.
+(1) \emph{H2D}: a shard of the latest weights is copied into the H2D buffer asynchronously.
+(2) \emph{Broadcast}: Once the copy completes, the shard will be copied to one IPC buffers and broadcast to all devices.
+(3) \emph{Reload}: Inference engines simultaneously load parameters from the other IPC buffer.
+
+\paragraph{Two-stage pipeline due to PCIe saturation.}  
+On NVIDIA H800 clusters, concurrent H2D and broadcast saturate the shared PCIe fabric, collapsing the three stages into a sequential procedure (Figure~\ref{fig:mshrl:update-overhead}).  
+We therefore adopt a simpler, two-stage scheme (Figure~\ref{fig:mshrl:update-final}): (1) All devices perform a single, synchronous H2D transfer. (2) The broadcast and reload proceed in parallel.
+
+The two-stage pipeline will be bound by multiple synchronous H2D copy operations. But in large scale devices, model will be split into small shards, the entire parameter set fits into the H2D buffer in one transfer, the overhead will disappear.
+
+By overlapping H2D, Broadcast, and Reload weights, we can obtain a high bandwidth to reshard the weights from train engines to all inference engines.
+

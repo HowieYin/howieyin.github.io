@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-29",
+  "checks": {
+    "source_figures": true,
+    "numbered_equations": true,
+    "original_tables": true,
+    "instruct_rows": true,
+    "base_tasks": true,
+    "safety_rows": true,
+    "head_order": true,
+    "all_assets_exist": true,
+    "no_unresolved_placeholders": true,
+    "table_numeric_integrity": true
+  },
+  "table_details": {
+    "1": {
+      "rows": 4,
+      "decimal_values": 3,
+      "bold_cells": 1,
+      "underline_cells": 0
+    },
+    "2": {
+      "rows": 10,
+      "decimal_values": 2,
+      "bold_cells": 4,
+      "underline_cells": 0
+    },
+    "3": {
+      "rows": 50,
+      "decimal_values": 290,
+      "bold_cells": 87,
+      "underline_cells": 27
+    },
+    "4": {
+      "rows": 27,
+      "decimal_values": 92,
+      "bold_cells": 30,
+      "underline_cells": 0
+    },
+    "5": {
+      "rows": 6,
+      "decimal_values": 0,
+      "bold_cells": 1,
+      "underline_cells": 0
+    },
+    "6": {
+      "rows": 26,
+      "decimal_values": 83,
+      "bold_cells": 7,
+      "underline_cells": 0
+    }
+  },
+  "numeric_recalculations": {
+    "expert_parameters": 44040192,
+    "routed_parameters": 1014686023680,
+    "latent_bytes_per_token": 70272,
+    "latent_128Ki_GiB": 8.578125,
+    "expanded_latent_ratio": 35.55555555555556,
+    "simpleQA_gain_pp": 5.18,
+    "simpleQA_gain_relative_pct": 21.8013468013468,
+    "tau2_simple_average": 64.3,
+    "GPQA_over_Opus_pp": 0.19999999999998863,
+    "table2_total_change_pct": 54.992548435171386,
+    "table2_active_change_pct": -11.891891891891893
+  },
+  "gpu_reproduction": false
+}

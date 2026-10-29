@@ -1,0 +1,39 @@
+[{
+  "type": "function",
+  "function": {
+    "name": "get_weather",
+    "description": "Get weather for a location and date",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City and country e.g. Beijing, China"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date to query, format in `%Y-%m-%d'"
+        }
+      },
+      "required": [
+        "location"
+      ]
+    }
+  }
+},
+{
+  "type": "function",
+  "function": {
+    "name": "Calculator",
+    "description": "Simple calculator",
+    "parameters": {
+      "properties": {
+        "expr": {
+          "type": "string",
+          "description": "Arithmetic expression in javascript"
+        }
+      },
+      "type": "object"
+    }
+  }
+}]

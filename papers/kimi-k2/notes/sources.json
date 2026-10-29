@@ -1,0 +1,136 @@
+[
+  {
+    "description": "1. **主报告 v2：** Kimi Team, *Kimi K2: Open Agentic Intelligence*. ",
+    "urls": [
+      "https://arxiv.org/abs/2507.20534v2",
+      "https://arxiv.org/pdf/2507.20534v2",
+      "https://arxiv.org/src/2507.20534v2"
+    ],
+    "checked": "2026-10-29",
+    "type": "primary paper"
+  },
+  {
+    "description": "2. **K2官方实现与部署：** ",
+    "urls": [
+      "https://github.com/MoonshotAI/Kimi-K2",
+      "https://github.com/MoonshotAI/Kimi-K2/blob/main/docs/deploy_guidance.md"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "3. **公开checkpoint配置与reference：** ",
+    "urls": [
+      "https://huggingface.co/moonshotai/Kimi-K2-Instruct/blob/main/config.json",
+      "https://huggingface.co/moonshotai/Kimi-K2-Instruct/blob/main/modeling_deepseek.py"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "4. **Muon / Moonlight：** *Muon is Scalable for LLM Training*. ",
+    "urls": [
+      "https://arxiv.org/abs/2502.16982"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "5. **DeepSeek-V2 / V3：** ",
+    "urls": [
+      "https://arxiv.org/abs/2405.04434",
+      "https://arxiv.org/abs/2412.19437"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "6. **Kimi K1.5：** ",
+    "urls": [
+      "https://arxiv.org/abs/2501.12599"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "7. **DeepSeek-R1：** ",
+    "urls": [
+      "https://arxiv.org/abs/2501.12948"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "8. **τ²-bench：** *A Benchmark for Tool-Agent-User Interaction in Dual-Control Environments*. ",
+    "urls": [
+      "https://arxiv.org/abs/2506.07982"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "9. **独立Muon小模型研究：** *Muon: Training and Trade-offs with Latent Attention and MoE*. ",
+    "urls": [
+      "https://arxiv.org/abs/2509.24406"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "10. **独立MuonClip实现：** ",
+    "urls": [
+      "https://github.com/kyegomez/MuonClip",
+      "https://github.com/AkulDatta/muonclip"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "11. **Checkpoint engine：** ",
+    "urls": [
+      "https://github.com/MoonshotAI/checkpoint-engine"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "12. **K2 Thinking官方：** ",
+    "urls": [
+      "https://www.kimi.com/blog/kimi-k2-thinking"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "13. **后续产品时间线：** ",
+    "urls": [
+      "https://www.kimi.com/en/help/agent/agent-overview"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "14. **K3技术报告：** ",
+    "urls": [
+      "https://arxiv.org/abs/2607.24653"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "15. **当前API模型／退役状态：** ",
+    "urls": [
+      "https://platform.kimi.com/docs/models"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  },
+  {
+    "description": "16. **原文enforcer参考：** ",
+    "urls": [
+      "https://github.com/noamgat/lm-format-enforcer"
+    ],
+    "checked": "2026-10-29",
+    "type": "external primary / independent source"
+  }
+]
