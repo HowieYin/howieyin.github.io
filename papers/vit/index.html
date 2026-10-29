@@ -531,6 +531,7 @@ logits = linear(features[:, 0], target_head)
 <h3 id="subsection-28">My Takeaways / Future directions</h3>
 <p><strong>我的判断。</strong>ViT 的持久价值是一个干净的视觉 token 接口，让架构、预训练目标、语言对齐与 kernel 优化可以独立演进。现代工程的重点已从“是否要纯 attention”转到“保留多少细粒度 token、用什么目标学特征、怎样在设备预算内传给语言模型”。</p>
 <p><strong>可验证的下一步。</strong>固定 decoder、projector、token 数、输入预处理与评测集，比较 SigLIP2/DINOv3/EUPE 的 OCR 与通用 VQA；用 float→量化→导出逐层误差定位区分能力差距与转换损耗；分别报告 vision latency、projector latency、decoder TTFT/TPOT 与 CPU/accelerator 物理峰值。这样才能把论文的规模洞见迁移成可靠的端侧决策。</p>
+<p><strong>Related Reading。</strong><a href="../navit/">NaViT：保宽高比、可变分辨率与 Patch n’ Pack</a> → 理解图片形状与训练容器如何解耦，以及 dense masked attention 的算子代价。</p>
 <h2 id="section-14">References / Related Readings</h2>
 <ol>
 <li>Dosovitskiy et al. <a href="https://arxiv.org/abs/2010.11929v2">ViT v2</a>，ICLR 2021；本文主源、全部 14 图/9 表/8 编号式。</li>

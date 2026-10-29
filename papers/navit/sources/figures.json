@@ -1,0 +1,319 @@
+[
+  {
+    "number": 1,
+    "asset": "assets/original/fig-01.png",
+    "size": [
+      2142,
+      813
+    ],
+    "caption": "NaViT offers notable computational efficiency during pre-training (left) which carries over to downstream fine-tuning (middle). A single NaViT can be applied successfully to multiple resolutions (right), smoothly trading off performance and inference cost.",
+    "original_panels": [
+      "teaser.pdf"
+    ],
+    "sha256": "aad7560af8f3924da4b0d571868e8b1f8843ecf4f9ddd8e45e22e6b42ade6eb9"
+  },
+  {
+    "number": 2,
+    "asset": "assets/original/fig-02.png",
+    "size": [
+      993,
+      710
+    ],
+    "caption": "Example packing en- ables variable resolution images with preserved aspect ratio, re- ducing training time, improving performance and increasing flex- ibility. We show here the aspects of the data preprocessing and modelling that need to be mod- ified to support Patch n’ Pack. The position-wise operations in the network, such as MLPs, residual connections, and layer normalisations, do not need to be altered.",
+    "original_panels": [
+      "navit_imp_changes.pdf"
+    ],
+    "sha256": "100a6e84a7ae1d8a9a08b11aa07f7d3810e69f2f728a3d22f86300681bd7752f"
+  },
+  {
+    "number": 3,
+    "asset": "assets/original/fig-03.png",
+    "size": [
+      1608,
+      435
+    ],
+    "caption": "Height:width ratios of different datasets; most images are not square- ish (> 20% deviation).",
+    "original_panels": [
+      "distortion_statistics.pdf"
+    ],
+    "sha256": "8d0a53c8ecfde75b1fbbf1406110ea32f488d1ba4be3de8f0b48ecd31fea190e"
+  },
+  {
+    "number": 4,
+    "asset": "assets/original/fig-04.png",
+    "size": [
+      729,
+      471
+    ],
+    "caption": "Overhead from extra attention due to packing, assuming 256 tokens per image; it diminishes with model scale.",
+    "original_panels": [
+      "packing_overhead.pdf"
+    ],
+    "sha256": "f1a447592176c08cd535767432f409097ffa7fd066f7599408eb3592571a6d74"
+  },
+  {
+    "number": 5,
+    "asset": "assets/original/fig-05.png",
+    "size": [
+      1783,
+      700
+    ],
+    "caption": "At fixed computa- tional cost, sampling lower reso- lutions increases throughput, im- proves performance and enables better use of models at varied resolutions. NaViT-B/16 models trained with variable vs. fixed res- olutions demonstrate the benefit of mixed resolution.",
+    "original_panels": [
+      "jft_vary_res.pdf"
+    ],
+    "sha256": "312df54c14241d8c19b4c33c7a0d297ca2360e33c858b4afd8e20b612f2e88f6"
+  },
+  {
+    "number": 6,
+    "asset": "assets/original/fig-06.png",
+    "size": [
+      1127,
+      574
+    ],
+    "caption": "Variable-resolution finetuning, JFT B/16 models finetuned on ImageNet at various resolu- tions. Overall NaViT in all settings (blue, red), out- performs ViT (orange) Left: A single NaViT fine- tuned with variable resolutions (red) is as good as models tuned on only one resolution (blue). Right: Mixed-resolution pretraining performs well at high resolution when finetuning at low resolution (left- hand end of blue curve).",
+    "original_panels": [
+      "finetune_res_b32.pdf"
+    ],
+    "sha256": "33240e7d32961ccd0b16eb6e1329e5d856e8bb658e0ec711a53ff46740d294b5"
+  },
+  {
+    "number": 7,
+    "asset": "assets/original/fig-07.png",
+    "size": [
+      802,
+      660
+    ],
+    "caption": "Sampling side lengths directly with a bias towards lower resolutions gives overall best performance at a fixed compu- tational budget.",
+    "original_panels": [
+      "clip_sampling_strategy.pdf"
+    ],
+    "sha256": "567bee51cdb2a315248e6f49df2eded3146ecd9dcc8f32ccc647838abec5a449"
+  },
+  {
+    "number": 8,
+    "asset": "assets/original/fig-08.png",
+    "size": [
+      692,
+      417
+    ],
+    "caption": "Time-varying token dropping rates improves performance and are easily done with Patch n’ Pack.",
+    "original_panels": [
+      "jft_tdr_scheduled.pdf"
+    ],
+    "sha256": "b30daf2e62d44638245497485d39a29b83291b188159a5b749ac1c35650ad9cc"
+  },
+  {
+    "number": 9,
+    "asset": "assets/original/fig-09.png",
+    "size": [
+      2018,
+      834
+    ],
+    "caption": "Continuous token dropping strategies enabled by sequence packing improves per- formance",
+    "original_panels": [
+      "jft_token_drop_strategy.pdf",
+      "jft_tdr_res_dependent.pdf"
+    ],
+    "sha256": "5e2d51d7a60a7820e37efa208fabf573f81aaa66d79abbcc2b3cf9d88a8ea595"
+  },
+  {
+    "number": 10,
+    "asset": "assets/original/fig-10.png",
+    "size": [
+      2018,
+      648
+    ],
+    "caption": "Factorized position embeddings improve generalization to new resolutions and aspect ratios. (a) Best (faded) and average accuracies (dark) across resolutions. (b) Accuracy normalized w.r.t. resolution 256.",
+    "original_panels": [
+      "jft_posemb_acc_summary.pdf",
+      "jft_posemb_res_vs_acc.pdf"
+    ],
+    "sha256": "a757076e8bf819d7afed8c7d0f351804ca10ba1c07bf2776829569a189535688"
+  },
+  {
+    "number": 11,
+    "asset": "assets/original/fig-11.png",
+    "size": [
+      2108,
+      736
+    ],
+    "caption": "Out of distribution evaluation of ViT and NaViT models that were matched for training compute. In addition to improved performance due to more images seen (see also Figure 1), NaViT performs much better on ImageNet-A that has many images with an extreme aspect ratio and important information outside the center crop (Appendix F). Same data as in Table 5.",
+    "original_panels": [
+      "ood_custom.pdf"
+    ],
+    "sha256": "e7170df617db17754134cc46785b051d86f90ffd555f36b2b55219df534a633e"
+  },
+  {
+    "number": 12,
+    "asset": "assets/original/fig-12.png",
+    "size": [
+      2254,
+      456
+    ],
+    "caption": "Evaluating the accuracy of annotators trained on fairness-related signals using either NaViT-L/16 or ViT-L/16: Left: NaViT offers better representations that improve the accuracy of annotators. Right: Using native aspect ratios in NaViT results in a higher performance when compared to resizing images to squares.",
+    "original_panels": [
+      "fairness/fairface.gender.pdf",
+      "fairness/fairface.race.pdf",
+      "fairness/crop_fairface.gender.pdf",
+      "fairness/crop_fairface.race.pdf"
+    ],
+    "sha256": "5b366be1c8908020ede44910aac50b8002f9a16533a3e6c1d409e8bd519f2783"
+  },
+  {
+    "number": 13,
+    "asset": "assets/original/fig-13.png",
+    "size": [
+      927,
+      741
+    ],
+    "caption": "NaViT transfers competitively to semantic segmentation. We transfer ViT- L/16 and NaViT-L/16 on ADE20k with fine-tuning at different resolutions. ViT consumes square images while NaViT pre- serves the aspect ratio of the original im- ages, while maintaning the total number of pixels the same as ViT.",
+    "original_panels": [
+      "semseg_navit_wrap.pdf"
+    ],
+    "sha256": "534776197e73f8c41b6335a37d4f256f10df4133b6f4846deebd6bd142b65af3"
+  },
+  {
+    "number": 14,
+    "asset": "assets/original/fig-14.png",
+    "size": [
+      2018,
+      597
+    ],
+    "caption": "(a) Beta-sampled token drop rates parameterised by the mean μ and the max drop rate d_max. (b) Sampled resolution-dependent token drop rates. Original figure has two subcaptions and no shared main caption.",
+    "original_panels": [
+      "token_drop_rates.pdf",
+      "resolution_dependent_token_drop_rates.pdf"
+    ],
+    "sha256": "1eef0b6fea0590977315e95665ea81115b75b6b48247a069611fb7224d908aa4"
+  },
+  {
+    "number": 15,
+    "asset": "assets/original/fig-15.png",
+    "size": [
+      2128,
+      491
+    ],
+    "caption": "Decreasing the token dropping rate along training improves the ImageNet 10shot accuracy using the same pre-training resources. N is the total number of training examples seen with a fixed token dropping rate of ρ = 1",
+    "original_panels": [
+      "schedule_token_drop_detailed.pdf"
+    ],
+    "sha256": "e42799ae250e51e5bd6765852cf26905f004b058d671167140c161d3d9f0b269"
+  },
+  {
+    "number": 16,
+    "asset": "assets/original/fig-16.png",
+    "size": [
+      3348,
+      610
+    ],
+    "caption": "We use two different views of the same image, of resolutions 96×128 and 224×160, and demon- strate different coordinate systems when using patch size 32.",
+    "original_panels": [
+      "coords_diagram.pdf"
+    ],
+    "sha256": "7710353e9d96d076450a084ac735c671501e41f5d12299f3fd88f9ca68408eae"
+  },
+  {
+    "number": 17,
+    "asset": "assets/original/fig-17.png",
+    "size": [
+      2136,
+      467
+    ],
+    "caption": "(a) The effect of resizing the image. (b) Dropping random tokens is ineffective way to decrease number of patches compared to resizing the image. Data from NaViT-L/16. (c) Given number of patches as compute budget, it is beneficial to upscale the image.",
+    "original_panels": [
+      "imagenet_area_resize.pdf",
+      "imagenet_area_resize_drop.pdf",
+      "imagenet_sequence_len_no_upscale.pdf"
+    ],
+    "sha256": "af2087f6d67476a7edb83ffd24fe17f0e0e95d6fc59f4e2a2acb7fd54053176e"
+  },
+  {
+    "number": 18,
+    "asset": "assets/original/fig-18.png",
+    "size": [
+      2018,
+      667
+    ],
+    "caption": "(a) Quality on ImageNet in respect to number of patches (sequence length). (b) Runtime of models compared to the accuracy on ImageNet.",
+    "original_panels": [
+      "imagenet_sequence_len.pdf",
+      "imagenet_runtime_accuracy.pdf"
+    ],
+    "sha256": "4ffab277b13bd5dbe8d21976602b642db60a609618a9ab0e79f7a7f99cab0db5"
+  },
+  {
+    "number": 19,
+    "asset": "assets/original/fig-19.png",
+    "size": [
+      1080,
+      720
+    ],
+    "caption": "Performance of a model cascade versus the average inference time. The labels at the select points denote the number of tokens at that scale.",
+    "original_panels": [
+      "cascades.pdf"
+    ],
+    "sha256": "942fc6c6f40938010b534e837d1791151e2ecaba3367d64546fb80ea97f0c906"
+  },
+  {
+    "number": 20,
+    "asset": "assets/original/fig-20.png",
+    "size": [
+      2096,
+      763
+    ],
+    "caption": "Same evaluation as in Figure 11, but without any special preprocessing of the images before the evaluation. Employing a simple resize (square for ViT, aspect preserving for NaViT) results in much better performance on datasets that have images with an extreme aspect ratio. Same data as in table Table 5.",
+    "original_panels": [
+      "ood_resize.pdf"
+    ],
+    "sha256": "ba1488e70d72a15fb906fcca1038f4d6da17f48f5703a28282b64cff91c82559"
+  },
+  {
+    "number": 21,
+    "asset": "assets/original/fig-21.png",
+    "size": [
+      2254,
+      944
+    ],
+    "caption": "Summary of results of evaluating the accuracy of annotators trained on fairness-related signals using either NaViT-L/16 or ViT-L/16. top: NaViT offers better representations that improve the accuracy of annotators. bottom: Using native aspect ratios in NaViT results in a higher performance when compared to resizing images to squares. be taken in such situations since classifiers can be inaccurate and lead to a broad categorization of people that misidentifies real identities. We encourage readers to delve into the comprehensive work outlining such potential risks, e.g. (Hamidi et al., 2018; Keyes, 2018), for further insight. In assessing the technical capabilities of NaViT, our intent is not to promote or encourage their application in inappropriate contexts. Rather, our objective is only to illuminate these technical findings for scenarios where they may be considered beneficial, such as when measuring the level of diversity in a dataset or auditing/mitigating biases in predictive models. We strongly advocate for responsible AI use, maintaining that the benefits of technological advancements should not overshadow the importance of user safety and privacy. AI tools, including ours, should always be deployed judiciously, with a keen awareness of potential risks and a commitment to avoiding harm.",
+    "original_panels": [
+      "fairness/celeba.gender.pdf",
+      "fairness/fairface.gender.pdf",
+      "fairness/fairface.age.pdf",
+      "fairness/fairface.race.pdf",
+      "fairness/crop_celeba.gender.pdf",
+      "fairness/crop_fairface.gender.pdf",
+      "fairness/crop_fairface.age.pdf",
+      "fairness/crop_fairface.race.pdf"
+    ],
+    "sha256": "ded0d57f728764174d5489d0077e59bd3bfdfde3eaf08f3b2475c0b23fd8bad7"
+  },
+  {
+    "number": 22,
+    "asset": "assets/original/fig-22.png",
+    "size": [
+      2254,
+      1364
+    ],
+    "caption": "OOD accuracy on “model-vs-human” datasets across different fine-tuning resolutions. A single NaViT model trained on varying resolutions (red) performs roughly on par as fine-tuning one NaViT model per test resolution (blue). The ViT baseline (orange) is mostly worse than NaViT models for lower resolutions and mostly better for higher resolutions.",
+    "original_panels": [
+      "model-vs-human/navit_resolution_colour.pdf",
+      "model-vs-human/navit_resolution_false-colour.pdf",
+      "model-vs-human/navit_resolution_power-equalisation.pdf",
+      "model-vs-human/navit_resolution_rotation.pdf",
+      "model-vs-human/navit_resolution_uniform-noise.pdf",
+      "model-vs-human/navit_resolution_contrast.pdf",
+      "model-vs-human/navit_resolution_low-pass.pdf",
+      "model-vs-human/navit_resolution_high-pass.pdf",
+      "model-vs-human/navit_resolution_phase-scrambling.pdf",
+      "model-vs-human/navit_resolution_eidolonI.pdf",
+      "model-vs-human/navit_resolution_eidolonII.pdf",
+      "model-vs-human/navit_resolution_eidolonIII.pdf",
+      "model-vs-human/navit_resolution_sketch.pdf",
+      "model-vs-human/navit_resolution_stylized.pdf",
+      "model-vs-human/navit_resolution_silhouette.pdf",
+      "model-vs-human/navit_resolution_edge.pdf"
+    ],
+    "sha256": "a7af72105277733a5fc9a3709c50af4ac72c7908be71fb50370b02a96c6a1257"
+  }
+]

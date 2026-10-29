@@ -1,0 +1,58 @@
+\section{Model information}
+
+\subsection{Positional embeddings}
+\label{app:posemb}
+Extending ViTs to variable input sizes necessitates rethinking positional embeddings added to every token after embedding. We considered several variants of positional embeddings, and evaluated them based on (1) the best performance model using them achieve within training distribution of input sizes; and based on (2) how well these models perform when evaluated on image sizes outside of the training distribution. Results and discussion of these experiments can be found in Section~\ref{sec:posemb_ablation}.
+
+Broadly, we considered positional embeddings that varied along three axes: (1) whether they were learned, parametric or fixed; (2) whether they were absolute or fractional; and (3) whether they are factorized.
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{figs/coords_diagram.pdf}
+\footnotesize{\textit{Image credit: Matthew Henry} \color{gray}\texttt{burst.shopify.com/photos/dog-staying-warm}}
+\caption{We use two different views of the same image, of resolutions \res{96}{128} and \res{224}{160}, and demonstrate different coordinate systems when using patch size $32$.}
+\end{figure}
+
+\paragraph{Absolute and fractional coordinates}
+A natural way of indexing token within an image is to select \textit{a priori} a maximum possible image side length (shared for width and height) $\maxdim$, and to assign to token integer coordinates $(x, y)$ based on their original location within the image. Embedding coordinates defined in this way allow models to consume images with resolutions up to $R=P\cdot\maxdim$. However, when \textit{learned} absolute coordinate embeddings are considered, extreme values of $x$ and $y$ must also be observed during training, which necessitates training on images with varied aspect ratios and limits models generalisation.
+
+To alleviate the necessity of observing extreme aspect ratios and image size during learning of positional embeddings, we also consider fractional coordinates, which are normalized to the actual size of the input image and are obtained by dividing the absolute coordinates $x$ and $y$ above by the number number of columns and rows respectively, i.e. the corresponding side length. Doing this allows the model to observe extreme token coordinates during training, which intuitively should help with generalization to higher resolutions. However, this is accomplished at the cost of obfuscating the input images aspect ratio.
+
+\paragraph{Factorized embeddings}
+We further consider whether coordinates $x$ and $y$ should be embedded independently or jointly. In case of independent embedding, the two coordinates $x$ and $y$ are embedded independently, and their embeddings are combined via addition or by stacking. For joint embeddings and embedding for each position $(x, y)$ is obtained directly.
+
+\paragraph{Learned, parametric and fixed positional embeddings}
+Finally, we also explored the relative benefits of fixed, learned and parametric embeddings. For fixed embeddings we followed \cite{vaswani2017attention} and used sinusoidal positional embeddings, and learned embeddings were implemented as in \cite{dosovitskiy2020image}.
+
+For parametric positional embeddings we followed \cite{tancik2020fourier} and used Fourier embeddings. Specifically, coordinates $(x, y)$ were mapped using a single linear layer before applying $\sin$ and $\cos$ activations to them, and stacking the results to obtained the positional embeddings.
+
+\paragraph{Experiments}
+Because not all combinations of the above embedding choices are equally promising or natural, we experimented only with subset of them shown in Table~\ref{app:tbl:posemb} and Figure~\ref{fig:posemb_acc_summary}.
+
+\begin{table}[ht]
+  \caption{Classification of positional embedding experiments from Figure~\ref{fig:posemb_acc_summary}.}
+  \centering
+% \resizebox{1\columnwidth}{!}{%
+
+\begin{tabular}{llll}
+\toprule
+       Name & Coordinates &  Type & Factorized \\
+\midrule
+
+    Learned 1D (ViT)             & Absolute & Learned & No, position in flatted token sequence \\
+    Learned 2D (Pix2struct)      & Absolute & Learned & No \\
+    Factorized abs. ($+$)        & Absolute & Learned & Yes, sum \\
+    Factorized abs. (stack)      & Absolute & Learned & Yes, stack \\
+    Factorized abs. ($\times$)   & Absolute & Learned & Yes, product \\
+    Fourier abs.                 & Absolute & Parametric & No \\
+    Sinusoidal abs.              & Absolute & Fixed & Yes, stack \\
+    Factorized frac. ($+$)       & Fractional & Learned & Yes, sum \\
+    Fourier frac.                & Fractional & Parametric & No \\
+    Sinusoidal frac.             & Fractional & Fixed & Yes, stack \\
+\bottomrule
+\end{tabular}
+
+In sinusoidal and factorised embeddings experiments with fractional coordinates fractional coordinate embeddings were obtained from absolute coordinate embeddings via bilinear interpolation.
+
+% }
+  \label{app:tbl:posemb}
+\end{table}

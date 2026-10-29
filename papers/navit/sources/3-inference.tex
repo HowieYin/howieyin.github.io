@@ -1,0 +1,113 @@
+\section{Inference strategies}
+\label{app:inference}
+
+We performed various experiments to measure model quality for given runtime cost. 
+The runtime can be tuned by changing the number of processed patches, or by using choosing different size of the model.
+
+We firstly looked at how model quality changes in respect to decreasing area of the image compared to native resolution, presented in Figure~\ref{fig:inference2}. 
+We observed that on ImageNet~\cite{deng2009imagenet} model retains most of the quality down to 40\% of the image size. 
+After that, the quality drastically decreases.
+On the other hand, increasing the size of the image have a diminishing return in quality. 
+This can be directly compared with random token dropping as an alternative to resizing, which showed to be very ineffective way to decrease number of patches during inference - Figure~\ref{fig:inference_drop}.
+
+Please note that this highly depends on the native resolution of the images in the dataset - e.g. dataset with twice as big images than ImageNet can probably be safely resized to 20\% of area. 
+
+
+\begin{figure}[h]
+\vspace{-5pt}
+\centering
+\begin{subfigure}[t]{0.33\textwidth}
+\includegraphics[width=\textwidth]{figs/imagenet_area_resize.pdf}
+% \caption{The effect of resizing the image}
+\caption{}
+\label{fig:inference2}
+\end{subfigure}
+% \hfill
+\begin{subfigure}[t]{0.33\textwidth}
+\includegraphics[width=\textwidth]{figs/imagenet_area_resize_drop.pdf}
+\caption{}
+% \caption{Dropping random tokens is ineffective way to decrease number of patches compared to resizing the image.}
+\label{fig:inference_drop}
+\end{subfigure}
+% \hfill
+\begin{subfigure}[t]{0.33\textwidth}
+\includegraphics[width=\textwidth]{figs/imagenet_sequence_len_no_upscale.pdf}
+\caption{}
+% \caption{Given number of patches as compute budget, it is beneficial to upscale the image}
+\label{fig:inference5}
+\end{subfigure}
+\caption{(a) The effect of resizing the image. (b) Dropping random tokens is ineffective way to decrease number of patches compared to resizing the image. Data from \navit-L/16. (c) Given number of patches as compute budget, it is beneficial to upscale the image.}
+\vspace{-5pt}
+\end{figure}
+
+A better way to quantify the performance is by giving a constant compute budget corresponding to number of patches. Figure~\ref{fig:inference4} shows that resizing the image (while preserving aspect ratio) to 256 tokens retains most of the quality (within 0.3\%). 
+This corresponds to 256x256 area (given patch size of 16). 
+At 128 tokens (181x181 area) the quality difference reaches 1\% and drops significantly after that.
+
+Here we also resized the image past its native resolution in case it already fit the given sequence length budget. 
+We observed that it is beneficial to resize the image to the given sequence length past the native resolution to keep monotonic increase in quality, which is showed on
+Figure~\ref{fig:inference5}.
+
+Figure~\ref{fig:inference3} presents the runtime of \navit-L/16 and \navit-B/16 for different sequence lengths. We can see that \navit-L/16 at sequence length 128 is as fast as \navit-B/16 with sequence length 512, while having almost 1\% difference in quality.
+
+\begin{figure}[t]
+\vspace{-5pt}
+\centering
+\begin{subfigure}[t]{0.49\textwidth}
+\includegraphics[width=\textwidth]{figs/imagenet_sequence_len.pdf}
+% \caption{Quality on ImageNet in respect to number of patches (sequence length)}
+\caption{}
+\label{fig:inference4}
+\end{subfigure}
+\begin{subfigure}[t]{0.49\textwidth}
+\includegraphics[width=\textwidth]{figs/imagenet_runtime_accuracy.pdf}
+\caption{}
+% \caption{Runtime of models compared to the accuracy on ImageNet}
+\label{fig:inference3}
+\end{subfigure}
+\caption{(a) Quality on ImageNet in respect to number of patches (sequence length). (b) Runtime of models compared to the accuracy on ImageNet.}
+\vspace{-5pt}
+\end{figure}
+
+
+\section{Cascades}
+\vspace{-5pt}
+Another strategy to be more compute efficient would be to assign more tokens (and thus FLOPs) to the examples deemed hard by the model.
+This is in particular interesting for bulk inference workloads, where one can amortize over large datasets and where only the total inference time matters.
+\begin{figure}[h]
+\vspace{-5pt}
+\centering
+\includegraphics[width=.5\textwidth]{figs/cascades.pdf}
+\caption{Performance of a model cascade versus the average inference time. The labels at the select points denote the number of tokens at that scale.}\label{fig:cascades}
+\vspace{-5pt}
+\end{figure}
+
+To evaluate the feasibility of this approach, we consider two sequence lengths $n_1$ and $n_2$ with respective inference times $t_1$ and $t_2$.
+Then, we (i) send all examples though the model with $n_1$ tokens, and send only the $\alpha\in(0,1)$-fraction deemed hardest (those with the smallest maximum probability) to the model with $n_2$ tokens.
+To have an input almost exactly fit into $n_1$ or $n_2$ tokens we perform and aspect ratio preserving resize.
+Hence, the total amortized inference time per-example is $t_i + \alpha t_2$, while the accuracy obtained by combining the accuracy of the first model on the $1-\alpha$ most-confident fraction of the data, and the performance of the more expensive model on the remaining data.
+By considering several pairs of models and varying $\alpha$ we obtain the plot in \Cref{fig:cascades}.
+As we can see this strategy is indeed useful and provides not only the best performing models at given compute budgets, but because $\alpha$ is a real parameter one can obtain very fine-grained trade-offs.
+
+\section{Calibration}
+\label{app:calibration}
+
+To evaluate behaviour of the predicted uncertainties with scale, we compute the calibration error of a -B sized ImageNet-finetuned model (the -L model performs similarly).
+Note that these models were trained with sigmoid loss, i.e., the 1000 labels were predicted independently without enforcing that the probabilities should sum up to 1.
+As we varied the sequence of tokens per example between 128 and 1024, we obtained very stable calibration errors (top-1, using $\ell_1$ and $30$ buckets, i.e., the settings from \cite{nixon2019measuring}), which we present in \Cref{tbl:calibration}.
+
+\begin{table}[h]
+\centering
+\caption{Expected calibration error on ImageNet-1K with varying sequence lengths.}
+\label{tbl:calibration}
+\begin{tabular}{r | c c c c c c c}
+\toprule
+Sequence Length & 128 & 256 & 384 & 512 & 640 & 768 & 1024 \\
+\midrule
+Calibration Error & 0.047 & 0.046 & 0.048 & 0.047 & 0.047 & 0.046 & 0.045 \\
+\bottomrule
+\end{tabular}
+
+\end{table}
+
+

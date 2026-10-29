@@ -1,0 +1,37 @@
+title: "Patch n' Pack: NaViT, a Vision Transformer for any Aspect Ratio and Resolution"
+slug: navit
+arxiv: 2307.06304
+version: v1
+date: 2023-07-12
+venue: NeurIPS 2023
+institution: Google DeepMind
+authors:
+  - Mostafa Dehghani
+  - Basil Mustafa
+  - Josip Djolonga
+  - Jonathan Heek
+  - Matthias Minderer
+  - Mathilde Caron
+  - Andreas Steiner
+  - Joan Puigcerver
+  - Robert Geirhos
+  - Ibrahim Alabdulmohsin
+  - Avital Oliver
+  - Piotr Padlewski
+  - Alexey Gritsenko
+  - Mario Lučić
+  - Neil Houlsby
+doi: 10.48550/arXiv.2307.06304
+source_pdf: sources/2307.06304v1.pdf
+sha256: d4421cab93fe27a49c64120faa46822dc95a563ed70f5495b25112b35619a396
+read_date: 2026-10-29
+research_cutoff: 2026-10-29
+original_figures: 22
+complete_original_tables: 5
+original_equations: 1
+explanatory_formula_groups: 8
+explanatory_diagrams: 2
+interactive_components: 3
+published_url: https://howieyin.github.io/papers/navit/
+tags: [CV, VLM, Attention, Training, Systems, Edge AI]
+reproduction: "No training or device benchmark reproduction; interactive values are analytical."

@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "navit",
+      "title": "NaViT：让图片保留形状，让训练批次保持形状",
+      "metadata": "2023 · NeurIPS · arXiv v1 · Read October 29, 2026 · CV / VLM / Training / Systems",
+      "readDate": "2026-10-29",
+      "description": "All 22 original figures, 5 complete tables and 9 formula groups; Patch n’ Pack tensors and masks, resolution/dropping schedules, three interactive explainers, per-op compute and memory, full appendix audits, and dated NaFlex/VLM follow-up research.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "deepseek-v2",
       "title": "DeepSeek-V2：把模型容量、激活计算和 KV 存储分开设计",
       "metadata": "2024 · arXiv v5 · Read October 29, 2026 · MLA / MoE / LLM Systems",

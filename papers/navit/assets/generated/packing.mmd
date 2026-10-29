@@ -1,0 +1,7 @@
+flowchart TD
+  A["不同宽高比图片"] --> B["Patchify · 保留 x/y 与 image ID"]
+  B --> C["逐图 token dropping"]
+  C --> D["First-fit packing · 固定 S"]
+  D --> E["同图 masked attention"]
+  E --> F["逐图 masked pooling"]
+  F --> G["有效样本 loss · 排除 pad slots"]

@@ -1,0 +1,118 @@
+\section{Training details}
+
+\subsection{Classification pretraining}
+\label{app:classification_deets}
+The experiments and ablations in the paper are with ViT-B/32, ViT-B/16, and ViT-L/16. We use a reciprocal square-root learning rate schedule, with linear warmup and cooldown, with a maximum value of $8e-4$, and  phases. We follow ~\citep{zhai2022scaling, abnar2021exploring} and use a higher weight decay of $3.0$ on the head compared to the body's weight decay of $0.03$ during upstream training to improve transfer to downstream tasks. 
+For our experiments, we evaluated both \navit and ViT models using configurations B/32, B/16, and L/16. Each ViT model was trained with varying compute budgets, with cooling down at different stages of training. We trained a corresponding \navit model for each ViT size and computational budget, allowing us to perform ``compute-matched'' comparisons~\citep{dehghani2021efficiency}.
+
+\cref{tbl:pretraining_spec} presents the pretraining specifications for both ViT and \navit models. During the pretraining phase, ViT models were trained using images of size \res{224}{224}. In contrast, \navit models uniformly sampled a value, denoted as $r$, between 64 and 256 and resized the image to have a total of $r^2$ pixels while preserving the aspect ratio. Although training \navit models on native resolutions is possible, we empirically discovered that sampling a resolution provides greater control over maximizing the number of examples observed during pretaining within a fixed computational budget while maintaining performance across different resolutions in downstream tasks. Additionally, by controlling the resolution, we can ensure efficient packing by tuning the sequence length and limit padding to less than 2\%.
+
+\begin{table}[h]
+  \caption{Pre-training details of ViT and \navit with supervised classification.}
+  \centering
+\resizebox{1\columnwidth}{!}{%
+  \begin{tabulary}{1.0\linewidth}{@{}Lrrrrrrr@{}}
+    \toprule
+    \bf{Name} &
+    \multicolumn{1}{p{1cm}}{\centering \textbf{TPU \\ Hours}} &
+    \multicolumn{1}{p{1cm}}{\centering \textbf{ Train \\ Steps}} &
+    \multicolumn{1}{p{1.2cm}}{\centering \textbf{Cooldown \\  Steps}} &
+    \multicolumn{1}{p{1.2cm}}{\centering \textbf{Sequence \\ Length}} &
+    \multicolumn{1}{p{1.4cm}}{\centering \textbf{Images  \\  Per Seq.}} &
+    \multicolumn{1}{p{1.2cm}}{\centering \textbf{Batch \\ Size}} &
+    \multicolumn{1}{p{1.2cm}}{\centering \textbf{Training \\ Images}} \\
+     \midrule
+   \multirow{4}{*}{ViT-B/32} &       $1.4\times10^{11}$ &  $1.0\times10^{5}$ &  $1.0\times10^{4}$ &          49 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $4.0\times10^{8}$ \\
+        &  $3.5\times10^{11}$ &  $2.5\times10^{5}$ &  $5.0\times10^{4}$ &          49 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $1.0\times10^{9}$ \\
+        &  $7.1\times10^{11}$ &  $5.0\times10^{5}$ &  $1.0\times10^{5}$ &          49 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $2.0\times10^{9}$ \\
+        &  $1.4\times10^{12}$ &  $1.0\times10^{6}$ &  $1.0\times10^{5}$ &          49 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $4.0\times10^{9}$ \\
+ \midrule
+  \multirow{4}{*}{ViT-B/16}          &  $4.7\times10^{11}$ &  $1.0\times10^{5}$ &  $1.0\times10^{4}$ &         196 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $4.0\times10^{8}$ \\
+        &  $1.1\times10^{12}$ &  $2.5\times10^{5}$ &  $5.0\times10^{4}$ &         196 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $1.0\times10^{9}$ \\
+        &  $2.3\times10^{12}$ &  $5.0\times10^{5}$ &  $1.0\times10^{5}$ &         196 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $2.0\times10^{9}$ \\
+        &  $4.7\times10^{12}$ &  $1.0\times10^{6}$ &  $1.0\times10^{5}$ &         196 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $4.0\times10^{9}$ \\
+  \midrule
+  \multirow{4}{*}{ViT-L/16}        &  $9.8\times10^{11}$ &  $1.0\times10^{5}$ &  $1.0\times10^{4}$ &         196 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $4.0\times10^{8}$ \\
+        &  $2.4\times10^{12}$ &  $2.5\times10^{5}$ &  $5.0\times10^{4}$ &         196 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $1.0\times10^{9}$ \\
+        &  $4.9\times10^{12}$ &  $5.0\times10^{5}$ &  $1.0\times10^{5}$ &         196 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $2.0\times10^{9}$ \\
+        &  $9.8\times10^{12}$ &  $1.0\times10^{6}$ &  $1.0\times10^{5}$ &         196 &              1.0 &  $\approx $$4.0\times10^{3}$ &  $4.0\times10^{9}$ \\
+  \midrule   \midrule        
+  \multirow{4}{*}{\navit-B/32}                &  $1.4\times10^{11}$ &  $9.8\times10^{4}$ &  $1.0\times10^{4}$ &          64 &             5.41 &  $\approx $$2.2\times10^{4}$ &   $2.1\times10^{9}$ \\
+        &  $3.5\times10^{11}$ &  $2.4\times10^{5}$ &  $5.0\times10^{4}$ &          64 &             5.41 &  $\approx $$2.2\times10^{4}$ &   $5.3\times10^{9}$ \\
+        &  $7.1\times10^{11}$ &  $4.8\times10^{5}$ &  $1.0\times10^{5}$ &          64 &             5.41 &  $\approx $$2.2\times10^{4}$ &  $1.0\times10^{10}$ \\
+        &  $1.4\times10^{12}$ &  $9.7\times10^{5}$ &  $1.0\times10^{5}$ &          64 &             5.41 &  $\approx $$2.2\times10^{4}$ &  $2.1\times10^{10}$ \\
+     \midrule
+      \multirow{4}{*}{\navit-B/16}                       &  $4.7\times10^{11}$ &  $9.3\times10^{4}$ &  $1.0\times10^{4}$ &         256 &             4.87 &  $\approx $$1.9\times10^{4}$ &   $1.8\times10^{9}$ \\
+        &  $1.1\times10^{12}$ &  $2.3\times10^{5}$ &  $5.0\times10^{4}$ &         256 &             4.88 &  $\approx $$1.9\times10^{4}$ &   $4.6\times10^{9}$ \\
+        &  $2.3\times10^{12}$ &  $4.6\times10^{5}$ &  $1.0\times10^{5}$ &         256 &             4.88 &  $\approx $$1.9\times10^{4}$ &   $9.2\times10^{9}$ \\
+        &  $4.7\times10^{12}$ &  $9.2\times10^{5}$ &  $1.0\times10^{5}$ &         256 &             4.88 &  $\approx $$1.9\times10^{4}$ &  $1.8\times10^{10}$ \\
+      \midrule
+      \multirow{4}{*}{\navit-L/16}       &  $9.8\times10^{11}$ &  $9.7\times10^{4}$ &  $1.0\times10^{4}$ &         256 &             4.88 &  $\approx $$1.9\times10^{4}$ &   $1.9\times10^{9}$ \\
+        &  $2.4\times10^{12}$ &  $2.4\times10^{5}$ &  $5.0\times10^{4}$ &         256 &             4.87 &  $\approx $$1.9\times10^{4}$ &   $4.8\times10^{9}$ \\
+        &  $4.9\times10^{12}$ &  $4.8\times10^{5}$ &  $1.0\times10^{5}$ &         256 &             4.87 &  $\approx $$1.9\times10^{4}$ &   $9.6\times10^{9}$ \\
+        &  $9.8\times10^{12}$ &  $9.6\times10^{5}$ &  $1.0\times10^{5}$ &         256 &             4.88 &  $\approx $$1.9\times10^{4}$ &  $1.9\times10^{10}$ \\
+\bottomrule
+    \bottomrule
+  \end{tabulary}
+}
+  \label{tbl:pretraining_spec}
+\end{table}
+
+% For all these models, we use 
+
+\subsection{Contrastive pretraining}
+\label{app:contrastive_deets}
+We use the 32000 token T5~\cite{t5paper} sentencepiece~\cite{kudo-richardson-2018-sentencepiece} tokenizer. By default, text sequences are truncated to a maximum length of 24.  No token dropping is used for text.
+Models are trained under the same optimization regime as the classification models, but with a learning rate of $3 \times 10^{-3}$. Weight decay of $1 \times 10^{-6}$ is applied consistently to all kernels in the model (no change for projection heads).
+By default, image side-lengths are sampled $\sim \mathcal{U}(64, R_\mathrm{max})$, and no other image augmentations are applied.
+
+\subsection{Packing algorithm}
+\label{app:packing}
+Packing of examples into sequences is done alongside batching. A simple greedy approach is used which adds examples to the first sequence with enough remaining space. Once no more examples can fit, sequences are filled with padding tokens, yielding the fixed sequence lengths needed for batched operations. Such simple packing algorithm can lead to a significant padding, depending on the distribution of length of inputs. There are several methods to address such limitations, like bin packing~\citep{krell2021efficient}, which allows minimizing the padding. Here, in \navit, since controlling the resolutions we sample, we can ensure efficient packing by tuning the sequence length and limit padding to less than 2\%.
+
+
+\subsection{Sampling token dropping rates}
+\label{app:token_drop_dists}
+\paragraph{Sampling with a beta distribution}
+We use a parameterisation based on the mean $d_\mu$ and standard deviation $\sigma$. We aim to sample dropout rate $d \in [0.0, d_\texttt{max}]$, with some mean $d_\mu$.
+
+Accordingly, we sample $u \in [0, 1] \sim \mathcal{B}(\alpha, \beta)$ and set drop rate $d = u \times d_\texttt{max}$. $\alpha$ and $\beta$ are set such that the mean of $u$ is $u_\mu = \frac{d_\mu}{d_\texttt{max}}$. The maximum supported variance for a beta distribution of mean $u_\mu$ is $u_\mu(1-u_\mu)$; we pick by default a variance $\sigma^2 = 0.3u_\mu(1-u_\mu)$, which we found to work well in practice. The resultant distributions of token dropouts for different settings of $d_\mu$ and $d_\texttt{max}$ are shown in Figure~\ref{fig:beta_drop_rates}.
+\begin{figure}[h]
+\centering
+\begin{subfigure}[t]{0.69\textwidth}    
+\includegraphics[width=\textwidth]{figs/token_drop_rates.pdf}
+\caption{\small{Beta-sampled token drop rates parameterised by the mean $\mu$ and the max drop rate $d_\texttt{max}$}}
+\label{fig:beta_drop_rates}
+\end{subfigure}
+\hfill\begin{subfigure}[t]{0.3\textwidth}    
+\includegraphics[width=0.74\textwidth]{figs/resolution_dependent_token_drop_rates.pdf}
+\caption{\small{Sampled resolution-dependent token drop rates}}
+\label{fig:res_dep_drop_rates}
+\end{subfigure}
+\end{figure}
+
+
+\paragraph{Sampling resolution-dependent dropping rates}
+\label{app:res_dep_token_drop}
+Given input data with sequence lengths ranging from $s_\texttt{min}$ to $s_\texttt{max}$, we sample dropout rate $d$ from a truncated normal distribution $d \sim \mathcal{N}_\texttt{trunc}(\mu, 0.02)$, where samples more than two standard deviations away from $\mu$ are rejected.
+
+The mean of this distribution $\mu$ is set according to the minimum and maximum token dropping rates $d_\texttt{min}$ and $d_\texttt{max}$, and simply scales linearly with the sequence length $s$ (such that $s=s_\texttt{min}$ has $\mu=d_\texttt{min}$ and $s=s_\texttt{max}$ has $\mu=d_\texttt{max}$.
+
+Figure~\ref{fig:res_dep_drop_rates} shows example distributions of sampled drop rates given inputs with resolution $R \sim \mathcal{U}(64, 384)$, and different values of $d_\texttt{min}$ and $d_\texttt{max}$.
+
+\subsection{Scheduling token dropping rates}
+\label{app:scheduled_tdr}
+We experiment with a token dropping schedule which varies with total number of images seen.
+In particular, the rate applied for the $n$-th processed image during training is given by:
+\begin{equation}
+\rho(n; \rho_{\min}, \rho_{\max}, \mu, \tau) = \rho_{\min} + (\rho_{\max} - \rho_{\min}) \cdot \sigma\left(\frac{n - \mu}{\tau}\right),
+\end{equation}
+where $\sigma$ represents the sigmoid function; $\rho_{\min}$, $\rho_{\max}$ control the minimum and maximum dropping rate applied; and $\mu$ and $\tau$ control the shape of the schedule. We experimented with both increasing ($\tau > 0$) and decreasing ($\tau < 0$) schedules. In all cases we set $\rho_{\min} = 0.2$ and $\rho_{\max} = 0.8$.
+Figure~\ref{fig:scheduled_token_dropping} shows that, by decreasing the dropping rate throughout training, one can improve the final accuracy, at fixed training cost.
+Conversely, increasing the token dropping rate harms performance.
+\begin{figure}[bt]
+\centering
+\includegraphics[width=0.95\textwidth]{figs/schedule_token_drop_detailed.pdf}
+\caption{Decreasing the token dropping rate along training improves the ImageNet 10shot accuracy using the same pre-training resources. $N$ is the total number of training examples seen with a fixed token dropping rate of $\rho = \frac{1}{2}$.}
+\label{fig:scheduled_token_dropping}
+\end{figure}
