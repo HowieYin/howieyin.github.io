@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "llama3",
+      "title": "Llama 3：从数据、训练系统到多模态接口的完整工程账本",
+      "metadata": "2024 · arXiv v3 · Read October 29, 2026 · LLM / Training / Systems / Multimodal",
+      "readDate": "2026-10-29",
+      "description": "All 30 original figures and 35 complete tables; chapter-ordered Llama 3.1 analysis, GQA and 4D parallel costs, FP8 kernel checks, vision and speech interfaces, three interactive explainers, source discrepancy audits, and research through October 29, 2026.",
+      "category": "training-scaling"
+    },
+    {
       "slug": "gpt3",
       "title": "GPT-3：参数规模如何改变上下文学习",
       "metadata": "NeurIPS 2020 · arXiv v4 · Read October 29, 2026 · Training / Scaling / In-Context Learning",

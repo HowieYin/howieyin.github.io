@@ -1,0 +1,13 @@
+flowchart TD
+  I["图像 / tiles"] --> V["可训练 ViT + 特征 7680D"]
+  V --> K["视觉 cross-attention K/V"]
+  X["文本 tokens"] --> L["冻结语言主干"]
+  K --> L
+  A["音频 / 80-bin mel"] --> E["Conformer + Adapter"]
+  E --> S["80ms / embedding / 约12.5Hz"]
+  S --> L
+  L --> O["文本输出 / 第16层表示"]
+  O --> P["TN + Prosody + Acoustic + WaveRNN"]
+  P --> W["流式 waveform"]
+  L --> C["self-KV 随文本/语音序列增长"]
+  K --> D["cross-KV 随图像规模增长"]
