@@ -104,3 +104,4 @@
 #margin-plot{width:100%;height:auto;display:block;background:#111b29;border:1px solid #293c50;border-radius:4px}
 .reading .original-equation .ltx_eqn_cell math{white-space:nowrap}
 @media(max-width:640px){.gatt-tokens{grid-template-columns:repeat(2,minmax(0,1fr))}.gatt-tokens>div{padding:12px 9px}.original-sample{padding-left:10px}.reading figure img{max-height:none}}
+.reading figure.generated img{width:auto;max-width:100%;max-height:min(600px,70svh);object-fit:contain;margin:0 auto}

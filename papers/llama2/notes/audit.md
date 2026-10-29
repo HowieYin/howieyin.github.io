@@ -18,6 +18,8 @@ Source ambiguities retained: prose30B vs Table1 34B; Table25 maj1@1; TruthfulQA 
 
 Chapter order: Introduction→Pretraining→Fine-tuning→Safety→Discussion→Related Work→Conclusion→A.1–A.7→independent engineering/audit/current research/critique. Every original figure/table has adjacent explanation; full long samples use expandable native details. Original captions are outside images; no redrawn image replaces original evidence.
 
-Two original Mermaid diagrams explain feedback dependencies and GAtt mask semantics; three interactive widgets explain analytic margin, GAtt and compact/replicated KV. Formula uses native MathML with original LaTeX; all source references and related readings are clickable. Navigation is English and existing site style retained.
+Two compact SVG diagrams explain feedback dependencies and GAtt mask semantics, with the Mermaid relationship sources retained; three interactive widgets explain analytic margin, GAtt and compact/replicated KV. Formula uses native MathML with original LaTeX; all source references and related readings are clickable. Navigation is English and existing site style retained.
+
+Diagram correction, 2026-10-29: the initial checks missed vertical figure overflow. The portrait feedback SVG was stretched from 224 to 640 px wide, producing a 3258 px preview. Reflowed both explanatory diagrams and constrained preview height; a browser regression check failed before the fix and passed after it at all five widths. Desktop images now occupy 416 / 424 px in height, with complete figures and captions below 500 px.
 
 Actual desktop/mobile local, offline and production QA evidence is retained in qa-*.json. No model training or GPU benchmark was performed; all model performance is paper-reported.
