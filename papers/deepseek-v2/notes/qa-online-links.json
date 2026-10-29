@@ -1,0 +1,237 @@
+{
+  "url": "https://howieyin.github.io/papers/deepseek-v2/",
+  "checkedAt": "2026-10-29T12:49:20.130Z",
+  "releaseCommit": "1a85115f2ca447c05857adb54ec1d8e87a82ffaa",
+  "articleSha256": "f5862bbf318c54b8c75acd05ba623cc499f0ea132a838d872c2a367fb1b9f892",
+  "articleMatchesReviewed": true,
+  "resources": [
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/assets/favicon.svg",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/styles.css?v=3",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/reading.css",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/weekly/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/foundations/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/lab/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/sources/2405.04434v5.pdf",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/notes/research-evidence.md",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/offline.html",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/original/fig-01-mmlu.png",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/original/fig-01-efficiency.png",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/original/fig-02-deepseekv2.png",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/generated/mla-flow.svg",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/generated/mla-flow.mmd",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/original/fig-03-dsattn.png",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/generated/routing.svg",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/generated/routing.mmd",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/original/fig-04-needle_in_a_haystack.png",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/generated/alignment.svg",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/generated/alignment.mmd",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/original/fig-05-code.png",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/transformer/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/gqa/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/sparse-moe/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/roformer/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/rmsnorm/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/flashattention-2/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v3/",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/notes/related-work.md",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/notes/review.md",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/notes/numerical-check.json",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/notes/publishing-report.md",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/model.js",
+      "status": 200
+    },
+    {
+      "url": "https://howieyin.github.io/papers/deepseek-v2/assets/reading.js",
+      "status": 200
+    }
+  ],
+  "navigation": [
+    {
+      "path": "/",
+      "status": 200,
+      "width": 390,
+      "scrollWidth": 390,
+      "links": [
+        "DeepSeek-V2：把模型容量、激活计算和 KV 存储分开设计 ↗"
+      ]
+    },
+    {
+      "path": "/papers/",
+      "status": 200,
+      "width": 390,
+      "scrollWidth": 390,
+      "links": [
+        "DeepSeek-V2：把模型容量、激活计算和 KV 存储分开设计 ↗"
+      ]
+    },
+    {
+      "path": "/papers/topics/model-architecture/",
+      "status": 200,
+      "width": 390,
+      "scrollWidth": 390,
+      "links": [
+        "DeepSeek-V2：把模型容量、激活计算和 KV 存储分开设计 ↗"
+      ]
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "width": 1440,
+      "scrollWidth": 1440,
+      "links": [
+        "DeepSeek-V2：把模型容量、激活计算和 KV 存储分开设计 ↗"
+      ]
+    },
+    {
+      "path": "/papers/",
+      "status": 200,
+      "width": 1440,
+      "scrollWidth": 1440,
+      "links": [
+        "DeepSeek-V2：把模型容量、激活计算和 KV 存储分开设计 ↗"
+      ]
+    },
+    {
+      "path": "/papers/topics/model-architecture/",
+      "status": 200,
+      "width": 1440,
+      "scrollWidth": 1440,
+      "links": [
+        "DeepSeek-V2：把模型容量、激活计算和 KV 存储分开设计 ↗"
+      ]
+    }
+  ],
+  "backlinks": [
+    {
+      "slug": "gqa",
+      "status": 200,
+      "valid": true
+    },
+    {
+      "slug": "mqa",
+      "status": 200,
+      "valid": true
+    },
+    {
+      "slug": "sparse-moe",
+      "status": 200,
+      "valid": true
+    },
+    {
+      "slug": "deepseek-v3",
+      "status": 200,
+      "valid": true
+    }
+  ],
+  "catalogEntries": 35,
+  "errors": []
+}
