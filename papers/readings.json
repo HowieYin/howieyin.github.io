@@ -41,6 +41,14 @@
       "description": "Chapter-by-chapter reading of v2 and every appendix: all 33 original figures, 52 complete tables and 5 formula groups; iterative feedback, two reward models, GAtt loss masks, GQA/TP cache costs, three interactive explainers, and dated research through October 29, 2026."
     },
     {
+      "slug": "deepseek-v3",
+      "title": "DeepSeek-V3：把低成本训练，落实到每一次数据移动",
+      "metadata": "2024 · arXiv v2 · Read October 29, 2026 · MLA / MoE / FP8 / Systems",
+      "readDate": "2026-10-29",
+      "description": "All 11 original figure groups, 9 complete tables and 28 numbered equations; MLA cache and weight absorption, routing bias, MTP cost explorers, DualPipe and FP8 gradient analysis, experiment audits, and dated research through October 29, 2026.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "instructgpt",
       "title": "InstructGPT：把会续写的模型，训练成更愿意完成任务的助手",
       "metadata": "NeurIPS 2022 · arXiv v1 · Read October 29, 2026 · RLHF / Reward Model / PPO",
