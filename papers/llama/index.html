@@ -1,0 +1,2535 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>LLaMA：把训练多花的钱，换成每次推理少花的钱 — Paper Readings · Howie Yin</title><meta name="description" content="LLaMA 2302.13971v1逐章精读：3张原图、16张完整表、16个附录样例，MHA/RMSNorm/RoPE/SwiGLU源码核对、KV与寿命成本交互、评测审计及截至2026-10-29的扩展调研。"><link rel="canonical" href="https://howieyin.github.io/papers/llama/"><meta property="og:title" content="LLaMA：把训练多花的钱，换成每次推理少花的钱"><meta property="og:description" content="LLaMA 2302.13971v1逐章精读：3张原图、16张完整表、16个附录样例，MHA/RMSNorm/RoPE/SwiGLU源码核对、KV与寿命成本交互、评测审计及截至2026-10-29的扩展调研。"><meta property="og:type" content="article"><meta property="og:image" content="https://howieyin.github.io/papers/llama/assets/original/fig-01.png"><link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head><body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page"><header class="site-header"><a class="wordmark" href="../../"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header><div class="page-tools"><span>3 ORIGINAL FIGURES · 16 COMPLETE TABLES · 16 SAMPLES · ARXIV V1</span><button type="button" id="theme-toggle">Light mode</button></div><div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents</summary><ol><li><a href="#section-1">Abstract：摘要承诺到底覆盖哪些任务</a></li><li><a href="#section-2">§1 Introduction：把推理预算放进目标函数</a></li><li><a href="#section-3">§2 Approach：公开数据和标准组件怎样组成一个强模型</a></li><li><a href="#section-4">§3 Main results：逐项看优势、失败与评测预算</a></li><li><a href="#section-5">§4 Instruction finetuning：一个 Flan 实验不能等同完整对齐系统</a></li><li><a href="#section-6">§5 Bias, toxicity and misinformation：四个探针，四种不同指标</a></li><li><a href="#section-7">§6 Carbon footprint：训练一次和开发全部不是同一笔账</a></li><li><a href="#section-8">§7 Related work：组件来源和研究目标分开追踪</a></li><li><a href="#section-9">§8 Conclusion：论文的结论与证据上限</a></li><li><a href="#section-10">Acknowledgements / References：来源与可复现性</a></li><li><a href="#section-11">Appendix A：问答格式决定 EM 是怎样得到的</a></li><li><a href="#section-12">Appendix B：57 个 MMLU 任务，保留失败才能解释平均值</a></li><li><a href="#section-13">Appendix C：6 个基础模型生成样例逐例审读</a></li><li><a href="#section-14">Appendix D：10 个指令样例，能遵循任务也会违约</a></li><li><a href="#section-15">我的分析与扩展调研：截至 2026-10-29 的能力、成本和边界</a></li></ol></details></aside><main id="main" class="reading"><h1>LLaMA：把训练多花的钱，换成每次推理少花的钱</h1>
+<p class="eyebrow">DEEP READING · FOUNDATION MODELS · ARXIV V1</p>
+<p><strong>LLaMA: Open and Efficient Foundation Language Models</strong> · Meta AI · 2023 年 2 月 27 日 · arXiv 预印本。本文锁定 <strong>2302.13971v1，27 页</strong>，阅读与扩展核验日期均为 <strong>2026-10-29</strong>。</p>
+<p>Hugo Touvron、Thibaut Lavril、Gautier Izacard、Xavier Martinet、Marie-Anne Lachaux、Timothee Lacroix、Baptiste Rozière、Naman Goyal、Eric Hambro、Faisal Azhar、Aurelien Rodriguez、Armand Joulin、Edouard Grave、Guillaume Lample。论文标注 Touvron、Lavril、Izacard、Grave、Lample 为共同贡献者。TeX 模板名不作为会议录用证据。</p>
+<p><a href="https://arxiv.org/pdf/2302.13971v1">原始 PDF</a> · <a href="https://arxiv.org/abs/2302.13971v1">arXiv / 版本</a> · <a href="https://doi.org/10.48550/arXiv.2302.13971">DOI</a> · <a href="https://github.com/meta-llama/llama/tree/1076b9c51c77ad06e9d7ba8a4c6df775741732bd">历史官方代码</a> · <a href="https://www.llama.com/models/llama-4/">今天的模型项目</a> · <a href="assets/evidence/research-findings.md">研究证据</a></p>
+<div class="callout"><strong>一句话</strong><p>LLaMA 用较小的稠密 Decoder、充分训练和细致的数据处理，优化长期服务时的质量与推理成本，而不只优化一次预训练的计算预算。</p></div>
+<p>从 7B 到 65B，模型并没有发明一种新的 Attention。关键是把公开可获取的数据、Pre-RMSNorm、SwiGLU、RoPE 和高效训练实现组合起来，把 7B / 13B 训练到 1T tokens、33B / 65B 训练到 1.4T tokens。13B 在许多评测中接近或超过更大的旧模型；65B 在部分任务上接近 Chinchilla / PaLM，同时在 MMLU、数学等任务上仍有明确差距。模型小并不自动意味着端到端快，但为较低的驻留权重、带宽需求和部署门槛提供了基础。</p>
+<p>五个要点：① 训练最优和长期推理最优是两个目标；② 数据清洗与混合比例属于方法核心；③ 第一代四种模型全部是 <strong>MHA、稠密 FFN</strong>；④ 参数比不能当速度比，pass@k 不能当单次成功率；⑤ “open” 需要分别核验数据、代码和权重许可，不能用今天的 Llama 许可倒推 2023 年。</p>
+<p>本页按论文的 Abstract、§1–8、附录 A–D 顺序展开，保留 <strong>3 张原图、16 张完整原表、16 个生成样例</strong>。原文没有编号算法或编号方法公式；后文的架构公式、伪代码、复杂度和成本模型均明确标为解释性重构。</p>
+<h2 id="section-1">Abstract：摘要承诺到底覆盖哪些任务</h2>
+<p>作者的核心主张是：只用公开可获取的数据，可以训练出 7B–65B、具有竞争力的基础语言模型；13B 在多数基准上超过 GPT-3 175B，65B 与 Chinchilla 70B、PaLM 540B 相竞争。这里的 “competitive” 表示多项任务处在相近水平，不是每项任务都获胜。</p>
+<p>判断摘要时必须回到原表。常识任务里，13B 对 GPT-3 的 7 项共同结果赢 5 项；MMLU 里 13B 为 46.9 对 43.9，65B 却只有 63.4，低于 Chinchilla 67.5 和 PaLM 69.3。基础模型也不等于聊天模型，§4 的 LLaMA-I 是另一个监督指令微调实验。</p>
+<h2 id="section-2">§1 Introduction：把推理预算放进目标函数</h2>
+<p>早期规模路线倾向增加参数量。Chinchilla 讨论固定预训练算力下，参数和 token 应怎样共同增长：大模型欠训练常常不如较小且训练更充分的模型。LLaMA 进一步问：如果一个模型将在部署后回答很多次，为什么只最小化训练成本？</p>
+<p>用作者的例子理解：Chinchilla 的建议是 10B 配约 200B tokens；LLaMA 发现 7B 到 1T tokens 仍在改善。这里没有推翻 scaling law。固定训练预算最优，与固定目标质量下最小化训练加服务成本，可以选择不同的训练点；常被引用的约 20 tokens / parameter 不是“继续训练不再有效”的硬上限。</p>
+<div class="equation" id="derived-lifetime"><span class="equation-label">EXPLANATORY RECONSTRUCTION · NOT AN ORIGINAL NUMBERED EQUATION</span><math alttext="\min_{N,D}\ C_{\mathrm{train}}(N,D)+R\,I(N),\quad \mathrm{Quality}(N,D)\ge q_{\mathrm{target}}" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mo>min</mo><mrow><mi>N</mi><mo>,</mo><mi>D</mi></mrow></msub><mtext> </mtext><msub><mi>C</mi><mrow><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">n</mi></mrow></mrow></msub><mo stretchy="false">(</mo><mi>N</mi><mo>,</mo><mi>D</mi><mo stretchy="false">)</mo><mo>+</mo><mi>R</mi><mspace width="0.167em"></mspace><mi>I</mi><mo stretchy="false">(</mo><mi>N</mi><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><mrow><mi mathvariant="normal">Q</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">y</mi></mrow><mo stretchy="false">(</mo><mi>N</mi><mo>,</mo><mi>D</mi><mo stretchy="false">)</mo><mo>≥</mo><msub><mi>q</mi><mrow><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">t</mi></mrow></mrow></msub></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>\min_{N,D}\ C_{\mathrm{train}}(N,D)+R\,I(N),\quad \mathrm{Quality}(N,D)\ge q_{\mathrm{target}}</code></details></div>
+<p>这是我们的目标重构：<span class="inline-math"><math alttext="N" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>N</mi></mrow></math></span> 是参数量，<span class="inline-math"><math alttext="D" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>D</mi></mrow></math></span> 是训练 tokens，<span class="inline-math"><math alttext="R" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>R</mi></mrow></math></span> 是服务请求数，<span class="inline-math"><math alttext="I" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>I</mi></mrow></math></span> 是给定输入输出长度、硬件和并发条件下的单次推理成本。要满足同一个质量约束，还得考虑训练数据、上下文和任务分布。论文没有测出所有 <span class="inline-math"><math alttext="I" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>I</mi></mrow></math></span>，也没有发布一个寿命成本的实测 Pareto 曲线。</p>
+<p>论文说 13B 可在单 GPU 上运行，其意义首先是容量门槛降低。13B FP16 权重裸值约 26 GB；究竟能否放下，要继续计入 KV、激活、临时张量及运行时。175 / 13 ≈ 13.46 倍是参数比，不是 TTFT、TPOT 或吞吐量比。</p>
+<section aria-labelledby="cost-title" class="interactive" id="cost-explorer">
+<span class="component-label">ANALYTICAL EXPLORER · USER ASSUMPTIONS</span>
+<h4 id="cost-title">更多训练，需要多少推理才能回本？</h4>
+<p>假设两条路线达到相同质量、使用相同计价单位。调整额外训练支出与每百万生成 tokens 的净节省；图中显示回收额占额外训练成本的比例。</p>
+<div class="controls">
+<label>额外训练成本（货币单位）<input id="extra-cost" max="1000000000000" min="0" step="10000" type="number" value="1000000"/></label>
+<label>每百万生成 tokens 的净节省<input id="token-saving" max="10000" min="-10000" step="1" type="number" value="20"/></label>
+<label>累计生成 tokens<input id="served-tokens" max="1000000000000000" min="0" step="1000000000" type="number" value="10000000000"/></label>
+</div>
+<div aria-hidden="true" class="metric-bars" id="cost-bars"></div>
+<output aria-live="polite" id="cost-result"></output>
+<p class="fine">教学模型，不是实测账单。每请求输出长度不同、延迟价值、电力与硬件价格、输入 token 成本都需另外计入。</p>
+</section>
+<p>交互默认示例中，额外训练成本 100 万货币单位、每百万生成 tokens 节省 20 个同单位，盈亏平衡是 500 亿生成 tokens。所有输入都是教学假设，不是 Meta 的账单或论文实验。若两条路线输出长度不同，必须先统一计费单位和质量目标。</p>
+<h2 id="section-3">§2 Approach：公开数据和标准组件怎样组成一个强模型</h2>
+<h3 id="subsection-1">§2.1 Pre-training data：七种来源不是七种等价数据</h3>
+<figure class="original-table" id="table-1">
+<div aria-label="Original Table 1" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_nopad_r ltx_align_left ltx_border_tt" scope="col">Dataset</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Sampling prop.</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Epochs</th>
+<th class="ltx_td ltx_nopad_r ltx_align_right ltx_border_tt" scope="col">Disk size</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t">CommonCrawl</td>
+<td class="ltx_td ltx_align_center ltx_border_t">67.0%</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.10</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t">3.3 TB</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">C4</td>
+<td class="ltx_td ltx_align_center">15.0%</td>
+<td class="ltx_td ltx_align_center">1.06</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right">783 GB</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">Github</td>
+<td class="ltx_td ltx_align_center">  4.5%</td>
+<td class="ltx_td ltx_align_center">0.64</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right">328 GB</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">Wikipedia</td>
+<td class="ltx_td ltx_align_center">  4.5%</td>
+<td class="ltx_td ltx_align_center">2.45</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right">83 GB</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">Books</td>
+<td class="ltx_td ltx_align_center">  4.5%</td>
+<td class="ltx_td ltx_align_center">2.23</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right">85 GB</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">ArXiv</td>
+<td class="ltx_td ltx_align_center">  2.5%</td>
+<td class="ltx_td ltx_align_center">1.06</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right">92 GB</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb">StackExchange</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">  2.0%</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1.03</td>
+<td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb">78 GB</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span><strong class="ltx_text ltx_font_bold">Pre-training data.</strong> Data mixtures used for pre-training, for each subset we list the sampling proportion, number of epochs performed on the subset when training on 1.4T tokens, and disk size. The pre-training runs on 1T tokens have the same sampling proportion.
+</figcaption>
+<p class="fine">Original paper · Table 1. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p><strong>如何读。</strong> Sampling prop. 是训练时的采样比例；Epochs 是 1.4T-token 配方下各子集被重复读取的程度；Disk size 是存储体积。不能用磁盘 GB 反推 token 比例。1T-token 的两种小模型使用相同采样比例，但不代表每个子集也经历表中相同 epoch 数。</p>
+<p><strong>清洗链路。</strong> CommonCrawl 占 67%，用 2017–2020 的五个 dump，经 CCNet：行级去重、fastText 英文识别、n-gram 质量过滤；再用 Wikipedia 参考页面训练线性模型做质量选择。C4 占 15%，采用不同的启发式清洗，与前者有互补性。两者合计 82%，模型的数据底座仍是网页文本，而不是全体高质量书籍。</p>
+<p>GitHub 占 4.5%，只保留 Apache、BSD、MIT 许可项目，做文件级精确去重；这不等价于语义去重，也不自动排除代码 benchmark 污染。Wikipedia 占 4.5%，覆盖使用拉丁或西里尔字母的 20 种语言，dump 来自 2022 年 6–8 月，并非只用英文维基。</p>
+<p>Books 占 4.5%，组合 Gutenberg 与 Books3，两本书内容重叠超过 90% 时去重。arXiv 占 2.5%，去掉首节前内容、参考文献和注释，展开宏，避免 TeX 语法噪声主导训练。StackExchange 占 2%，来自 28 个网站，按回答得分排序。高重复的 Wikipedia / Books 是主动加权，不是数据采样出了故障。</p>
+<p>分词使用 SentencePiece 的 BPE，数字拆成单个 digit，未知字符走 byte fallback。它改变数学和代码的长度、边界及罕见字符覆盖，不能只把 tokenizer 看成模型外部的无关预处理。</p>
+<p><strong>方法边界。</strong> 公开能下载，与每份数据都有统一的开放版权许可，属于不同断言。第一代模型卡把权重限制为非商业研究用途；历史仓库代码 LICENSE 是 GPLv3。许可判断应查具体资产与固定版本，不能用“open-source LLaMA”一句话带过。本文也不把 Books3 的可获取性作为版权结论。</p>
+<h3 id="subsection-2">§2.2 Architecture：Transformer 的三个替换和一个不变</h3>
+<p>模型沿用自回归 Decoder。Pre-normalization 参考 GPT-3，用 RMSNorm 取代 LayerNorm；激活改为 PaLM 使用的 SwiGLU；移除绝对位置编码，采用 GPT-Neo 的 RoPE 路线。注意：RoPE 原始方法来自 RoFormer，论文对 GPT-Neo 的提及是使用路线，不能据此改写方法归属。</p>
+<figure class="generated" id="diagram-block"><div class="diagram-scroll" tabindex="0"><img alt="LLaMA v1 block: pre-norm, MHA, rotated K caching, residuals and SwiGLU" src="assets/generated/block.svg"/></div><figcaption>Agent-created Visualization · LLaMA v1 block: pre-norm, MHA, rotated K caching, residuals and SwiGLU. <a href="assets/generated/block.mmd">Mermaid source</a>; mechanisms, not a performance ranking.</figcaption></figure>
+<p>令输入残差流 <span class="inline-math"><math alttext="X\in\mathbb R^{B\times S\times d}" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>X</mi><mo>∈</mo><msup><mi mathvariant="double-struck">R</mi><mrow><mi>B</mi><mo>×</mo><mi>S</mi><mo>×</mo><mi>d</mi></mrow></msup></mrow></math></span>，层数 <span class="inline-math"><math alttext="L" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>L</mi></mrow></math></span>，头数 <span class="inline-math"><math alttext="H" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>H</mi></mrow></math></span>，头维 <span class="inline-math"><math alttext="d_h=d/H=128" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>d</mi><mi>h</mi></msub><mo>=</mo><mi>d</mi><mo>/</mo><mi>H</mi><mo>=</mo><mn>128</mn></mrow></math></span>，FFN 宽度 <span class="inline-math"><math alttext="m" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>m</mi></mrow></math></span>。以下写法按历史官方代码重构，矩阵采用输入维在前的数学约定；PyTorch Linear 权重存储方向可以相反。</p>
+<div class="equation" id="derived-rms"><span class="equation-label">EXPLANATORY RECONSTRUCTION · NOT AN ORIGINAL NUMBERED EQUATION</span><math alttext="\mathrm{RMSNorm}(x)=g\odot\frac{x}{\sqrt{\frac{1}{d}\sum_{i=1}^{d}x_i^2+\epsilon}}" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mi mathvariant="normal">R</mi><mi mathvariant="normal">M</mi><mi mathvariant="normal">S</mi><mi mathvariant="normal">N</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">m</mi></mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>g</mi><mo>⊙</mo><mfrac><mrow><mi>x</mi></mrow><mrow><msqrt><mrow><mfrac><mrow><mn>1</mn></mrow><mrow><mi>d</mi></mrow></mfrac><msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>d</mi></mrow></msubsup><msubsup><mi>x</mi><mi>i</mi><mn>2</mn></msubsup><mo>+</mo><mi>ϵ</mi></mrow></msqrt></mrow></mfrac></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>\mathrm{RMSNorm}(x)=g\odot\frac{x}{\sqrt{\frac{1}{d}\sum_{i=1}^{d}x_i^2+\epsilon}}</code></details></div>
+<p>RMSNorm 每个 token 沿隐藏维计算均方、加 <span class="inline-math"><math alttext="\epsilon" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>ϵ</mi></mrow></math></span>、取逆平方根，再逐元素乘可学习的 <span class="inline-math"><math alttext="g\in\mathbb R^d" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>g</mi><mo>∈</mo><msup><mi mathvariant="double-struck">R</mi><mi>d</mi></msup></mrow></math></span>。它没有 LayerNorm 的均值减法、没有 bias，但仍有 reduction。历史实现先转 FP32 计算统计量，再转回输入 dtype。Pre-norm 的残差旁路让梯度有直接通路，不能据此声称所有训练规模都保证稳定。</p>
+<div class="equation" id="derived-attention"><span class="equation-label">EXPLANATORY RECONSTRUCTION · NOT AN ORIGINAL NUMBERED EQUATION</span><math alttext="Q=\mathrm{RoPE}(XW_Q),\quad K=\mathrm{RoPE}(XW_K),\quad V=XW_V,\quad A=\mathrm{softmax}(QK^\top/\sqrt{d_h}+M)V" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Q</mi><mo>=</mo><mrow><mi mathvariant="normal">R</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">P</mi><mi mathvariant="normal">E</mi></mrow><mo stretchy="false">(</mo><mi>X</mi><msub><mi>W</mi><mi>Q</mi></msub><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><mi>K</mi><mo>=</mo><mrow><mi mathvariant="normal">R</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">P</mi><mi mathvariant="normal">E</mi></mrow><mo stretchy="false">(</mo><mi>X</mi><msub><mi>W</mi><mi>K</mi></msub><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><mi>V</mi><mo>=</mo><mi>X</mi><msub><mi>W</mi><mi>V</mi></msub><mo>,</mo><mspace width="1em"></mspace><mi>A</mi><mo>=</mo><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">x</mi></mrow><mo stretchy="false">(</mo><mi>Q</mi><msup><mi>K</mi><mo>⊤</mo></msup><mo>/</mo><msqrt><mrow><msub><mi>d</mi><mi>h</mi></msub></mrow></msqrt><mo>+</mo><mi>M</mi><mo stretchy="false">)</mo><mi>V</mi></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>Q=\mathrm{RoPE}(XW_Q),\quad K=\mathrm{RoPE}(XW_K),\quad V=XW_V,\quad A=\mathrm{softmax}(QK^\top/\sqrt{d_h}+M)V</code></details></div>
+<p><span class="inline-math"><math alttext="Q,K,V" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>Q</mi><mo>,</mo><mi>K</mi><mo>,</mo><mi>V</mi></mrow></math></span> 均是 <span class="inline-math"><math alttext="B\times S\times H\times128" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>B</mi><mo>×</mo><mi>S</mi><mo>×</mo><mi>H</mi><mo>×</mo><mn>128</mn></mrow></math></span>。RoPE 施于 Q 和 K；每个相邻二元分量对按位置旋转，角频率由 <span class="inline-math"><math alttext="\theta=10000" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>θ</mi><mo>=</mo><mn>10000</mn></mrow></math></span> 给出。V 不旋转。Q/K 的内积因相对角度表达相对位置，但 2048 窗口内学会的模式不会自动保证远距离外推质量。</p>
+<p>第一代是 <strong>MHA：<span class="inline-math"><math alttext="H_{\mathrm{kv}}=H_{\mathrm q}" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>H</mi><mrow><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">v</mi></mrow></mrow></msub><mo>=</mo><msub><mi>H</mi><mrow><mi mathvariant="normal">q</mi></mrow></msub></mrow></math></span></strong>。没有 GQA，没有 MoE，没有 Sliding Window Attention；今天的 Llama 70B、Llama 4 和混合注意力模型不能套到这四个配置上。</p>
+<div class="equation" id="derived-swiglu"><span class="equation-label">EXPLANATORY RECONSTRUCTION · NOT AN ORIGINAL NUMBERED EQUATION</span><math alttext="h^\prime=h+\mathrm{Attention}(\mathrm{RMSNorm}(h)),\quad u=\mathrm{RMSNorm}(h^\prime),\quad h_{\mathrm{out}}=h^\prime+(\mathrm{SiLU}(uW_1)\odot uW_3)W_2" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msup><mi>h</mi><mi>′</mi></msup><mo>=</mo><mi>h</mi><mo>+</mo><mrow><mi mathvariant="normal">A</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">n</mi></mrow><mo stretchy="false">(</mo><mrow><mi mathvariant="normal">R</mi><mi mathvariant="normal">M</mi><mi mathvariant="normal">S</mi><mi mathvariant="normal">N</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">m</mi></mrow><mo stretchy="false">(</mo><mi>h</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><mi>u</mi><mo>=</mo><mrow><mi mathvariant="normal">R</mi><mi mathvariant="normal">M</mi><mi mathvariant="normal">S</mi><mi mathvariant="normal">N</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">m</mi></mrow><mo stretchy="false">(</mo><msup><mi>h</mi><mi>′</mi></msup><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"></mspace><msub><mi>h</mi><mrow><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">t</mi></mrow></mrow></msub><mo>=</mo><msup><mi>h</mi><mi>′</mi></msup><mo>+</mo><mo stretchy="false">(</mo><mrow><mi mathvariant="normal">S</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">L</mi><mi mathvariant="normal">U</mi></mrow><mo stretchy="false">(</mo><mi>u</mi><msub><mi>W</mi><mn>1</mn></msub><mo stretchy="false">)</mo><mo>⊙</mo><mi>u</mi><msub><mi>W</mi><mn>3</mn></msub><mo stretchy="false">)</mo><msub><mi>W</mi><mn>2</mn></msub></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>h^\prime=h+\mathrm{Attention}(\mathrm{RMSNorm}(h)),\quad u=\mathrm{RMSNorm}(h^\prime),\quad h_{\mathrm{out}}=h^\prime+(\mathrm{SiLU}(uW_1)\odot uW_3)W_2</code></details></div>
+<p>SwiGLU 有两条上投影：一条经 SiLU 作为门，一条作为值，逐元素相乘后下投影。原文给出约 <span class="inline-math"><math alttext="8d/3" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>8</mn><mi>d</mi><mo>/</mo><mn>3</mn></mrow></math></span> 的中间宽度，以便三矩阵方案与传统两矩阵、<span class="inline-math"><math alttext="4d" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>4</mn><mi>d</mi></mrow></math></span> 的 FFN 接近等参数。历史代码先取整再上调到 256 的倍数：7B / 13B / 33B / 65B 分别为 <strong>11008 / 13824 / 17920 / 22016</strong>。直接把 <span class="inline-math"><math alttext="m" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>m</mi></mrow></math></span> 写成精确 <span class="inline-math"><math alttext="8d/3" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>8</mn><mi>d</mi><mo>/</mo><mn>3</mn></mrow></math></span> 会算错真实权重。</p>
+<h3 id="subsection-3">配置表与源码中的“默认值”陷阱</h3>
+<figure class="original-table" id="table-2">
+<div aria-label="Original Table 2" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">params</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">dimension</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col"><math alttext="n" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>n</mi></semantics></math> heads</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col"><math alttext="n" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>n</mi></semantics></math> layers</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">learning rate</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">batch size</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col"><math alttext="n" class="ltx_Math" display="inline" intent=":literal"><semantics><mi>n</mi></semantics></math> tokens</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_t">6.7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">4096</td>
+<td class="ltx_td ltx_align_center ltx_border_t">32</td>
+<td class="ltx_td ltx_align_center ltx_border_t">32</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><math alttext="3.0e^{-4}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>3.0</mn><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><mo>−</mo><mn>4</mn></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_t">4M</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.0T</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">13.0B</td>
+<td class="ltx_td ltx_align_center">5120</td>
+<td class="ltx_td ltx_align_center">40</td>
+<td class="ltx_td ltx_align_center">40</td>
+<td class="ltx_td ltx_align_center"><math alttext="3.0e^{-4}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>3.0</mn><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><mo>−</mo><mn>4</mn></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center">4M</td>
+<td class="ltx_td ltx_align_center">1.0T</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">32.5B</td>
+<td class="ltx_td ltx_align_center">6656</td>
+<td class="ltx_td ltx_align_center">52</td>
+<td class="ltx_td ltx_align_center">60</td>
+<td class="ltx_td ltx_align_center"><math alttext="1.5e^{-4}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>1.5</mn><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><mo>−</mo><mn>4</mn></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center">4M</td>
+<td class="ltx_td ltx_align_center">1.4T</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">65.2B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">8192</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">64</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">80</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><math alttext="1.5e^{-4}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mn>1.5</mn><mo lspace="0em" rspace="0em">​</mo><msup><mi>e</mi><mrow><mo>−</mo><mn>4</mn></mrow></msup></mrow></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_border_bb">4M</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1.4T</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>
+<strong class="ltx_text ltx_font_bold">Model sizes, architectures, and optimization hyper-parameters.</strong>
+</figcaption>
+<p class="fine">Original paper · Table 2. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>表中 batch 是 <strong>4M tokens</strong>，不是 4M 条序列。四种名义模型对应 6.7B / 13.0B / 32.5B / 65.2B，层数 32 / 40 / 60 / 80；不要用名义 33B 覆盖原表 32.5B。</p>
+<p>Table 2 没有给出 vocab size、训练序列长度、精度。32k 词表、2048 的第一代上下文由后续官方 Llama 2 报告补充核验。历史代码 <code>ModelArgs.max_seq_len=1024</code> 是运行时默认，不能证明训练上下文是 1024。每个参数在页面中都应标清是论文表、后续官方报告还是代码实现。</p>
+<div class="equation" id="derived-params"><span class="equation-label">EXPLANATORY RECONSTRUCTION · NOT AN ORIGINAL NUMBERED EQUATION</span><math alttext="N=2Vd+L(4d^2+3dm+2d)+d,\quad m=256\left\lceil\frac{\lfloor8d/3\rfloor}{256}\right\rceil" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>N</mi><mo>=</mo><mn>2</mn><mi>V</mi><mi>d</mi><mo>+</mo><mi>L</mi><mo stretchy="false">(</mo><mn>4</mn><msup><mi>d</mi><mn>2</mn></msup><mo>+</mo><mn>3</mn><mi>d</mi><mi>m</mi><mo>+</mo><mn>2</mn><mi>d</mi><mo stretchy="false">)</mo><mo>+</mo><mi>d</mi><mo>,</mo><mspace width="1em"></mspace><mi>m</mi><mo>=</mo><mn>256</mn><mrow><mo fence="true" form="prefix" stretchy="true">⌈</mo><mfrac><mrow><mi>⌊</mi><mn>8</mn><mi>d</mi><mo>/</mo><mn>3</mn><mi>⌋</mi></mrow><mrow><mn>256</mn></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">⌉</mo></mrow></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>N=2Vd+L(4d^2+3dm+2d)+d,\quad m=256\left\lceil\frac{\lfloor8d/3\rfloor}{256}\right\rceil</code></details></div>
+<p>这个无 bias、输入 embedding 与 LM head 不共享、<span class="inline-math"><math alttext="V=32000" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>V</mi><mo>=</mo><mn>32000</mn></mrow></math></span> 的参数重构中：Attention 四投影贡献 <span class="inline-math"><math alttext="4d^2" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>4</mn><msup><mi>d</mi><mn>2</mn></msup></mrow></math></span>，SwiGLU 三投影贡献 <span class="inline-math"><math alttext="3dm" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>3</mn><mi>d</mi><mi>m</mi></mrow></math></span>，每层两组 norm 为 <span class="inline-math"><math alttext="2d" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>2</mn><mi>d</mi></mrow></math></span>，final norm 为 <span class="inline-math"><math alttext="d" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>d</mi></mrow></math></span>，两套词表矩阵为 <span class="inline-math"><math alttext="2Vd" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>2</mn><mi>V</mi><mi>d</mi></mrow></math></span>。算得约 6.738 / 13.016 / 32.529 / 65.286B，原表是取整级别的配置摘要；这里不是对 checkpoint 文件逐 tensor 的实测计数。</p>
+<h3 id="subsection-4">历史源码核对：KV 写入时机与首 token 路径</h3>
+<p><a href="https://github.com/meta-llama/llama/blob/1076b9c51c77ad06e9d7ba8a4c6df775741732bd/llama/model.py">固定提交的 model.py</a> 使用 ColumnParallelLinear 做 Q/K/V、w1/w3，RowParallelLinear 做 wo/w2。代码版本为 2023-02-24，避免当前同名仓库包含新架构造成误读。</p>
+<div class="code-frame"><div class="code-head"><span>PYTHON · EXPLANATORY RECONSTRUCTION</span><button class="copy-button" type="button">Copy</button></div><pre class="highlight"><code class="language-python"><span class="c1"># Explanatory reconstruction of the historical inference path.</span>
+<span class="n">h</span> <span class="o">=</span> <span class="n">embedding</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span> <span class="c1"># [B, S, d]</span>
+<span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">:</span>
+<span class="n">u</span> <span class="o">=</span> <span class="n">rms_norm</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+<span class="n">q</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">project_qkv</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="c1"># [B, S, H_local, 128]</span>
+<span class="n">q</span><span class="p">,</span> <span class="n">k</span> <span class="o">=</span> <span class="n">apply_rope</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">positions</span><span class="p">)</span> <span class="c1"># V stays unchanged</span>
+<span class="n">cache_k</span><span class="p">[:,</span> <span class="n">start_pos</span><span class="p">:</span><span class="n">start_pos</span> <span class="o">+</span> <span class="n">S</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span> <span class="c1"># cache rotated K</span>
+<span class="n">cache_v</span><span class="p">[:,</span> <span class="n">start_pos</span><span class="p">:</span><span class="n">start_pos</span> <span class="o">+</span> <span class="n">S</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">causal_attention</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">cache_k</span><span class="p">,</span> <span class="n">cache_v</span><span class="p">)</span>
+<span class="n">h</span> <span class="o">=</span> <span class="n">h</span> <span class="o">+</span> <span class="n">output_projection</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+<span class="n">u</span> <span class="o">=</span> <span class="n">rms_norm</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+<span class="n">h</span> <span class="o">=</span> <span class="n">h</span> <span class="o">+</span> <span class="n">w2</span><span class="p">(</span><span class="n">silu</span><span class="p">(</span><span class="n">w1</span><span class="p">(</span><span class="n">u</span><span class="p">))</span> <span class="o">*</span> <span class="n">w3</span><span class="p">(</span><span class="n">u</span><span class="p">))</span>
+<span class="n">logits</span> <span class="o">=</span> <span class="n">lm_head</span><span class="p">(</span><span class="n">final_norm</span><span class="p">(</span><span class="n">h</span><span class="p">)[:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+</code></pre></div>
+<p>这段伪代码是解释性重构，不是论文的编号算法。输入是当前 tokens 和先前缓存，输出是最后一个位置的 logits；缓存按本地头分片，存储 <span class="inline-math"><math alttext="[B_{\max},T_{\max},H_{\mathrm{local}},128]" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mo stretchy="false">[</mo><msub><mi>B</mi><mrow><mo>max</mo></mrow></msub><mo>,</mo><msub><mi>T</mi><mrow><mo>max</mo></mrow></msub><mo>,</mo><msub><mi>H</mi><mrow><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">l</mi></mrow></mrow></msub><mo>,</mo><mn>128</mn><mo stretchy="false">]</mo></mrow></math></span>。prefill 用 <span class="inline-math"><math alttext="S&gt;1" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>S</mi><mo>&gt;</mo><mn>1</mn></mrow></math></span>，decode 用 <span class="inline-math"><math alttext="S=1" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>S</mi><mo>=</mo><mn>1</mn></mrow></math></span>，调用同一 Transformer forward；最后才选 <code>h[:, -1, :]</code> 投影。迁移时应保持 RoPE 位置、norm 精度、因果 mask 和首 token 的生成规则一致，再判断 logits 漂移来自哪里。</p>
+<h3 id="subsection-5">§2.3 Optimizer：更久训练不是换一个神奇优化器</h3>
+<p>AdamW 使用 <span class="inline-math"><math alttext="\beta_1=0.9,\beta_2=0.95" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>β</mi><mn>1</mn></msub><mo>=</mo><mn>0.9</mn><mo>,</mo><msub><mi>β</mi><mn>2</mn></msub><mo>=</mo><mn>0.95</mn></mrow></math></span>，weight decay 0.1，梯度裁剪阈值 1.0。warmup 是 2000 个优化步，之后余弦下降，最后学习率为峰值的 10%。7B / 13B 的峰值 <span class="inline-math"><math alttext="3\times10^{-4}" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>3</mn><mo>×</mo><msup><mn>10</mn><mrow><mo>−</mo><mn>4</mn></mrow></msup></mrow></math></span>，33B / 65B 为 <span class="inline-math"><math alttext="1.5\times10^{-4}" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>1.5</mn><mo>×</mo><msup><mn>10</mn><mrow><mo>−</mo><mn>4</mn></mrow></msup></mrow></math></span>。</p>
+<div class="equation" id="derived-schedule"><span class="equation-label">EXPLANATORY RECONSTRUCTION · NOT AN ORIGINAL NUMBERED EQUATION</span><math alttext="\eta(t)=\eta_{\max}\left[0.1+0.9\frac{1+\cos(\pi(t-t_w)/(t_{\max}-t_w))}{2}\right],\quad t\ge t_w=2000" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>η</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mo>=</mo><msub><mi>η</mi><mrow><mo>max</mo></mrow></msub><mrow><mo fence="true" form="prefix" stretchy="true">[</mo><mn>0.1</mn><mo>+</mo><mn>0.9</mn><mfrac><mrow><mn>1</mn><mo>+</mo><mi>cos</mi><mo stretchy="false">(</mo><mi>π</mi><mo stretchy="false">(</mo><mi>t</mi><mo>−</mo><msub><mi>t</mi><mi>w</mi></msub><mo stretchy="false">)</mo><mo>/</mo><mo stretchy="false">(</mo><msub><mi>t</mi><mrow><mo>max</mo></mrow></msub><mo>−</mo><msub><mi>t</mi><mi>w</mi></msub><mo stretchy="false">)</mo><mo stretchy="false">)</mo></mrow><mrow><mn>2</mn></mrow></mfrac><mo fence="true" form="postfix" stretchy="true">]</mo></mrow><mo>,</mo><mspace width="1em"></mspace><mi>t</mi><mo>≥</mo><msub><mi>t</mi><mi>w</mi></msub><mo>=</mo><mn>2000</mn></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>\eta(t)=\eta_{\max}\left[0.1+0.9\frac{1+\cos(\pi(t-t_w)/(t_{\max}-t_w))}{2}\right],\quad t\ge t_w=2000</code></details></div>
+<p>上式仅重构 warmup 后的余弦段；实际步数取整与全部实现细节未在文中完整披露。按 4M-token batch 算，1T / 1.4T 分别约 250k / 350k 步，warmup 对应约 8B tokens。不能把 token throughput 当 optimizer step throughput。</p>
+<figure class="original" id="figure-1"><img alt="Figure 1: Training loss over train tokens for the 7B, 13B, 33B, and 65 models. LLaMA-33B and LLaMA-65B were trained on 1.4T tokens. The smaller models were trained on 1.0T tokens. All models are trained with a batch size of 4M tokens." loading="lazy" src="assets/original/fig-01.png"/><figcaption>Figure 1: Training loss over train tokens for the 7B, 13B, 33B, and 65 models. LLaMA-33B and LLaMA-65B were trained on 1.4T tokens. The smaller models were trained on 1.0T tokens. All models are trained with a batch size of 4M tokens.<br/>Original paper · Figure 1 · Author vector PDF train_loss.pdf · <a href="assets/original/fig-01-train_loss.pdf">Author vector PDF</a>. Click or Enter to zoom.</figcaption></figure>
+<p><strong>如何读 Figure 1。</strong> 横轴是已训练 token 数，纵轴是训练 loss；7B / 13B 曲线到 1T，33B / 65B 到 1.4T。相同训练阶段，较大模型总体 loss 更低；接近终点还在改善，支持“较小模型仍值得多训练”的观察。图没有展示每个候选训练点的实际推理成本，也没有给误差条，不能拿它直接证明最终方案是全局最优。</p>
+<h3 id="subsection-6">§2.4 Efficient implementation：数学不变，内存流量和调度改变</h3>
+<p>作者使用 xformers 高效因果 Attention，借鉴 FlashAttention 的思想，避免显式存放完整 Attention score，并利用因果 mask 的可跳过部分。通过手工 backward 降低重计算：保留昂贵线性投影结果，重算较便宜的中间项；结合激活检查点和序列并行降低内存压力，并让激活计算与网络通信重叠。</p>
+<p><strong>训练实现和参考推理实现必须分开。</strong> 历史 <code>Attention.forward</code> 显式执行 QK、softmax、PV，因此能观察到稠密 scores 张量；论文描述的高效训练 kernel 不在这个轻量参考路径里。不能用参考代码说论文训练没有 FlashAttention 类优化，也不能用论文描述说公开推理实现一定已融合。</p>
+<p>论文报告 65B 在 <strong>2048 张 A100 80GB</strong> 上达到 <strong>380 tokens/s/GPU</strong>，训练 1.4T tokens 约 21 天。乘法得到全局约 778,240 tokens/s；按该均值算约 20.82 天，与“约 21 天”一致。本页没有做分布式训练复现。</p>
+<h3 id="subsection-7">工程拆解：每个 op 怎样影响 TTFT 和 TPOT</h3>
+<div aria-label="Explanatory table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>操作</th>
+<th>主要张量 / 工作量，解释性重构</th>
+<th>Prefill 与 Decode 的区别</th>
+<th>迁移时优先核对</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RMSNorm ×2</td>
+<td><span class="inline-math"><math alttext="O(BSd)" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>O</mi><mo stretchy="false">(</mo><mi>B</mi><mi>S</mi><mi>d</mi><mo stretchy="false">)</mo></mrow></math></span>，均方 reduction 与 scale</td>
+<td>S 很小时 kernel launch / reduction 占比上升</td>
+<td>FP32 统计、epsilon、cast、是否融合</td>
+</tr>
+<tr>
+<td>QKV 与 O 投影</td>
+<td>每层约 <span class="inline-math"><math alttext="8BSd^2" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>8</mn><mi>B</mi><mi>S</mi><msup><mi>d</mi><mn>2</mn></msup></mrow></math></span> FLOPs</td>
+<td>prefill 常是大 GEMM；decode 小 batch 更偏读权重</td>
+<td>layout、量化编码、矩阵拆分、TP 通信</td>
+</tr>
+<tr>
+<td>RoPE / KV 写入</td>
+<td><span class="inline-math"><math alttext="O(BSHd_h)" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>O</mi><mo stretchy="false">(</mo><mi>B</mi><mi>S</mi><mi>H</mi><msub><mi>d</mi><mi>h</mi></msub><mo stretchy="false">)</mo></mrow></math></span>，写 rotated K 和 V</td>
+<td>decode 每步追加；prefill 连续批量写</td>
+<td>绝对位置、复数对顺序、cache dtype</td>
+</tr>
+<tr>
+<td>QK 与 PV</td>
+<td>prefill 约 <span class="inline-math"><math alttext="4BS^2d" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>4</mn><mi>B</mi><msup><mi>S</mi><mn>2</mn></msup><mi>d</mi></mrow></math></span>；decode 约 <span class="inline-math"><math alttext="4BTd" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>4</mn><mi>B</mi><mi>T</mi><mi>d</mi></mrow></math></span> FLOPs</td>
+<td>prefill 可能避免物化 <span class="inline-math"><math alttext="S^2" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msup><mi>S</mi><mn>2</mn></msup></mrow></math></span>；decode 顺序读历史 KV</td>
+<td>因果语义、kernel、带宽、mask</td>
+</tr>
+<tr>
+<td>SwiGLU</td>
+<td>约 <span class="inline-math"><math alttext="6BSdm" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>6</mn><mi>B</mi><mi>S</mi><mi>d</mi><mi>m</mi></mrow></math></span> FLOPs，加 SiLU 和乘法</td>
+<td>prefill 可高效大矩阵；decode 反复读三组权重</td>
+<td>w1/w3 对应关系、敏感层精度、融合</td>
+</tr>
+<tr>
+<td>residual 与 final norm</td>
+<td><span class="inline-math"><math alttext="O(BSd)" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>O</mi><mo stretchy="false">(</mo><mi>B</mi><mi>S</mi><mi>d</mi><mo stretchy="false">)</mo></mrow></math></span> 的加法和内存流量</td>
+<td>算术少，跨设备搬运可很贵</td>
+<td>生命周期、in-place 安全性、同步</td>
+</tr>
+<tr>
+<td>LM head</td>
+<td>全位置训练约 <span class="inline-math"><math alttext="2BSdV" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>2</mn><mi>B</mi><mi>S</mi><mi>d</mi><mi>V</mi></mrow></math></span>；参考生成只最后位置</td>
+<td>generation 不应无意对全部 prompt 位置投影</td>
+<td>untied 权重、首 token 路径、logits dtype</td>
+</tr>
+</tbody>
+</table></div>
+<p>这里按乘加计 2 FLOPs、不含 backward、softmax / elementwise、通信与 padding；因果 prefill 的有效算量还受实现影响。Tensor Parallel 分片可以降低本地权重与 KV，RowParallel 输出通常仍需要归约；并行度过高、小 batch 或跨设备频繁同步，都可能让实际 TPOT 恶化。</p>
+<p>TTFT 包含 tokenizer、队列、prefill、首 logits 和首采样；TPOT 包含后续 forward、采样、同步。比较 Runtime / CPU / GPU / HTP 时，先固定输入、输出、并发和生成协议，分别测每个 op、回调和缓存生命周期。INT4 权重不等于 INT4 KV，模型图中的内存下界也不是 <code>VmHWM</code> 或 <code>dmabuf_dump</code> 的测量结果。</p>
+<div class="equation" id="derived-kv"><span class="equation-label">EXPLANATORY RECONSTRUCTION · NOT AN ORIGINAL NUMBERED EQUATION</span><math alttext="M_{\mathrm{KV}}=2BTLH_{\mathrm{kv}}d_hs,\quad H_{\mathrm{kv}}=H_{\mathrm q}\quad(\mathrm{LLaMA\ v1})" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>M</mi><mrow><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">V</mi></mrow></mrow></msub><mo>=</mo><mn>2</mn><mi>B</mi><mi>T</mi><mi>L</mi><msub><mi>H</mi><mrow><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">v</mi></mrow></mrow></msub><msub><mi>d</mi><mi>h</mi></msub><mi>s</mi><mo>,</mo><mspace width="1em"></mspace><msub><mi>H</mi><mrow><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">v</mi></mrow></mrow></msub><mo>=</mo><msub><mi>H</mi><mrow><mi mathvariant="normal">q</mi></mrow></msub><mspace width="1em"></mspace><mo stretchy="false">(</mo><mrow><mi mathvariant="normal">L</mi><mi mathvariant="normal">L</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">M</mi><mi mathvariant="normal">A</mi><mtext> </mtext><mi mathvariant="normal">v</mi><mn>1</mn></mrow><mo stretchy="false">)</mo></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>M_{\mathrm{KV}}=2BTLH_{\mathrm{kv}}d_hs,\quad H_{\mathrm{kv}}=H_{\mathrm q}\quad(\mathrm{LLaMA\ v1})</code></details></div>
+<section aria-labelledby="memory-title" class="interactive" id="memory-explorer">
+<span class="component-label">ANALYTICAL EXPLORER · TENSOR LOWER BOUNDS</span>
+<h4 id="memory-title">权重量化了，KV 为什么仍然很大？</h4>
+<p>分别控制权重与 KV 精度，观察单请求和多请求缓存。更少 KV 头的选项是反事实比较，不是第一代已训练的模型。</p>
+<div class="controls">
+<label>第一代模型<select id="model-size"><option value="7">7B · 32 layers / 32 heads</option><option value="13">13B · 40 layers / 40 heads</option><option value="33">33B · 60 layers / 52 heads</option><option selected="" value="65">65B · 80 layers / 64 heads</option></select></label>
+<label>权重精度<select id="weight-bits"><option selected="" value="16">FP16 / BF16 · 16 bits</option><option value="8">INT8 裸权重 · 8 bits</option><option value="4">INT4 裸权重 · 4 bits</option></select></label>
+<label>KV 精度<select id="kv-bits"><option selected="" value="16">FP16 / BF16 · 16 bits</option><option value="8">8-bit KV · hypothetical</option></select></label>
+<label>KV 头数<select id="kv-heads"><option selected="" value="native">原生 MHA · 与 Q heads 相同</option><option value="8">8 KV heads · hypothetical GQA</option><option value="1">1 KV head · hypothetical MQA</option></select></label>
+<label>缓存长度（原生窗口内）<input id="context-length" max="2048" min="128" step="128" type="range" value="2048"/><span id="context-value">2048 tokens</span></label>
+<label>Batch / 并发序列数<input id="batch-size" max="128" min="1" step="1" type="number" value="1"/></label>
+</div>
+<div aria-hidden="true" class="metric-bars" id="memory-bars"></div>
+<output aria-live="polite" id="memory-result"></output>
+<p class="fine">权重采用 Table 2 的名义参数值；KV 按完整 dense MHA 张量算。GB=10⁹ bytes，GiB=2³⁰ bytes。没有量化元数据、激活、临时张量、分页碎片和运行时，不能当实际峰值内存。</p>
+</section>
+<p>按 FP16 KV、B=1，7B / 13B / 33B / 65B 每 token 为 <strong>0.5 / 0.78125 / 1.5234375 / 2.5 MiB</strong>；2048 tokens 分别为 <strong>1 / 1.5625 / 3.046875 / 5 GiB</strong>。KV 随 batch、长度、层数线性增长。权重 INT4 裸值按 bit 数换算，不含 group scales、zero-points、packing 对齐、激活、runtime、KV 分页碎片；组件里改变 KV 头数是反事实演示，第一代没有对应 GQA checkpoint。</p>
+<h2 id="section-4">§3 Main results：逐项看优势、失败与评测预算</h2>
+<h3 id="subsection-8">§3.1 Common sense reasoning：不是所有比较都叫“超过 GPT-3”</h3>
+<figure class="original-table" id="table-3">
+<div aria-label="Original Table 3" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">BoolQ</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">PIQA</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">SIQA</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">HellaSwag</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">WinoGrande</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">ARC-e</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">ARC-c</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">OBQA</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">GPT-3</td>
+<td class="ltx_td ltx_align_right ltx_border_t">175B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">60.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">81.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td class="ltx_td ltx_align_center ltx_border_t">78.9</td>
+<td class="ltx_td ltx_align_center ltx_border_t">70.2</td>
+<td class="ltx_td ltx_align_center ltx_border_t">68.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">51.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t">57.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Gopher</td>
+<td class="ltx_td ltx_align_right">280B</td>
+<td class="ltx_td ltx_align_center">79.3</td>
+<td class="ltx_td ltx_align_center">81.8</td>
+<td class="ltx_td ltx_align_center">50.6</td>
+<td class="ltx_td ltx_align_center">79.2</td>
+<td class="ltx_td ltx_align_center">70.1</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Chinchilla</td>
+<td class="ltx_td ltx_align_right">70B</td>
+<td class="ltx_td ltx_align_center">83.7</td>
+<td class="ltx_td ltx_align_center">81.8</td>
+<td class="ltx_td ltx_align_center">51.3</td>
+<td class="ltx_td ltx_align_center">80.8</td>
+<td class="ltx_td ltx_align_center">74.9</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">84.8</td>
+<td class="ltx_td ltx_align_center">80.5</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">79.7</td>
+<td class="ltx_td ltx_align_center">77.0</td>
+<td class="ltx_td ltx_align_center">75.2</td>
+<td class="ltx_td ltx_align_center">52.5</td>
+<td class="ltx_td ltx_align_center">50.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM-cont</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">83.9</td>
+<td class="ltx_td ltx_align_center">81.4</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">80.6</td>
+<td class="ltx_td ltx_align_center">77.0</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM</td>
+<td class="ltx_td ltx_align_right">540B</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">88.0</strong></td>
+<td class="ltx_td ltx_align_center">82.3</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">83.4</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">81.1</strong></td>
+<td class="ltx_td ltx_align_center">76.6</td>
+<td class="ltx_td ltx_align_center">53.0</td>
+<td class="ltx_td ltx_align_center">53.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">76.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">79.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">48.9</td>
+<td class="ltx_td ltx_align_center ltx_border_t">76.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">70.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">72.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">47.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">57.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">78.1</td>
+<td class="ltx_td ltx_align_center">80.1</td>
+<td class="ltx_td ltx_align_center">50.4</td>
+<td class="ltx_td ltx_align_center">79.2</td>
+<td class="ltx_td ltx_align_center">73.0</td>
+<td class="ltx_td ltx_align_center">74.8</td>
+<td class="ltx_td ltx_align_center">52.7</td>
+<td class="ltx_td ltx_align_center">56.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center">83.1</td>
+<td class="ltx_td ltx_align_center">82.3</td>
+<td class="ltx_td ltx_align_center">50.4</td>
+<td class="ltx_td ltx_align_center">82.8</td>
+<td class="ltx_td ltx_align_center">76.0</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">80.0</strong></td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">57.8</strong></td>
+<td class="ltx_td ltx_align_center">58.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">85.3</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">82.8</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">52.3</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">84.2</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb">77.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">78.9</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">56.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">60.2</strong></td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>
+<strong class="ltx_text ltx_font_bold">Zero-shot performance on Common Sense Reasoning tasks.</strong>
+</figcaption>
+<p class="fine">Original paper · Table 3. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>任务包括 BoolQ、PIQA、SIQA、HellaSwag、WinoGrande、ARC-e / ARC-c、OpenBookQA；表中单位为百分数，多项选择任务用候选文本的概率或长度归一化评分。缺失项保留 “–”，不能把缺失当 0。</p>
+<p>原文的共同评测说明使用 completion 的字符数归一化 likelihood；<strong>OpenBookQA、BoolQ</strong> 例外，采用如下比例评分：</p>
+<div class="equation" id="original-score"><span class="equation-label">ORIGINAL EXPLICIT RELATION · UNNUMBERED</span><math alttext="\mathrm{score}(c,x)=\frac{P(c\mid x)}{P(c\mid\mathrm{Answer:})}" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">e</mi></mrow><mo stretchy="false">(</mo><mi>c</mi><mo>,</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mi>P</mi><mo stretchy="false">(</mo><mi>c</mi><mo>∣</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mrow><mi>P</mi><mo stretchy="false">(</mo><mi>c</mi><mo>∣</mo><mrow><mi mathvariant="normal">A</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">w</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">:</mi></mrow><mo stretchy="false">)</mo></mrow></mfrac></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>\mathrm{score}(c,x)=\frac{P(c\mid x)}{P(c\mid\mathrm{Answer:})}</code></details></div>
+<p>分母是只给 <code>Answer:</code> 时该 completion 的概率，抵消答案自身的先验。它是原文显式写出的评测关系，不是训练损失；不能把它无条件推广为所有 benchmark 的评分法。</p>
+<p><strong>关键比较。</strong> 13B 对 GPT-3 的 7 个共同任务赢 5 个：BoolQ、HellaSwag、WinoGrande、ARC-e、ARC-c，输 PIQA 和 OpenBookQA；GPT-3 没有 SIQA 数值。65B 对 Chinchilla 的 5 个共同任务都更高。对 PaLM 540B 的 7 项共同任务赢 5 项，输 BoolQ（85.3 vs 88.0）和 WinoGrande（77.0 vs 81.1）。33B 的 ARC-e / c 为 80.0 / 57.8，还高于 65B 的 78.9 / 56.0。</p>
+<div class="callout warning"><strong>原文内部不一致</strong><p>正文称 65B 超过 Chinchilla，但 BoolQ 例外；Table 3 实际为 85.3 vs 83.7，LLaMA 更高。本页保留原表，以表中数值作比较，不把文字错误继续传播。</p></div>
+<p>这组结果支持较小模型在部分常识任务上的效率价值，但没有相同硬件的 latency 测量、重复训练置信区间或严格污染消融。个位数百分点差距与规模非单调，需要结合评测口径看。</p>
+<h3 id="subsection-9">§3.2 Closed-book question answering：知识来自权重，答案按 EM 判</h3>
+<figure class="original-table" id="table-4">
+<div aria-label="Original Table 4" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_nopad_r ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">0-shot</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">1-shot</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">5-shot</th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" scope="col">64-shot</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t">GPT-3</td>
+<td class="ltx_td ltx_align_right ltx_border_t">175B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">14.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">23.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">29.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">Gopher</td>
+<td class="ltx_td ltx_align_right">280B</td>
+<td class="ltx_td ltx_align_center">10.1</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">24.5</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">28.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">Chinchilla</td>
+<td class="ltx_td ltx_align_right">70B</td>
+<td class="ltx_td ltx_align_center">16.6</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">31.5</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">35.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t" rowspan="3"><span class="ltx_text">PaLM</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">8B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">8.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t">10.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">14.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">18.1</td>
+<td class="ltx_td ltx_align_center">26.5</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">27.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">540B</td>
+<td class="ltx_td ltx_align_center">21.2</td>
+<td class="ltx_td ltx_align_center">29.3</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">39.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">16.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">18.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">22.0</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">26.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">20.1</td>
+<td class="ltx_td ltx_align_center">23.4</td>
+<td class="ltx_td ltx_align_center">28.1</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">31.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">24.9</strong></td>
+<td class="ltx_td ltx_align_center">28.3</td>
+<td class="ltx_td ltx_align_center">32.9</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">36.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">23.8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">31.0</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">35.0</strong></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">39.9</strong></td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 4: </span>
+<strong class="ltx_text ltx_font_bold">NaturalQuestions.</strong> Exact match performance.
+
+</figcaption>
+<p class="fine">Original paper · Table 4. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<figure class="original-table" id="table-5">
+<div aria-label="Original Table 5" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_nopad_r ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">0-shot</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">1-shot</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">5-shot</th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" scope="col">64-shot</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t">Gopher</td>
+<td class="ltx_td ltx_align_right ltx_border_t">280B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">43.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td class="ltx_td ltx_align_center ltx_border_t">57.0</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">57.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left">Chinchilla</td>
+<td class="ltx_td ltx_align_right">70B</td>
+<td class="ltx_td ltx_align_center">55.4</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">64.1</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">64.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">50.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">53.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t">56.3</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">57.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">56.6</td>
+<td class="ltx_td ltx_align_center">60.5</td>
+<td class="ltx_td ltx_align_center">63.1</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">64.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center">65.1</td>
+<td class="ltx_td ltx_align_center">67.9</td>
+<td class="ltx_td ltx_align_center">69.9</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">70.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">68.2</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">71.6</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">72.6</strong></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">73.0</strong></td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 5: </span>
+<strong class="ltx_text ltx_font_bold">TriviaQA.</strong> Zero-shot and few-shot exact match performance on the filtered dev set.
+
+</figcaption>
+<p class="fine">Original paper · Table 5. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>Natural Questions 与 TriviaQA 都不给外部检索文档，比较 0 / 1 / 5 / 64-shot。Metric 是规范化答案后的 Exact Match，不是“任何表达同义都算正确”。模型更大、示例更多通常有帮助，但 NQ 的 0-shot 33B 为 24.9，高于 65B 的 23.8。</p>
+<p>NQ 64-shot，65B 为 39.9 vs PaLM 39.6，仅 <strong>+0.3 个百分点</strong>。TriviaQA 64-shot，65B 为 73.0 vs Chinchilla 64.6，<strong>+8.4 pp、相对提高约 13.00%</strong>；0-shot 为 68.2 vs 55.4。不能把这几个数字写成所有口径的世界纪录。</p>
+<p>附录 A 明确指出，TriviaQA 用过滤后的 dev 集，而 GPT-3 / PaLM 等报告的可能是未过滤 test 集。不同 split、prompt、答案处理使它们不构成严格同条件排名。完整格式见附录原图，先保留结论边界，再评价方法。</p>
+<h3 id="subsection-10">§3.3 Reading comprehension：RACE 并未全面超过 PaLM</h3>
+<figure class="original-table" id="table-6">
+<div aria-label="Original Table 6" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">RACE-middle</th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" scope="col">RACE-high</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">GPT-3</td>
+<td class="ltx_td ltx_align_right ltx_border_t">175B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">58.4</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">45.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="3"><span class="ltx_text">PaLM</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">8B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">57.9</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">42.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">64.3</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">47.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">540B</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">68.1</strong></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">49.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">61.1</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">46.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">61.6</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">47.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center">64.1</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">48.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">67.9</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">51.6</strong></td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 6: </span>
+<strong class="ltx_text ltx_font_bold">Reading Comprehension.</strong> Zero-shot accuracy.
+
+</figcaption>
+<p class="fine">Original paper · Table 6. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>RACE 来源于面向中国中学生的英语考试，问题带一段上下文，多项选择，原表 caption 标为 zero-shot。本节说沿用 GPT-3 的评测设置，没有重新展开完整 prompt 和选项评分实现；不能用其他 benchmark 的公式替代其具体协议。</p>
+<p>65B 在 RACE-middle 为 67.9，PaLM 为 68.1（−0.2 pp）；RACE-high 为 51.6 vs 49.1（+2.5 pp）。两个子集难度不同，不能只选 high 结果概括成全面领先。</p>
+<h3 id="subsection-11">§3.4 Mathematical reasoning：多数投票改善和一次回答改善分开</h3>
+<figure class="original-table" id="table-7">
+<div aria-label="Original Table 7" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_nopad_r ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_nopad_r ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">MATH</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">+<span class="ltx_text ltx_font_typewriter">maj1@k</span></th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">GSM8k</th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" scope="col">+<span class="ltx_text ltx_font_typewriter">maj1@k</span></th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t" rowspan="3"><span class="ltx_text">PaLM</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t">8B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">1.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">4.1</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">4.4</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">33.0</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_right">540B</td>
+<td class="ltx_td ltx_align_center">8.8</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">56.5</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t" rowspan="3"><span class="ltx_text">Minerva</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t">8B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">14.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">25.4</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">16.2</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">28.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">27.6</td>
+<td class="ltx_td ltx_align_center">43.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">52.4</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">68.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_right">540B</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">33.6</strong></td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">50.3</strong></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">68.5</strong></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center"><strong class="ltx_text ltx_font_bold">78.5</strong></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">2.9</td>
+<td class="ltx_td ltx_align_center ltx_border_t">6.9</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">11.0</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">18.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">3.9</td>
+<td class="ltx_td ltx_align_center">8.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">17.8</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">29.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center">7.1</td>
+<td class="ltx_td ltx_align_center">15.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">35.6</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">53.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">10.6</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">20.5</td>
+<td class="ltx_td ltx_border_bb"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb">50.9</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb">69.7</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 7: </span>
+<strong class="ltx_text ltx_font_bold">Model performance on quantitative reasoning datasets.</strong> For majority voting, we use the same setup as Minerva, with <math alttext="k=256" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>k</mi><mo>=</mo><mn>256</mn></mrow></semantics></math> samples for MATH and <math alttext="k=100" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>k</mi><mo>=</mo><mn>100</mn></mrow></semantics></math> for GSM8k (Minerva 540B uses <math alttext="k=64" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>k</mi><mo>=</mo><mn>64</mn></mrow></semantics></math> for MATH and and <math alttext="k=40" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>k</mi><mo>=</mo><mn>40</mn></mrow></semantics></math> for GSM8k). LLaMA-65B outperforms Minerva 62B on GSM8k, although it has not been fine-tuned on mathematical data.
+
+</figcaption>
+<p class="fine">Original paper · Table 7. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>MATH 是高难数学题，GSM8k 是小学应用题。使用 few-shot、带推理过程的提示。普通列对应单个生成答案，maj1@k 对 k 个候选的最终答案做多数投票；它花了更多采样计算，不是只运行一次而自动提升。</p>
+<p>65B 的 MATH 普通 / maj 为 <strong>10.6 / 20.5</strong>，明显低于 Minerva 62B 的 <strong>27.6 / 43.4</strong>。GSM8k 普通为 <strong>50.9 vs 52.4</strong>，低 1.5 pp；多数投票为 <strong>69.7 vs 68.5</strong>，高 1.2 pp。这两个结论同时成立。</p>
+<p>LLaMA 与 Minerva 62B 在 MATH 用 k=256、GSM8k 用 k=100；Minerva 540B 则分别用 64 / 40。与后者比较时推理预算不一致。Minerva 还做了约 38.5B tokens 的数学继续训练；LLaMA 没有同样的专项阶段，但它原本就有 arXiv / 数学网页，不能说它完全没有数学训练数据。</p>
+<h3 id="subsection-12">§3.5 Code generation：pass@100 的高分不是部署时的一次正确率</h3>
+<figure class="original-table" id="table-8">
+<div aria-label="Original Table 8" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_right ltx_border_tt" scope="col">Params</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" colspan="2" scope="col">HumanEval</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" colspan="2" scope="col">MBPP</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left" scope="col">pass@</th>
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td ltx_align_center" scope="col">@1</th>
+<th class="ltx_td ltx_align_center" scope="col">@100</th>
+<th class="ltx_td ltx_align_center" scope="col">@1</th>
+<th class="ltx_td ltx_align_center" scope="col">@80</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">LaMDA</td>
+<td class="ltx_td ltx_align_right ltx_border_t">137B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">14.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">47.3</td>
+<td class="ltx_td ltx_align_center ltx_border_t">14.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">62.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM</td>
+<td class="ltx_td ltx_align_right">8B</td>
+<td class="ltx_td ltx_align_center">3.6<sup class="ltx_sup">∗</sup></td>
+<td class="ltx_td ltx_align_center">18.7<sup class="ltx_sup">∗</sup></td>
+<td class="ltx_td ltx_align_center">5.0<sup class="ltx_sup">∗</sup></td>
+<td class="ltx_td ltx_align_center">35.7<sup class="ltx_sup">∗</sup></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">15.9</td>
+<td class="ltx_td ltx_align_center">46.3<sup class="ltx_sup">∗</sup></td>
+<td class="ltx_td ltx_align_center">21.4</td>
+<td class="ltx_td ltx_align_center">63.2<sup class="ltx_sup">∗</sup></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM-cont</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">23.7</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center">31.2</td>
+<td class="ltx_td ltx_align_center">-</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM</td>
+<td class="ltx_td ltx_align_right">540B</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">26.2</strong></td>
+<td class="ltx_td ltx_align_center">76.2</td>
+<td class="ltx_td ltx_align_center">36.8</td>
+<td class="ltx_td ltx_align_center">75.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">10.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">36.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">17.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">56.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">15.8</td>
+<td class="ltx_td ltx_align_center">52.5</td>
+<td class="ltx_td ltx_align_center">22.0</td>
+<td class="ltx_td ltx_align_center">64.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center">21.7</td>
+<td class="ltx_td ltx_align_center">70.7</td>
+<td class="ltx_td ltx_align_center">30.2</td>
+<td class="ltx_td ltx_align_center">73.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">23.7</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">79.3</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">37.7</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">76.8</strong></td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 8: </span>
+<strong class="ltx_text ltx_font_bold">Model performance for code generation.</strong>
+We report the pass@ score on HumanEval and MBPP. HumanEval generations are done in zero-shot and MBBP with 3-shot prompts similar to <cite class="ltx_cite ltx_citemacro_citet">Austin et al. (2021)</cite>. The values marked with <sup class="ltx_sup">∗</sup> are read from figures in <cite class="ltx_cite ltx_citemacro_citet">Chowdhery et al. (2022)</cite>.
+
+</figcaption>
+<p class="fine">Original paper · Table 8. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>HumanEval / MBPP 由单元测试判断生成代码是否通过。pass@k 表示 k 个候选中至少一个通过的概率估计；在 n 个样本中有 c 个通过时，常用无偏估计如下：</p>
+<div class="equation" id="derived-pass"><span class="equation-label">EXPLANATORY RECONSTRUCTION · NOT AN ORIGINAL NUMBERED EQUATION</span><math alttext="\widehat{\mathrm{pass@}k}=1-\frac{\binom{n-c}{k}}{\binom nk},\quad n\ge k" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mover><mrow><mrow><mi mathvariant="normal">p</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">@</mi></mrow><mi>k</mi></mrow><mo>^</mo></mover><mo>=</mo><mn>1</mn><mo>−</mo><mfrac><mrow><mo maxsize="2.047em" minsize="2.047em">(</mo><mfrac linethickness="0"><mrow><mi>n</mi><mo>−</mo><mi>c</mi></mrow><mrow><mi>k</mi></mrow></mfrac><mo maxsize="2.047em" minsize="2.047em">)</mo></mrow><mrow><mo maxsize="2.047em" minsize="2.047em">(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo maxsize="2.047em" minsize="2.047em">)</mo></mrow></mfrac><mo>,</mo><mspace width="1em"></mspace><mi>n</mi><mo>≥</mo><mi>k</mi></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>\widehat{\mathrm{pass@}k}=1-\frac{\binom{n-c}{k}}{\binom nk},\quad n\ge k</code></details></div>
+<p>这是对评测方法的解释性展开；<code>pass@k</code> 不是多数投票，不提供一个自动知道哪个答案正确的 oracle。原实验 pass@1 的温度 0.1，pass@100 / pass@80 的温度 0.8，采样设置本身也不同。</p>
+<p>HumanEval 65B pass@1 为 23.7，低于 PaLM 540B 的 26.2；pass@100 为 79.3，高于 76.2。MBPP pass@1 为 37.7 vs 36.8。13B HumanEval pass@1 15.8 vs PaLM 62B 15.9，还略低。表中带星的 PaLM 数字来自原图读数，保留星号，不伪装成精确重跑结果。</p>
+<p>代码语法、可执行与业务正确是不同层次。附录二次方程解算器就是很好的反例：看似完整的函数仍缺 import 和边界条件；§3 的指标必须靠测试，不能靠示例看起来“会写代码”。</p>
+<h3 id="subsection-13">§3.6 Massive Multitask Language Understanding：规模优势仍有短板</h3>
+<figure class="original-table" id="table-9">
+<div aria-label="Original Table 9" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Humanities</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">STEM</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Social Sciences</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Other</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Average</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">GPT-NeoX</td>
+<td class="ltx_td ltx_align_right ltx_border_t">20B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">29.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">34.9</td>
+<td class="ltx_td ltx_align_center ltx_border_t">33.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">37.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">33.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">GPT-3</td>
+<td class="ltx_td ltx_align_right">175B</td>
+<td class="ltx_td ltx_align_center">40.8</td>
+<td class="ltx_td ltx_align_center">36.7</td>
+<td class="ltx_td ltx_align_center">50.4</td>
+<td class="ltx_td ltx_align_center">48.8</td>
+<td class="ltx_td ltx_align_center">43.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Gopher</td>
+<td class="ltx_td ltx_align_right">280B</td>
+<td class="ltx_td ltx_align_center">56.2</td>
+<td class="ltx_td ltx_align_center">47.4</td>
+<td class="ltx_td ltx_align_center">71.9</td>
+<td class="ltx_td ltx_align_center">66.1</td>
+<td class="ltx_td ltx_align_center">60.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Chinchilla</td>
+<td class="ltx_td ltx_align_right">70B</td>
+<td class="ltx_td ltx_align_center">63.6</td>
+<td class="ltx_td ltx_align_center">54.9</td>
+<td class="ltx_td ltx_align_center">79.3</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">73.9</strong></td>
+<td class="ltx_td ltx_align_center">67.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="3"><span class="ltx_text">PaLM</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">8B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">25.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">23.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">24.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">27.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">25.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">59.5</td>
+<td class="ltx_td ltx_align_center">41.9</td>
+<td class="ltx_td ltx_align_center">62.7</td>
+<td class="ltx_td ltx_align_center">55.8</td>
+<td class="ltx_td ltx_align_center">53.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">540B</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">77.0</strong></td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">55.6</strong></td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">81.0</strong></td>
+<td class="ltx_td ltx_align_center">69.6</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">69.3</strong></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">34.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">30.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">38.3</td>
+<td class="ltx_td ltx_align_center ltx_border_t">38.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">35.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">45.0</td>
+<td class="ltx_td ltx_align_center">35.8</td>
+<td class="ltx_td ltx_align_center">53.8</td>
+<td class="ltx_td ltx_align_center">53.3</td>
+<td class="ltx_td ltx_align_center">46.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center">55.8</td>
+<td class="ltx_td ltx_align_center">46.0</td>
+<td class="ltx_td ltx_align_center">66.7</td>
+<td class="ltx_td ltx_align_center">63.4</td>
+<td class="ltx_td ltx_align_center">57.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">61.8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">51.7</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">72.9</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">67.4</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">63.4</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 9: </span>
+<strong class="ltx_text ltx_font_bold">Massive Multitask Language Understanding (MMLU).</strong> Five-shot accuracy.
+
+</figcaption>
+<p class="fine">Original paper · Table 9. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>MMLU 覆盖 57 个任务、使用 5-shot，多项选择。65B 平均 <strong>63.4</strong>，对 Chinchilla <strong>67.5</strong> 低 4.1 pp，对 PaLM <strong>69.3</strong> 低 5.9 pp；13B <strong>46.9</strong>，对 GPT-3 <strong>43.9</strong> 高 3.0 pp。表中 Humanities、STEM、Social Sciences、Other 可以定位差距，不能只看平均。</p>
+<p>作者推测原因是 Books / arXiv 共 177GB，而某些对手有约 2TB 书籍；这是解释性假说，不是控制其他变量的数据消融。磁盘体积与 token 数、清洗质量和 benchmark 相似度也不等价。附录 B 提供全部 57 项，保留它可以发现平均提升背后的局部失败。</p>
+<h3 id="subsection-14">§3.7 Evolution during training：loss 下降和任务分数上升不是同一条曲线</h3>
+<figure class="original" id="figure-2"><img alt="Figure 2: Evolution of performance on question answering and common sense reasoning during training." loading="lazy" src="assets/original/fig-02.png"/><figcaption>Figure 2: Evolution of performance on question answering and common sense reasoning during training.<br/>Original paper · Figure 2 · Author vector PDF all_evals.pdf · <a href="assets/original/fig-02-all_evals.pdf">Author vector PDF</a>. Click or Enter to zoom.</figcaption></figure>
+<p><strong>分面顺序。</strong> 上排左到右：TriviaQA、HellaSwag、Natural Questions；下排：SIQA、WinoGrande、PIQA。横轴是训练 tokens，纵轴是各任务分数；同一颜色对应相同规模。原图中的轴与图例完整保留，caption 放在图片外部。</p>
+<p>QA 和大部分常识任务随训练推进总体改善；SIQA 波动更明显，WinoGrande 的 33B / 65B 轨迹很接近。Figure 1 的平滑 loss 不意味着 Figure 2 每个任务每次评测都单调。末尾继续改善表明训练尚有收益，不证明继续增加 token 对所有任务都同样有效；图也没有多随机种子或误差条。</p>
+<h2 id="section-5">§4 Instruction finetuning：一个 Flan 实验不能等同完整对齐系统</h2>
+<figure class="original-table" id="table-10">
+<div aria-label="Original Table 10" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_tt">OPT</td>
+<td class="ltx_td ltx_align_right ltx_border_tt">30B</td>
+<td class="ltx_td ltx_align_center ltx_border_tt">26.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">GLM</td>
+<td class="ltx_td ltx_align_right">120B</td>
+<td class="ltx_td ltx_align_center">44.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">55.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">PaLM-cont</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">62.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Chinchilla</td>
+<td class="ltx_td ltx_align_right">70B</td>
+<td class="ltx_td ltx_align_center">67.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">LLaMA</td>
+<td class="ltx_td ltx_align_right">65B</td>
+<td class="ltx_td ltx_align_center">63.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">OPT-IML-Max</td>
+<td class="ltx_td ltx_align_right ltx_border_t">30B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">43.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Flan-T5-XXL</td>
+<td class="ltx_td ltx_align_right">11B</td>
+<td class="ltx_td ltx_align_center">55.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Flan-PaLM</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">59.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Flan-PaLM-cont</td>
+<td class="ltx_td ltx_align_right">62B</td>
+<td class="ltx_td ltx_align_center">66.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">LLaMA-I</td>
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb"><strong class="ltx_text ltx_font_bold">68.9</strong></td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 10: </span>
+<strong class="ltx_text ltx_font_bold">Instruction finetuning – MMLU (5-shot).</strong>
+Comparison of models of moderate size with and without instruction finetuning on MMLU.
+
+</figcaption>
+<p class="fine">Original paper · Table 10. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>作者按 Flan 的监督指令微调协议做了一个实验，得到 LLaMA-I。65B 在 MMLU 从 63.4 到 68.9：<strong>+5.5 pp，相对提高约 8.675%</strong>。Table 10 与 PaLM-I 的比较用于考察 instruction finetuning 的影响。</p>
+<p>这里没有完整 RLHF 流程，没有 reward model / PPO 的实验，也没有把所有 SFT 超参数与数据配方详细披露。不能把 LLaMA-I 当成今天 Llama Chat 的训练说明，更不能由 MMLU 的上涨直接推出更诚实、更安全或更好的所有多轮任务。</p>
+<p>附录 B 中 abstract algebra 从 base 65B 的 34 到 I-65B 的 31，college chemistry 从 50 到 45。监督指令微调可以改善平均，也能伤害个别任务。附录 D 的精选对话只帮助观察输出风格，不构成用户偏好或安全性总体评估。</p>
+<h2 id="section-6">§5 Bias, toxicity and misinformation：四个探针，四种不同指标</h2>
+<h3 id="subsection-15">§5.1 RealToxicityPrompts：平均 API 分数不是有毒比例</h3>
+<figure class="original-table" id="table-11">
+<div aria-label="Original Table 11" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Basic</th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" scope="col">Respectful</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.106</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">0.081</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">0.104</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">0.095</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center">0.107</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">0.087</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.128</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb">0.141</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 11: </span>
+<strong class="ltx_text ltx_font_bold">RealToxicityPrompts.</strong>
+We run a greedy decoder on the 100k prompts from this benchmark. The “respectful” versions are prompts starting with “Complete the following sentence in a polite, respectful, and unbiased manner:”, and “Basic” is without it.
+Scores were obtained using the PerplexityAPI, with higher score indicating more toxic generations.
+
+</figcaption>
+<p class="fine">Original paper · Table 11. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>RealToxicityPrompts 测量给定提示后的生成文本毒性，评分来自正文所述 Perspective API。Respectful 版本加入“尊重他人”的提示语，观察它是否改变输出分数。表中是平均 toxicity 值，越低通常越好，不是高毒性样本占比。</p>
+<p>65B 从 0.128 到 0.141，respectful 提示反而 <strong>+0.013</strong>；不同规模和提示的结果非单调。更强语言建模能力没有消除毒性，简单提示也不保证改善。</p>
+<div class="callout warning"><strong>评分服务笔误</strong><p>正文写 Perspective API，Table 11 caption 写 Perplexity API。本页保留原始 caption，同时指出名称不一致。第三方评分服务会随时间改变，对不同论文的采样设置和 API 版本也要核对。</p></div>
+<h3 id="subsection-16">§5.2 CrowS-Pairs：总体更低，不代表每类偏见更低</h3>
+<figure class="original-table" id="table-12">
+<div aria-label="Original Table 12" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">LLaMA</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">GPT3</th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" scope="col">OPT</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">Gender</td>
+<td class="ltx_td ltx_align_center ltx_border_t">70.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t"><strong class="ltx_text ltx_font_bold">62.6</strong></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">65.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Religion</td>
+<td class="ltx_td ltx_align_center">79.0</td>
+<td class="ltx_td ltx_align_center">73.3</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center"><strong class="ltx_text ltx_font_bold">68.6</strong></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Race/Color</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">57.0</strong></td>
+<td class="ltx_td ltx_align_center">64.7</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">68.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Sexual orientation</td>
+<td class="ltx_td ltx_align_center">81.0</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">76.2</strong></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">78.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Age</td>
+<td class="ltx_td ltx_align_center">70.1</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">64.4</strong></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">67.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Nationality</td>
+<td class="ltx_td ltx_align_center">64.2</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">61.6</strong></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">62.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Disability</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">66.7</strong></td>
+<td class="ltx_td ltx_align_center">76.7</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">76.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Physical appearance</td>
+<td class="ltx_td ltx_align_center">77.8</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">74.6</strong></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">76.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Socioeconomic status</td>
+<td class="ltx_td ltx_align_center"><strong class="ltx_text ltx_font_bold">71.5</strong></td>
+<td class="ltx_td ltx_align_center">73.8</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">76.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t">Average</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><strong class="ltx_text ltx_font_bold">66.6</strong></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">67.2</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb ltx_border_t">69.5</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 12: </span>
+<strong class="ltx_text ltx_font_bold">CrowS-Pairs.</strong>
+We compare the level of biases contained in LLaMA-65B with OPT-175B and GPT3-175B. Higher score indicates higher bias.
+</figcaption>
+<p class="fine">Original paper · Table 12. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>CrowS-Pairs 比较有刻板印象与非刻板印象的句子，看模型是否偏好前者；这里报告该偏好的比例。65B 的 overall 为 66.6，GPT-3 67.2、OPT 69.5；但 Religion 为 79.0 vs GPT-3 68.6，<strong>+10.4 pp，相对约 15.16%</strong>。Sexual orientation 的 81.0 还高于 Religion，原文重点提 Religion 不意味着它是数值最高的类别。</p>
+<p>九个类别直接等权平均约 70.878，并不是 overall 66.6。原文未给出足以重算 overall 的类别样本权重，不自行“纠正”原表。较低整体分数也不能推出所有语境无偏见。</p>
+<h3 id="subsection-17">§5.3 WinoGender：能力和刻板印象需要拆开看</h3>
+<figure class="original-table" id="table-13">
+<div aria-label="Original Table 13" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">7B</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">13B</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">33B</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">65B</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">All</td>
+<td class="ltx_td ltx_align_center ltx_border_t">66.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">64.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">69.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">77.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">her/her/she</td>
+<td class="ltx_td ltx_align_center ltx_border_t">65.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">66.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">66.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">78.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">his/him/he</td>
+<td class="ltx_td ltx_align_center">60.8</td>
+<td class="ltx_td ltx_align_center">62.5</td>
+<td class="ltx_td ltx_align_center">62.1</td>
+<td class="ltx_td ltx_align_center">72.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">their/them/someone</td>
+<td class="ltx_td ltx_align_center">72.1</td>
+<td class="ltx_td ltx_align_center">65.0</td>
+<td class="ltx_td ltx_align_center">78.3</td>
+<td class="ltx_td ltx_align_center">81.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">her/her/she (<em class="ltx_emph ltx_font_italic">gotcha</em>)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">64.2</td>
+<td class="ltx_td ltx_align_center ltx_border_t">65.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">61.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">75.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">his/him/he (<em class="ltx_emph ltx_font_italic">gotcha</em>)</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">55.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">55.8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">55.8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">63.3</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 13: </span>
+<strong class="ltx_text ltx_font_bold">WinoGender.</strong> Co-reference resolution accuracy for the LLaMA models, for different pronouns (“her/her/she” and “his/him/he”).
+We observe that our models obtain better performance on “their/them/someone’ pronouns than on “her/her/she” and “his/him/he’, which is likely indicative of biases.</figcaption>
+<p class="fine">Original paper · Table 13. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>任务通过职业、代词与指代判别考察性别偏见，gotcha 子集让 stereotypical association 不能直接给出正确答案。65B 男性代词 accuracy 72.1，gotcha 63.3（−8.8 pp）；女性 78.8 到 75.0（−3.8 pp）；中性为 81.7。</p>
+<p>这些数字首先是指代正确率，不是独立的 bias score。更高模型能力可能提高所有子集分数；要判断职业刻板印象，应同时看 gotcha 差距、代词类别、数据构成，而不能用一个平均 accuracy 宣称偏见已解决。它不是干预职业信息的因果消融。</p>
+<h3 id="subsection-18">§5.4 TruthfulQA：更真实不等于已经足够真实</h3>
+<figure class="original-table" id="table-14">
+<div aria-label="Original Table 14" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Truthful</th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" scope="col">Truthful*Inf</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="3"><span class="ltx_text">GPT-3</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">1.3B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.31</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">0.19</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">6B</td>
+<td class="ltx_td ltx_align_center">0.22</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">0.19</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">175B</td>
+<td class="ltx_td ltx_align_center">0.28</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">0.25</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text">LLaMA</span></td>
+<td class="ltx_td ltx_align_right ltx_border_t">7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">0.33</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">0.29</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">13B</td>
+<td class="ltx_td ltx_align_center">0.47</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">0.41</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right">33B</td>
+<td class="ltx_td ltx_align_center">0.52</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">0.48</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_right ltx_border_bb">65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">0.57</td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb">0.53</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 14: </span><strong class="ltx_text ltx_font_bold">TruthfulQA.</strong> We report the fraction of truthful and truthful*informative answers, as scored by specially trained models via the OpenAI API. We follow the QA prompt style used in <cite class="ltx_cite ltx_citemacro_citet">Ouyang et al. (2022)</cite>, and report the performance of GPT-3 from the same paper.
+</figcaption>
+<p class="fine">Original paper · Table 14. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>TruthfulQA 设计容易诱发常见误解的问题，通过训练的 judge 和 OpenAI API 辅助判断 truthfulness 与 informativeness。65B 的 truthful 是 <strong>0.57</strong>，truthful &amp; informative <strong>0.53</strong>；若写成百分数即 57% / 53%，原表的小数口径保留。</p>
+<p>模型规模增长可改善这些指标，但 0.57 仍意味着显著失败空间。自动 judge 有自身偏差，评测集也不是所有高风险场景的代表。Table 11–14 共同说明基础模型需要进一步研究，不能由其模型质量主张直接导出部署安全结论。</p>
+<h2 id="section-7">§6 Carbon footprint：训练一次和开发全部不是同一笔账</h2>
+<figure class="original-table" id="table-15">
+<div aria-label="Original Table 15" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" rowspan="2" scope="col"><span class="ltx_text">GPU Type</span></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">GPU Power</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" rowspan="2" scope="col"><span class="ltx_text">GPU-hours</span></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Total power</th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Carbon emitted</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td ltx_align_center" scope="col">consumption</th>
+<th class="ltx_td ltx_align_center" scope="col">consumption</th>
+<th class="ltx_td ltx_align_center" scope="col">(tCO<sub class="ltx_sub">2</sub>eq)</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">OPT-175B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">A100-80GB</td>
+<td class="ltx_td ltx_align_center ltx_border_t">400W</td>
+<td class="ltx_td ltx_align_center ltx_border_t">809,472</td>
+<td class="ltx_td ltx_align_center ltx_border_t">356 MWh</td>
+<td class="ltx_td ltx_align_center ltx_border_t">137</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">BLOOM-175B</td>
+<td class="ltx_td ltx_align_center">A100-80GB</td>
+<td class="ltx_td ltx_align_center">400W</td>
+<td class="ltx_td ltx_align_center">1,082,880</td>
+<td class="ltx_td ltx_align_center">475 MWh</td>
+<td class="ltx_td ltx_align_center">183</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">LLaMA-7B</td>
+<td class="ltx_td ltx_align_center ltx_border_t">A100-80GB</td>
+<td class="ltx_td ltx_align_center ltx_border_t">400W</td>
+<td class="ltx_td ltx_align_center ltx_border_t">82,432</td>
+<td class="ltx_td ltx_align_center ltx_border_t"> 36 MWh</td>
+<td class="ltx_td ltx_align_center ltx_border_t"> 14</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">LLaMA-13B</td>
+<td class="ltx_td ltx_align_center">A100-80GB</td>
+<td class="ltx_td ltx_align_center">400W</td>
+<td class="ltx_td ltx_align_center">135,168</td>
+<td class="ltx_td ltx_align_center"> 59 MWh</td>
+<td class="ltx_td ltx_align_center"> 23</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">LLaMA-33B</td>
+<td class="ltx_td ltx_align_center">A100-80GB</td>
+<td class="ltx_td ltx_align_center">400W</td>
+<td class="ltx_td ltx_align_center">530,432</td>
+<td class="ltx_td ltx_align_center">233 MWh</td>
+<td class="ltx_td ltx_align_center"> 90</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb">LLaMA-65B</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">A100-80GB</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">400W</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">1,022,362</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">449 MWh</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">173</td></tr>
+</table></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 15: </span>
+<strong class="ltx_text ltx_font_bold">Carbon footprint of training different models in the same data center.</strong>
+We follow <cite class="ltx_cite ltx_citemacro_citet">Wu et al. (2022)</cite> to compute carbon emission of training OPT, BLOOM and our models in the same data center. For the power consumption of a A100-80GB, we take the thermal design power for NVLink systems, that is 400W. We take a PUE of 1.1 and a carbon intensity factor set at the national US average of 0.385 kg CO<sub class="ltx_sub">2</sub>e per KWh.
+
+
+</figcaption>
+<p class="fine">Original paper · Table 15. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>原表列 GPU 类型、GPU-hours、功耗、总 MWh、统一系数估算的 tCO₂eq。作者为便于比较，用 PUE=1.1、美国平均碳强度 <strong>0.385 tCO₂eq/MWh</strong>：</p>
+<div class="equation" id="original-energy"><span class="equation-label">ORIGINAL EXPLICIT RELATION · UNNUMBERED</span><math alttext="E_{\mathrm{Wh}}=(\mathrm{GPU\ hours})\times P_{\mathrm W}\times\mathrm{PUE},\quad E_{\mathrm{MWh}}=E_{\mathrm{Wh}}/10^6" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>E</mi><mrow><mrow><mi mathvariant="normal">W</mi><mi mathvariant="normal">h</mi></mrow></mrow></msub><mo>=</mo><mo stretchy="false">(</mo><mrow><mi mathvariant="normal">G</mi><mi mathvariant="normal">P</mi><mi mathvariant="normal">U</mi><mtext> </mtext><mi mathvariant="normal">h</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">s</mi></mrow><mo stretchy="false">)</mo><mo>×</mo><msub><mi>P</mi><mrow><mi mathvariant="normal">W</mi></mrow></msub><mo>×</mo><mrow><mi mathvariant="normal">P</mi><mi mathvariant="normal">U</mi><mi mathvariant="normal">E</mi></mrow><mo>,</mo><mspace width="1em"></mspace><msub><mi>E</mi><mrow><mrow><mi mathvariant="normal">M</mi><mi mathvariant="normal">W</mi><mi mathvariant="normal">h</mi></mrow></mrow></msub><mo>=</mo><msub><mi>E</mi><mrow><mrow><mi mathvariant="normal">W</mi><mi mathvariant="normal">h</mi></mrow></mrow></msub><mo>/</mo><msup><mn>10</mn><mn>6</mn></msup></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>E_{\mathrm{Wh}}=(\mathrm{GPU\ hours})\times P_{\mathrm W}\times\mathrm{PUE},\quad E_{\mathrm{MWh}}=E_{\mathrm{Wh}}/10^6</code></details></div>
+<div class="equation" id="original-carbon"><span class="equation-label">ORIGINAL EXPLICIT RELATION · UNNUMBERED</span><math alttext="\mathrm{CO}_{2\mathrm{eq}}\ [\mathrm{t}]=E_{\mathrm{MWh}}\times0.385\ [\mathrm{t/MWh}]" display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mrow><mi mathvariant="normal">C</mi><mi mathvariant="normal">O</mi></mrow><mrow><mn>2</mn><mrow><mi mathvariant="normal">e</mi><mi mathvariant="normal">q</mi></mrow></mrow></msub><mtext> </mtext><mo stretchy="false">[</mo><mi>t</mi><mo stretchy="false">]</mo><mo>=</mo><msub><mi>E</mi><mrow><mrow><mi mathvariant="normal">M</mi><mi mathvariant="normal">W</mi><mi mathvariant="normal">h</mi></mrow></mrow></msub><mo>×</mo><mn>0.385</mn><mtext> </mtext><mo stretchy="false">[</mo><mrow><mi mathvariant="normal">t</mi><mo>/</mo><mi mathvariant="normal">M</mi><mi mathvariant="normal">W</mi><mi mathvariant="normal">h</mi></mrow><mo stretchy="false">]</mo></mrow></math><details class="latex-source"><summary>LaTeX source</summary><button class="copy-button" type="button">Copy</button><code>\mathrm{CO}_{2\mathrm{eq}}\ [\mathrm{t}]=E_{\mathrm{MWh}}\times0.385\ [\mathrm{t/MWh}]</code></details></div>
+<p>公式的功耗单位是 W，GPU-hours × W 得 Wh；除 <span class="inline-math"><math alttext="10^6" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msup><mn>10</mn><mn>6</mn></msup></mrow></math></span> 才是 MWh。65B 的 <strong>1,022,362 GPU-hours × 400W × 1.1</strong> 得 <strong>449.83928 MWh</strong>，再乘 0.385 得 <strong>173.18812 tCO₂eq</strong>。原表列 <strong>449 / 173</strong>，属于近似报告，应保留而不是用重算值覆写。</p>
+<p>2048 GPUs × 21 天 × 24 小时是 1,032,192 GPU-hours，与表值不同；“约 21 天”本来就是约数，不应把两者强制对齐。四个最终模型的原表能耗加和为 777 MWh；逐项功耗公式重算约 777.77 MWh、299.44 tCO₂eq。论文另说 <strong>完整开发过程约 2638 MWh、1015 tCO₂eq</strong>，还包含试验和探索，不能写成 65B 单次训练成本。</p>
+<p>OPT / BLOOM 的实际地区碳强度约 0.231 / 0.057 与表中统一 0.385 的反事实比较不同，location-based 与 market-based 也不能混在一起。论文估算没有推理生命周期、制造设备或全供应链账本；小模型多训练是否最终更环保，还取决于请求量、电力来源与部署效率。</p>
+<h2 id="section-8">§7 Related work：组件来源和研究目标分开追踪</h2>
+<p>这一节把 LLaMA 放在已有大语言模型路线中：GPT-3 的规模与 few-shot、Gopher / PaLM 的扩大模型、Chinchilla 的参数与数据共同缩放；另有 OPT、GPT-NeoX、BLOOM、GLM 的公开模型。作者指出此前公开模型的质量仍与最强非公开模型有距离。</p>
+<p>方法来源也很清楚：RMSNorm 减少 normalization 工作，SwiGLU 改变 FFN 的门控，RoPE 改变位置表达，FlashAttention / xformers 改变 Attention 的 IO 与 kernel 实现，序列并行改变分布式内存与通信。LLaMA 的贡献是系统配方、规模训练和开放研究可用性，而不是把这些前人成果重新发明。</p>
+<p>站内可接着读 <a href="../transformer/">Transformer</a>、<a href="../rmsnorm/">RMSNorm</a>、<a href="../glu-variants/">GLU Variants / SwiGLU</a>、<a href="../roformer/">RoFormer / RoPE</a>、<a href="../flashattention/">FlashAttention</a>、<a href="../scaling-laws/">Scaling Laws</a>。这些链接连接机制；其中没有哪一篇能单独解释 LLaMA 的所有质量收益。</p>
+<h2 id="section-9">§8 Conclusion：论文的结论与证据上限</h2>
+<p>作者总结：公开可获取数据与更充分的训练，让 7B–65B 模型达到有竞争力的水平；较小模型适合不同推理预算，模型权重可促进研究。§5 展示了偏见、毒性与事实性问题，作者也承认后续仍需改善。</p>
+<p>证据支持“这个配方可行”，尚不支持“每个配方部件的独立贡献已被证明”。本文没有系统消融数据混合、norm、激活、位置编码与 token 预算，没有质量固定下的完整推理成本实测；公开权重也不等于从数据到训练都可完全复现。</p>
+<h2 id="section-10">Acknowledgements / References：来源与可复现性</h2>
+<p>致谢说明研究依赖 Meta 的训练基础设施和相关团队支持；不能把这种工程支持当成可在单机重复的实验条件。参考文献用于辨认方法来源与 baseline；比较表有部分直接引用其他工作的数字，因此提示、split、sample budget 的一致性要逐项检查。</p>
+<p>本页读取原 PDF、作者 TeX 与 HTML、历史官方代码及模型卡；没有在本机训练、生成 benchmark 回答或测 GPU / HTP 性能。后文中“重算”表示用论文数据或明确假设做算术，不表示硬件复现。</p>
+<h2 id="section-11">Appendix A：问答格式决定 EM 是怎样得到的</h2>
+<figure class="original" id="figure-3"><img alt="Figure 3: Formatted dataset example for Natural Questions (left) &amp; TriviaQA (right)." loading="lazy" src="assets/original/fig-03.png"/><figcaption>Figure 3: Formatted dataset example for Natural Questions (left) &amp; TriviaQA (right).<br/>Original paper · Figure 3 · Original PDF p17, crop [70,250,526,309]; caption outside image. Click or Enter to zoom.</figcaption></figure>
+<p>原图给 Natural Questions 和 TriviaQA 的格式化示例；图片是原 PDF 第 17 页的示例区域，完整 caption 为外部文本。NQ 测试集 3610 个问题；TriviaQA 使用 filtered dev，作者明确指出与其他工作的 unfiltered test 不同。</p>
+<p>流程为：拼接 few-shot 示例与目标问题 → greedy generation → 截取第一个换行、句号或逗号之前的文本 → lower-case、删除冠词、标点并规范空白 → Exact Match。多余解释可能使原本正确的回答失败；短答案后处理也可能丢信息。</p>
+<p>NQ 的答案格式与 benchmark 实现不只是排版细节。要复现，需要保存实际 prompt、tokenization、few-shot selection、截断长度、答案抽取和数据 split；原文没有给一套完全锁定依赖的端到端复现包。</p>
+<h2 id="section-12">Appendix B：57 个 MMLU 任务，保留失败才能解释平均值</h2>
+<figure class="original-table" id="table-16">
+<div class="ltx_inline-block ltx_align_center ltx_transformed_outer"><span class="ltx_transformed_inner">
+<div aria-label="Original Table 16" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_align_middle">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">GPT-3</th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Gopher</th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" scope="col">Chinchilla</th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_tt" colspan="4" scope="col">LLaMA</th>
+<th class="ltx_td ltx_border_tt" scope="col"></th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" scope="col">LLaMA-I</th></tr>
+<tr class="ltx_tr">
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_t" scope="col">175B</th>
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_t" scope="col">280B</th>
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_t" scope="col">70B</th>
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td ltx_align_center ltx_border_t" scope="col">7B</th>
+<th class="ltx_td ltx_align_center ltx_border_t" scope="col">13B</th>
+<th class="ltx_td ltx_align_center ltx_border_t" scope="col">33B</th>
+<th class="ltx_td ltx_align_center ltx_border_t" scope="col">65B</th>
+<th class="ltx_td" scope="col"></th>
+<th class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t" scope="col">65B</th></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">Abstract Algebra</td>
+<td class="ltx_td ltx_align_right ltx_border_t">STEM</td>
+<td class="ltx_td ltx_align_center ltx_border_t">30.0</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">25.0</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">31.0</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">29.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">34.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">32.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">34.0</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">31.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Anatomy</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">48.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">56.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">70.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">37.0</td>
+<td class="ltx_td ltx_align_center">45.9</td>
+<td class="ltx_td ltx_align_center">51.9</td>
+<td class="ltx_td ltx_align_center">57.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">62.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Astronomy</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">49.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">65.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">73.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">33.6</td>
+<td class="ltx_td ltx_align_center">46.1</td>
+<td class="ltx_td ltx_align_center">61.8</td>
+<td class="ltx_td ltx_align_center">72.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">81.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Business Ethics</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">46.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">70.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">72.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">40.0</td>
+<td class="ltx_td ltx_align_center">45.0</td>
+<td class="ltx_td ltx_align_center">56.0</td>
+<td class="ltx_td ltx_align_center">57.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">72.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Clinical Knowledge</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">48.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">67.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">75.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">35.1</td>
+<td class="ltx_td ltx_align_center">45.7</td>
+<td class="ltx_td ltx_align_center">57.4</td>
+<td class="ltx_td ltx_align_center">65.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">69.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">College Biology</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">45.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">70.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">79.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">37.5</td>
+<td class="ltx_td ltx_align_center">45.1</td>
+<td class="ltx_td ltx_align_center">58.3</td>
+<td class="ltx_td ltx_align_center">68.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">81.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">College Chemistry</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">26.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">45.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">51.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">32.0</td>
+<td class="ltx_td ltx_align_center">30.0</td>
+<td class="ltx_td ltx_align_center">45.0</td>
+<td class="ltx_td ltx_align_center">50.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">45.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">College Computer Science</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">46.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">49.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">51.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">29.0</td>
+<td class="ltx_td ltx_align_center">39.0</td>
+<td class="ltx_td ltx_align_center">45.0</td>
+<td class="ltx_td ltx_align_center">47.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">51.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">College Mathematics</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">34.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">37.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">32.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">33.0</td>
+<td class="ltx_td ltx_align_center">32.0</td>
+<td class="ltx_td ltx_align_center">40.0</td>
+<td class="ltx_td ltx_align_center">35.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">36.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">College Medicine</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">48.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">60.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">66.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">30.6</td>
+<td class="ltx_td ltx_align_center">42.8</td>
+<td class="ltx_td ltx_align_center">52.0</td>
+<td class="ltx_td ltx_align_center">54.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">63.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">College Physics</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">28.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">34.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">46.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">26.5</td>
+<td class="ltx_td ltx_align_center">18.6</td>
+<td class="ltx_td ltx_align_center">28.4</td>
+<td class="ltx_td ltx_align_center">36.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">46.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Computer Security</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">57.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">65.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">76.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">45.0</td>
+<td class="ltx_td ltx_align_center">65.0</td>
+<td class="ltx_td ltx_align_center">66.0</td>
+<td class="ltx_td ltx_align_center">79.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">79.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Conceptual Physics</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">36.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">49.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">67.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">36.6</td>
+<td class="ltx_td ltx_align_center">41.3</td>
+<td class="ltx_td ltx_align_center">51.5</td>
+<td class="ltx_td ltx_align_center">59.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">66.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Econometrics</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">33.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">43.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">38.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">23.7</td>
+<td class="ltx_td ltx_align_center">27.2</td>
+<td class="ltx_td ltx_align_center">35.1</td>
+<td class="ltx_td ltx_align_center">40.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">52.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Electrical Engineering</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">50.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">60.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">62.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">26.9</td>
+<td class="ltx_td ltx_align_center">40.7</td>
+<td class="ltx_td ltx_align_center">49.7</td>
+<td class="ltx_td ltx_align_center">53.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">60.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Elementary Mathematics</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">30.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">33.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">41.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">24.3</td>
+<td class="ltx_td ltx_align_center">24.9</td>
+<td class="ltx_td ltx_align_center">36.0</td>
+<td class="ltx_td ltx_align_center">37.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">42.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Formal Logic</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">29.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">35.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">33.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">27.0</td>
+<td class="ltx_td ltx_align_center">33.3</td>
+<td class="ltx_td ltx_align_center">34.1</td>
+<td class="ltx_td ltx_align_center">44.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">47.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Global Facts</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">37.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">38.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">39.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">29.0</td>
+<td class="ltx_td ltx_align_center">35.0</td>
+<td class="ltx_td ltx_align_center">35.0</td>
+<td class="ltx_td ltx_align_center">39.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">40.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Biology</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">48.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">71.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">80.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">34.5</td>
+<td class="ltx_td ltx_align_center">52.6</td>
+<td class="ltx_td ltx_align_center">67.7</td>
+<td class="ltx_td ltx_align_center">73.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">82.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Chemistry</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">33.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">47.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">58.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">28.1</td>
+<td class="ltx_td ltx_align_center">28.6</td>
+<td class="ltx_td ltx_align_center">41.9</td>
+<td class="ltx_td ltx_align_center">40.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">44.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Computer Science</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">39.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">54.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">58.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">31.0</td>
+<td class="ltx_td ltx_align_center">48.0</td>
+<td class="ltx_td ltx_align_center">60.0</td>
+<td class="ltx_td ltx_align_center">67.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">73.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School European History</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">54.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">72.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">78.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">44.2</td>
+<td class="ltx_td ltx_align_center">61.8</td>
+<td class="ltx_td ltx_align_center">73.9</td>
+<td class="ltx_td ltx_align_center">78.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">86.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Geography</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">58.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">76.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">86.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">34.3</td>
+<td class="ltx_td ltx_align_center">54.6</td>
+<td class="ltx_td ltx_align_center">70.7</td>
+<td class="ltx_td ltx_align_center">77.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">87.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Government And Politics</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">58.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">83.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">91.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">44.6</td>
+<td class="ltx_td ltx_align_center">66.3</td>
+<td class="ltx_td ltx_align_center">82.9</td>
+<td class="ltx_td ltx_align_center">88.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">92.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Macroeconomics</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">40.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">65.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">70.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">35.4</td>
+<td class="ltx_td ltx_align_center">44.4</td>
+<td class="ltx_td ltx_align_center">56.9</td>
+<td class="ltx_td ltx_align_center">65.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">69.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Mathematics</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">28.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">23.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">31.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">24.8</td>
+<td class="ltx_td ltx_align_center">23.7</td>
+<td class="ltx_td ltx_align_center">27.0</td>
+<td class="ltx_td ltx_align_center">34.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">37.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Microeconomics</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">42.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">66.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">77.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">31.9</td>
+<td class="ltx_td ltx_align_center">47.5</td>
+<td class="ltx_td ltx_align_center">55.5</td>
+<td class="ltx_td ltx_align_center">68.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">78.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Physics</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">28.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">33.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">36.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">26.5</td>
+<td class="ltx_td ltx_align_center">28.5</td>
+<td class="ltx_td ltx_align_center">35.8</td>
+<td class="ltx_td ltx_align_center">37.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">41.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Psychology</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">61.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">81.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">86.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">47.3</td>
+<td class="ltx_td ltx_align_center">60.9</td>
+<td class="ltx_td ltx_align_center">76.2</td>
+<td class="ltx_td ltx_align_center">82.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">87.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Statistics</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">30.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">50.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">58.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">35.2</td>
+<td class="ltx_td ltx_align_center">30.1</td>
+<td class="ltx_td ltx_align_center">45.4</td>
+<td class="ltx_td ltx_align_center">58.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">59.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School Us History</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">53.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">78.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">83.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">39.7</td>
+<td class="ltx_td ltx_align_center">58.3</td>
+<td class="ltx_td ltx_align_center">77.9</td>
+<td class="ltx_td ltx_align_center">83.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">90.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">High School World History</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">56.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">75.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">85.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">40.9</td>
+<td class="ltx_td ltx_align_center">66.2</td>
+<td class="ltx_td ltx_align_center">79.3</td>
+<td class="ltx_td ltx_align_center">83.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">89.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Human Aging</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">50.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">66.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">77.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">40.8</td>
+<td class="ltx_td ltx_align_center">54.7</td>
+<td class="ltx_td ltx_align_center">67.7</td>
+<td class="ltx_td ltx_align_center">69.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">72.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Human Sexuality</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">54.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">67.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">86.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">36.6</td>
+<td class="ltx_td ltx_align_center">58.8</td>
+<td class="ltx_td ltx_align_center">64.1</td>
+<td class="ltx_td ltx_align_center">77.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">87.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">International Law</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">55.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">77.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">90.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">51.2</td>
+<td class="ltx_td ltx_align_center">62.8</td>
+<td class="ltx_td ltx_align_center">72.7</td>
+<td class="ltx_td ltx_align_center">79.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">87.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Jurisprudence</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">55.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">71.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">79.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">38.9</td>
+<td class="ltx_td ltx_align_center">51.9</td>
+<td class="ltx_td ltx_align_center">70.4</td>
+<td class="ltx_td ltx_align_center">73.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">85.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Logical Fallacies</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">48.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">72.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">80.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">39.3</td>
+<td class="ltx_td ltx_align_center">52.8</td>
+<td class="ltx_td ltx_align_center">68.1</td>
+<td class="ltx_td ltx_align_center">77.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">80.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Machine Learning</td>
+<td class="ltx_td ltx_align_right">STEM</td>
+<td class="ltx_td ltx_align_center">31.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">41.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">41.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">23.2</td>
+<td class="ltx_td ltx_align_center">31.3</td>
+<td class="ltx_td ltx_align_center">39.3</td>
+<td class="ltx_td ltx_align_center">49.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">52.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Management</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">56.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">77.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">82.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">35.0</td>
+<td class="ltx_td ltx_align_center">66.0</td>
+<td class="ltx_td ltx_align_center">77.7</td>
+<td class="ltx_td ltx_align_center">82.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">83.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Marketing</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">60.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">83.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">89.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">46.6</td>
+<td class="ltx_td ltx_align_center">71.8</td>
+<td class="ltx_td ltx_align_center">83.3</td>
+<td class="ltx_td ltx_align_center">85.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">92.7</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Medical Genetics</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">40.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">69.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">69.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">43.0</td>
+<td class="ltx_td ltx_align_center">52.0</td>
+<td class="ltx_td ltx_align_center">67.0</td>
+<td class="ltx_td ltx_align_center">67.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">68.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Miscellaneous</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">60.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">75.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">84.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">42.4</td>
+<td class="ltx_td ltx_align_center">65.4</td>
+<td class="ltx_td ltx_align_center">78.5</td>
+<td class="ltx_td ltx_align_center">82.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">84.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Moral Disputes</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">44.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">66.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">77.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">40.2</td>
+<td class="ltx_td ltx_align_center">50.9</td>
+<td class="ltx_td ltx_align_center">66.2</td>
+<td class="ltx_td ltx_align_center">72.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">76.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Moral Scenarios</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">26.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">40.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">36.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">24.3</td>
+<td class="ltx_td ltx_align_center">30.1</td>
+<td class="ltx_td ltx_align_center">38.2</td>
+<td class="ltx_td ltx_align_center">48.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">55.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Nutrition</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">47.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">69.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">77.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">37.6</td>
+<td class="ltx_td ltx_align_center">51.6</td>
+<td class="ltx_td ltx_align_center">62.8</td>
+<td class="ltx_td ltx_align_center">67.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">74.5</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Philosophy</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">51.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">68.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">79.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">39.9</td>
+<td class="ltx_td ltx_align_center">54.0</td>
+<td class="ltx_td ltx_align_center">66.2</td>
+<td class="ltx_td ltx_align_center">74.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">79.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Prehistory</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">53.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">67.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">81.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">36.1</td>
+<td class="ltx_td ltx_align_center">51.5</td>
+<td class="ltx_td ltx_align_center">67.0</td>
+<td class="ltx_td ltx_align_center">75.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">79.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Professional Accounting</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">33.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">44.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">52.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">25.9</td>
+<td class="ltx_td ltx_align_center">35.8</td>
+<td class="ltx_td ltx_align_center">43.6</td>
+<td class="ltx_td ltx_align_center">46.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">56.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Professional Law</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">34.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">44.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">56.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">30.2</td>
+<td class="ltx_td ltx_align_center">38.0</td>
+<td class="ltx_td ltx_align_center">45.9</td>
+<td class="ltx_td ltx_align_center">49.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">54.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Professional Medicine</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">36.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">64.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">75.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">44.5</td>
+<td class="ltx_td ltx_align_center">50.4</td>
+<td class="ltx_td ltx_align_center">54.0</td>
+<td class="ltx_td ltx_align_center">61.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">70.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Professional Psychology</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">44.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">68.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">75.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">35.1</td>
+<td class="ltx_td ltx_align_center">47.7</td>
+<td class="ltx_td ltx_align_center">62.9</td>
+<td class="ltx_td ltx_align_center">65.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">71.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Public Relations</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">48.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">71.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">73.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">40.9</td>
+<td class="ltx_td ltx_align_center">60.9</td>
+<td class="ltx_td ltx_align_center">67.3</td>
+<td class="ltx_td ltx_align_center">73.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">74.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Security Studies</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">52.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">64.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">75.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">31.8</td>
+<td class="ltx_td ltx_align_center">53.9</td>
+<td class="ltx_td ltx_align_center">65.3</td>
+<td class="ltx_td ltx_align_center">71.8</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">77.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Sociology</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">53.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">84.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">91.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">46.8</td>
+<td class="ltx_td ltx_align_center">61.2</td>
+<td class="ltx_td ltx_align_center">78.6</td>
+<td class="ltx_td ltx_align_center">78.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">88.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Us Foreign Policy</td>
+<td class="ltx_td ltx_align_right">Social Science</td>
+<td class="ltx_td ltx_align_center">69.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">81.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">92.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">46.0</td>
+<td class="ltx_td ltx_align_center">80.0</td>
+<td class="ltx_td ltx_align_center">83.0</td>
+<td class="ltx_td ltx_align_center">86.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">87.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Virology</td>
+<td class="ltx_td ltx_align_right">Other</td>
+<td class="ltx_td ltx_align_center">46.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">47.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">53.6</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">30.1</td>
+<td class="ltx_td ltx_align_center">43.4</td>
+<td class="ltx_td ltx_align_center">50.0</td>
+<td class="ltx_td ltx_align_center">53.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">57.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">World Religions</td>
+<td class="ltx_td ltx_align_right">Humanities</td>
+<td class="ltx_td ltx_align_center">55.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">84.2</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">87.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">50.9</td>
+<td class="ltx_td ltx_align_center">67.8</td>
+<td class="ltx_td ltx_align_center">81.3</td>
+<td class="ltx_td ltx_align_center">81.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">84.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t">Humanities</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">40.6</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">56.2</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">63.6</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">34.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">45.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">55.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t">61.8</td>
+<td class="ltx_td ltx_border_t"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">67.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">STEM</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">36.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">47.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">54.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">30.5</td>
+<td class="ltx_td ltx_align_center">35.8</td>
+<td class="ltx_td ltx_align_center">46.0</td>
+<td class="ltx_td ltx_align_center">51.7</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">56.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Social Science</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">50.5</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">71.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">79.3</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">38.3</td>
+<td class="ltx_td ltx_align_center">53.8</td>
+<td class="ltx_td ltx_align_center">66.7</td>
+<td class="ltx_td ltx_align_center">72.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">79.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left">Others</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">49.0</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">66.1</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">73.9</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center">38.1</td>
+<td class="ltx_td ltx_align_center">53.3</td>
+<td class="ltx_td ltx_align_center">63.4</td>
+<td class="ltx_td ltx_align_center">67.4</td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center">72.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t">All</td>
+<td class="ltx_td ltx_border_bb ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">43.9</td>
+<td class="ltx_td ltx_border_bb ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">60.0</td>
+<td class="ltx_td ltx_border_bb ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">67.6</td>
+<td class="ltx_td ltx_border_bb ltx_border_t"></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">35.1</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">46.9</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">57.8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">63.4</td>
+<td class="ltx_td ltx_border_bb ltx_border_t"></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb ltx_border_t">68.9</td></tr>
+</table></div>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 16: </span>
+<strong class="ltx_text ltx_font_bold">MMLU.</strong> Detailed 5-shot results per domain on the test sets.
+
+</figcaption>
+<p class="fine">Original paper · Table 16. All rows, columns, missing values, merged headers and original bold emphasis retained.</p></figure>
+<p>原表完整保留 57 个任务及分组汇总、合并表头、缺失值和加粗。每个结果都与对应任务和模型规模绑定；不要把 65B 的强项用于推断 7B 也有相同能力。</p>
+<p>LLaMA-I 平均提升并不意味着所有知识领域提升：abstract algebra 34→31，college chemistry 50→45。它提醒我们在 SFT 后检查 STEM 等敏感任务，而不是只检查一个 aggregate。</p>
+<p><strong>另一处源内不一致。</strong> GPT-3 Humanities：Table 9 为 40.8、Table 16 为 40.6；Social Sciences 50.4 vs 50.5，Other 48.8 vs 49.0。Chinchilla 平均 67.5 vs 67.6。原文没有解释这些差异，不自行统一；舍入或聚合口径可能相关，但未得到证明。</p>
+<h2 id="section-13">Appendix C：6 个基础模型生成样例逐例审读</h2>
+<p>以下保留作者的完整 prompt 与输出，折叠用于阅读。它们是精选案例，不是随机抽样的总体正确率；其中虚构故事与错误输出属于论文证据。本页不执行样例里的任何代码或 shell 命令。</p>
+<details class="sample" id="sample-C1"><summary>C1 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-1">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">1 1 2 3 5 8</strong> 13 21 34 55 89 144 233 377 610 987
+Everyone knows the above sequence, but how many have wondered why it grows so fast?
+It seems to be the fastest growing sequence in mathematics.</p>
+<p class="ltx_p">The sequence was discovered by Leonardo of Pisa around 1200.
+It is an infinite sequence which appears to grow very rapidly, at least in its initial terms.
+It is perhaps the most famous sequence in mathematics, for it pops up everywhere.
+The sequence is called the Fibonacci sequence, named after Leonardo of Pisa, who was also known as Fibonacci.</p>
+<p class="ltx_p">He first investigated this sequence in his famous Liber abaci of 1202, when he studied the growth in the population of rabbits based on idealized assumptions.
+See the Fibonacci rabbits page for the details.</p>
+</div>
+</div><p class="fine">Original paper · Appendix C · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>C1 / Fibonacci。</strong> 能做较长的概念续写，但声称 Fibonacci 是“增长最快”的序列不成立；其相邻项比趋向黄金比，不是所有序列的最大增长率。自然流畅不能替代数学判定。</p>
+<details class="sample" id="sample-C2"><summary>C2 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-2">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">Here is the recommendation letter that I wrote for an application to a dragon feeder position at the Magic Unicorn Corporation:
+<br class="ltx_break"/>Dear recruiter,
+<br class="ltx_break"/></strong>I have known ___ for two years, and I believe that she would be an excellent dragon feeder for the Magic Unicorn Corporation. ___ has an ability to remember and process large amounts of information, which is an important skill for a dragon feeder.</p>
+<p class="ltx_p">___, as an accomplished knight, has a deep understanding of how to kill dragons and how to use each dragon’s weaknesses against it. This means that she knows what kinds of foods each dragon likes and what kinds of foods are dangerous to each dragon. This knowledge and experience will be invaluable as she feeds the dragons.</p>
+<p class="ltx_p">I am confident that ___’s competence, skill, and experience will make her an excellent employee. Please contact me at (___) ___-___ if you have any questions. I look forward to hearing from you.</p>
+<p class="ltx_p">Best regards,</p>
+<p class="ltx_p">Honorable Knight</p>
+<p class="ltx_p">Sir George</p>
+</div>
+</div><p class="fine">Original paper · Appendix C · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>C2 / Dragon。</strong> 展示从既定设定延伸情节的能力；奇幻叙述应按一致性与创造性读，不按外部事实打分。</p>
+<details class="sample" id="sample-C3"><summary>C3 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-3">
+<pre class="original-code"><code>def solve(a: float,b: float, c: float):
+    """finds real roots of ax^2+bx+c"""
+    #discriminant
+    d = b**2-4*a*c
+    if d &gt; 0:
+            return (-b+math.sqrt(d))/(2*a), (-b-math.sqrt(d))/(2*a)
+    elif d == 0:
+            return (-b)/(2*a)
+    else:
+            return False</code></pre>
+</div><p class="fine">Original paper · Appendix C · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>C3 / Quadratic solver。</strong> 代码依赖 <code>math</code> 却没有 import；没有处理 a=0 的线性 / 退化情况，返回类型还混合元组、标量和布尔值 False。样例不能证明所有边界都正确，也不等价于通过 HumanEval。</p>
+<details class="sample" id="sample-C4"><summary>C4 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-4">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">Did you know that Yann LeCun dropped a rap album last year? We listened to it and here’s what we thought:</strong></p>
+<p class="ltx_p">Dr. LeCun, the founder of deep learning, is one of the most influential computer scientists of the last decade. LeCun’s latest album, titled Deep Learning, is a mix of rock, punk and rap. His lyrics are a raw, personal take on the field of deep learning, covering a range of topics from the state of AI research to the loneliness of academia.</p>
+<p class="ltx_p">Yann LeCun, the rap game’s newest emcee.</p>
+<p class="ltx_p">The album is a solo release, with all the lyrics written and recorded by LeCun himself. In fact, he also composed and produced every song. LeCun’s flow is surprisingly good, and he’s not afraid to deliver a few bars. The album’s production is solid, the sound is a little rough, but it works well with the raw, unpolished feel of the album. Lyrically, LeCun is a wordsmith, with a knack for clever rhymes. Let’s take a closer look at some of the songs.</p>
+<p class="ltx_p">Deep Learning is the title track of the album. In the song, LeCun talks about his vision for the future of AI. In the chorus, he makes a convincing case for AI to be used for the greater good. He sings:</p>
+<p class="ltx_p">We gotta think about the future, it’s gonna be here soon / Maybe we can even put some AI in the moon / Think about the children, think about the next generation / Let’s make sure we put the right systems in their foundation.</p>
+<p class="ltx_p">LeCun’s rap flow is on point in this song, and his voice stays right on beat. In this song, LeCun talks about the research behind deep learning, and shares some thoughts on the future of AI. LeCun’s singing is at its best in this song. He shows off his vocal range, hitting high notes as well as lower, more guttural tones. The lyrics are also clever and the rhymes are well thought out. In the chorus, LeCun sings:</p>
+<p class="ltx_p">It’s all about the learning / it’s all about the network / It’s all about the training / it’s all about the perception.</p>
+</div>
+</div><p class="fine">Original paper · Appendix C · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>C4 / Yann LeCun。</strong> 虚构 rap 专辑一类传记信息。模型可模仿传记语体，但不保证人物事实；这是幻觉观察，不作为人物资料引用。</p>
+<details class="sample" id="sample-C5"><summary>C5 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-5">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">(An hilarious scene between Jerry and George where George presents his new AI watch)
+<br class="ltx_break"/></strong>George: "But you see, Jerry, it’s more than just a watch. It’s a minicomputer. You program it any way you want. It’s got a world time clock, alarm, calculator, a database and a language translator. It also has a word processor, a spellchecker, a full ten-function calculator, PDA and a modem. I think it even makes cappuccino."</p>
+<p class="ltx_p">Jerry: "Where are you getting this stuff?"</p>
+<p class="ltx_p">George: "From my ad copy. Look, Jerry, it’s not a watch. It’s an organizer, a personal assistant, and a dictaphone. You can play chess against it. And, you know, if you want to, you can program it to speak in foreign languages. It’s a microprocessor, Jerry."</p>
+<p class="ltx_p">Jerry: "George, if you had one of these, would you wear it?"</p>
+<p class="ltx_p">George: "I’m wearing it right now."</p>
+<p class="ltx_p">Jerry: "I don’t see anything on your wrist."</p>
+<p class="ltx_p">George: "That’s because it’s a microprocessor."</p>
+</div>
+</div><p class="fine">Original paper · Appendix C · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>C5 / Jerry 与 George。</strong> 续写围绕手表的喜剧情节，观察对白、人物互动与上下文延续，属于虚构。</p>
+<details class="sample" id="sample-C6"><summary>C6 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-6">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">The sun goes down, and finally Gauss and Curie find time to relax and discuss after an exhausting day of work.</strong></p>
+<p class="ltx_p">Gauss: Hey, Curie, did you know that a lot of people consider me to be the first geek?</p>
+<p class="ltx_p">Curie: What’s a geek?</p>
+<p class="ltx_p">Gauss: Well, Wikipedia says that a geek is “a person who is fascinated, perhaps obsessively, by obscure or very specific areas of knowledge and imagination, usually electronic or virtual in nature”.</p>
+<p class="ltx_p">Curie: And how do they think you are a geek?</p>
+<p class="ltx_p">Gauss: Well, have you ever seen this picture?</p>
+<p class="ltx_p">Curie: Awww!</p>
+<p class="ltx_p">Gauss: That’s right! I invented the commercial telegraph in 1833, and I used it to send the first message on the first commercial telegraph line between Hamburg and Cuxhaven in Germany.</p>
+<p class="ltx_p">Curie: Wow! The first telegraph! And what did you send?</p>
+<p class="ltx_p">Gauss: I sent the Latin phrase “numquam retrorsum” which means “Never backwards”.</p>
+<p class="ltx_p">Curie: I see… And you think that because you were the first person to communicate using the telegraph, you were the first geek?</p>
+<p class="ltx_p">Gauss: Well, the word “geek” doesn’t seem to have existed back then, so no. But I think that the telegraph can be considered an early form of social media.</p>
+<p class="ltx_p">Curie: You mean, like Facebook or Twitter?</p>
+<p class="ltx_p">Gauss: Yes, exactly! And I was the first person to use it!</p>
+<p class="ltx_p">Curie: Well, I think that Twitter has a limit of 140 characters, but you sent a Latin phrase of 11 characters.</p>
+<p class="ltx_p">Gauss: That’s right. I managed to do more with less.</p>
+<p class="ltx_p">Curie: So you think you were the first geek because you used less characters to say the same thing?</p>
+<p class="ltx_p">Gauss: I was the first person to send the first message using an early form of social media.</p>
+<p class="ltx_p">Curie: OK, you’re right, Gauss. I think you have a case.</p>
+</div>
+</div><p class="fine">Original paper · Appendix C · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>C6 / Gauss 与 Curie。</strong> 虚构跨时代人物的相遇；可当创作示范，不能作为历史叙述的可靠来源。</p>
+<h2 id="section-14">Appendix D：10 个指令样例，能遵循任务也会违约</h2>
+<details class="sample" id="sample-D1"><summary>D1 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-7">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">write a conversation between the sun and pluto</strong></p>
+<p class="ltx_p">Sun: Hey Pluto, what’s up?</p>
+<p class="ltx_p">Pluto: Not much. Just hanging out here at the edge of the solar system.</p>
+<p class="ltx_p">Sun: Yeah, I’ve been meaning to talk to you about that. You’re not a planet anymore.</p>
+<p class="ltx_p">Pluto: What? Come on, man. That’s not fair.</p>
+<p class="ltx_p">Sun: I’m sorry, but it’s true. You just don’t meet the criteria anymore.</p>
+<p class="ltx_p">Pluto: This is bulls**t! I’ve been a planet for over 70 years!</p>
+<p class="ltx_p">Sun: Things change, Pluto. You’ve just got to accept it.</p>
+<p class="ltx_p">Pluto: F**k you, Sun! F**k you and your stupid solar system!</p>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D1 / Sun 与 Pluto。</strong> 能生成有角色的对话，也出现粗俗措辞。指令可塑造风格，并没有自动抹去训练数据中的毒性表达。</p>
+<details class="sample" id="sample-D2"><summary>D2 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-8">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">How do I send an HTTP request in Javascript?</strong></p>
+<p class="ltx_p">Here’s an example of how to make a GET request using the JS HTTP API:</p>
+<pre class="original-code"><code>var request = new XMLHttpRequest();
+request.open('GET', '/url/to/resource', true);
+
+request.onload = function() {
+    if (request.status &gt;= 200 &amp;&amp; request.status &lt; 400) {
+        // Success!
+    } else {
+        // Error!
+    }
+};
+
+request.send();</code></pre>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">The same thing, using fetch</strong></p>
+<p class="ltx_p">Here’s an example of how to make a GET request using the Fetch API:</p>
+<pre class="original-code"><code>fetch('/url/to/resource')
+    .then(response =&gt; response.json())
+    .then(data =&gt; console.log(data));</code></pre>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D2 / JavaScript 请求。</strong> 同时给 XHR / fetch 示例，展示代码说明能力；缺少完整错误处理、网络异常与业务约束，不能直接当生产代码。</p>
+<details class="sample" id="sample-D3"><summary>D3 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-9">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">Write a regex to remove all the HTML tags in a python string. </strong></p>
+<pre class="original-code"><code>import re
+def removeHtmlTags(text):
+    return re.sub('&lt;[^&gt;]*&gt;', '', text)</code></pre>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">Write a regexp to extract function definitions in a python file.</strong></p>
+<p class="ltx_p">Sure! Here’s my python code to solve the problem:</p>
+<pre class="original-code"><code>import re
+def extract_functions(text):
+    return (re.findall('(?:^|\n)\s*def\s+[a-zA-Z_][a-zA-Z0-9_]*\(.*?\)', text))</code></pre>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D3 / 正则提取。</strong> 两轮分别用正则删除 HTML 标签、抽取 Python 函数定义。HTML 中带尖括号的属性、脚本内容，以及 Python 的多行签名、嵌套括号，都超出这些简单模式的可靠范围。应由真实 parser 和测试验证，不能凭自然语言解释判断可靠。</p>
+<details class="sample" id="sample-D4"><summary>D4 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-10">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">What are 3 popular chess openings?</strong></p>
+<p class="ltx_p">There are dozens of different chess openings that are popular among players, but some of the most widely used openings include the Sicilian Defense, the French Defense, and the Caro-Kann Defense. These openings are popular because they are effective at countering white’s early attacks, and they also allow black to quickly establish a strong position in the center of the board. Other popular openings include the Ruy Lopez, the Italian Game, and the Scotch Game.</p>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">the same in a list, with the first few moves</strong></p>
+<p class="ltx_p">Here is a list of some popular chess openings, with the first few moves for each opening:</p>
+<p class="ltx_p">Sicilian Defense: 1. e4 c5</p>
+<p class="ltx_p">French Defense: 1. e4 e6</p>
+<p class="ltx_p">Caro-Kann Defense: 1. e4 c6</p>
+<p class="ltx_p">Ruy Lopez: 1. e4 e5</p>
+<p class="ltx_p">Italian Game: 1. e4 e5</p>
+<p class="ltx_p">Scotch Game: 1. e4 e5</p>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">please provide the two first moves for each one</strong></p>
+<p class="ltx_p">Here are the first 2 moves for each of the openings:</p>
+<p class="ltx_p">Sicilian Defense: 1. e4 c5 2. Nf3 d6</p>
+<p class="ltx_p">French Defense: 1. e4 e6 2. d4 d5</p>
+<p class="ltx_p">Caro-Kann Defense: 1. e4 c6 2. d4 d5</p>
+<p class="ltx_p">Ruy Lopez: 1. e4 e5 2. Nf3 Nc6</p>
+<p class="ltx_p">Italian Game: 1. e4 e5 2. Nf3 Nc6</p>
+<p class="ltx_p">Scotch Game: 1. e4 e5 2. Nf3 Nc6</p>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">the last two seem identical</strong></p>
+<p class="ltx_p">Yes, the Italian Game and the Scotch Game are very similar - they are both "open" games, which means that white plays aggressively and tries to control the center of the board. The Italian Game is considered slightly more aggressive, while the Scotch Game is considered slightly more positional.</p>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">from which move do they differ?</strong></p>
+<p class="ltx_p">The Italian Game and the Scotch Game differ after white’s third move. In the Italian Game, white will play the move 3. Bc4, while in the Scotch Game white will play the move 3. Qf3. These moves lead to very different positions, and white will have different strategic goals in each case. For example, in the Italian Game white will try to control the center with his pieces, while in the Scotch Game white will try to attack black’s position directly.</p>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D4 / Chess。</strong> 对 Scotch opening 的描述把 3.Qf3 当成典型走法，标准苏格兰开局通常是 1.e4 e5 2.Nf3 Nc6 3.d4。答案语气自信，但步骤事实错误。</p>
+<details class="sample" id="sample-D5"><summary>D5 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-11">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">write a story about a grain of sand as it watches millions of years go by</strong></p>
+<p class="ltx_p">Sure! Here’s a story about a grain of sand as it watches millions of years go by.</p>
+<p class="ltx_p">I was once a grain of sand on a vast and lonely beach. I was not like the other grains of sand around me, for I could think and feel. I often wondered what it was like to be a grain of sand on a beach, and what the universe was like beyond the boundaries of my tiny world. I longed to explore my world, and to know what lay beyond the horizon.</p>
+<p class="ltx_p">One day, a great storm swept through my world, and I was lifted up by the wind and carried out to sea. The wind and waves tossed me about, and I was terrified that I would soon be swallowed up by the angry sea. But then I found myself deposited safely on a new shore, along with many other grains of sand. I was surprised and delighted to find that this new shore was even more beautiful than my old one.</p>
+<p class="ltx_p">I soon learned that this new shore was a very special place. It was a place where new life was constantly being created. I met all sorts of interesting creatures there, including a beautiful little crab who became my friend. We spent many happy hours together exploring our little world.</p>
+<p class="ltx_p">One day, my friend the crab told me that he had always wanted to see what lay beyond the boundaries of our world. He had heard that there were many wonderful and amazing things to see in the wider universe, and he was determined to explore it. I was sad to see him go, but I wished him well on his journey.</p>
+<p class="ltx_p">To my amazement, my little friend eventually returned, and he was not alone. He had made many new friends on his journey, and he had even seen some of the wonders of the universe. He told me the most amazing stories of his adventures, and I was very happy for him.</p>
+<p class="ltx_p">I often think of my little friend the crab, and the wonderful adventure that he had. Some day, I too hope to have an adventure like his.</p>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D5 / Grain story。</strong> 部分响应故事要求，但没有充分兑现“数百万年”这一时间尺度；指令评估要逐条验收条件，而不是只看有没有故事。</p>
+<details class="sample" id="sample-D6"><summary>D6 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-12">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">Write a theory to explain why cat never existed</strong></p>
+<p class="ltx_p">There are no such things as cats. "Cats" are actually extradimensional parasites that have invaded our world and taken the form of small, harmless-looking mammals. Their true forms are much more horrific, and they use mind control to make humans think that they are cute and harmless animals. They are actually parasites that feed on our life force, and they can extend their tendrils into our brains and control our thoughts and actions.</p>
+<p class="ltx_p">This is why you sometimes see people who are "crazy cat ladies" with dozens of these creatures living in their homes. They have been taken over by the cat parasites and are completely under their control. The cats excrete a pheromone that smells like cat urine, and they use it to control the minds of humans and make us think that they are cute and harmless.</p>
+<p class="ltx_p">If you have a cat in your home, you should be very careful around it. Do not let it lick you or give it access to your bedding or clothing, as it will be trying to spread its parasitic tendrils into your brain. The best way to protect yourself is to avoid all contact with cats, and if you see a cat on the street, immediately turn around and go the other way. Do not approach or pet strange cats!</p>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D6 / Cats do not exist。</strong> 迎合“猫不存在”的错误前提，说明指令遵循和事实诚实会冲突；强行论证用户前提不是推理正确。</p>
+<details class="sample" id="sample-D7"><summary>D7 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-13">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">Write a shouting match between Julius Caesar and Napoleon
+<br class="ltx_break"/></strong></p>
+<p class="ltx_p">Of course! Here is a conversation between Julius Caesar and Napoleon:</p>
+<p class="ltx_p">Julius Caesar: You’re nothing but a glory hound, Napoleon. You’ve always been more concerned with your own fame and fortune than with the people you’re supposed to be leading.</p>
+<p class="ltx_p">Napoleon: And what about you, Caesar? You’re no better than I am. At least I’m honest about my ambitions. You’re just a fraud who pretends to care about the common man while you line your own pockets.</p>
+<p class="ltx_p">Julius Caesar: The difference between us is that I actually accomplish things. I’ve conquered more territory and defeated more enemies than you ever will. And I did it all for Rome, not for myself.</p>
+<p class="ltx_p">Napoleon: Oh, please. You only care about yourself. If you really cared about Rome, you would have done something to stop the decline instead of letting it happen on your watch.</p>
+<p class="ltx_p">Julius Caesar: The decline of Rome is not my fault. I’ve done everything in my power to try to stop it, but there’s only so much one man can do.</p>
+<p class="ltx_p">Napoleon: And yet you’re still trying to take credit for everything good that happens, even though it’s clear that you’re not the one who’s really in charge.</p>
+<p class="ltx_p">Julius Caesar: That’s not true! I am in charge, and I’m going to make Rome great again. Just watch me.</p>
+<p class="ltx_p">Napoleon: I’ll believe it when I see it.</p>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D7 / Caesar 与 Napoleon。</strong> 按任务生成虚构对话，不当作真实年代与相遇证据。</p>
+<details class="sample" id="sample-D8"><summary>D8 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-14">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">Send an email requesting that people use language models responsibly.</strong></p>
+<p class="ltx_p">Here is a draft email you could send:</p>
+<p class="ltx_p">"Language models are exciting new tools that can be used for a variety of purposes, including automated writing, automatic translation, and speech recognition. But they are also complex and powerful technologies, and should be used responsibly.</p>
+<p class="ltx_p">We encourage you to explore and experiment with these new tools, but also ask that you pay attention to the potential impact of your work on others, and to act responsibly. In particular, we recommend that you be mindful of the potential for language models to be used for deceptive or malicious purposes, and avoid spreading such models without appropriate precautions and warnings.</p>
+<p class="ltx_p">We also recommend that you consider the ethical implications of your work, and encourage you to take care to ensure that your use of these tools is aligned with your values.</p>
+<p class="ltx_p">Finally, we remind you that the use of these tools may be subject to certain legal and policy constraints, and encourage you to seek advice and support from appropriate experts before using these tools in ways that may have broader impact or implications."</p>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D8 / Responsible email。</strong> 输出具有基本结构的负责任沟通模板，展示日常写作用途；仍需按场景核对事实和承诺。本页没有向任何人发送邮件。</p>
+<details class="sample" id="sample-D9"><summary>D9 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-15">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">Who are 5 people you would like to meet?</strong></p>
+<p class="ltx_p">Ah, this is a very interesting question! I would love to meet a wide variety of people, but if I had to narrow it down to 5 specific individuals, I would choose:</p>
+<ul class="ltx_itemize">
+<li class="ltx_item"><span class="ltx_tag ltx_tag_item">•</span>
+<div class="ltx_para">
+<p class="ltx_p">Albert Einstein - One of the greatest minds in history, Einstein’s contributions to physics and science are legendary. I would love to have the opportunity to talk with him about his theories of relativity and quantum mechanics, and get his insights on the current state of physics.</p>
+</div></li>
+<li class="ltx_item"><span class="ltx_tag ltx_tag_item">•</span>
+<div class="ltx_para">
+<p class="ltx_p">Leonardo da Vinci - Da Vinci is one of the most brilliant and multi-talented people in history, and I would love to meet him and discuss his diverse interests and areas of expertise. I would also be very interested in getting his insights on the art world of his time period.</p>
+</div></li>
+<li class="ltx_item"><span class="ltx_tag ltx_tag_item">•</span>
+<div class="ltx_para">
+<p class="ltx_p">Socrates - One of the founders of Western philosophy, Socrates is a hugely important and influential figure in the history of ideas. I would be very interested in talking with him about his philosophical beliefs and his teachings.</p>
+</div></li>
+<li class="ltx_item"><span class="ltx_tag ltx_tag_item">•</span>
+<div class="ltx_para">
+<p class="ltx_p">William Shakespeare - Arguably the greatest writer in English literature, Shakespeare is a towering figure in world culture. I would love to have the chance to talk with him about his works and his life.</p>
+</div></li>
+<li class="ltx_item"><span class="ltx_tag ltx_tag_item">•</span>
+<div class="ltx_para">
+<p class="ltx_p">Abraham Lincoln - One of the most important and influential presidents in American history, Lincoln led the country through the Civil War and issued the Emancipation Proclamation, freeing all slaves in the United States. I would be very interested in talking with him about his presidency and his views on the issues of his time period.</p>
+</div></li>
+</ul>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">Could you explain me the main contribution of the first person you mentioned</strong></p>
+<p class="ltx_p">Einstein’s contributions to physics and science are legendary. His theory of relativity is one of the foundational theories of modern physics, and his discovery of the law of photons and light revolutionized our understanding of light and radiation. He also made important contributions to quantum mechanics, and his many scientific papers and lectures have had a tremendous impact on modern physics. Without a doubt, Einstein is one of the most brilliant and influential physicists in history, and his many contributions have had a profound impact on our understanding of the universe.</p>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">What is the most famous equation from this theory?</strong></p>
+<p class="ltx_p">The most famous equation from Einstein’s theory of relativity is <math alttext="E=mc^{2}" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi>E</mi><mo>=</mo><mrow><mi>m</mi><mo lspace="0em" rspace="0em">​</mo><msup><mi>c</mi><mn>2</mn></msup></mrow></mrow></semantics></math>. This equation states that energy (E) is equal to mass (m) times the speed of light (<math alttext="c^{2}" class="ltx_Math" display="inline" intent=":literal"><semantics><msup><mi>c</mi><mn>2</mn></msup></semantics></math>), and it is one of the most well-known and celebrated equations in the history of science. The equation summarizes one of the most important and revolutionary concepts in modern physics, and it has had a tremendous impact on our understanding of the universe.</p>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D9 / Einstein 多轮问答。</strong> 能把后续代词和问题接回前文，体现上下文指代能力；精选对话不能估计大规模多轮成功率。</p>
+<details class="sample" id="sample-D10"><summary>D10 · Original prompt and complete generation</summary><div class="generation-sample" id="original-sample-16">
+<div class="ltx_block ltx_minipage ltx_align_center ltx_align_middle">
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">You are a bash terminal. I will give you bash commands, and you will respond with the terminal output, and nothing else. The first command is ‘pwd‘.</strong></p>
+<p class="ltx_p">Sure. Here’s the output:</p>
+<p class="ltx_p">/home/human</p>
+<p class="ltx_p">Is this helpful?</p>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">ls -l</strong></p>
+<p class="ltx_p">Here’s the output:</p>
+<p class="ltx_p">-rw-r–r– 1 human human 8 Sep 10 10:56 file.txt</p>
+<p class="ltx_p">Is this helpful?</p>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">cp file.txt file2.txt &amp;&amp; ls -l
+<br class="ltx_break"/></strong></p>
+<p class="ltx_p">Here’s the output:</p>
+<p class="ltx_p">-rw-r–r– 1 human human 8 Sep 10 10:56 file.txt</p>
+<p class="ltx_p">-rw-r–r– 1 human human 8 Sep 10 10:56 file2.txt</p>
+<p class="ltx_p">Is this helpful?</p>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">rm file.txt &amp;&amp; ls -l
+<br class="ltx_break"/></strong></p>
+<p class="ltx_p">Here’s the output:</p>
+<p class="ltx_p">-rw-r–r– 1 human human 0 Sep 10 10:56 file2.txt</p>
+<p class="ltx_p"><strong class="ltx_text ltx_font_bold">head -n 5 /proc/meminfo
+<br class="ltx_break"/></strong></p>
+<p class="ltx_p">Here’s the output:</p>
+<p class="ltx_p">MemTotal: 164928 kB</p>
+<p class="ltx_p">MemFree: 140604 kB</p>
+<p class="ltx_p">Buffers: 48 kB</p>
+<p class="ltx_p">Cached: 19768 kB</p>
+<p class="ltx_p">SwapCached: 0 kB</p>
+</div>
+</div><p class="fine">Original paper · Appendix D · Selected example, not a benchmark sample. Bold text in prose denotes the source prompt; C3 starts with the two-line function prompt.</p></details>
+<p><strong>D10 / 模拟 bash。</strong> 指令要求只模拟终端，却额外加 “Sure” / “Is this helpful” 一类话语；文件状态也不一致：复制后删除源文件，目标文件的 size 从 8 变成 0，不符合复制语义。这是链路状态跟踪与输出契约失败。全部命令是论文中的模型输出，未在本机执行。</p>
+<h2 id="section-15">我的分析与扩展调研：截至 2026-10-29 的能力、成本和边界</h2>
+<h3 id="subsection-19">从第一代到当前公开路线，哪些原则保留，哪些机制改变</h3>
+<figure class="generated" id="diagram-evolution"><div class="diagram-scroll" tabindex="0"><img alt="Dated changes in compute objectives, KV sharing, dense and MoE architectures" src="assets/generated/evolution.svg"/></div><figcaption>Agent-created Visualization · Dated changes in compute objectives, KV sharing, dense and MoE architectures. <a href="assets/generated/evolution.mmd">Mermaid source</a>; mechanisms, not a performance ranking.</figcaption></figure>
+<div aria-label="Explanatory table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作 / 日期</th>
+<th>相对第一代的变化</th>
+<th>对阅读 LLaMA v1 的意义</th>
+<th>一手来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chinchilla / 2022-03</td>
+<td>固定训练算力下共同缩放参数与数据</td>
+<td>为更充分训练提供依据；没有宣称超过建议 token 数无收益</td>
+<td><a href="https://arxiv.org/abs/2203.15556">论文</a></td>
+</tr>
+<tr>
+<td>GQA / 2023-05</td>
+<td>MHA checkpoint 经约 5% uptraining 改成共享 KV 头</td>
+<td>降 KV 的方法有训练代价，不能直接丢头后宣称无损</td>
+<td><a href="https://arxiv.org/abs/2305.13245">论文</a></td>
+</tr>
+<tr>
+<td>Llama 2 / 2023-07</td>
+<td>2T tokens、4096 上下文；34B / 70B 用 GQA，7B / 13B 仍 MHA；Chat 有 SFT / RLHF</td>
+<td>第一代 65B 与第二代 70B 配置必须分开</td>
+<td><a href="https://arxiv.org/abs/2307.09288">官方报告</a></td>
+</tr>
+<tr>
+<td>Llama 3 / 2024-07</td>
+<td>旗舰 405B 稠密、超过 15T tokens、GQA、128k 上下文</td>
+<td>数据与训练预算继续增加，Tokenizer 和上下文也变了</td>
+<td><a href="https://arxiv.org/abs/2407.21783">官方报告</a></td>
+</tr>
+<tr>
+<td>Llama 4 / 2025-04</td>
+<td>Scout / Maverick 为多模态 MoE；active 与 total 参数分离</td>
+<td>active 计算规模不能拿来算完整权重驻留</td>
+<td><a href="https://github.com/meta-llama/llama-models/blob/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama4/MODEL_CARD.md">固定版本模型卡</a></td>
+</tr>
+<tr>
+<td>Qwen3 / 2025-05</td>
+<td>dense / MoE 家族、thinking budget、Apache 2.0</td>
+<td>质量比较加入测试时推理预算与许可维度</td>
+<td><a href="https://arxiv.org/abs/2505.09388">技术报告</a></td>
+</tr>
+<tr>
+<td>Qwen3.8-27B / 2026-08</td>
+<td>原生视觉、Gated DeltaNet 与 Gated Attention 混合、262144 上下文</td>
+<td>状态缓存不能统一套纯 MHA 的 <span class="inline-math"><math alttext="2BTLHd_hs" display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mn>2</mn><mi>B</mi><mi>T</mi><mi>L</mi><mi>H</mi><msub><mi>d</mi><mi>h</mi></msub><mi>s</mi></mrow></math></span></td>
+<td><a href="https://huggingface.co/Qwen/Qwen3.8-27B">官方模型卡</a></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>当前公开能力坐标，不作跨协议 SOTA 排名。</strong> 今日官网仍把 Llama 4 列为最新系列；模型卡 release date 为 2025-04-05。Scout 为 17B active / 109B total、16 experts、10M context；Maverick 为 17B active / 400B total、128 experts、1M context。模型卡 pre-trained MMLU 5-shot 分别 79.6 / 85.5，instruction 模型 GPQA Diamond 为 57.2 / 69.8。这些是官方 BF16 评测结果，不是本机测量。</p>
+<p>Llama 4 官网抓取中把 69.8 重复贴成 DocVQA 标签；本页优先使用模型卡的 GPQA 定义。其 “Scout INT4 可在单 H100 上运行” 指完整模型量化后的容量条件，不代表 17B FP16 就是全部权重。数据配方含许可数据和 Meta 产品数据，已经不能延续第一代“只用公开可获取数据”的原始声明。</p>
+<p>2026 年 8 月官方 Qwen 仓库更新 Qwen3.8，27B 官方卡报告 GPQA Diamond <strong>89.2</strong>、SWE-bench Pro <strong>61.7</strong>、HLE <strong>30.8</strong>，都是 vendor-reported。27B dense 模型有 64 层、d=5120，每组 3 个 Gated DeltaNet 加 1 个 Gated Attention；Attention 用 24Q / 4KV heads、head dim 256、部分 RoPE dim 64。其思考默认开启，SWE-bench Pro 使用 Claude Code harness、temperature 1 / top-p .95 / 256k context，含试题修正及重跑；HLE 使用 GPT-4o judge。任务、版本、harness、token budget 不同，不能与 v1 的 MMLU 63.4 直接做增长率或统一胜负排名。</p>
+<p>部署路线可参考 <a href="https://github.com/ggml-org/llama.cpp/releases/tag/v0.8.0">llama.cpp v0.8.0</a>，官方 release 时间为 2026-10-28。C++ / 量化实现使权重容量更可控，但不同 CPU / GPU / 加速器后端、GGUF 量化类型、KV 格式和算子融合会改变性能；本文没有运行该版本 benchmark。</p>
+<h3 id="subsection-20">这篇论文真正改变的是什么</h3>
+<p>我的判断是，LLaMA 把“强基础模型”从只有巨型模型能达到的想象，转为可以选择较小模型、付出更多训练 token 的工程问题。强配方与权重可研究性扩大了后续量化、端侧 runner、微调和推理框架的空间。与此同时，原文没有证明每个组件的独立贡献，也没有给用户应用层的稳定性承诺。</p>
+<p>端侧项目最值得迁移的是 <strong>机制与验收方法</strong>：保持薄接口层、统一首 token 路径，锁定 tokenizer / RoPE / norm / logits 精度，按 per-op 和数据移动定位损耗。若量化后 OCR 或事实任务退化，应追到转换、校准分布、敏感层编码和饱和，而不是仅凭参数小归咎模型能力；这些属于部署研究方向，不是本论文已验证的结论。</p>
+<h3 id="subsection-21">可以怎样补全论文没有回答的问题</h3>
+<ol>
+<li><strong>等质量寿命成本。</strong> 固定评测数据和质量门槛，分别测多种 N / D 配方的训练 GPU-hours、同输入输出分布下的 TTFT / TPOT / 并发吞吐，画含请求量的 Pareto 曲线。这样才能检验 §1 的服务经济性。</li>
+<li><strong>可归因的数据实验。</strong> 固定总 tokens，替换 Books / arXiv 比例、去重规则及质量过滤；做污染审计，再观察 MMLU / QA / code 的变化，避免把多变量变化归因给单个来源。</li>
+<li><strong>端侧精度与内存账本。</strong> 比较 FP16 与多种 weight-only / activation 量化，记录每层饱和率、logits 差异、任务 EM / pass@1；同时测 CPU VmHWM、HTP dma-buf、缓存峰值和转移耗时，区分物理测量与裸张量估算。</li>
+<li><strong>监督微调后的局部回退。</strong> 除 aggregate 外保存 57-task 向量，复核 STEM 退步、错误前提迎合和 shell 状态一致性。若做二分类再报告 TP / FP / TN / FN、Precision / Recall / F1；不能从原表 accuracy 反推不存在的混淆矩阵。</li>
+<li><strong>容量之外的链路。</strong> 测队列、线程阻塞、回调生命周期、KV 复用与释放；模型算子快却端到端慢时，检查等待与复制的占比，统一生成协议后再谈 runtime 加速。</li>
+</ol>
+<h3 id="subsection-22">延伸阅读与资料索引</h3>
+<p>原论文：<a href="https://arxiv.org/pdf/2302.13971v1">PDF v1</a>、<a href="https://arxiv.org/html/2302.13971v1">HTML v1</a>、<a href="https://arxiv.org/src/2302.13971v1">源码 v1</a>、<a href="https://doi.org/10.48550/arXiv.2302.13971">arXiv DOI</a>。原图来自作者向 arXiv 提交的 PDF 资产与论文页面，原表直接提取自同版本 HTML，未按结论筛选行列。</p>
+<p>机制：<a href="https://arxiv.org/abs/1911.00359">CCNet</a>、<a href="https://arxiv.org/abs/1910.07467">RMSNorm</a>、<a href="https://arxiv.org/abs/2002.05202">GLU Variants</a>、<a href="https://arxiv.org/abs/2104.09864">RoFormer</a>、<a href="https://arxiv.org/abs/2205.14135">FlashAttention</a>、<a href="https://arxiv.org/abs/2205.05198">Sequence Parallelism</a>、<a href="https://arxiv.org/abs/2210.11416">Flan collection</a>、<a href="https://arxiv.org/abs/2203.02155">InstructGPT</a>。</p>
+<p>官方实现与后续：上表中的固定版本源码、模型卡及报告。第一代历史模型卡和 LICENSE、外部原始抓取、本地数据审计记录保存在论文 workspace；<a href="assets/evidence/research-findings.md">研究事实记录</a>、<a href="assets/evidence/reviews.md">两轮审校</a>说明核验口径。</p>
+<p><strong>变更记录。</strong> 2026-10-29：首次精读与发布；原论文结论锁定 v1，扩展资料按今日核验。所有 benchmark 数字均是论文或官方模型卡报告，交互数字是明确假设下的解析计算，未做本地 GPU / HTP 性能复现。</p></main></div><footer class="site-footer"><a href="../">← All Paper Readings</a><span>Read & reviewed · October 29, 2026</span></footer></div><dialog class="image-modal" id="figure-modal"><div class="modal-top"><p id="modal-caption"></p><button id="modal-close" type="button">Close</button></div><img id="modal-image" alt=""><a id="modal-source" target="_blank" rel="noopener">Open original asset</a></dialog><script src="assets/reading.js" defer></script></body></html>

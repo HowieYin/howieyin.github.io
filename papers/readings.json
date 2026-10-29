@@ -41,6 +41,14 @@
       "category": "model-architecture"
     },
     {
+      "slug": "llama",
+      "title": "LLaMA：把训练多花的钱，换成每次推理少花的钱",
+      "metadata": "2023 · Meta AI · arXiv v1 · Read October 29, 2026 · LLM / Training / Inference",
+      "readDate": "2026-10-29",
+      "description": "All 3 original figures, 16 complete tables and 16 appendix samples; historical MHA/RMSNorm/RoPE/SwiGLU code checks, analytical KV and lifetime-cost explorers, per-op costs, experiment audits, and dated follow-up research.",
+      "category": "model-architecture"
+    },
+    {
       "slug": "llama3",
       "title": "Llama 3：从数据、训练系统到多模态接口的完整工程账本",
       "metadata": "2024 · arXiv v3 · Read October 29, 2026 · LLM / Training / Systems / Multimodal",
