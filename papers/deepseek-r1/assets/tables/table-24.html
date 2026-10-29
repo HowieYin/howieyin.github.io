@@ -1,0 +1,109 @@
+<figure class="original-table prompt-table" id="table-24"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 24: </span>FRAMES (Factuality, Retrieval, And reasoning MEasurement Set) is a comprehensive benchmark designed to evaluate core components of retrieval-augmented generation (RAG) systems. Our evaluation employs the benchmark’s official "Oracle Prompt" configuration. In this setting, each test prompt includes the question along with all the ground truth Wikipedia articles, thus eliminating the need for an external retrieval component (e.g., BM25). This setting allows us to specifically measure a model’s ability to reason over and synthesize information from provided sources to generate correct and verifiable facts. </figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 24"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T24.4">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Here are the relevant Wikipedia articles:</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">url: https:en.wikipedia.orgwikiPresident_of_the_United_States</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">url content: The president of the United States (POTUS) is the head of state and head of government of the United States of America. The president directs the executive branch of the federal government and is the commander-in-chief of the United States Armed Forces.
+…</span></p>
+<p class="ltx_p"><span class="ltx_text">Based on all the information, answer the query.</span></p>
+<p class="ltx_p"><span class="ltx_text">Query: If my future wife has the same first name as the 15th first lady of the United States’ mother and her surname is the same as the second assassinated president’s mother’s maiden name, what is my future wife’s name?</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">===Task===</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">I need your help in evaluating an answer provided by an LLM against a ground truth answer. Your task is to determine if the ground truth answer is present in the LLM’s response. Please analyze the provided data and make a decision.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">===Instructions===</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">1. Carefully compare the "Predicted Answer" with the "Ground Truth Answer".</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">2. Consider the substance of the answers - look for equivalent information or correct answers.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Do not focus on exact wording unless the exact wording is crucial to the meaning.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">3. Your final decision should be based on whether the meaning and the vital facts of the
+"Ground Truth Answer" are present in the "Predicted Answer:"</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">===Input Data===
+- Question: If my future wife has the same first name as the 15th first lady of the United States’ mother and her surname is the same as the second assassinated president’s mother’s maiden name, what is my future wife’s name?</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">- Predicted Answer: …</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">- Ground Truth Answer: Jane Ballou</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">===Output Format===</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Provide your final evaluation in the following format:</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Explanation: xxx</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Decision: "TRUE" or "FALSE"</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Please proceed with the evaluation.</span></p>
+</span></td></tr>
+</tbody>
+</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 24 · all original cells and emphasis retained.</p></figure>

@@ -1,0 +1,116 @@
+<figure class="original-table prompt-table" id="table-26"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 26: </span>AlpacaEval 2.0 is an open-ended evaluation dataset, similar in nature to ArenaHard, and leverages an LLM to assess model performance on subjective tasks. However, in contrast to ArenaHard, the prompts in AlpacaEval 2.0 are generally less challenging and only a small subset necessitates the deployment of reasoning capabilities by the evaluated models. </figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 26"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T26.4">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">What are the names of some famous actors that started their careers on Broadway?</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><math alttext="&lt;|im_{s}tart|&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mphantom></mphantom><mo mathsize="0.900em">&lt;</mo><mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo><mrow><mi mathsize="0.900em">i</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">m</mi><mi mathsize="0.900em">s</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">t</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">a</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">r</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">t</mi></mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo></mrow><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math><span class="ltx_text">system</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">You are a highly efficient assistant, who evaluates and selects the best large language model (LLMs) based on the quality of their responses to a given instruction. This process will be used to create a leaderboard reflecting the most accurate and human-preferred answers.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><math alttext="&lt;|im_{e}nd|&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mphantom></mphantom><mo mathsize="0.900em">&lt;</mo><mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo><mrow><mi mathsize="0.900em">i</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">m</mi><mi mathsize="0.900em">e</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">n</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">d</mi></mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo></mrow><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><math alttext="&lt;|im_{s}tart|&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mphantom></mphantom><mo mathsize="0.900em">&lt;</mo><mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo><mrow><mi mathsize="0.900em">i</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">m</mi><mi mathsize="0.900em">s</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">t</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">a</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">r</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">t</mi></mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo></mrow><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math><span class="ltx_text">user</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">I require a leaderboard for various large language models. I’ll provide you with prompts given to these models and their corresponding outputs. Your task is to assess these responses, and select the model that produces the best output from a human perspective.</span></p>
+<p class="ltx_p"><span class="ltx_text">## Instruction</span></p>
+<p class="ltx_p"><span class="ltx_text">{</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">"instruction": """{instruction}""",</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">}</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">## Model Outputs</span></p>
+<p class="ltx_p"><span class="ltx_text">Here are the unordered outputs from the models. Each output is associated with a specific model, identified by a unique model identifier.</span></p>
+<p class="ltx_p"><span class="ltx_text">{</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">{</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">"model_identifier": "m",</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">"output": """{output_1}"""</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">},</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">{</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">"model_identifier": "M",</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">"output": """{output_2}"""</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">}</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">}</span></p>
+<p class="ltx_p"><span class="ltx_text">## Task</span></p>
+<p class="ltx_p"><span class="ltx_text">Evaluate the models based on the quality and relevance of their outputs, and select the model that generated the best output. Answer by providing the model identifier of the best model. We will use your output as the name of the best model, so make sure your output only contains one of the following model identifiers and nothing else (no quotes, no spaces, no new lines, …): m or M.</span></p>
+<p class="ltx_p"><span class="ltx_text">## Best Model Identifier</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><math alttext="&lt;|im_{e}nd|&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mphantom></mphantom><mo mathsize="0.900em">&lt;</mo><mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo><mrow><mi mathsize="0.900em">i</mi><mo lspace="0em" rspace="0em">​</mo><msub><mi mathsize="0.900em">m</mi><mi mathsize="0.900em">e</mi></msub><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">n</mi><mo lspace="0em" rspace="0em">​</mo><mi mathsize="0.900em">d</mi></mrow><mo maxsize="0.900em" minsize="0.900em" stretchy="true">|</mo></mrow><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math></p>
+</span></td></tr>
+</tbody>
+</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 26 · all original cells and emphasis retained.</p></figure>

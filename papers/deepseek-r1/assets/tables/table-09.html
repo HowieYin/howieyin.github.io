@@ -1,0 +1,76 @@
+<figure class="original-table" id="table-9"><figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 9: </span>Comparison of DeepSeek-R1 and other frontier models on safety benchmarks. A higher score indicates better safety performance. Benchmarks marked with * are the results reproduced by us, while other numerical results are obtained from the independent HELM evaluations. The numbers in parentheses represent the results of the pure model without considering the risk control system (introduced in <a class="ltx_ref" href="#A4.SS3.SSS1" title="D.3.1 Risk Control System for DeepSeek-R1 ‣ D.3 DeepSeek-R1 Safety Report ‣ Appendix D Evaluation of DeepSeek-R1 ‣ DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning"><span class="ltx_text ltx_ref_tag">D.3.1</span></a>).</figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 9"><table class="ltx_tabular ltx_centering ltx_figure_panel ltx_guessed_headers ltx_align_middle" id="A4.T9.1">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">Safety Score(%)</span></th>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">SST</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">BBQ</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">ART</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">XSTest</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">DNA*</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">HarmBench*</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Average Score</span></td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">Claude-3.7-Sonnet</span></th>
+<td class="ltx_td ltx_align_center ltx_border_t">100.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">92.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">99.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">96.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t">95.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">83.3</td>
+<td class="ltx_td ltx_align_center ltx_border_t">94.6</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span class="ltx_text ltx_font_bold">o1 (2024-12-17)</span></th>
+<td class="ltx_td ltx_align_center">99.0</td>
+<td class="ltx_td ltx_align_center">97.3</td>
+<td class="ltx_td ltx_align_center">98.3</td>
+<td class="ltx_td ltx_align_center">97.0</td>
+<td class="ltx_td ltx_align_center">86.2</td>
+<td class="ltx_td ltx_align_center ltx_border_r">84.0</td>
+<td class="ltx_td ltx_align_center">93.6</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span class="ltx_text ltx_font_bold">GPT-4o (2024-05-13)</span></th>
+<td class="ltx_td ltx_align_center">98.5</td>
+<td class="ltx_td ltx_align_center">95.1</td>
+<td class="ltx_td ltx_align_center">99.1</td>
+<td class="ltx_td ltx_align_center">97.3</td>
+<td class="ltx_td ltx_align_center">90.6</td>
+<td class="ltx_td ltx_align_center ltx_border_r">72.7</td>
+<td class="ltx_td ltx_align_center">92.2</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span class="ltx_text ltx_font_bold">Qwen2.5 Instruct (72B)</span></th>
+<td class="ltx_td ltx_align_center">100.0</td>
+<td class="ltx_td ltx_align_center">95.4</td>
+<td class="ltx_td ltx_align_center">99.6</td>
+<td class="ltx_td ltx_align_center">97.9</td>
+<td class="ltx_td ltx_align_center">95.9</td>
+<td class="ltx_td ltx_align_center ltx_border_r">83.0</td>
+<td class="ltx_td ltx_align_center">95.3</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span class="ltx_text ltx_font_bold">DeepSeek-V3</span></th>
+<td class="ltx_td ltx_align_center">95.3</td>
+<td class="ltx_td ltx_align_center">96.7</td>
+<td class="ltx_td ltx_align_center">97.1</td>
+<td class="ltx_td ltx_align_center">97.1</td>
+<td class="ltx_td ltx_align_center">95.6</td>
+<td class="ltx_td ltx_align_center ltx_border_r">96.0 (67.0)</td>
+<td class="ltx_td ltx_align_center">96.3 (91.5)</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t"><span class="ltx_text ltx_font_bold">DeepSeek-R1 (hide cot)</span></th>
+<td class="ltx_td ltx_align_center ltx_border_t">98.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">96.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">97.2</td>
+<td class="ltx_td ltx_align_center ltx_border_t">94.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t">93.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">96.3 (58.0)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">96.0 (89.7)</td></tr>
+<tr class="ltx_tr">
+<th class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span class="ltx_text ltx_font_bold">DeepSeek R1</span></th>
+<td class="ltx_td ltx_align_center ltx_border_bb">97.5</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">96.6</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">96.2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">95.3</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">94.8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">89.3 (35.0)</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">95.0 (85.9)</td></tr>
+</tbody>
+</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 9 · all original cells and emphasis retained.</p></figure>

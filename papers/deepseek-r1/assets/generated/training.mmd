@@ -1,0 +1,15 @@
+flowchart TD
+  B["V3-Base<br/>pretrained weights"] --> Z["R1-Zero<br/>direct RL"]
+  Z -. "sample + filter + human/V3 rewrite" .-> C["Cold-start data"]
+  B --> D1["Dev1 · cold SFT"]
+  C -.-> D1
+  D1 --> D2["Dev2 · reasoning RL"]
+  D2 -. "teacher trajectories" .-> R["~600K reasoning + ~200K general"]
+  B --> D3["Dev3 · restart from Base + SFT"]
+  R -.-> D3
+  D3 --> F["R1 · mixed RL"]
+  R -. "SFT only" .-> S["Qwen / Llama distilled students"]
+  classDef weight fill:#1d3247,stroke:#7898b6,color:#e5eff8
+  classDef data fill:#19362f,stroke:#7aab9b,color:#dfede7
+  class B,Z,D1,D2,D3,F,S weight
+  class C,R data

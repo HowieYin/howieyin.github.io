@@ -1,0 +1,67 @@
+<figure class="original-table prompt-table" id="table-25"><figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 25: </span>Arena-Hard is an open-ended evaluation benchmark specifically designed to assess the capabilities of LLMs. It presents models with challenging, novel, and diverse prompts curated from Chatbot Arena, a continuously evolving, crowd-sourced platform. It focuses on measuring model performance in open-ended tasks, with particular emphasis on coding and mathematics-related prompts.
+Given the inherently subjective nature of open-ended tasks, where multiple valid responses may exist, the benchmark necessitates the use of an evaluation model to approximate human judgment effectively. Higher evaluation scores suggest that the model is more likely to be favored by human users in real-world scenarios. </figcaption><div class="table-wrap" tabindex="0" role="region" aria-label="Original Table 25"><table class="ltx_tabular ltx_centering ltx_align_middle" id="A10.T25.4">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">PROMPT</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">To write an SQL query that selects the top 10 rows in a database and joins to 3 different tables based on a field called "code", you would need to know the names of the tables and the specific fields you want to select. Assuming the tables are named "table1", "table2", and "table3", and you want to select all fields from each table, the query would look like this:</span></p>
+<p class="ltx_p"><span class="ltx_text">“‘sql
+SELECT *
+FROM (
+SELECT *
+FROM table1
+LIMIT 10
+) AS t1
+JOIN table2 ON t1.code = table2.code
+JOIN table3 ON t1.code = table3.code;
+“‘</span></p>
+<p class="ltx_p"><span class="ltx_text">This query first selects the top 10 rows from "table1" and then joins "table2" and "table3" based on the "code" field. If you want to select specific fields from each table, you can replace the asterisks (*) with the field names separated by commas.</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text ltx_font_bold">Evaluation</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Please act as an impartial judge and evaluate the quality of the responses provided by two AI assistants to the user prompt displayed below. You will be given assistant A’s answer and assistant B’s answer. Your job is to evaluate which assistant’s answer is better.</span></p>
+<p class="ltx_p"><span class="ltx_text">Begin your evaluation by generating your own answer to the prompt. You must provide your answers before judging any answers.</span></p>
+<p class="ltx_p"><span class="ltx_text">When evaluating the assistants’ answers, compare both assistants’ answers with your answer. You must identify and correct any mistakes or inaccurate information.</span></p>
+<p class="ltx_p"><span class="ltx_text">Then consider if the assistant’s answers are helpful, relevant, and concise. Helpful means the answer correctly responds to the prompt or follows the instructions. Note when user prompt has any ambiguity or more than one interpretation, it is more helpful and appropriate to ask for clarifications or more information from the user than providing an answer based on assumptions. Relevant means all parts of the response closely connect or are appropriate to what is being asked. Concise means the response is clear and not verbose or excessive.</span></p>
+<p class="ltx_p"><span class="ltx_text">Then consider the creativity and novelty of the assistant’s answers when needed. Finally, identify any missing important information in the assistants’ answers that would be beneficial to include when responding to the user prompt.</span></p>
+<p class="ltx_p"><span class="ltx_text">After providing your explanation, you must output only one of the following choices as your final verdict with a label:</span></p>
+<p class="ltx_p"><span class="ltx_text">1. Assistant A is significantly better: [[A</span><math alttext="&gt;&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mo mathsize="0.900em">&gt;</mo><mo lspace="0em">⁣</mo><mo mathsize="0.900em">&gt;</mo></mrow></semantics></math><span class="ltx_text">B]]</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">2. Assistant A is slightly better: [[</span><math alttext="A&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mi mathsize="0.900em">A</mi><mo mathsize="0.900em">&gt;</mo><mphantom></mphantom></mrow></semantics></math><span class="ltx_text">B]]</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">3. Tie, relatively the same: [[A</span><math alttext="=" class="ltx_Math" display="inline" intent=":literal"><semantics><mo mathsize="0.900em">=</mo></semantics></math><span class="ltx_text">B]]</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">4. Assistant B is slightly better: [[B</span><math alttext="&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mo mathsize="0.900em">&gt;</mo></semantics></math><span class="ltx_text">A]]</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">5. Assistant B is significantly better: [[B</span><math alttext="&gt;&gt;" class="ltx_Math" display="inline" intent=":literal"><semantics><mrow><mo mathsize="0.900em">&gt;</mo><mo lspace="0em">⁣</mo><mo mathsize="0.900em">&gt;</mo></mrow></semantics></math><span class="ltx_text">A]]</span></p>
+</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_b">
+<span class="ltx_inline-block ltx_align_top">
+<p class="ltx_p"><span class="ltx_text">Example output: "My final verdict is tie: [[A</span><math alttext="=" class="ltx_Math" display="inline" intent=":literal"><semantics><mo mathsize="0.900em">=</mo></semantics></math><span class="ltx_text">B]]".</span></p>
+</span></td></tr>
+</tbody>
+</table></div><p class="fine">Source: DeepSeek-R1 v2 · Original Table 25 · all original cells and emphasis retained.</p></figure>

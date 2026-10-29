@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "deepseek-r1",
+      "title": "DeepSeek-R1：奖励怎样把预训练能力变成可用的推理",
+      "metadata": "Nature 2025 · arXiv v2 · Read October 29, 2026 · RL / Reasoning / Distillation / Systems",
+      "readDate": "2026-10-29",
+      "description": "All 18 original figures, 32 complete tables, 13 numbered equations and 8 listings; chapter-ordered GRPO and multi-stage training, three interactive explainers, evaluation and safety audits, analytical MLA/latency costs, and dated research through October 29, 2026.",
+      "category": "training-scaling"
+    },
+    {
       "slug": "gpt3",
       "title": "GPT-3：参数规模如何改变上下文学习",
       "metadata": "NeurIPS 2020 · arXiv v4 · Read October 29, 2026 · Training / Scaling / In-Context Learning",
