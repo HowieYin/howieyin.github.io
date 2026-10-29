@@ -1,0 +1,23 @@
+.original-sample{margin:28px 0;border-left:2px solid #425770;padding-left:16px;max-width:100%;min-width:0}
+.original-sample>summary{font:12px/1.8 var(--mono);color:#9fb9d3;cursor:pointer;padding:12px 0}
+.original-sample>figure{margin:12px 0}
+.original-table.qualitative-table table{width:100%;min-width:640px;table-layout:auto}
+.original-table.qualitative-table td,.original-table.qualitative-table th{white-space:normal;min-width:150px;max-width:550px;overflow-wrap:anywhere}
+.original-table.qualitative-table .ltx_inline-block{width:auto!important;display:block}
+.source-paragraph{display:block;margin:8px 0}
+.reading .ltx_border_tt{border-top:3px double #7387a1!important}
+.reading .ltx_border_bb{border-bottom:3px double #7387a1!important}
+.original-table .ltx_align_center{text-align:center}
+.original-table .ltx_align_right{text-align:right}
+.gatt-tokens{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px 0}
+.gatt-tokens>div{padding:16px 12px;border:1px solid #425b74;border-radius:4px;background:#152438;font:12px/1.6 var(--mono)}
+.gatt-tokens b{display:block;font-weight:500}.gatt-tokens span{display:block;font-size:10px;color:#a4b8cd;margin-top:7px}
+.gatt-tokens .loss-off{border-style:dashed;background:#111b2a}
+.gatt-tokens .loss-on{border-color:#a2c4b2;background:#1c3b36;color:#d5eee1}
+.light .original-sample>summary{color:#365b7d}
+.light .gatt-tokens>div{background:#deebf6;color:#274b6c}
+.light .gatt-tokens span{color:#496986}.light .gatt-tokens .loss-off{background:#e8edf3}
+.light .gatt-tokens .loss-on{background:#d3e9df;color:#285242}
+#margin-plot{width:100%;height:auto;display:block;background:#111b29;border:1px solid #293c50;border-radius:4px}
+.reading .original-equation .ltx_eqn_cell math{white-space:nowrap}
+@media(max-width:640px){.gatt-tokens{grid-template-columns:repeat(2,minmax(0,1fr))}.gatt-tokens>div{padding:12px 9px}.original-sample{padding-left:10px}.reading figure img{max-height:none}}

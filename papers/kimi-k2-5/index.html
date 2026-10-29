@@ -1,0 +1,2105 @@
+<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light">
+<title>Kimi K2.5：让视觉进入训练，让并行进入策略 — Paper Readings · Howie Yin</title><meta name="description" content="Kimi K2.5 v2逐章精读：12张原图、6张完整表、5个显示公式；联合训练、Zero-Vision SFT、PARL、MoonViT-3D张量与MLA缓存、DEP、评测协议与2026-10-29扩展研究。">
+<link rel="canonical" href="https://howieyin.github.io/papers/kimi-k2-5/"><meta property="og:title" content="Kimi K2.5：让视觉进入训练，让并行进入策略"><meta property="og:description" content="Kimi K2.5 v2逐章精读：12张原图、6张完整表、5个显示公式；联合训练、Zero-Vision SFT、PARL、MoonViT-3D张量与MLA缓存、DEP、评测协议与2026-10-29扩展研究。"><meta property="og:type" content="article"><meta property="og:image" content="https://howieyin.github.io/papers/kimi-k2-5/assets/original/fig-01-k25-main-result.png">
+<link rel="icon" href="../../assets/favicon.svg"><link rel="stylesheet" href="../../styles.css?v=3"><link rel="stylesheet" href="assets/reading.css"></head>
+<body><a class="skip-link" href="#main">Skip to content</a><div class="page reading-page">
+<header class="site-header"><a class="wordmark" href="../../"><span class="brand-mark" aria-hidden="true"></span>howieyin</a><nav aria-label="Main navigation"><a href="../../weekly/">Weekly</a><a href="../../foundations/">Foundations</a><a href="../../lab/">Lab</a><a href="../" aria-current="page">Paper Readings</a><a href="../../#about">About</a></nav></header>
+<div class="page-tools"><span>12 FIGURES · 6 TABLES · 5 EQUATIONS · ARXIV V2</span><button type="button" id="theme-toggle">Light mode</button></div>
+<div class="reading-layout"><aside class="toc"><details id="contents" open><summary>Contents</summary><ol><li><a href="#section-1">Paper Metadata</a></li><li><a href="#section-2">Abstract / TL;DR：能力迁移与任务调度的两条主线</a></li><li><a href="#section-3">1. Introduction：从“看懂”走向“用视觉完成任务”</a></li><li><a href="#section-4">2. Joint Optimization of Text and Vision：联合优化在哪里发生</a></li><li><a href="#section-5">3. Agent Swarm：并行策略、上下文分片与训练信用分配</a></li><li><a href="#section-6">4. Method Overview：从像素、token 到分布式训练</a></li><li><a href="#section-7">5. Evaluations：完整结果与预算对齐</a></li><li><a href="#section-8">6. Conclusions：论文支持的结论</a></li><li><a href="#section-9">Appendix A–B：贡献者与预训练补充</a></li><li><a href="#section-10">Appendix C：训练基础设施的每一项成本</a></li><li><a href="#section-11">Appendix D：Unified Agentic RL Environment</a></li><li><a href="#section-12">Appendix E：逐项核对评测协议</a></li><li><a href="#section-13">Appendix F：定性案例说明了什么</a></li><li><a href="#section-14">Interpretation：工程判断、复现计划与未解决问题</a></li><li><a href="#section-15">External：技术演进与截至 2026-10-29 的状态</a></li><li><a href="#section-16">References &amp; Source Audit</a></li></ol></details></aside>
+<main id="main" class="reading"><h1>Kimi K2.5：让视觉进入训练，让并行进入策略</h1>
+<p>Kimi K2.5: Visual Agentic Intelligence · Kimi Team / Moonshot AI</p>
+<p><strong>一句话。</strong>这篇技术报告把视觉理解、工具操作与任务分解连接成一条训练链路：早期联合预训练形成跨模态基础，文本 SFT 激活工具行为，视觉 RL 强化结果正确性，PARL 则训练主智能体把复杂任务分给独立上下文中的执行者。</p>
+<p>适合已经了解 Transformer、MoE 与工具调用的读者。阅读目标是重构训练和执行链路，并能区分能力得分、关键路径与实际资源成本；不要求已有 K2.5 部署环境。</p>
+<h2 id="section-1">Paper Metadata</h2>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>核实结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原标题 / 作者</td>
+<td>Kimi K2.5: Visual Agentic Intelligence · Kimi Team；完整贡献者见原文 Appendix A</td>
+</tr>
+<tr>
+<td>机构 / Venue</td>
+<td>Moonshot AI · Technical report / arXiv preprint</td>
+</tr>
+<tr>
+<td>指定版本</td>
+<td>arXiv:2602.02276v2，2026-08-07；v1 为 2026-02-02；31 页</td>
+</tr>
+<tr>
+<td>DOI</td>
+<td><a href="https://doi.org/10.48550/arXiv.2602.02276">10.48550/arXiv.2602.02276</a></td>
+</tr>
+<tr>
+<td>原文</td>
+<td><a href="https://arxiv.org/pdf/2602.02276v2">指定 v2 PDF</a> · <a href="https://arxiv.org/html/2602.02276v2">v2 HTML</a> · <a href="https://arxiv.org/abs/2602.02276">arXiv</a></td>
+</tr>
+<tr>
+<td>代码 / 权重</td>
+<td><a href="https://github.com/MoonshotAI/Kimi-K2.5">官方 GitHub</a> · <a href="https://huggingface.co/moonshotai/Kimi-K2.5">Hugging Face</a></td>
+</tr>
+<tr>
+<td>官方说明</td>
+<td><a href="https://www.kimi.com/en/blog/kimi-k2-5">发布介绍</a> · <a href="https://www.kimi.com/en/blog/agent-swarm">Agent Swarm</a></td>
+</tr>
+<tr>
+<td>阅读 / 更新</td>
+<td>2026-10-29；公开配置固定到 HF revision <code>4d01dfe0332d63057c186e0b262165819efb6611</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>本文按 Abstract → §1–6 → Appendix A–F 的顺序解读，再给出独立工程判断与扩展调研。<strong>Paper</strong> 为原文事实，<strong>Interpretation</strong> 为重构与计算，<strong>External</strong> 为其他论文或官方资料。本文所有模型质量、训练效率与加速数字均来自作者报告；未开展本地训练、GPU 性能或端侧复现。原图保持原貌，caption 在图片外可复制；完整表格保留合并单元格、强调及脚注。解释图和交互计算均单独标记。</p>
+<h2 id="section-2">Abstract / TL;DR：能力迁移与任务调度的两条主线</h2>
+<p><strong>一段话。</strong>传统多模态系统常先训练语言模型，再接视觉编码器并用视觉指令数据补齐行为。K2.5 从 K2 后期 checkpoint 继续大规模视觉—文本联合训练，使图像信息和文本知识持续相互作用。首次后训练 SFT 只使用文本，仍能把 Python 等工具使用迁移到图像任务；后续视觉 outcome RL 又同时提升部分语言基准。面对一个上下文难以容纳的大型研究任务，模型通过 PARL 学习创建角色、分配任务、等待子智能体并汇总结果。其收益既包含并行缩短关键路径，也包含独立上下文增加有效信息容量；两者的总体算力成本不能从“快 3–4.5 倍”直接推断。</p>
+<p>五个关键点：</p>
+<ol>
+<li><strong>视觉融合发生在训练链路前部。</strong>固定最终视觉与文本预算的调度比较中，early fusion 六项里五项更好，但 timing 与 ratio 同时变化，不能认定 10% 视觉比例普适最优。</li>
+<li><strong>Zero-Vision SFT 是一个阶段定义。</strong>表示首次 SFT 没有视觉指令样本，预训练已包含图像及 GUI 轨迹，后续也有视觉 RL；不能解读为模型训练从未使用视觉行为数据。</li>
+<li><strong>Swarm 学的是主智能体调度。</strong>orchestrator 可训练，执行者在该阶段冻结；一百个 agent 是一百条执行上下文，不是一百个 MoE 专家或一百份必须常驻的 checkpoint。</li>
+<li><strong>质量提升依赖比较口径。</strong>BrowseComp 60.6 → 78.4 是 +17.8 个百分点，换成带上下文管理的单智能体 74.9，剩下 +3.5 个百分点。</li>
+<li><strong>长视频与多智能体需要资源账单。</strong>四帧时间池化压缩 LLM 输入，但 ViT 仍处理原始帧；MLA 降低每 token KV，多个并发上下文仍会累加显存。</li>
+</ol>
+<h2 id="section-3">1. Introduction：从“看懂”走向“用视觉完成任务”</h2>
+<p><strong>Paper · 问题。</strong>真实视觉工作不仅是回答图像问题，还涉及截图理解、文档提取、图像上的代码计算、长视频分析和界面操作。孤立的视觉问答训练难以覆盖整条工具执行链路；单智能体串行处理大量信息，还受到上下文与工具延迟限制。</p>
+<p><strong>既有做法与作者观察。</strong>晚接视觉、再增加多模态 SFT 是一种常见路线。作者发现，把视觉较早加入持续预训练后，文本工具能力可以迁移到视觉输入；视觉推理的 RL 也可能反哺语言推理。另一条观察是：复杂任务可拆成部分独立的查找、验证与总结任务，因此推理时算力不必只沿一条思考轨迹增加。</p>
+<figure class="original" id="figure-1"><img alt="Figure 1: Kimi K2.5 main results." loading="lazy" src="assets/original/fig-01-k25-main-result.png"/><figcaption>Figure 1: Kimi K2.5 main results.<br/>Source: Original paper · Figure 1 · <a href="https://arxiv.org/html/2602.02276v2/figures/k25-main-result.png">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 1 如何读。</strong>按各 benchmark 分组查看同一任务内的条形高度，再回到 Table 4 找协议与完整基线。它是选取结果的总览，展示视觉、语言与 agent 能力覆盖面，不能把不同任务的百分数混成一个统一能力分数。</p>
+<p><strong>关键观察与边界。</strong>K2.5 在部分视觉和搜索任务突出，但 GPQA 87.6 低于 GPT-5.2 92.4，OSWorld 63.3 低于 Claude 66.3。论文支持“广泛竞争力与若干显著提升”，不支持全部任务、全部成本条件下领先。</p>
+<p><strong>Interpretation · 为什么值得读。</strong>它把三种不同层次的选择放在一起：模型结构选择如何编码视觉，训练选择如何迁移行为，推理策略选择如何分配上下文与并发。若只看榜单，就看不到真实部署中这些选择如何改变 TTFT、单步生成成本和任务完成时间。</p>
+<h2 id="section-4">2. Joint Optimization of Text and Vision：联合优化在哪里发生</h2>
+<h3 id="subsection-1">2.1 Native Multimodal Pre-Training：early fusion 的证据与混杂因素</h3>
+<p><strong>What / Why。</strong>在最终视觉、文本 token 预算固定的条件下，作者比较视觉注入时间不同的三种训练 schedule。早加入视觉，可以让跨模态表征在更长的训练过程中共同演化，减少晚期突变对已形成语言能力的扰动。</p>
+<figure class="original-table" id="table-1"><figcaption>Table 1: Performance comparison across different vision-text joint-training strategies. Early fusion with a lower vision ratio yields better results given a fixed total vision-text token budget.<br/>Source: Original paper · Table 1. Author-emphasized values are preserved; “SOTA” in the caption is the paper’s dated claim.</figcaption><div aria-label="Original Table 1" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T1.2">
+<tr class="ltx_tr" id="S2.T1.2.1">
+<td class="ltx_td ltx_border_tt" id="S2.T1.2.1.1"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T1.2.1.2">
+<span class="ltx_inline-block" id="S2.T1.2.1.2.1">
+<span class="ltx_p" id="S2.T1.2.1.2.1.1">Vision Injection</span>
+<span class="ltx_p" id="S2.T1.2.1.2.1.2">Timing</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt" id="S2.T1.2.1.3">
+<span class="ltx_inline-block" id="S2.T1.2.1.3.1">
+<span class="ltx_p" id="S2.T1.2.1.3.1.1">Vision-Text</span>
+<span class="ltx_p" id="S2.T1.2.1.3.1.2">Ratio</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T1.2.1.4">
+<span class="ltx_inline-block" id="S2.T1.2.1.4.1">
+<span class="ltx_p" id="S2.T1.2.1.4.1.1">Vision</span>
+<span class="ltx_p" id="S2.T1.2.1.4.1.2">Knowledge</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T1.2.1.5">
+<span class="ltx_inline-block" id="S2.T1.2.1.5.1">
+<span class="ltx_p" id="S2.T1.2.1.5.1.1">Vision</span>
+<span class="ltx_p" id="S2.T1.2.1.5.1.2">Reasoning</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T1.2.1.6">
+<span class="ltx_inline-block" id="S2.T1.2.1.6.1">
+<span class="ltx_p" id="S2.T1.2.1.6.1.1">OCR</span>
+<span class="ltx_p" id="S2.T1.2.1.6.1.2"></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T1.2.1.7">
+<span class="ltx_inline-block" id="S2.T1.2.1.7.1">
+<span class="ltx_p" id="S2.T1.2.1.7.1.1">Text</span>
+<span class="ltx_p" id="S2.T1.2.1.7.1.2">Knowledge</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T1.2.1.8">
+<span class="ltx_inline-block" id="S2.T1.2.1.8.1">
+<span class="ltx_p" id="S2.T1.2.1.8.1.1">Text</span>
+<span class="ltx_p" id="S2.T1.2.1.8.1.2">Reasoning</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T1.2.1.9">
+<span class="ltx_inline-block" id="S2.T1.2.1.9.1">
+<span class="ltx_p" id="S2.T1.2.1.9.1.1">Code</span>
+<span class="ltx_p" id="S2.T1.2.1.9.1.2"></span>
+</span></td></tr>
+<tr class="ltx_tr" id="S2.T1.2.2">
+<td class="ltx_td ltx_align_left ltx_border_t" id="S2.T1.2.2.1">Early</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T1.2.2.2">0%</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S2.T1.2.2.3">10%:90%</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T1.2.2.4"><span class="ltx_text ltx_font_bold" id="S2.T1.2.2.4.1">25.8</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T1.2.2.5"><span class="ltx_text ltx_font_bold" id="S2.T1.2.2.5.1">43.8</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T1.2.2.6"><span class="ltx_text ltx_font_bold" id="S2.T1.2.2.6.1">65.7</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T1.2.2.7"><span class="ltx_text ltx_font_bold" id="S2.T1.2.2.7.1">45.5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T1.2.2.8">58.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T1.2.2.9"><span class="ltx_text ltx_font_bold" id="S2.T1.2.2.9.1">24.8</span></td></tr>
+<tr class="ltx_tr" id="S2.T1.2.3">
+<td class="ltx_td ltx_align_left" id="S2.T1.2.3.1">Mid</td>
+<td class="ltx_td ltx_align_center" id="S2.T1.2.3.2">50%</td>
+<td class="ltx_td ltx_align_center ltx_border_r" id="S2.T1.2.3.3">20%:80%</td>
+<td class="ltx_td ltx_align_center" id="S2.T1.2.3.4">25.0</td>
+<td class="ltx_td ltx_align_center" id="S2.T1.2.3.5">40.7</td>
+<td class="ltx_td ltx_align_center" id="S2.T1.2.3.6">64.1</td>
+<td class="ltx_td ltx_align_center" id="S2.T1.2.3.7">43.9</td>
+<td class="ltx_td ltx_align_center" id="S2.T1.2.3.8"><span class="ltx_text ltx_font_bold" id="S2.T1.2.3.8.1">58.6</span></td>
+<td class="ltx_td ltx_align_center" id="S2.T1.2.3.9">24.0</td></tr>
+<tr class="ltx_tr" id="S2.T1.2.4">
+<td class="ltx_td ltx_align_left ltx_border_bb" id="S2.T1.2.4.1">Late</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T1.2.4.2">80%</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r" id="S2.T1.2.4.3">50%:50%</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T1.2.4.4">24.2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T1.2.4.5">39.0</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T1.2.4.6">61.5</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T1.2.4.7">43.1</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T1.2.4.8">57.8</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T1.2.4.9">24.0</td></tr>
+</table></div></figure>
+<p><strong>How to read。</strong>Early 在 0% 进度注入，vision:text 为 10:90；Mid 在 50% 注入，20:80；Late 在 80% 注入，50:50。六列是内部能力评测得分，越高越好；表内没有给出每个聚合能力完整数据集定义与方差，不能与 Table 4 的公开 benchmark 直接等同。</p>
+<p><strong>重新算收益。</strong>Early 相对 Late，视觉知识 +1.6、视觉推理 +4.8、OCR +4.2、文本知识 +2.4、文本推理 +0.7、代码 +0.8 分。视觉推理相对提升 4.8/39.0 = 12.31%；但 Early 文本推理 58.5 比 Mid 的 58.6 低 0.1 分。</p>
+<p><strong>Caveat。</strong>注入时间和训练期内模态比例一起改变。因此能比较整个 schedule，不能单独归因“早注入”或“较低比例”。也没有置信区间证明 0.1 分差异有统计意义。最终大模型采用从 K2 near-end checkpoint 继续联合训练，不能把小规模 schedule 消融理解成 K2.5 从随机初始化就以固定 10:90 训练。</p>
+<h3 id="subsection-2">2.2 Zero-Vision SFT：文本工具行为为什么能够迁移</h3>
+<p><strong>Paper。</strong>首次后训练只用文本 SFT，包含推理、代码和工具交互行为。此时模型已通过联合预训练学会把视觉编码映射到语言空间，因此在图像任务中能调用 IPython 做裁切、计算或视觉验证。作者报告加入视觉 SFT 的初步尝试反而较差，并推测可能与视觉指令数据质量不足有关。</p>
+<p><strong>重构数据流。</strong>图像 → 视觉编码 / projector → 语言 hidden；用户问题 → 生成工具调用 → 环境执行 → 工具结果加入上下文 → 模型继续推理 → 输出答案。text-only SFT 主要教会后半段的行为格式与工具策略，前半段对齐由预训练提供。迁移不是“图像 token 变成文本字符”，而是共享 backbone 接收不同来源的 embedding 后，使用已经学会的 action vocabulary。</p>
+<p><strong>证据边界。</strong>没有完整、等 token、等训练计算的 text-only 对 text+vision SFT 数值消融，无法证明视觉 SFT 一般有害。Appendix B 的预训练数据明确含人工 GUI 轨迹；后续视觉 RL 与 rejection fine-tuning 又产生视觉轨迹。零视觉只限定这个 SFT 阶段。</p>
+<figure class="generated" id="training-flow"><img alt="共享表征、行为迁移与可学习分工" src="assets/generated/training-flow.svg"/><figcaption>Agent-created Visualization · 共享表征、行为迁移与可学习分工。<a href="assets/generated/training-flow.mmd">Mermaid source</a>。解释性简化图，不替代原论文图。</figcaption></figure>
+<p><strong>解释图如何读。</strong>上半部分形成共享视觉—语言表示，下半部分激活工具与结果导向行为。PARL 是另一个训练目标：学习任务调度。图中的冻结执行者表示该阶段不更新其参数，并不表示它从来没有训练。</p>
+<h3 id="subsection-3">2.3 Joint Multimodal RL：用可验证结果约束视觉推理</h3>
+<p><strong>Paper · How。</strong>视觉 outcome RL 覆盖 grounding / counting、图表与文档理解，以及必须观察图像才能解答的 STEM 问题。成功轨迹经过 rejection sampling，再用于 fine-tuning，形成自我改进链路。任务设计试图阻止模型仅凭语言先验猜答案。</p>
+<p>联合 RL 按知识、推理、代码、agent 等能力域组织训练，同时接收纯文本与多模态问题；并非把 text / vision 划为互不交互的专家。GRM 也评估跨模态轨迹。这是训练域的组织方式，不等于 backbone 的 MoE router 按这些能力标签固定分配专家。</p>
+<figure class="original" id="figure-2"><img alt="Figure 2: Vision RL training curves on vision benchmarks starting from minimal zero-vision SFT. By scaling vision RL FLOPs, the performance continues to improve, demonstrating that zero-vision activation paired with long-running RL is sufficient for acquiring robust visual capabilities." loading="lazy" src="assets/original/fig-02-k25_visionzerorl_curves.svg"/><figcaption>Figure 2: Vision RL training curves on vision benchmarks starting from minimal zero-vision SFT. By scaling vision RL FLOPs, the performance continues to improve, demonstrating that zero-vision activation paired with long-running RL is sufficient for acquiring robust visual capabilities.<br/>Source: Original paper · Figure 2 · <a href="https://arxiv.org/html/2602.02276v2/k25_visionzerorl_curves.svg">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 2 阅读顺序。</strong>按 MMMU-Pro、MathVision、MathVista 三条曲线分别看 RL 扩展后的趋势。起点对应最小 zero-vision SFT；纵轴是任务得分，横轴表达增加视觉 RL 计算。三项持续改善支持“无需先用大量视觉 SFT，也能沿 RL 链路获得视觉能力”。</p>
+<p><strong>边界。</strong>横轴没有可换算的绝对 FLOPs、GPU-hours 或美元；不能量化每单位投资收益，也无法仅从曲线证明“只需要这两个阶段”对任意视觉任务都充分。</p>
+<figure class="original-table" id="table-2"><figcaption>Table 2: Cross-Modal Transfer: Vision RL Improves Textual Knowledge<br/>Source: Original paper · Table 2. Author-emphasized values are preserved; “SOTA” in the caption is the paper’s dated claim.</figcaption><div aria-label="Original Table 2" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S2.T2.2">
+<tr class="ltx_tr" id="S2.T2.2.1">
+<td class="ltx_td ltx_align_left ltx_border_tt" id="S2.T2.2.1.1"><span class="ltx_text ltx_font_bold" id="S2.T2.2.1.1.1">Benchmark</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T2.2.1.2"><span class="ltx_text ltx_font_bold" id="S2.T2.2.1.2.1">Before Vision-RL</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T2.2.1.3"><span class="ltx_text ltx_font_bold" id="S2.T2.2.1.3.1">After Vision-RL</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S2.T2.2.1.4"><span class="ltx_text ltx_font_bold" id="S2.T2.2.1.4.1">Improvement</span></td></tr>
+<tr class="ltx_tr" id="S2.T2.2.2">
+<td class="ltx_td ltx_align_left ltx_border_t" id="S2.T2.2.2.1">MMLU-Pro</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T2.2.2.2">84.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T2.2.2.3">86.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S2.T2.2.2.4">+1.7</td></tr>
+<tr class="ltx_tr" id="S2.T2.2.3">
+<td class="ltx_td ltx_align_left" id="S2.T2.2.3.1">GPQA-Diamond</td>
+<td class="ltx_td ltx_align_center" id="S2.T2.2.3.2">84.3</td>
+<td class="ltx_td ltx_align_center" id="S2.T2.2.3.3">86.4</td>
+<td class="ltx_td ltx_align_center" id="S2.T2.2.3.4">+2.1</td></tr>
+<tr class="ltx_tr" id="S2.T2.2.4">
+<td class="ltx_td ltx_align_left ltx_border_bb" id="S2.T2.2.4.1">LongBench v2</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T2.2.4.2">56.7</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T2.2.4.3">58.9</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S2.T2.2.4.4">+2.2</td></tr>
+</table></div></figure>
+<p><strong>跨模态迁移证据。</strong>视觉 RL 前后，MMLU-Pro +1.7pp（相对 2.01%），GPQA +2.1pp（2.49%），LongBench v2 +2.2pp（3.88%）。这些是同一训练链路上的三个语言指标，支持观察到的正迁移。它们不同于 Table 4 最终模型 87.1 / 87.6 / 61.0，不应混用 checkpoint。</p>
+<p><strong>缺少什么。</strong>若要证明增益来自视觉而非额外 RL 计算，需要等 FLOPs 的纯文本 RL 控制组，以及多个训练 seed、更多语言任务和遗忘测试。“三项未下降”不能推出所有语言能力均不退化。</p>
+<h2 id="section-5">3. Agent Swarm：并行策略、上下文分片与训练信用分配</h2>
+<h3 id="subsection-4">训练对象与执行链路</h3>
+<figure class="original" id="figure-3"><img alt="Figure 3: An agent swarm has a trainable orchestrator that dynamically creates specialized frozen subagents and decomposes complex tasks into parallelizable subtasks for efficient distributed execution." loading="lazy" src="assets/original/fig-03-multi-agent-rl-system.png"/><figcaption>Figure 3: An agent swarm has a trainable orchestrator that dynamically creates specialized frozen subagents and decomposes complex tasks into parallelizable subtasks for efficient distributed execution.<br/>Source: Original paper · Figure 3 · <a href="https://arxiv.org/html/2602.02276v2/figures/multi-agent-rl-system.png">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 3 模块与箭头。</strong>主智能体接收任务，定义不同角色的 subagent，把子任务分发到各自上下文；执行者调用工具并返回消息；主智能体根据返回结果继续分解或汇总。训练信号回到 orchestrator，subagent 参数冻结。</p>
+<p><strong>Why。</strong>如果调度者和执行者一起变化，失败可能来自不合理分工，也可能来自执行能力不足，难以给调度策略分配信用。固定执行者使训练环境相对稳定；作者先使用较小执行者训练，随后换更强执行者。这不是全体 agent 端到端共同更新。</p>
+<p><strong>接口重构。</strong><code>create_subagent(name, system_prompt)</code> 创建可复用的角色配置；<code>assign_task(agent, prompt)</code> 启动一次工作并返回消息。角色名是 prompt 层的专业化，没有新增模型专家权重。独立上下文既能隔离任务，也会使最终汇总仅看到执行者回传的信息；遗漏、错误引用和冲突事实需要额外验证。</p>
+<h3 id="subsection-5">PARL reward：先鼓励探索，再回到任务结果</h3>
+<div class="equation" id="equation-1"><span class="equation-label">§3 PARL reward</span><math alttext="\displaystyle r_{\mathrm{PARL}}(x,y)=\lambda_{1}\cdot\mspace{-26mu}\underbrace{r_{\text{parallel}}}_{\text{instantiation reward}}\mspace{-9mu}+\mspace{18mu}\lambda_{2}\cdot\mspace{-32mu}\underbrace{r_{\text{finish}}}_{\text{sub-agent finish rate}}+\underbrace{r_{\text{perf}}(x,y)}_{\text{task-level outcome}}\,." class="ltx_Math" display="inline" id="S3.Ex1.m1" intent=":literal"><semantics><mrow><mrow><mrow><mrow><msub><mi>r</mi><mi>PARL</mi></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mrow><msub><mi>λ</mi><mn>1</mn></msub><mpadded style="width:0em;" width="0em"><mo lspace="0.222em">⋅</mo></mpadded><munder><munder accentunder="true"><msub><mi>r</mi><mtext>parallel</mtext></msub><mo stretchy="true">⏟</mo></munder><mtext>instantiation reward</mtext></munder></mrow><mo>+</mo></mrow></mrow><mspace style="width:1em;" width="1em"></mspace><mrow><mrow><msub><mi>λ</mi><mn>2</mn></msub><mpadded style="width:0em;" width="0em"><mo lspace="0.222em">⋅</mo></mpadded><munder><munder accentunder="true"><msub><mi>r</mi><mtext>finish</mtext></msub><mo stretchy="true">⏟</mo></munder><mtext>sub-agent finish rate</mtext></munder></mrow><mo>+</mo><munder><munder accentunder="true"><mrow><msub><mi>r</mi><mtext>perf</mtext></msub><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo></mrow></mrow><mo stretchy="true">⏟</mo></munder><mtext>task-level outcome</mtext></munder></mrow></mrow><mo lspace="0em">.</mo></mrow><annotation encoding="application/x-tex">\displaystyle r_{\mathrm{PARL}}(x,y)=\lambda_{1}\cdot\mspace{-26mu}\underbrace{r_{\text{parallel}}}_{\text{instantiation reward}}\mspace{-9mu}+\mspace{18mu}\lambda_{2}\cdot\mspace{-32mu}\underbrace{r_{\text{finish}}}_{\text{sub-agent finish rate}}+\underbrace{r_{\text{perf}}(x,y)}_{\text{task-level outcome}}\,.</annotation></semantics></math><details class="latex-source"><summary>LaTeX source</summary><code>\displaystyle r_{\mathrm{PARL}}(x,y)=\lambda_{1}\cdot\mspace{-26mu}\underbrace{r_{\text{parallel}}}_{\text{instantiation reward}}\mspace{-9mu}+\mspace{18mu}\lambda_{2}\cdot\mspace{-32mu}\underbrace{r_{\text{finish}}}_{\text{sub-agent finish rate}}+\underbrace{r_{\text{perf}}(x,y)}_{\text{task-level outcome}}\,.</code></details><button class="copy-button" type="button">Copy</button></div>
+<p><strong>符号与形状。</strong>输入任务 x、整条调度轨迹 y；三种 reward 和 λ₁、λ₂ 都是标量，批量 rollout 可以组成 <code>[K]</code>。<code>r_parallel</code> 奖励实例化，帮助模型探索分工；<code>r_finish</code> 奖励执行者完成，抑制只创建不干活；<code>r_perf(x,y)</code> 衡量最终任务质量。辅助系数逐步退火到零，后期主要优化结果。</p>
+<p><strong>直觉。</strong>只奖励准确率时，早期探索难成功，模型容易回到单智能体；只奖励 agent 数量则会无意义生成角色。加入完成率能约束前者，但仍不能证明彻底避免 reward hacking。论文未给出辅助 reward 具体标度、完整退火 schedule 和所有任务的结果评分器实现。</p>
+<p><strong>教学例。</strong>若假设三项分别为 0.5、0.8、0.7，λ₁=λ₂=0.1，则总 reward 为 0.83；当辅助 λ 退火到 0，变成 0.7。这个例子只演示加权机制，不是论文某条真实轨迹。轨迹生成与评分成本还取决于工具调用量，reward 加法本身 O(1) 并不代表训练便宜。</p>
+<h3 id="subsection-6">CriticalSteps：关键路径比总工作量短</h3>
+<div class="equation" id="equation-2"><span class="equation-label">§3 CriticalSteps</span><math alttext="\displaystyle\text{CriticalSteps}=\sum_{t=1}^{T}\left(S_{\mathrm{main}}^{(t)}+\max_{i}S_{\mathrm{sub},i}^{(t)}\right)." class="ltx_Math" display="inline" id="S3.Ex2.m1" intent=":literal"><semantics><mrow><mrow><mtext>CriticalSteps</mtext><mo>=</mo><mrow><mstyle displaystyle="true"><munderover><mo movablelimits="false">∑</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mi>T</mi></munderover></mstyle><mrow><mo>(</mo><mrow><msubsup><mi>S</mi><mi>main</mi><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow></msubsup><mo>+</mo><mrow><munder><mi>max</mi><mi>i</mi></munder><mo lspace="0.167em">⁡</mo><msubsup><mi>S</mi><mrow><mi>sub</mi><mo>,</mo><mi>i</mi></mrow><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow></msubsup></mrow></mrow><mo>)</mo></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow><annotation encoding="application/x-tex">\displaystyle\text{CriticalSteps}=\sum_{t=1}^{T}\left(S_{\mathrm{main}}^{(t)}+\max_{i}S_{\mathrm{sub},i}^{(t)}\right).</annotation></semantics></math><details class="latex-source"><summary>LaTeX source</summary><code>\displaystyle\text{CriticalSteps}=\sum_{t=1}^{T}\left(S_{\mathrm{main}}^{(t)}+\max_{i}S_{\mathrm{sub},i}^{(t)}\right).</code></details><button class="copy-button" type="button">Copy</button></div>
+<p><strong>符号。</strong>T 为顺序阶段数；<code>S_main^(t)</code> 是该阶段主智能体步骤；<code>S_sub,i^(t)</code> 为并行批次中执行者 i 的步骤。每批次在理想同时开始、等待所有结果的条件下由最长分支决定关键路径；没有子任务时，可在解释模型中令 max 为 0。</p>
+<p><strong>工程意义。</strong>总工作量是各分支步骤之和；关键路径用 max。串行阶段不能被并发消除，尾部慢任务会限制加速。论文称此指标为延迟代理，它不是实际墙钟，更不是 GPU FLOPs。各步生成 token 数、工具耗时、网络、队列、batching 和并发资源都可能不同。</p>
+<section class="interactive" id="critical-explorer"><span class="component-label">Agent-created · teaching model, not measured latency</span><h4>总 work 与关键路径</h4><p>只模拟一个串行阶段：先执行主 agent，再启动独立分支。每步假设耗时相同，所有分支均须完成。</p><div class="controls"><label>Main steps<input id="main-steps" max="100" min="0" type="number" value="5"/></label><label>Branches<input id="branches" max="100" min="1" type="number" value="4"/></label><label>Ordinary branch steps<input id="sub-steps" max="100" min="1" type="number" value="20"/></label><label>One tail branch steps<input id="tail-steps" max="200" min="1" type="number" value="35"/></label><label>Available workers<input id="workers" max="100" min="1" type="number" value="4"/></label></div><div class="metric-bars" id="work-bars"></div><output aria-live="polite" id="critical-result"></output><p class="fine">论文 CriticalSteps=main+max(branch)。有限 worker 的 main+max(max(branch),ceil(total branch work/workers)) 是理想下界，非真实排程结果；忽略 token 长度、工具/网络等待及 GPU 队列。</p></section>
+<p><strong>如何理解交互。</strong>分支越多，理想关键路径未必变长，但总 work 持续增加。把一个分支设得很长，会看到等待尾分支的效应。有限 worker 下，最长分支还要与总 work / worker 数共同约束时间；这只能给理想下界，不是生产调度器的实测耗时。</p>
+<figure class="original" id="figure-4"><img alt="Figure 4: In our parallel-agent reinforcement learning environment, the training accuracy increases smoothly as training progresses. At the same time, the level of parallelism during training also gradually increases." loading="lazy" src="assets/original/fig-04-pa-rl-progress.png"/><figcaption>Figure 4: In our parallel-agent reinforcement learning environment, the training accuracy increases smoothly as training progresses. At the same time, the level of parallelism during training also gradually increases.<br/>Source: Original paper · Figure 4 · <a href="https://arxiv.org/html/2602.02276v2/pa-rl-progress.png">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 4 如何读。</strong>训练进度横轴上，准确率与并行度都逐渐增长。它支持策略确实逐步使用并行机制，并保持任务效果改善。两条趋势共变不能替代“相同模型、相同预算，仅改变并行度”的因果消融。</p>
+<p><strong>扩展性边界。</strong>官方介绍允许最多 100 个子智能体、1,500 次工具调用；这是能力上限和服务配置，不等于每个测试都持续满载。模型 checkpoint 可共享，每条活跃 context 的 KV 仍需单独承担，除非服务显式支持 prefix sharing。</p>
+<h2 id="section-6">4. Method Overview：从像素、token 到分布式训练</h2>
+<h3 id="subsection-7">4.1 Foundation：1.04T 总参数与 32B 活跃参数</h3>
+<p><strong>Paper。</strong>K2.5 基于 K2，主文写总参数约 1.04T、每 token 激活约 32B，384 routed experts、top-8。K2 基础文本训练主文约 15T；官方 K2 报告另有 15.5T 口径，本文保持 K2.5 原文而不替换数字。K2.5 从 near-end checkpoint 继续约 15T 多模态训练。</p>
+<p><strong>成本直觉。</strong>32B 是计算活跃规模，不能据此说模型只需 32B 权重内存。1.04T 全 BF16 为 2.08TB 十进制；假设全 INT4 的理想位数下界为 520GB，实际混合精度、scale 与元数据还会增加。8/384 = 1/48 只针对 routed expert 集合，不是总计算量降至 Dense 的 1/48。</p>
+<h3 id="subsection-8">4.2 Architecture：视觉压缩的具体张量</h3>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>公开配置</th>
+<th>需要注意</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文本 backbone</td>
+<td>hidden 7168；61 层；首层 dense、其余 60 层 MoE</td>
+<td>384 routed experts，每 token top-8，另有 1 shared expert</td>
+</tr>
+<tr>
+<td>FFN</td>
+<td>routed expert hidden 2048</td>
+<td>激活路由减少专家计算，权重仍需可寻址</td>
+</tr>
+<tr>
+<td>MLA</td>
+<td>64 Q heads；Q low-rank 1536；KV latent 512；RoPE 64；no-RoPE QK 128；V 128</td>
+<td>KV 不能按普通 64-head MHA 公式计</td>
+</tr>
+<tr>
+<td>词表 / context</td>
+<td>vocab 163840；max 262144</td>
+<td>图像、时间戳、工具结果与文本共同占用</td>
+</tr>
+<tr>
+<td>MoonViT-3D</td>
+<td>27 层；width 1152；FFN 4304；16 heads；patch 14</td>
+<td>同 chunk 的空间—时间联合处理</td>
+</tr>
+<tr>
+<td>空间 / 时间压缩</td>
+<td>2×2 patch merging；最多 4 帧一组</td>
+<td>空间为通道拼接，时间为平均池化</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>External · 源码复核。</strong>公开 <code>modeling_kimi_k25.py</code> 的 <code>tpool_patch_merger</code> 与 <code>PatchMergerMLP</code> 显示：令 h=H/14、w=W/14，输入一个 g 帧 chunk <code>[g,3,H,W]</code>，视觉编码输出 <code>[g·h·w,1152]</code>；重排为空间 2×2 单元，对时间维求 mean，获得 <code>[(h/2)(w/2),4,1152]</code>；LayerNorm 后四个 patch 通道展开为 4608，再由 MLP <code>4608 → 4608 → 7168</code> 投影。语言输入是 <code>[B,L_text+L_visual,7168]</code>。</p>
+<div class="code-frame"><div class="code-head">Python · shape reconstruction<button class="copy-button" type="button">Copy</button></div><pre><code class="language-python"># Interpretation: shapes reconstructed from the public implementation.
+# pixels have already been aligned to the processor's spatial constraints.
+z = vision_encoder(pixels)                  # [g*h*w, 1152]
+z = z.reshape(g, h//2, 2, w//2, 2, 1152)
+z = z.permute(1, 3, 0, 2, 4, 5)             # [h/2,w/2,g,2,2,1152]
+z = z.mean(dim=2)                           # temporal mean only
+z = z.reshape((h//2)*(w//2), 4, 1152)
+z = layer_norm(z).flatten(1)                # [h*w/4, 4608]
+visual_tokens = projector(z)               # [h*w/4, 7168]
+</code></pre></div>
+<p><strong>Why this shape matters。</strong>2×2 空间压缩保留四个 patch 的通道，然后学习投影；四帧时间 mean 会不可逆融合帧间差异。短暂小字或瞬时事件可能被削弱，不能把“支持长视频”理解成逐帧细节全部保留。</p>
+<p><strong>计算复杂度。</strong>每 chunk 原始视觉 token 数约 g·h·w，视觉 self-attention 的成对计算随其平方增长，MLP 随 token 数线性增长。时间池化发生在视觉编码之后，主要减少语言 backbone 输入与 KV；它没有让 ViT 只处理四分之一原始帧，也不是让整段视频所有帧做全局注意力。</p>
+<section class="interactive" id="vision-explorer"><span class="component-label">Agent-created · analytical capacity explorer</span><h4>视频如何占满 context 与 KV</h4><p>调整帧数、分辨率、时间组和独立上下文数。默认对应长视频协议；只计算视觉 token 的 BF16 MLA latent KV 下界。</p><div class="controls"><label>Frames<input id="frames" max="8192" min="1" type="number" value="2048"/></label><label>Aligned resolution<select id="resolution"><option value="448">448 × 448</option><option value="896">896 × 896</option></select></label><label>Frames per chunk<select id="temporal"><option value="1">1 · no temporal pooling</option><option value="2">2</option><option selected="" value="4">4 · paper grouping</option></select></label><label>Independent contexts<input id="contexts" max="100" min="1" type="number" value="1"/></label></div><div class="cache-row"><span>Visual context</span><div class="cache-track"><div class="cache-fill" id="context-bar"></div></div></div><output aria-live="polite" id="vision-result"></output><p class="fine">ceil(frames/g) chunks；尾组假设可形成一个 chunk。每 chunk=(resolution/14)²/4 tokens。ViT 仍编码所有原始帧；markers、文本、activation、paging、权重与共享前缀不在下界中。</p></section>
+<p><strong>两组原文输入协议的算账。</strong>2048 帧、448×448、g=4：每帧 1024 patches，每 chunk 256 个语言视觉 token，共 131072；若 g=1 则 524288，已经超出 256K。128 帧、896×896、g=4：每帧 4096 patches，最后 32768 个视觉 token。markers / 时间戳 / 文本另计；分辨率不是免费提高的参数。</p>
+<p><strong>MLA 缓存下界。</strong>假设每层缓存 512 维 compressed KV 和 64 维 RoPE key、BF16，每 token <code>61×(512+64)×2 = 70272 bytes = 68.625 KiB</code>。131072 tokens 为 8.578125GiB，满 262144 为 17.15625GiB。若概念上展开 64 头 K/V，则 <code>61×64×(192+128)×2 = 2498560 bytes/token</code>，约 35.56 倍；这是缓存表示对照，不承诺各框架实现完全相同。</p>
+<p><strong>服务额外成本。</strong>分页、对齐、量化 scale、临时 activation、视觉编码 workspace、TP 复制及 prefix sharing 会改变实际峰值。100 条满 256K、完全独立的 BF16 latent KV 约 1.675TiB，表示一个极端容量例子，不代表真实服务常态。量化权重也不会自动量化 KV。</p>
+<h3 id="subsection-9">4.3 Pre-training Pipeline：阶段表与预算口径</h3>
+<figure class="original-table" id="table-3"><figcaption>Table 3: Overview of training stages: data composition, token volumes, sequence lengths, and trainable components.<br/>Source: Original paper · Table 3. Author-emphasized values are preserved; “SOTA” in the caption is the paper’s dated claim.</figcaption><div aria-label="Original Table 3" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S4.T3.2">
+<tr class="ltx_tr" id="S4.T3.2.1">
+<td class="ltx_td ltx_align_left ltx_border_tt" id="S4.T3.2.1.1" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text ltx_font_bold" id="S4.T3.2.1.1.1">Stages</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S4.T3.2.1.2" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text ltx_font_bold" id="S4.T3.2.1.2.1">ViT Training</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S4.T3.2.1.3" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text ltx_font_bold" id="S4.T3.2.1.3.1">Joint Pre-training</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S4.T3.2.1.4" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text ltx_font_bold" id="S4.T3.2.1.4.1">Joint Long-context Mid-training</span></td></tr>
+<tr class="ltx_tr" id="S4.T3.2.2">
+<td class="ltx_td ltx_align_left ltx_border_t" id="S4.T3.2.2.1" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text ltx_font_bold" id="S4.T3.2.2.1.1">Data</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S4.T3.2.2.2" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text" id="S4.T3.2.2.2.1"></span> <span class="ltx_text" id="S4.T3.2.2.2.2">
+<span class="ltx_tabular ltx_align_middle" id="S4.T3.2.2.2.2.1">
+<span class="ltx_tr" id="S4.T3.2.2.2.2.1.1">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.2.2.1.1.1" style="padding-top:1pt;padding-bottom:1pt;">Alt text</span></span>
+<span class="ltx_tr" id="S4.T3.2.2.2.2.1.2">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.2.2.1.2.1" style="padding-top:1pt;padding-bottom:1pt;">Synthesis Caption</span></span>
+<span class="ltx_tr" id="S4.T3.2.2.2.2.1.3">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.2.2.1.3.1" style="padding-top:1pt;padding-bottom:1pt;">Grounding, OCR, Video</span></span>
+</span></span><span class="ltx_text" id="S4.T3.2.2.2.3"></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S4.T3.2.2.3" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text" id="S4.T3.2.2.3.1"></span> <span class="ltx_text" id="S4.T3.2.2.3.2">
+<span class="ltx_tabular ltx_align_middle" id="S4.T3.2.2.3.2.1">
+<span class="ltx_tr" id="S4.T3.2.2.3.2.1.1">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.3.2.1.1.1" style="padding-top:1pt;padding-bottom:1pt;">+</span></span>
+<span class="ltx_tr" id="S4.T3.2.2.3.2.1.2">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.3.2.1.2.1" style="padding-top:1pt;padding-bottom:1pt;">Text, Knowledge</span></span>
+<span class="ltx_tr" id="S4.T3.2.2.3.2.1.3">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.3.2.1.3.1" style="padding-top:1pt;padding-bottom:1pt;">Interleaving</span></span>
+<span class="ltx_tr" id="S4.T3.2.2.3.2.1.4">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.3.2.1.4.1" style="padding-top:1pt;padding-bottom:1pt;">Video, OS Screenshot</span></span>
+</span></span><span class="ltx_text" id="S4.T3.2.2.3.3"></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S4.T3.2.2.4" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text" id="S4.T3.2.2.4.1"></span> <span class="ltx_text" id="S4.T3.2.2.4.2">
+<span class="ltx_tabular ltx_align_middle" id="S4.T3.2.2.4.2.1">
+<span class="ltx_tr" id="S4.T3.2.2.4.2.1.1">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.4.2.1.1.1" style="padding-top:1pt;padding-bottom:1pt;">+</span></span>
+<span class="ltx_tr" id="S4.T3.2.2.4.2.1.2">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.4.2.1.2.1" style="padding-top:1pt;padding-bottom:1pt;">High-quality Text &amp; Multimodal</span></span>
+<span class="ltx_tr" id="S4.T3.2.2.4.2.1.3">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.4.2.1.3.1" style="padding-top:1pt;padding-bottom:1pt;">Long Text, Long Video</span></span>
+<span class="ltx_tr" id="S4.T3.2.2.4.2.1.4">
+<span class="ltx_td ltx_nopad_r ltx_align_center" id="S4.T3.2.2.4.2.1.4.1" style="padding-top:1pt;padding-bottom:1pt;">Reasoning, Long-CoT</span></span>
+</span></span><span class="ltx_text" id="S4.T3.2.2.4.3"></span></td></tr>
+<tr class="ltx_tr" id="S4.T3.2.3">
+<td class="ltx_td ltx_align_left ltx_border_t" id="S4.T3.2.3.1" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text ltx_font_bold" id="S4.T3.2.3.1.1">Sequence length</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S4.T3.2.3.2" style="padding-top:1pt;padding-bottom:1pt;">4096</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S4.T3.2.3.3" style="padding-top:1pt;padding-bottom:1pt;">4096</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S4.T3.2.3.4" style="padding-top:1pt;padding-bottom:1pt;">32768<math alttext="\rightarrow" class="ltx_Math" display="inline" id="S4.T3.m1" intent=":literal"><semantics><mo stretchy="false">→</mo><annotation encoding="application/x-tex">\rightarrow</annotation></semantics></math>262144</td></tr>
+<tr class="ltx_tr" id="S4.T3.2.4">
+<td class="ltx_td ltx_align_left ltx_border_t" id="S4.T3.2.4.1" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text ltx_font_bold" id="S4.T3.2.4.1.1">Tokens</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S4.T3.2.4.2" style="padding-top:1pt;padding-bottom:1pt;">1T</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S4.T3.2.4.3" style="padding-top:1pt;padding-bottom:1pt;">15T</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S4.T3.2.4.4" style="padding-top:1pt;padding-bottom:1pt;">500B<math alttext="\rightarrow" class="ltx_Math" display="inline" id="S4.T3.m2" intent=":literal"><semantics><mo stretchy="false">→</mo><annotation encoding="application/x-tex">\rightarrow</annotation></semantics></math>200B</td></tr>
+<tr class="ltx_tr" id="S4.T3.2.5">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" id="S4.T3.2.5.1" style="padding-top:1pt;padding-bottom:1pt;"><span class="ltx_text ltx_font_bold" id="S4.T3.2.5.1.1">Training</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" id="S4.T3.2.5.2" style="padding-top:1pt;padding-bottom:1pt;">ViT</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" id="S4.T3.2.5.3" style="padding-top:1pt;padding-bottom:1pt;">ViT &amp; LLM</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" id="S4.T3.2.5.4" style="padding-top:1pt;padding-bottom:1pt;">ViT &amp; LLM</td></tr>
+</table></div></figure>
+<p><strong>How。</strong>ViT 先用 alt-text、合成 caption、grounding / OCR / video 等学习视觉表示；联合阶段同时更新 ViT 和 LLM，纳入交错视觉文本、知识、视频和系统截图；mid-training 扩展长文本、长视频与长链推理。序列从 4096 扩至 32768，再到 262144。</p>
+<p><strong>具体对齐与目标。</strong>MoonViT-3D 从 SigLIP 持续训练，但这一阶段不用 contrastive loss，仅用视觉条件 caption 的 cross-entropy。先以 Moonlight-16B-A3B 为语言侧更新 ViT，约 1T tokens；随后一个很短阶段只更新 MLP projector，接到 1T 级 backbone。Joint 阶段增加 coding 数据权重、控制各来源最大 epochs；长上下文阶段使用 YaRN 插值。视觉初始化、projector 对齐和完整联合更新不是同一训练步骤。</p>
+<p><strong>审计。</strong>Table 3 写 ViT 1T、joint 15T、mid 500B → 200B，按独立阶段相加为 16.7T。主文“约 15T”未明确覆盖哪些阶段或舍入方式，不能据此声称精确总训练预算为 15T，更不能把视觉 token 和语言 token 当成每个都相同 FLOPs。固定 token 总数并不固定视觉编码、attention 与通信成本。</p>
+<h3 id="subsection-10">4.4 Post-Training：混合 SFT、RL 目标与 Toggle</h3>
+<p><strong>SFT。</strong>在联合预训练之后，以文本指令、推理、代码、工具行为形成 reasoning / non-thinking 等能力；zero-vision 指最初这个后训练阶段。后续 outcome RL 和成功轨迹再训练使视觉行为继续变化。</p>
+<p>候选响应来自 K2、K2 Thinking 和内部专家模型，经人工标注、prompt engineering 与多阶段验证形成指令数据。RL 用 MuonClip；可验证任务采用 rule-based outcome reward，开放任务用 GRM 细粒度评价帮助性、响应准备度、上下文相关性、细节适当性、产物美感与严格指令遵循，并使用多套 rubric 降低单一评分器过拟合。</p>
+<p>视觉 reward 也不止“答案对错”：grounding 用 IoU 软匹配的 F1，point localization 用最优匹配下 Gaussian 距离软匹配；polygon 先 rasterize 为 mask 再算 IoU；OCR 用 normalized edit distance；counting 按绝对误差评分；复杂视觉 puzzle 还用 K2 verifier。不同 reward 的标度和校准会影响优化，缺乏公开完整细节时不能假设都等价于二元成功率。</p>
+<div class="equation" id="equation-3"><span class="equation-label">§4 Eq. (1) — original notation</span><math alttext="\displaystyle L_{\mathrm{RL}}(\theta)=\mathbb{E}_{x\sim\mathcal{D}}\left[\frac{1}{N}\sum_{j=1}^{K}\sum_{i=1}^{|y_{j}|}\mathrm{Clip}\left(\frac{\pi_{\theta}(y_{j}^{i}|x,y_{j}^{0:i})}{\pi_{\mathrm{old}}(y_{j}^{i}|x,y_{j}^{0:i})},\alpha,\beta\right)({r}(x,y_{j})-\bar{r}(x))-\tau\left(\log\frac{\pi_{\theta}(y_{j}^{i}|x,y_{j}^{0:i})}{\pi_{\mathrm{old}}(y_{j}^{i}|x,y_{j}^{0:i})}\right)^{2}\right]\,." class="ltx_math_unparsed" display="inline" id="S4.E1.m1" intent=":literal"><semantics><mrow><msub><mi>L</mi><mi>RL</mi></msub><mrow><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo></mrow><mo>=</mo><msub><mi>𝔼</mi><mrow><mi>x</mi><mo>∼</mo><mi class="ltx_font_mathcaligraphic">𝒟</mi></mrow></msub><mrow><mo>[</mo><mstyle displaystyle="true"><mfrac><mn>1</mn><mi>N</mi></mfrac></mstyle><mstyle displaystyle="true"><munderover><mo movablelimits="false">∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>K</mi></munderover></mstyle><mstyle displaystyle="true"><munderover><mo movablelimits="false">∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mo stretchy="false">|</mo><msub><mi>y</mi><mi>j</mi></msub><mo stretchy="false">|</mo></mrow></munderover></mstyle><mi>Clip</mi><mrow><mo>(</mo><mstyle displaystyle="true"><mfrac><mrow><mi>π</mi><msub><mrow></mrow><mi>θ</mi></msub><mo stretchy="false">(</mo><mi>y</mi><msub><mrow></mrow><mi>j</mi></msub><msup><mrow></mrow><mi>i</mi></msup><mo fence="false" rspace="0.167em" stretchy="false">|</mo><mi>x</mi><mo>,</mo><mi>y</mi><msub><mrow></mrow><mi>j</mi></msub><msup><mrow></mrow><mrow><mn>0</mn><mo lspace="0.278em" rspace="0.278em">:</mo><mi>i</mi></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mi>π</mi><msub><mrow></mrow><mi>old</mi></msub><mo stretchy="false">(</mo><mi>y</mi><msub><mrow></mrow><mi>j</mi></msub><msup><mrow></mrow><mi>i</mi></msup><mo fence="false" rspace="0.167em" stretchy="false">|</mo><mi>x</mi><mo>,</mo><mi>y</mi><msub><mrow></mrow><mi>j</mi></msub><msup><mrow></mrow><mrow><mn>0</mn><mo lspace="0.278em" rspace="0.278em">:</mo><mi>i</mi></mrow></msup><mo stretchy="false">)</mo></mrow></mfrac></mstyle><mo>,</mo><mi>α</mi><mo>,</mo><mi>β</mi><mo>)</mo></mrow><mrow><mo stretchy="false">(</mo><mi>r</mi><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow><mo>−</mo><mover accent="true"><mi>r</mi><mo>¯</mo></mover><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mo stretchy="false">)</mo></mrow><mo>−</mo><mi>τ</mi><msup><mrow><mo>(</mo><mi>log</mi><mstyle displaystyle="true"><mfrac><mrow><mi>π</mi><msub><mrow></mrow><mi>θ</mi></msub><mo stretchy="false">(</mo><mi>y</mi><msub><mrow></mrow><mi>j</mi></msub><msup><mrow></mrow><mi>i</mi></msup><mo fence="false" rspace="0.167em" stretchy="false">|</mo><mi>x</mi><mo>,</mo><mi>y</mi><msub><mrow></mrow><mi>j</mi></msub><msup><mrow></mrow><mrow><mn>0</mn><mo lspace="0.278em" rspace="0.278em">:</mo><mi>i</mi></mrow></msup><mo stretchy="false">)</mo></mrow><mrow><mi>π</mi><msub><mrow></mrow><mi>old</mi></msub><mo stretchy="false">(</mo><mi>y</mi><msub><mrow></mrow><mi>j</mi></msub><msup><mrow></mrow><mi>i</mi></msup><mo fence="false" rspace="0.167em" stretchy="false">|</mo><mi>x</mi><mo>,</mo><mi>y</mi><msub><mrow></mrow><mi>j</mi></msub><msup><mrow></mrow><mrow><mn>0</mn><mo lspace="0.278em" rspace="0.278em">:</mo><mi>i</mi></mrow></msup><mo stretchy="false">)</mo></mrow></mfrac></mstyle><mo>)</mo></mrow><mn>2</mn></msup><mo>]</mo></mrow><mo lspace="0.170em">.</mo></mrow><annotation encoding="application/x-tex">\displaystyle L_{\mathrm{RL}}(\theta)=\mathbb{E}_{x\sim\mathcal{D}}\left[\frac{1}{N}\sum_{j=1}^{K}\sum_{i=1}^{|y_{j}|}\mathrm{Clip}\left(\frac{\pi_{\theta}(y_{j}^{i}|x,y_{j}^{0:i})}{\pi_{\mathrm{old}}(y_{j}^{i}|x,y_{j}^{0:i})},\alpha,\beta\right)({r}(x,y_{j})-\bar{r}(x))-\tau\left(\log\frac{\pi_{\theta}(y_{j}^{i}|x,y_{j}^{0:i})}{\pi_{\mathrm{old}}(y_{j}^{i}|x,y_{j}^{0:i})}\right)^{2}\right]\,.</annotation></semantics></math><details class="latex-source"><summary>LaTeX source</summary><code>\displaystyle L_{\mathrm{RL}}(\theta)=\mathbb{E}_{x\sim\mathcal{D}}\left[\frac{1}{N}\sum_{j=1}^{K}\sum_{i=1}^{|y_{j}|}\mathrm{Clip}\left(\frac{\pi_{\theta}(y_{j}^{i}|x,y_{j}^{0:i})}{\pi_{\mathrm{old}}(y_{j}^{i}|x,y_{j}^{0:i})},\alpha,\beta\right)({r}(x,y_{j})-\bar{r}(x))-\tau\left(\log\frac{\pi_{\theta}(y_{j}^{i}|x,y_{j}^{0:i})}{\pi_{\mathrm{old}}(y_{j}^{i}|x,y_{j}^{0:i})}\right)^{2}\right]\,.</code></details><button class="copy-button" type="button">Copy</button></div>
+<p><strong>原文 Eq. (1) 的符号。</strong>x 从任务分布 D 采样，每个 x 产生 K 条响应 yⱼ；<code>N=Σⱼ|yⱼ|</code> 为生成 token 数。<code>πθ/πold</code> 是同一个 token 在当前与采样策略下的概率比；<code>r(x,yⱼ)−r̄(x)</code> 是同任务的组内 reward 中心化；τ 是 log-ratio 二次惩罚权重，α、β 为 clipping 边界。ragged 响应可填充成 <code>[K,L_max]</code> 并使用有效 token mask；reward <code>[K]</code> 广播到 token 维。</p>
+<p><strong>逐步直觉。</strong>先评估整条响应，减去组均值，再通过每个 token 的策略概率推动高 reward 轨迹；clipping 限制过大策略变化，二次惩罚约束相对旧策略偏离。计算 loss 时 token 求和 O(N)，实际重新算 policy logits 远比这次归约昂贵。</p>
+<p><strong>不能静默修正的三处。</strong>公式 Clip 输入是概率 ratio，正文却描述 log-ratio clipping 且写 α、β&gt;0；公式是正 reward 项减 penalty，正文称 minimize，若按它的字面正号做梯度下降方向会相反；penalty 写在双重求和之外，i、j 未绑定。这些书写不一致影响实现，本文保留原式。不能直接认定其等同 PPO 的 <code>min(ratio*A, clip(ratio)*A)</code>，也不能在没有训练源码时声称知道作者实际计算图。</p>
+<p><strong>实现检查建议。</strong>需核验 loss 的符号、penalty 是否逐 token 归约、ratio 或 log-ratio 的 clamp 区间、padding mask 以及 old policy 的版本。若解释为“最大化 reward，最小化 penalty”，可采用 ascent objective / negative loss 的常规关系，但那是解释性修正，非原式证明。</p>
+<div class="equation" id="equation-4"><span class="equation-label">§4 Toggle — original notation</span><math alttext="\displaystyle\tilde{r}(x,y)=\begin{cases}r(x,y)\cdot\mathbb{I}\left\{\frac{1}{K}\sum_{i=1}^{K}r(x,y_{i})&lt;\lambda\ \mathrm{or}\ |y_{i}|\leq\mathrm{budget(x)}\right\}&amp;\text{if }\lfloor t/m\rfloor\pmod{2}=0\ (\mathrm{{Phase0}})\\
+r(x,y)&amp;\text{if }\lfloor t/m\rfloor\pmod{2}=1\ (\mathrm{{Phase1}})\end{cases}\,." class="ltx_Math" display="inline" id="S4.Ex3.m1" intent=":literal"><semantics><mrow><mrow><mrow><mover accent="true"><mi>r</mi><mo>~</mo></mover><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mo>{</mo><mtable columnspacing="5pt" rowspacing="0pt"><mtr><mtd class="ltx_align_left" columnalign="left"><mrow><mi>r</mi><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo rspace="0.055em" stretchy="false">)</mo><mo rspace="0.222em">⋅</mo><mi>𝕀</mi><mo>{</mo><mfrac><mn>1</mn><mi>K</mi></mfrac><mo>∑</mo><msub><mrow></mrow><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow></msub><msup><mrow></mrow><mi>K</mi></msup><mi>r</mi><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><msub><mrow></mrow><mi>i</mi></msub><mo stretchy="false">)</mo><mo>&lt;</mo><mi>λ</mi><mi>or</mi><mo fence="false" lspace="0.500em" rspace="0.167em" stretchy="false">|</mo><mi>y</mi><msub><mrow></mrow><mi>i</mi></msub><mo fence="false" stretchy="false">|</mo><mo lspace="0.167em">≤</mo><mi>budget</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>}</mo></mrow></mtd><mtd class="ltx_align_left" columnalign="left"><mrow><mrow><mrow><mtext>if </mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">⌊</mo><mrow><mi>t</mi><mo>/</mo><mi>m</mi></mrow><mo stretchy="false">⌋</mo></mrow></mrow><mspace style="width:0.949em;" width="0.949em"></mspace><mrow><mo stretchy="false">(</mo><mrow><mo lspace="0em" rspace="0.167em">mod</mo><mn>2</mn></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mn>0</mn><mo lspace="0.500em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>Phase0</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></mtd></mtr><mtr><mtd class="ltx_align_left" columnalign="left"><mrow><mi>r</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo></mrow></mrow></mtd><mtd class="ltx_align_left" columnalign="left"><mrow><mrow><mrow><mtext>if </mtext><mo lspace="0em" rspace="0em">​</mo><mrow><mo stretchy="false">⌊</mo><mrow><mi>t</mi><mo>/</mo><mi>m</mi></mrow><mo stretchy="false">⌋</mo></mrow></mrow><mspace style="width:0.949em;" width="0.949em"></mspace><mrow><mo stretchy="false">(</mo><mrow><mo lspace="0em" rspace="0.167em">mod</mo><mn>2</mn></mrow><mo stretchy="false">)</mo></mrow></mrow><mo>=</mo><mrow><mn>1</mn><mo lspace="0.500em" rspace="0em">​</mo><mrow><mo stretchy="false">(</mo><mi>Phase1</mi><mo stretchy="false">)</mo></mrow></mrow></mrow></mtd></mtr></mtable></mrow></mrow><mo lspace="0em">.</mo></mrow><annotation encoding="application/x-tex">\displaystyle\tilde{r}(x,y)=\begin{cases}r(x,y)\cdot\mathbb{I}\left\{\frac{1}{K}\sum_{i=1}^{K}r(x,y_{i})&lt;\lambda\ \mathrm{or}\ |y_{i}|\leq\mathrm{budget(x)}\right\}&amp;\text{if }\lfloor t/m\rfloor\pmod{2}=0\ (\mathrm{{Phase0}})\\
+r(x,y)&amp;\text{if }\lfloor t/m\rfloor\pmod{2}=1\ (\mathrm{{Phase1}})\end{cases}\,.</annotation></semantics></math><details class="latex-source"><summary>LaTeX source</summary><code>\displaystyle\tilde{r}(x,y)=\begin{cases}r(x,y)\cdot\mathbb{I}\left\{\frac{1}{K}\sum_{i=1}^{K}r(x,y_{i})&lt;\lambda\ \mathrm{or}\ |y_{i}|\leq\mathrm{budget(x)}\right\}&amp;\text{if }\lfloor t/m\rfloor\pmod{2}=0\ (\mathrm{{Phase0}})\\
+r(x,y)&amp;\text{if }\lfloor t/m\rfloor\pmod{2}=1\ (\mathrm{{Phase1}})\end{cases}\,.</code></details><button class="copy-button" type="button">Copy</button></div>
+<div class="equation" id="equation-5"><span class="equation-label">§4 Eq. (2) — original notation</span><math alttext="\mathrm{budget}(x)=\text{Percentile}\left(\{|y_{j}|\mid r(x,y_{i})=1,i=1,\dots,K\},\rho\right)\,." class="ltx_math_unparsed" display="block" id="S4.E2.m1" intent=":literal"><semantics><mrow><mi>budget</mi><mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><mo>=</mo><mtext>Percentile</mtext><mrow><mo>(</mo><mrow><mo stretchy="false">{</mo><mo fence="false" rspace="0.167em" stretchy="false">|</mo><msub><mi>y</mi><mi>j</mi></msub><mo fence="false" stretchy="false">|</mo><mo lspace="0.167em" rspace="0.167em">∣</mo><mi>r</mi><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mi>i</mi></msub><mo stretchy="false">)</mo></mrow><mo>=</mo><mn>1</mn><mo>,</mo><mi>i</mi><mo>=</mo><mn>1</mn><mo>,</mo><mi mathvariant="normal">…</mi><mo>,</mo><mi>K</mi><mo stretchy="false">}</mo></mrow><mo>,</mo><mi>ρ</mi><mo>)</mo></mrow><mo lspace="0.170em">.</mo></mrow><annotation encoding="application/x-tex">\mathrm{budget}(x)=\text{Percentile}\left(\{|y_{j}|\mid r(x,y_{i})=1,i=1,\dots,K\},\rho\right)\,.</annotation></semantics></math><details class="latex-source"><summary>LaTeX source</summary><code>\mathrm{budget}(x)=\text{Percentile}\left(\{|y_{j}|\mid r(x,y_{i})=1,i=1,\dots,K\},\rho\right)\,.</code></details><button class="copy-button" type="button">Copy</button></div>
+<p><strong>Toggle 机制。</strong>t 是训练 step，每 m steps 切换一次 phase；K 个 rollout 的平均成功率低于 λ 时，为难题放宽预算。Phase 0 中成功但过长的响应 reward 归零；Phase 1 恢复原 reward，仍受系统常规最大长度限制。budget(x) 由正确 rollout 长度的 ρ 分位数预先确定并固定，避免预算随学习一起漂移。</p>
+<p><strong>形状与例子。</strong>成功 reward / length 都是 <code>[K]</code>，平均成功率与 budget 为标量。教学假设正确响应长度为 100、120、160，选中位数得到 budget=120；Phase 0 的长度 160 响应失去奖励，Phase 1 仍可得分。若整个任务成功率低于 λ，Phase 0 也豁免长度限制。这鼓励短而正确，同时保留探索难题的机会。</p>
+<p><strong>书写与边界。</strong>Toggle 原式左侧写 y，长度却用 yᵢ；budget 集合长度写 yⱼ、筛选条件用 yᵢ。解释时应统一索引，原文仍照录。若没有正确 rollout，分位数如何回退未披露。阶段公式是确定性交替，不能把正文 stochastic 描述当作独立随机 phase 采样算法；随机性可以来自 rollout。</p>
+<figure class="original" id="figure-5"><img alt="Figure 5: Comparison of model performance and token usage for Kimi K2 Thinking following token-efficient RL." loading="lazy" src="assets/original/fig-05-te-k2-thinking-radar.png"/><figcaption>Figure 5: Comparison of model performance and token usage for Kimi K2 Thinking following token-efficient RL.<br/>Source: Original paper · Figure 5 · <a href="https://arxiv.org/html/2602.02276v2/figures/te-k2-thinking-radar.png">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 5 如何读。</strong>分别看能力雷达和 token usage 雷达，比较 token-efficient RL 前后；更短输出需结合得分解释。这张图的模型是 <strong>Kimi K2 Thinking</strong>，作者报告输出减少约 25–30%，并非 K2.5 独立 Toggle 消融。Table 5 更接近最终 K2.5 的得分—长度观察，也仍包含整个训练链路的变化。</p>
+<h3 id="subsection-11">4.5 Infrastructure：DEP 把视觉工作移出 PP0 瓶颈</h3>
+<p><strong>Paper · Decoupled Encoder Process。</strong>若 ViT 只放在 pipeline 第一阶段，视觉比例和图像大小变化会导致 PP0 负载抖动，后级等待。DEP 在各 GPU 复制视觉编码器，把视觉输入分布处理；保留视觉输出、丢弃中间 activation，汇集到 PP0；文本 backbone forward / backward 后，视觉重计算并执行 backward，再同步梯度。</p>
+<figure class="generated" id="dep-flow"><img alt="Decoupled Encoder Process 的三个阶段" src="assets/generated/dep-flow.svg"/><figcaption>Agent-created Visualization · Decoupled Encoder Process 的三个阶段。<a href="assets/generated/dep-flow.mmd">Mermaid source</a>。解释性简化图，不替代原论文图。</figcaption></figure>
+<p><strong>箭头与成本。</strong>视觉 forward 分散了负载；gather 把结果送入语言 pipeline；recompute 以计算换激活内存。复制 ViT 增加权重驻留，gather / 梯度同步增加通信。作者称多模态训练保持约 90% 的纯文本训练效率，但未给足可独立复算的绝对吞吐、模态组成、硬件 / batch / denominator。因此不能推为所有工作负载仅 10% 开销。</p>
+<p><strong>TTFT / TPOT 关联。</strong>DEP 是训练并行，不是公开 serving 的直接优化。在线视觉编码和长视觉 prefill 会增加 TTFT；decode 的每 token MLA 历史读取和 MoE 权重 / EP 通信影响 TPOT；Swarm 的用户任务完成时间还包含工具与汇总。这三种时间不能相互替代。</p>
+<h2 id="section-7">5. Evaluations：完整结果与预算对齐</h2>
+<h3 id="subsection-12">5.1 Main Results：完整主表</h3>
+<figure class="original-table" id="table-4"><figcaption>Table 4: Performance comparison of Kimi K2.5 against open-source and proprietary models. Bold denotes the global SOTA; Data points marked with * are taken from our internal evaluations. † refers to their scores of text-only subset.<br/>Source: Original paper · Table 4. Author-emphasized values are preserved; “SOTA” in the caption is the paper’s dated claim.</figcaption><div aria-label="Original Table 4" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_align_middle" id="S5.T4.6">
+<tr class="ltx_tr" id="S5.T4.6.1">
+<td class="ltx_td ltx_border_r ltx_border_tt" id="S5.T4.6.1.1" style="padding-left:3.0pt;padding-right:3.0pt;"></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_tt" id="S5.T4.6.1.2" style="padding-left:3.0pt;padding-right:3.0pt;"></td>
+<td class="ltx_td ltx_align_center ltx_align_top ltx_border_r ltx_border_tt" colspan="3" id="S5.T4.6.1.3" style="padding-left:3.0pt;padding-right:3.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T4.6.1.3.1">Proprietary</span></td>
+<td class="ltx_td ltx_align_center ltx_align_top ltx_border_tt" colspan="2" id="S5.T4.6.1.4" style="padding-left:3.0pt;padding-right:3.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T4.6.1.4.1">Open Source</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.2">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.2.1" style="padding-left:3.0pt;padding-right:3.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T4.6.2.1.1">Benchmark</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.2.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.2.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.2.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.2.2.1.1.1">Kimi K2.5</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t" id="S5.T4.6.2.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.2.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.2.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.2.3.1.1.1">Claude Opus 4.5</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t" id="S5.T4.6.2.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.2.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.2.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.2.4.1.1.1">GPT-5.2 (xhigh)</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r ltx_border_t" id="S5.T4.6.2.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.2.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.2.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.2.5.1.1.1">Gemini 3 Pro</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_t" id="S5.T4.6.2.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.2.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.2.6.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.2.6.1.1.1">DeepSeek-V3.2</span></span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top ltx_border_t" id="S5.T4.6.2.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.2.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.2.7.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.2.7.1.1.1">Qwen3-VL-235B-A22B</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.3">
+<td class="ltx_td ltx_align_left ltx_border_t" colspan="7" id="S5.T4.6.3.1" style="padding-left:3.0pt;padding-right:3.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T4.6.3.1.1">Reasoning &amp; General</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.4">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.4.1" style="padding-left:3.0pt;padding-right:3.0pt;">HLE-Full</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.4.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.4.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.4.2.1.1">30.1</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.4.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.4.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.4.3.1.1">30.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.4.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.4.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.4.4.1.1">34.5</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.4.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.4.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.4.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.4.5.1.1.1">37.5</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.4.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.4.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.4.6.1.1">25.1<sup class="ltx_sup" id="S5.T4.6.4.6.1.1.1"><span class="ltx_text ltx_font_italic" id="S5.T4.6.4.6.1.1.1.1">†</span></sup></span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.4.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.4.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.4.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.5">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.5.1" style="padding-left:3.0pt;padding-right:3.0pt;">HLE-Full w/ tools</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.5.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.5.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.5.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.5.2.1.1.1">50.2</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.5.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.5.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.5.3.1.1">43.2</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.5.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.5.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.5.4.1.1">45.5</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.5.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.5.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.5.5.1.1">45.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.5.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.5.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.5.6.1.1">40.8<sup class="ltx_sup" id="S5.T4.6.5.6.1.1.1"><span class="ltx_text ltx_font_italic" id="S5.T4.6.5.6.1.1.1.1">†</span></sup></span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.5.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.5.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.5.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.6">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.6.1" style="padding-left:3.0pt;padding-right:3.0pt;">AIME 2025</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.6.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.6.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.6.2.1.1">96.1</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.6.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.6.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.6.3.1.1">92.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.6.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.6.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.6.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.6.4.1.1.1">100</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.6.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.6.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.6.5.1.1">95.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.6.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.6.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.6.6.1.1">93.1</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.6.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.6.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.6.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.7">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.7.1" style="padding-left:3.0pt;padding-right:3.0pt;">HMMT 2025 (Feb)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.7.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.7.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.7.2.1.1">95.4</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.7.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.7.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.7.3.1.1">92.9*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.7.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.7.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.7.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.7.4.1.1.1">99.4</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.7.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.7.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.7.5.1.1">97.3*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.7.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.7.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.7.6.1.1">92.5</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.7.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.7.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.7.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.8">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.8.1" style="padding-left:3.0pt;padding-right:3.0pt;">IMO-AnswerBench</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.8.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.8.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.8.2.1.1">81.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.8.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.8.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.8.3.1.1">78.5*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.8.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.8.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.8.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.8.4.1.1.1">86.3</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.8.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.8.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.8.5.1.1">83.1*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.8.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.8.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.8.6.1.1">78.3</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.8.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.8.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.8.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.9">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.9.1" style="padding-left:3.0pt;padding-right:3.0pt;">GPQA-Diamond</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.9.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.9.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.9.2.1.1">87.6</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.9.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.9.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.9.3.1.1">87.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.9.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.9.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.9.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.9.4.1.1.1">92.4</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.9.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.9.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.9.5.1.1">91.9</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.9.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.9.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.9.6.1.1">82.4</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.9.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.9.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.9.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.10">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.10.1" style="padding-left:3.0pt;padding-right:3.0pt;">MMLU-Pro</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.10.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.10.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.10.2.1.1">87.1</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.10.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.10.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.10.3.1.1">89.3*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.10.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.10.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.10.4.1.1">86.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.10.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.10.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.10.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.10.5.1.1.1">90.1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.10.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.10.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.10.6.1.1">85.0</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.10.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.10.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.10.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.11">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.11.1" style="padding-left:3.0pt;padding-right:3.0pt;">SimpleQA Verified</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.11.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.11.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.11.2.1.1">36.9</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.11.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.11.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.11.3.1.1">44.1</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.11.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.11.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.11.4.1.1">38.9</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.11.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.11.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.11.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.11.5.1.1.1">72.1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.11.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.11.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.11.6.1.1">27.5</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.11.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.11.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.11.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.12">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.12.1" style="padding-left:3.0pt;padding-right:3.0pt;">AdvancedIF</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.12.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.12.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.12.2.1.1">75.6</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.12.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.12.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.12.3.1.1">63.1</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.12.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.12.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.12.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.12.4.1.1.1">81.1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.12.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.12.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.12.5.1.1">74.7</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.12.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.12.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.12.6.1.1">58.8</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.12.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.12.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.12.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.13">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.13.1" style="padding-left:3.0pt;padding-right:3.0pt;">LongBench v2</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.13.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.13.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.13.2.1.1">61.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.13.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.13.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.13.3.1.1">64.4*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.13.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.13.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.13.4.1.1">54.5*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.13.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.13.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.13.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.13.5.1.1.1">68.2*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.13.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.13.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.13.6.1.1">59.8*</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.13.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.13.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.13.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.14">
+<td class="ltx_td ltx_align_left ltx_border_t" colspan="7" id="S5.T4.6.14.1" style="padding-left:3.0pt;padding-right:3.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T4.6.14.1.1">Coding</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.15">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.15.1" style="padding-left:3.0pt;padding-right:3.0pt;">SWE-Bench Verified</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.15.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.15.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.15.2.1.1">76.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.15.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.15.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.15.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.15.3.1.1.1">80.9</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.15.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.15.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.15.4.1.1">80.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.15.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.15.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.15.5.1.1">76.2</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.15.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.15.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.15.6.1.1">73.1</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.15.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.15.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.15.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.16">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.16.1" style="padding-left:3.0pt;padding-right:3.0pt;">SWE-Bench Pro (public)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.16.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.16.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.16.2.1.1">50.7</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.16.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.16.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.16.3.1.1">55.4*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.16.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.16.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.16.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.16.4.1.1.1">55.6</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.16.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.16.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.16.5.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.16.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.16.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.16.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.16.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.16.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.16.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.17">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.17.1" style="padding-left:3.0pt;padding-right:3.0pt;">SWE-Bench Multilingual</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.17.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.17.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.17.2.1.1">73.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.17.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.17.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.17.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.17.3.1.1.1">77.5</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.17.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.17.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.17.4.1.1">72.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.17.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.17.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.17.5.1.1">65.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.17.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.17.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.17.6.1.1">70.2</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.17.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.17.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.17.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.18">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.18.1" style="padding-left:3.0pt;padding-right:3.0pt;">Terminal Bench 2.0</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.18.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.18.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.18.2.1.1">50.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.18.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.18.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.18.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.18.3.1.1.1">59.3</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.18.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.18.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.18.4.1.1">54.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.18.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.18.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.18.5.1.1">54.2</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.18.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.18.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.18.6.1.1">46.4</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.18.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.18.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.18.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.19">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.19.1" style="padding-left:3.0pt;padding-right:3.0pt;">PaperBench (CodeDev)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.19.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.19.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.19.2.1.1">63.5</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.19.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.19.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.19.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.19.3.1.1.1">72.9*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.19.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.19.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.19.4.1.1">63.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.19.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.19.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.19.5.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.19.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.19.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.19.6.1.1">47.1</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.19.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.19.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.19.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.20">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.20.1" style="padding-left:3.0pt;padding-right:3.0pt;">CyberGym</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.20.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.20.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.20.2.1.1">41.3</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.20.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.20.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.20.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.20.3.1.1.1">50.6</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.20.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.20.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.20.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.20.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.20.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.20.5.1.1">39.9*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.20.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.20.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.20.6.1.1">17.3*</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.20.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.20.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.20.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.21">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.21.1" style="padding-left:3.0pt;padding-right:3.0pt;">SciCode</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.21.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.21.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.21.2.1.1">48.7</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.21.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.21.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.21.3.1.1">49.5</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.21.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.21.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.21.4.1.1">52.1</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.21.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.21.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.21.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.21.5.1.1.1">56.1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.21.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.21.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.21.6.1.1">38.9</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.21.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.21.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.21.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.22">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.22.1" style="padding-left:3.0pt;padding-right:3.0pt;">OJBench (cpp)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.22.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.22.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.22.2.1.1">57.4</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.22.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.22.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.22.3.1.1">54.6*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.22.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.22.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.22.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.22.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.22.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.22.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.22.5.1.1.1">68.5*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.22.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.22.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.22.6.1.1">54.7*</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.22.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.22.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.22.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.23">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.23.1" style="padding-left:3.0pt;padding-right:3.0pt;">LiveCodeBench (v6)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.23.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.23.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.23.2.1.1">85.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.23.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.23.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.23.3.1.1">82.2*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.23.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.23.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.23.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.23.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.23.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.23.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.23.5.1.1.1">87.4*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.23.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.23.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.23.6.1.1">83.3</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.23.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.23.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.23.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.24">
+<td class="ltx_td ltx_align_left ltx_border_t" colspan="7" id="S5.T4.6.24.1" style="padding-left:3.0pt;padding-right:3.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T4.6.24.1.1">Agentic</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.25">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.25.1" style="padding-left:3.0pt;padding-right:3.0pt;">BrowseComp</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.25.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.25.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.25.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.25.2.1.1.1">60.6</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.25.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.25.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.25.3.1.1">37.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.25.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.25.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.25.4.1.1">65.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.25.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.25.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.25.5.1.1">37.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.25.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.25.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.25.6.1.1">51.4</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.25.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.25.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.25.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.26">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.26.1" style="padding-left:3.0pt;padding-right:3.0pt;">BrowseComp (w/ ctx manage)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.26.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.26.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.26.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.26.2.1.1.1">74.9</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.26.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.26.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.26.3.1.1">57.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.26.4" style="padding-left:3.0pt;padding-right:3.0pt;"></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.26.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.26.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.26.5.1.1">59.2</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.26.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.26.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.26.6.1.1">67.6</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.26.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.26.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.26.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.27">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.27.1" style="padding-left:3.0pt;padding-right:3.0pt;">BrowseComp (Agent Swarm)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.27.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.27.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.27.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.27.2.1.1.1">78.4</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.27.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.27.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.27.3.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.27.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.27.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.27.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.27.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.27.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.27.5.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.27.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.27.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.27.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.27.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.27.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.27.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.28">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.28.1" style="padding-left:3.0pt;padding-right:3.0pt;">WideSearch</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.28.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.28.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.28.2.1.1">72.7</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.28.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.28.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.28.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.28.3.1.1.1">76.2*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.28.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.28.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.28.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.28.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.28.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.28.5.1.1">57.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.28.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.28.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.28.6.1.1">32.5*</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.28.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.28.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.28.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.29">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.29.1" style="padding-left:3.0pt;padding-right:3.0pt;">WideSearch (Agent Swarm)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.29.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.29.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.29.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.29.2.1.1.1">79.0</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.29.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.29.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.29.3.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.29.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.29.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.29.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.29.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.29.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.29.5.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.29.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.29.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.29.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.29.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.29.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.29.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.30">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.30.1" style="padding-left:3.0pt;padding-right:3.0pt;">DeepSearchQA</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.30.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.30.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.30.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.30.2.1.1.1">77.1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.30.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.30.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.30.3.1.1">76.1*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.30.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.30.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.30.4.1.1">71.3*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.30.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.30.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.30.5.1.1">63.2*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.30.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.30.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.30.6.1.1">60.9*</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.30.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.30.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.30.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.31">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.31.1" style="padding-left:3.0pt;padding-right:3.0pt;">FinSearchCompT2&amp;T3</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.31.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.31.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.31.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.31.2.1.1.1">67.8</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.31.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.31.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.31.3.1.1">66.2*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.31.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.31.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.31.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.31.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.31.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.31.5.1.1">49.9</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.31.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.31.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.31.6.1.1">59.1*</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.31.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.31.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.31.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.32">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.32.1" style="padding-left:3.0pt;padding-right:3.0pt;">Seal-0</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.32.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.32.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.32.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.32.2.1.1.1">57.4</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.32.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.32.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.32.3.1.1">47.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.32.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.32.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.32.4.1.1">45.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.32.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.32.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.32.5.1.1">45.5*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.32.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.32.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.32.6.1.1">49.5*</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.32.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.32.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.32.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.33">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.33.1" style="padding-left:3.0pt;padding-right:3.0pt;">GDPVal-AA</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.33.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.33.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.33.2.1.1">41.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.33.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.33.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.33.3.1.1">45.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.33.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.33.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.33.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.33.4.1.1.1">48.0</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.33.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.33.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.33.5.1.1">35.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.33.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.33.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.33.6.1.1">34.0</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.33.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.33.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.33.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.34">
+<td class="ltx_td ltx_align_left ltx_border_t" colspan="7" id="S5.T4.6.34.1" style="padding-left:3.0pt;padding-right:3.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T4.6.34.1.1">Image</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.35">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.35.1" style="padding-left:3.0pt;padding-right:3.0pt;">MMMU-Pro</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.35.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.35.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.35.2.1.1">78.5</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.35.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.35.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.35.3.1.1">74.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.35.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.35.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.35.4.1.1">79.5*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.35.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.35.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.35.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.35.5.1.1.1">81.0</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.35.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.35.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.35.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.35.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.35.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.35.7.1.1">69.3</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.36">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.36.1" style="padding-left:3.0pt;padding-right:3.0pt;">MMMU (val)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.36.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.36.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.36.2.1.1">84.3</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.36.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.36.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.36.3.1.1">80.7</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.36.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.36.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.36.4.1.1">86.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.36.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.36.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.36.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.36.5.1.1.1">87.5*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.36.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.36.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.36.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.36.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.36.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.36.7.1.1">80.6</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.37">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.37.1" style="padding-left:3.0pt;padding-right:3.0pt;">CharXiv (RQ)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.37.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.37.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.37.2.1.1">77.5</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.37.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.37.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.37.3.1.1">67.2*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.37.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.37.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.37.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.37.4.1.1.1">82.1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.37.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.37.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.37.5.1.1">81.4</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.37.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.37.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.37.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.37.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.37.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.37.7.1.1">66.1</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.38">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.38.1" style="padding-left:3.0pt;padding-right:3.0pt;">MathVision</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.38.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.38.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.38.2.1.1">84.2</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.38.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.38.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.38.3.1.1">77.1*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.38.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.38.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.38.4.1.1">83.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.38.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.38.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.38.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.38.5.1.1.1">86.1*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.38.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.38.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.38.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.38.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.38.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.38.7.1.1">74.6</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.39">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.39.1" style="padding-left:3.0pt;padding-right:3.0pt;">MathVista (mini)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.39.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.39.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.39.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.39.2.1.1.1">90.1</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.39.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.39.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.39.3.1.1">80.2*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.39.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.39.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.39.4.1.1">82.8*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.39.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.39.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.39.5.1.1">89.8*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.39.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.39.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.39.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.39.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.39.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.39.7.1.1">85.8</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.40">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.40.1" style="padding-left:3.0pt;padding-right:3.0pt;">SimpleVQA</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.40.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.40.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.40.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.40.2.1.1.1">71.2</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.40.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.40.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.40.3.1.1">69.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.40.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.40.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.40.4.1.1">55.8*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.40.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.40.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.40.5.1.1">69.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.40.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.40.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.40.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.40.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.40.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.40.7.1.1">56.8*</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.41">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.41.1" style="padding-left:3.0pt;padding-right:3.0pt;">WorldVQA</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.41.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.41.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.41.2.1.1">46.3</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.41.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.41.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.41.3.1.1">36.8</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.41.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.41.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.41.4.1.1">28.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.41.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.41.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.41.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.41.5.1.1.1">47.4</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.41.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.41.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.41.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.41.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.41.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.41.7.1.1">23.5</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.42">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.42.1" style="padding-left:3.0pt;padding-right:3.0pt;">ZeroBench</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.42.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.42.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.42.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.42.2.1.1.1">9</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.42.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.42.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.42.3.1.1">3*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.42.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.42.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.42.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.42.4.1.1.1">9*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.42.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.42.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.42.5.1.1">8*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.42.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.42.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.42.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.42.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.42.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.42.7.1.1">4*</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.43">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.43.1" style="padding-left:3.0pt;padding-right:3.0pt;">ZeroBench w/ tools</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.43.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.43.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.43.2.1.1">11</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.43.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.43.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.43.3.1.1">9*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.43.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.43.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.43.4.1.1">7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.43.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.43.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.43.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.43.5.1.1.1">12*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.43.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.43.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.43.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.43.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.43.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.43.7.1.1">3*</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.44">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.44.1" style="padding-left:3.0pt;padding-right:3.0pt;">BabyVision</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.44.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.44.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.44.2.1.1">36.5</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.44.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.44.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.44.3.1.1">14.2</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.44.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.44.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.44.4.1.1">34.4</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.44.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.44.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.44.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.44.5.1.1.1">49.7</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.44.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.44.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.44.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.44.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.44.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.44.7.1.1">22.2</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.45">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.45.1" style="padding-left:3.0pt;padding-right:3.0pt;">BLINK</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.45.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.45.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.45.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.45.2.1.1.1">78.9</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.45.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.45.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.45.3.1.1">68.8*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.45.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.45.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.45.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.45.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.45.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.45.5.1.1">78.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.45.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.45.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.45.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.45.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.45.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.45.7.1.1">68.9</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.46">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.46.1" style="padding-left:3.0pt;padding-right:3.0pt;">MMVP</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.46.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.46.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.46.2.1.1">87.0</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.46.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.46.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.46.3.1.1">80.0*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.46.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.46.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.46.4.1.1">83.0*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.46.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.46.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.46.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.46.5.1.1.1">90.0*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.46.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.46.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.46.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.46.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.46.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.46.7.1.1">84.3</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.47">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.47.1" style="padding-left:3.0pt;padding-right:3.0pt;">OmniDocBench 1.5</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.47.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.47.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.47.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.47.2.1.1.1">88.8</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.47.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.47.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.47.3.1.1">87.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.47.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.47.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.47.4.1.1">85.7</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.47.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.47.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.47.5.1.1">88.5</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.47.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.47.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.47.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.47.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.47.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.47.7.1.1">82.0*</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.48">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.48.1" style="padding-left:3.0pt;padding-right:3.0pt;">OCRBench</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.48.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.48.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.48.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.48.2.1.1.1">92.3</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.48.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.48.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.48.3.1.1">86.5*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.48.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.48.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.48.4.1.1">80.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.48.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.48.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.48.5.1.1">90.3*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.48.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.48.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.48.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.48.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.48.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.48.7.1.1">87.5</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.49">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.49.1" style="padding-left:3.0pt;padding-right:3.0pt;">InfoVQA (test)</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.49.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.49.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.49.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.49.2.1.1.1">92.6</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.49.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.49.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.49.3.1.1">76.9*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.49.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.49.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.49.4.1.1">84*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.49.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.49.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.49.5.1.1">57.2*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.49.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.49.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.49.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.49.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.49.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.49.7.1.1">89.5</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.50">
+<td class="ltx_td ltx_align_left ltx_border_t" colspan="7" id="S5.T4.6.50.1" style="padding-left:3.0pt;padding-right:3.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T4.6.50.1.1">Video</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.51">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.51.1" style="padding-left:3.0pt;padding-right:3.0pt;">VideoMMMU</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.51.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.51.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.51.2.1.1">86.6</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.51.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.51.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.51.3.1.1">84.4*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.51.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.51.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.51.4.1.1">85.9</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.51.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.51.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.51.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.51.5.1.1.1">87.6</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.51.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.51.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.51.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.51.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.51.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.51.7.1.1">80.0</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.52">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.52.1" style="padding-left:3.0pt;padding-right:3.0pt;">MMVU</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.52.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.52.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.52.2.1.1">80.4</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.52.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.52.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.52.3.1.1">77.3*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.52.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.52.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.52.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.52.4.1.1.1">80.8*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.52.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.52.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.52.5.1.1">77.5*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.52.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.52.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.52.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.52.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.52.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.52.7.1.1">71.1</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.53">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.53.1" style="padding-left:3.0pt;padding-right:3.0pt;">MotionBench</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.53.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.53.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.53.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.53.2.1.1.1">70.4</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.53.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.53.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.53.3.1.1">60.3*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.53.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.53.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.53.4.1.1">64.8*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.53.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.53.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.53.5.1.1">70.3</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.53.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.53.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.53.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.53.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.53.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.53.7.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.54">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.54.1" style="padding-left:3.0pt;padding-right:3.0pt;">Video-MME</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.54.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.54.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.54.2.1.1">87.4</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.54.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.54.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.54.3.1.1">77.6*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.54.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.54.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.54.4.1.1">86.0*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.54.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.54.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.54.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.54.5.1.1.1">88.4*</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.54.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.54.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.54.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.54.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.54.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.54.7.1.1">79.0</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.55">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.55.1" style="padding-left:3.0pt;padding-right:3.0pt;">LongVideoBench</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.55.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.55.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.55.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.55.2.1.1.1">79.8</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.55.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.55.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.55.3.1.1">67.2*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.55.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.55.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.55.4.1.1">76.5*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.55.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.55.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.55.5.1.1">77.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.55.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.55.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.55.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.55.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.55.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.55.7.1.1">65.6*</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.56">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.56.1" style="padding-left:3.0pt;padding-right:3.0pt;">LVBench</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.56.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.56.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.56.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.56.2.1.1.1">75.9</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.56.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.56.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.56.3.1.1">57.3</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.56.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.56.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.56.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.56.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.56.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.56.5.1.1">73.5*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.56.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.56.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.56.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.56.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.56.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.56.7.1.1">63.6</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.57">
+<td class="ltx_td ltx_align_left ltx_border_t" colspan="7" id="S5.T4.6.57.1" style="padding-left:3.0pt;padding-right:3.0pt;"><span class="ltx_text ltx_font_bold" id="S5.T4.6.57.1.1">Computer Use</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.58">
+<td class="ltx_td ltx_align_left ltx_border_r" id="S5.T4.6.58.1" style="padding-left:3.0pt;padding-right:3.0pt;">OSWorld-Verified</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.58.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.58.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.58.2.1.1">63.3</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.58.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.58.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.58.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.58.3.1.1.1">66.3</span></span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.58.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.58.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.58.4.1.1">8.6*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_r" id="S5.T4.6.58.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.58.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.58.5.1.1">20.7*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top" id="S5.T4.6.58.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.58.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.58.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top" id="S5.T4.6.58.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.58.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.58.7.1.1">38.1</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T4.6.59">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_r" id="S5.T4.6.59.1" style="padding-left:3.0pt;padding-right:3.0pt;">WebArena</td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb ltx_border_r" id="S5.T4.6.59.2" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.59.2.1" style="width:42.7pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.59.2.1.1">58.9</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb" id="S5.T4.6.59.3" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.59.3.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.59.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T4.6.59.3.1.1.1">63.4</span>*</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb" id="S5.T4.6.59.4" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.59.4.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.59.4.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb ltx_border_r" id="S5.T4.6.59.5" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.59.5.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.59.5.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_align_left ltx_align_top ltx_border_bb" id="S5.T4.6.59.6" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.59.6.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.59.6.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_left ltx_align_top ltx_border_bb" id="S5.T4.6.59.7" style="padding-left:3.0pt;padding-right:3.0pt;">
+<span class="ltx_inline-block ltx_align_top" id="S5.T4.6.59.7.1" style="width:56.9pt;">
+<span class="ltx_p ltx_align_center" id="S5.T4.6.59.7.1.1">26.4*</span>
+</span></td></tr>
+</table></div></figure>
+<p><strong>How to read。</strong>原表按 reasoning/general、coding、agentic、image、video、computer use 分组，完整列出闭源和开放模型。原文粗体、星号与 † 保留，脚注用来区分结果来源或评测条件，不能忽略；“–”表示缺失 / 未测，不能当 0。多数分数越高越好，但 GDPVal-AA、文档 edit-distance 分数、Item-F1 和各任务 accuracy 不是同一种指标。</p>
+<p><strong>强项。</strong>HLE-Full with tools 50.2，相对该表最强外部 45.8 为 +4.4pp（9.61%）；OCRBench 92.3 相对 Gemini 90.3 为 +2.0pp（2.21%）；LongVideoBench 79.8 相对 GPT-5.2 76.5 为 +3.3pp（4.31%）。各基线模型、训练数据与 API 条件不同，所以是观察到的 benchmark 优势，不是单位算力优势。</p>
+<p><strong>仍落后的任务。</strong>SWE-Bench Verified 76.8，比 Claude 80.9 低 4.1pp；Terminal Bench 50.8 比 59.3 低 8.5pp；SimpleQA Verified 36.9 与 Gemini 72.1 差距明显。视觉 MathVision 84.2 比 Gemini 86.1 低 1.9pp，GUI 的 OSWorld / WebArena 也低于 Claude。不能只展示胜出的视觉任务。</p>
+<p><strong>模式影响可比性。</strong>Terminal Bench / SWE 最佳结果使用 non-thinking 的原因和 wrapper 在 Appendix E 交代。它们是“模型 + scaffold + mode”的系统结果，不应解读成只比较语言模型推理深度。不同任务的重试、采样次数和工具预算也需要一并阅读。</p>
+<figure class="original-table" id="table-5"><figcaption>Table 5: Performance and token efficiency of some reasoning models. Average output token counts (in thousands) are shown in parentheses.<br/>Source: Original paper · Table 5. Author-emphasized values are preserved; “SOTA” in the caption is the paper’s dated claim.</figcaption><div aria-label="Original Table 5" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S5.T5.2">
+<tr class="ltx_tr" id="S5.T5.2.1">
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S5.T5.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T5.2.1.1.1">Benchmark</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt" id="S5.T5.2.1.2"><span class="ltx_text ltx_font_bold" id="S5.T5.2.1.2.1">Kimi K2.5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S5.T5.2.1.3"><span class="ltx_text ltx_font_bold" id="S5.T5.2.1.3.1">Kimi K2</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S5.T5.2.1.4"><span class="ltx_text ltx_font_bold" id="S5.T5.2.1.4.1">Gemini-3.0</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S5.T5.2.1.5"><span class="ltx_text ltx_font_bold" id="S5.T5.2.1.5.1">DeepSeek-V3.2</span></td></tr>
+<tr class="ltx_tr" id="S5.T5.2.2">
+<td class="ltx_td" id="S5.T5.2.2.1"></td>
+<td class="ltx_td ltx_border_r" id="S5.T5.2.2.2"></td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.2.3"><span class="ltx_text ltx_font_bold" id="S5.T5.2.2.3.1">Thinking</span></td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.2.4"><span class="ltx_text ltx_font_bold" id="S5.T5.2.2.4.1">Pro</span></td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.2.5"><span class="ltx_text ltx_font_bold" id="S5.T5.2.2.5.1">Thinking</span></td></tr>
+<tr class="ltx_tr" id="S5.T5.2.3">
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T5.2.3.1">AIME 2025</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S5.T5.2.3.2">96.1 (25k)</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T5.2.3.3">94.5 (30k)</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T5.2.3.4">95.0 (15k)</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T5.2.3.5">93.1 (16k)</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.4">
+<td class="ltx_td ltx_align_center" id="S5.T5.2.4.1">HMMT Feb 2025</td>
+<td class="ltx_td ltx_align_center ltx_border_r" id="S5.T5.2.4.2">95.4 (27k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.4.3">89.4 (35k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.4.4">97.3 (16k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.4.5">92.5 (19k)</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.5">
+<td class="ltx_td ltx_align_center" id="S5.T5.2.5.1">HMMT Nov 2025</td>
+<td class="ltx_td ltx_align_center ltx_border_r" id="S5.T5.2.5.2">91.1 (24k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.5.3">89.2 (32k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.5.4">94.5 (15k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.5.5">90.2 (18k)</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.6">
+<td class="ltx_td ltx_align_center" id="S5.T5.2.6.1">IMO-AnswerBench</td>
+<td class="ltx_td ltx_align_center ltx_border_r" id="S5.T5.2.6.2">81.8 (36k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.6.3">78.6 (37k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.6.4">83.1 (18k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.6.5">78.3 (27k)</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.7">
+<td class="ltx_td ltx_align_center" id="S5.T5.2.7.1">LiveCodeBench</td>
+<td class="ltx_td ltx_align_center ltx_border_r" id="S5.T5.2.7.2">85.0 (18k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.7.3">82.6 (25k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.7.4">87.4 (13k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.7.5">83.3 (16k)</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.8">
+<td class="ltx_td ltx_align_center" id="S5.T5.2.8.1">GPQA Diamond</td>
+<td class="ltx_td ltx_align_center ltx_border_r" id="S5.T5.2.8.2">87.6 (14k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.8.3">84.5 (13k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.8.4">91.9 (8k)</td>
+<td class="ltx_td ltx_align_center" id="S5.T5.2.8.5">82.4 (7k)</td></tr>
+<tr class="ltx_tr" id="S5.T5.2.9">
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T5.2.9.1">HLE-Text</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r" id="S5.T5.2.9.2">31.5 (24k)</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T5.2.9.3">23.9 (29k)</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T5.2.9.4">38.4 (13k)</td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T5.2.9.5">25.1 (21k)</td></tr>
+</table></div></figure>
+<p><strong>长度与质量一起看。</strong>括号是平均响应 token 数，不是毫秒或总收费。K2.5 相对 K2 Thinking：AIME +1.6pp、30k→25k（−16.67%）；HMMT Feb +6.0pp、35k→27k（−22.86%）；LiveCodeBench +2.4pp、25k→18k（−28%）。GPQA 则 +3.1pp、13k→14k（+7.69%），所以不能说所有任务都缩短。Gemini 在不少行更短且得分更高，K2.5 也没有形成统一长度—质量 Pareto 最优。</p>
+<p><strong>成本限制。</strong>跨模型 tokenization、token 每步成本、隐藏推理计费以及服务吞吐不同。输出长度变短通常有助于减少 decode 工作，但 TTFT、TPOT 和墙钟仍须实测；Figure 5 与 Table 5 不能归因于同一个单独组件。</p>
+<h3 id="subsection-13">5.2 Agent Swarm Results：提升来自哪个基线</h3>
+<figure class="original-table" id="table-6"><figcaption>Table 6: Performance comparison of Kimi K2.5 Agent Swarm against single-agent and proprietary baselines on agentic search benchmarks. Bold denotes the best result per benchmark.<br/>Source: Original paper · Table 6. Author-emphasized values are preserved; “SOTA” in the caption is the paper’s dated claim.</figcaption><div aria-label="Original Table 6" class="table-wrap" role="region" tabindex="0"><table class="ltx_tabular ltx_centering ltx_align_middle" id="S5.T6.4">
+<tr class="ltx_tr" id="S5.T6.4.1">
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S5.T6.4.1.1">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.1.1.1">
+<span class="ltx_p" id="S5.T6.4.1.1.1.1"><span class="ltx_text ltx_font_bold" id="S5.T6.4.1.1.1.1.1">Benchmark</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S5.T6.4.1.2">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.1.2.1">
+<span class="ltx_p" id="S5.T6.4.1.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T6.4.1.2.1.1.1">K2.5 Agent Swarm</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S5.T6.4.1.3">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.1.3.1">
+<span class="ltx_p" id="S5.T6.4.1.3.1.1"><span class="ltx_text ltx_font_bold" id="S5.T6.4.1.3.1.1.1">Kimi K2.5</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S5.T6.4.1.4">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.1.4.1">
+<span class="ltx_p" id="S5.T6.4.1.4.1.1"><span class="ltx_text ltx_font_bold" id="S5.T6.4.1.4.1.1.1">Claude Opus 4.5</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt" id="S5.T6.4.1.5">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.1.5.1">
+<span class="ltx_p" id="S5.T6.4.1.5.1.1"><span class="ltx_text ltx_font_bold" id="S5.T6.4.1.5.1.1.1">GPT-5.2</span></span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt" id="S5.T6.4.1.6">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.1.6.1">
+<span class="ltx_p" id="S5.T6.4.1.6.1.1"><span class="ltx_text ltx_font_bold" id="S5.T6.4.1.6.1.1.1">GPT-5.2 Pro</span></span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T6.4.2">
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T6.4.2.1">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.2.1.1">
+<span class="ltx_p" id="S5.T6.4.2.1.1.1">BrowseComp</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T6.4.2.2">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.2.2.1">
+<span class="ltx_p" id="S5.T6.4.2.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T6.4.2.2.1.1.1">78.4</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T6.4.2.3">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.2.3.1">
+<span class="ltx_p" id="S5.T6.4.2.3.1.1">60.6</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T6.4.2.4">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.2.4.1">
+<span class="ltx_p" id="S5.T6.4.2.4.1.1">37.0</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S5.T6.4.2.5">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.2.5.1">
+<span class="ltx_p" id="S5.T6.4.2.5.1.1">65.8</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t" id="S5.T6.4.2.6">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.2.6.1">
+<span class="ltx_p" id="S5.T6.4.2.6.1.1">77.9</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T6.4.3">
+<td class="ltx_td ltx_align_center" id="S5.T6.4.3.1">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.3.1.1">
+<span class="ltx_p" id="S5.T6.4.3.1.1.1">WideSearch</span>
+</span></td>
+<td class="ltx_td ltx_align_center" id="S5.T6.4.3.2">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.3.2.1">
+<span class="ltx_p" id="S5.T6.4.3.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T6.4.3.2.1.1.1">79.0</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center" id="S5.T6.4.3.3">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.3.3.1">
+<span class="ltx_p" id="S5.T6.4.3.3.1.1">72.7</span>
+</span></td>
+<td class="ltx_td ltx_align_center" id="S5.T6.4.3.4">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.3.4.1">
+<span class="ltx_p" id="S5.T6.4.3.4.1.1">76.2</span>
+</span></td>
+<td class="ltx_td ltx_align_center" id="S5.T6.4.3.5">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.3.5.1">
+<span class="ltx_p" id="S5.T6.4.3.5.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center" id="S5.T6.4.3.6">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.3.6.1">
+<span class="ltx_p" id="S5.T6.4.3.6.1.1">-</span>
+</span></td></tr>
+<tr class="ltx_tr" id="S5.T6.4.4">
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T6.4.4.1">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.4.1.1">
+<span class="ltx_p" id="S5.T6.4.4.1.1.1">In-house Swarm Bench</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T6.4.4.2">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.4.2.1">
+<span class="ltx_p" id="S5.T6.4.4.2.1.1"><span class="ltx_text ltx_font_bold" id="S5.T6.4.4.2.1.1.1">58.3</span></span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T6.4.4.3">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.4.3.1">
+<span class="ltx_p" id="S5.T6.4.4.3.1.1">41.6</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T6.4.4.4">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.4.4.1">
+<span class="ltx_p" id="S5.T6.4.4.4.1.1">45.8</span>
+</span></td>
+<td class="ltx_td ltx_align_center ltx_border_bb" id="S5.T6.4.4.5">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.4.5.1">
+<span class="ltx_p" id="S5.T6.4.4.5.1.1">-</span>
+</span></td>
+<td class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb" id="S5.T6.4.4.6">
+<span class="ltx_inline-block ltx_align_top" id="S5.T6.4.4.6.1">
+<span class="ltx_p" id="S5.T6.4.4.6.1.1">-</span>
+</span></td></tr>
+</table></div></figure>
+<p><strong>重新计算。</strong>BrowseComp 60.6→78.4：+17.8pp / +29.37% relative；WideSearch 72.7→79.0：+6.3pp / +8.67%；in-house 41.6→58.3：+16.7pp / +40.14%。BrowseComp 对 GPT-5.2 Pro 77.9 只高 0.5pp，无 paired variance，不能把细小差距当确定排名。</p>
+<p>原文 Introduction 的 WideSearch baseline 写 72.8，Table 4 / 6 则为 72.7。本文交互与收益计算采用完整表中的 72.7，同时保留这处源内差异。</p>
+<section class="interactive" id="result-explorer"><span class="component-label">Paper data · original Tables 4 and 6</span><h4>换一个 baseline，收益是多少</h4><div class="controls"><label>Benchmark<select id="benchmark"><option value="browse">BrowseComp</option><option value="wide">WideSearch · Item-F1</option><option value="house">In-house Swarm Bench</option></select></label><label>Baseline<select id="baseline"><option value="raw">K2.5 · single agent</option><option value="managed">K2.5 · context-managed</option></select></label></div><div class="metric-bars" id="result-bars"></div><output aria-live="polite" id="result-result"></output><p class="fine">百分点 Δ=swarm−baseline；relative Δ=(swarm−baseline)/baseline。只有 BrowseComp 报告 context-managed 74.9；其他任务不补造值。均为作者结果，不是等 token / 等费用控制实验。</p></section>
+<p><strong>基线选择为何重要。</strong>Table 4 另给 K2.5 with context management 74.9。与它比较 Swarm 的优势只有 +3.5pp / +4.67%。原始单智能体到 context-managed 的 +14.3pp 已占原始到 Swarm +17.8pp 的约 80.34%。这只是不同系统结果差值的算术拆分，不能当作具有因果意义的“贡献占比”。</p>
+<figure class="original" id="figure-6"><img alt="Figure 6: The word cloud visualizes heterogeneous K2.5-based sub-agents dynamically instantiated by the Orchestrator across tests." loading="lazy" src="assets/original/fig-06-agent_swarm_subagents.png"/><figcaption>Figure 6: The word cloud visualizes heterogeneous K2.5-based sub-agents dynamically instantiated by the Orchestrator across tests.<br/>Source: Original paper · Figure 6 · <a href="https://arxiv.org/html/2602.02276v2/agent_swarm_subagents.png">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 6 模块解读。</strong>词云展示 orchestrator 自创建的角色名称及任务异质性：搜索、校验、分析等工作由 prompt 分工。它不是 384 个 routed expert 的结构图，也没有可复算的角色频率数据。图支持存在多样分工，不证明每个角色必要或最优。</p>
+<figure class="original" id="figure-7"><img alt="Figure 7: Comparison of Kimi K2.5 performance under Agent Swarm and Discard-all context management in BrowseComp." loading="lazy" src="assets/original/fig-07-agent_swarm_ctx_mgm.png"/><figcaption>Figure 7: Comparison of Kimi K2.5 performance under Agent Swarm and Discard-all context management in BrowseComp.<br/>Source: Original paper · Figure 7 · <a href="https://arxiv.org/html/2602.02276v2/agent_swarm_ctx_mgm.png">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 7 如何读。</strong>比较 BrowseComp 中 Swarm 的 context sharding 与单 agent Discard-all 随预算增加的表现。单 agent 丢历史后可能重复搜索或遗失证据；子 agent 有独立上下文，主 agent 收到摘要，扩大整个系统的有效信息容量。优势不仅是并发；若评测允许更多总 token 与工具预算，比较不再是固定资源实验。</p>
+<figure class="original" id="figure-8"><img alt="Figure 8: Agent Swarm achieves 3×–4.5× faster execution time compared to single-agent baselines as target Item-F1 increases from 30% to 70% in WideSearch testing." loading="lazy" src="assets/original/fig-08-agent_swarm_efficiency.svg"/><figcaption>Figure 8: Agent Swarm achieves 3×–4.5× faster execution time compared to single-agent baselines as target Item-F1 increases from 30% to 70% in WideSearch testing.<br/>Source: Original paper · Figure 8 · <a href="https://arxiv.org/html/2602.02276v2/agent_swarm_efficiency.svg">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 8 如何读。</strong>横轴为 WideSearch 目标 Item-F1 30%→70%，纵轴比较到达该质量所需执行时间，作者报告 Swarm 相对单 agent 约 3×–4.5×。对齐的是质量阈值，不是工具数、GPU-hours 或美元。原图支持目标质量下较短时间，缺少总资源曲线，因此不能推出总体推理成本下降同样倍数。</p>
+<p><strong>公平性与缺失消融。</strong>需要固定执行者 checkpoint，分别测 learned PARL / 手工分工、context sharding / 串行共享上下文、并行 / 串行执行；再分别对齐 token、工具调用、GPU-hours 或美元。单一 accuracy 与 parallelism 训练曲线无法隔离这些作用。in-house benchmark 未公开，外部难以验证其覆盖面和偏差。</p>
+<h2 id="section-8">6. Conclusions：论文支持的结论</h2>
+<p><strong>Paper。</strong>报告强调视觉与语言在联合训练中协同发展、文本行为能迁移到视觉工具任务、并行智能体策略可以训练而非仅手写。K2.5 同时提供广泛 benchmark 结果与可下载模型，为视觉 agent 与推理时规模扩展提供基座。</p>
+<p><strong>Interpretation。</strong>最有价值的不是“更多 agent”，而是把<strong>观察输入 → 工具动作 → 可验证结果 → 分工策略</strong>连接起来。论文仍是系统技术报告：部分证据为内部数据、曲线或定性示例，不足以证明每个组件的独立因果收益、全成本可扩展性和训练完全可复现。</p>
+<h2 id="section-9">Appendix A–B：贡献者与预训练补充</h2>
+<h3 id="subsection-14">A. Contributors</h3>
+<p>Appendix A 列出 Kimi Team 成员及研究、基础设施等贡献。它解释这是一项团队系统工程；本文不把作者名单改写为未经确认的个人贡献归因。完整名单保留在指定 PDF / HTML 中。</p>
+<h3 id="subsection-15">B. Pre-training：数据类型与 schedule 学习曲线</h3>
+<p><strong>数据。</strong>视觉数据包含 alt-text、合成 caption、OCR、grounding、视频与 interleaved multimodal 内容；GUI / OS screenshot 数据包含人工轨迹。长上下文阶段使用长文本、长视频、推理与长 CoT。数据质量、覆盖度和采样组成影响能力迁移，文本 SFT 的“零视觉”不抹去这些基础。</p>
+<figure class="original" id="figure-9"><img alt="Figure 9: Learning curves comparing vision-to-text ratios (10:90, 20:80, 50:50) under fixed vision-text token budget across vision and language tasks. Early fusion with lower vision ratios tend to yield better results." loading="lazy" src="assets/original/fig-09-vision-joint.svg"/><figcaption>Figure 9: Learning curves comparing vision-to-text ratios (10:90, 20:80, 50:50) under fixed vision-text token budget across vision and language tasks. Early fusion with lower vision ratios tend to yield better results.<br/>Source: Original paper · Figure 9 · <a href="https://arxiv.org/html/2602.02276v2/vision-joint.svg">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 9 如何读。</strong>六个能力面板分别比较 Early / Mid / Late 的训练曲线；视觉注入较晚时，文本能力可能先下降再恢复。终点对应 Table 1 的 schedule 比较。图支持早融路线的经验选择，但不同注入时间需要对应比例才能匹配最终模态预算，不能把它拆成纯时间单变量实验。</p>
+<p><strong>缺口。</strong>每项 aggregate benchmark 的完整组成、seed 方差、每模态 FLOPs 及数据去重明细不足，训练曲线也没有绝对资源账单。建议同时绘制“得分–累计 LLM FLOPs”“得分–总视觉编码 FLOPs”，避免只用 token 进度比较模态成本。</p>
+<h2 id="section-10">Appendix C：训练基础设施的每一项成本</h2>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>原文配置 / 优化</th>
+<th>改变的链路</th>
+<th>代价与核验点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NVIDIA H800；每节点 8×400Gbps RoCE</td>
+<td>节点间通信带宽与集群规模</td>
+<td>理论带宽不等于 All-to-All 有效带宽</td>
+</tr>
+<tr>
+<td>PP=16，virtual pipeline stages</td>
+<td>backbone 按层切分，重叠微批次</td>
+<td>bubble、视觉批次波动与 stage 不平衡</td>
+</tr>
+<tr>
+<td>EP=16；节点按 32 的倍数组织</td>
+<td>MoE token 分发到专家所在设备</td>
+<td>路由偏斜、All-to-All、跨节点尾延迟</td>
+</tr>
+<tr>
+<td>1F1B 与通信重叠</td>
+<td>forward/backward 与专家通信流水</td>
+<td>依赖 readiness 与缓冲；不能完全隐藏所有通信</td>
+</tr>
+<tr>
+<td>ZeRO-1</td>
+<td>optimizer state 分片</td>
+<td>参数 / activation 仍有其他驻留成本</td>
+</tr>
+<tr>
+<td>selective recompute</td>
+<td>LayerNorm、SwiGLU、MLA 上投影等少存 activation</td>
+<td>backward 多做算子，增加计算</td>
+</tr>
+<tr>
+<td>FP8 E4M3 activation</td>
+<td>对不敏感中间量低精度存储</td>
+<td>不是全部权重 FP8；需量化误差与溢出控制</td>
+</tr>
+<tr>
+<td>CPU streaming offload</td>
+<td>activation 在 CPU 与 GPU 之间交换</td>
+<td>PCIe / 内存带宽、stream 同步与峰值缓冲</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Interpretation · per-op 审计。</strong>ViT attention 的峰值可能在时间池化之前；projector 的输入 4608 大于 vision width；MLA 的压缩 KV 投影与上投影引入算子工作，但减少历史驻留与读取；MoE router 本身便宜，跨设备 token dispatch / combine 可能更贵。recompute 减少 activation footprint，却会把这些算子在 backward 重做，不能仅凭显存减少推断训练更快。</p>
+<h2 id="section-11">Appendix D：Unified Agentic RL Environment</h2>
+<figure class="original" id="figure-10"><img alt="Figure 10: Overview of our agentic RL framework." loading="lazy" src="assets/original/fig-10-rl_framework.png"/><figcaption>Figure 10: Overview of our agentic RL framework.<br/>Source: Original paper · Figure 10 · <a href="https://arxiv.org/html/2602.02276v2/rl_framework.png">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 10 阅读顺序。</strong>从任务与环境交互开始，模型 rollout 生成动作，环境执行工具并返回 observation，结果评估形成 reward，训练侧消费轨迹更新策略。异步交互与可执行环境使 agent RL 不再只是静态文本打分。</p>
+<p><strong>模块含义。</strong>统一接口把搜索、代码、视觉 / GUI 等环境接到 rollout 链路。可靠的 credit assignment 依赖轨迹、环境状态和 policy 版本一致；需要防止工具超时导致不完整轨迹、回调迟到误归属，以及失败任务被错误计作模型回答。</p>
+<p>原文采用 Gym-like 环境、可插拔 toolset / judge / prompt 模块；每个任务是独立异步 coroutine，可以递归创建子 rollout。Rollout Manager 声称支持最多 100,000 个并发 agent task，并管理 environment pool / sandbox 与 partial rollout；这是训练任务并发，不是一个用户任务生成 100,000 个子 agent。推理侧采用 Token-in-Token-out，保存 log probability 做 train–inference mismatch correction；LLM Gateway 为标准 API 的 black-box 环境补齐请求 / 响应记录。</p>
+<p><strong>工程解释。</strong>多数 agent step 是“生成调用 → 等待外部工具 → 继续生成”的串行依赖。即便 GPU decode 优化明显，外部工具延迟也可能主导完成时间。并行环境可以提高训练吞吐，但必须管理隔离、取消、重试、checkpoint 和日志关联。论文系统图说明了链路，未给完整生产实现与失效恢复测试。</p>
+<h2 id="section-12">Appendix E：逐项核对评测协议</h2>
+<h3 id="subsection-16">E.1 General Evaluation Protocol</h3>
+<p>通常 temperature=1、top-p=0.95、context=256K，具体任务的覆盖设置见以下各节。采样次数与 context 是评测预算的一部分。</p>
+<h3 id="subsection-17">E.2 Baselines</h3>
+<p>Claude Opus 4.5 用 extended thinking，GPT-5.2 用 xhigh，Gemini 3 Pro 用 high thinking，DeepSeek-V3.2 用 thinking（文本），Qwen3-VL 用 thinking（视觉）。作者称 GPT-5.2 视觉任务约 10% 在重试三次后仍没有输出，并计错；这混合模型能力和 API 可用性。不能简单除以 0.9 反推“真实能力”，因为失败未必随机独立。API 不稳定还导致部分高成本任务跳过，缺失值不是零分。</p>
+<h3 id="subsection-18">E.3 Text Benchmarks</h3>
+<p>推理题 completion budget 96K；AIME / HMMT Feb Avg@64，GPQA Avg@8，因此不是单次 pass@1 的低成本调用。LongBench v2 输入约 128K、统一截断；GPT-5.2 因输出格式问题改用 high 而非 xhigh，主表标签需结合此例外阅读。</p>
+<h3 id="subsection-19">E.4 Image and Video Benchmarks</h3>
+<p>视觉 completion 通常 64K、Avg@3；ZeroBench with tools 每步 24K、最多 30 steps。MMMU-Pro 保持官方模态顺序，图片在文本之前。短视频 uniform sample 128 帧、最大空间分辨率 896；长视频 uniform sample 2048 帧、448。Video-MME with subtitles；字幕提供额外语言信息，不与纯视觉条件混比。采样率和四帧池化影响短暂事件可见性，长时长支持不等于原始帧全覆盖。</p>
+<p>OmniDocBench 1.5 为 <code>(1 − normalized Levenshtein distance) ×100</code>，不是二分类 accuracy。<a href="https://github.com/MoonshotAI/WorldVQA">WorldVQA 官方仓库</a> 对应视觉中心的原子世界知识、精细识别与地理理解。</p>
+<h3 id="subsection-20">E.5 Coding and Software Engineering</h3>
+<p>代码任务 Avg@5。Terminal Bench 使用默认 Terminus 2 scaffold / JSON parser；thinking 与状态管理不匹配，因此使用 non-thinking。SWE 内部最小工具集为 <code>bash/create_file/insert/view/str_replace/submit</code>，non-thinking 获得最佳表现。PaperBench 用 CodeDev，不是全部训练复现；CyberGym level 1，Claude 也用 non-thinking。</p>
+<h3 id="subsection-21">E.6 Agentic Evaluation</h3>
+<p>使用 Python、web search、browse；未注明上下文策略时，溢出计失败。HLE Hide-Tool-Result 保留最新工具结果与全部思考；BrowseComp 同时测无管理与 Discard-all；Seal / WideSearch Avg@4，其余未特别注明通常单次。统一 prompt 强调确认不确定信息、可信来源、编程算数、引用与回到原问题；prompt 与 context 策略均属于系统结果。</p>
+<h3 id="subsection-22">E.7 Computer-Use Evaluation</h3>
+<p>OSWorld temperature=0，WebArena=0.1；最多 100 steps、资源限制下 one-shot。按 OpenCUA 保留最近三张图、全部思考与指令。Claude 仅 computer-use、不加 browser，与其 System Card 不同。WebArena 修正评测脚本、GPT-4o fuzzy judge。统一 prompt 约定 thought / action / pyautogui code，并有 wait / terminate 工具。63.3 / 58.9 依赖版本、步数、judge 和上下文方式。</p>
+<h3 id="subsection-23">E.8 Agent Swarm Configuration</h3>
+<p>主 agent 增加 create_subagent / assign_task；返回单条消息的接口决定信息如何汇总。BrowseComp orchestrator / subagent step budget 15 / 100；WideSearch 100 / 100；in-house 100 / 50。step 约束是工具调用和环境交互的计数。主 agent 15 步不等于全系统仅 15 次调用，子 agent 工作另计。</p>
+<p><strong>WideSearch 指标拆解。</strong>其 200 个问题要求收集原子信息项。TP 为正确收集的 item，FP 为错误 / 多余 item，FN 为漏项；Precision=TP/(TP+FP)，Recall=TP/(TP+FN)，F1=2TP/(2TP+FP+FN)。候选负项集合没有天然有限定义，TN 不适合补造，Accuracy 不能由 F1 反推。教学例 TP=8、FP=2、FN=4：Precision=80%、Recall=66.67%、F1=72.73%；不代表整张表全部正确。论文 79.0 是 Item-F1，不是 79% 问题完全成功。</p>
+<h3 id="subsection-24">E.9 GDPVal</h3>
+<p>使用 Artificial Analysis 2026-01-28 官方快照。主表 K2.5 41.0，低于 GPT-5.2 48.0 与 Claude 45.0。将其作为该 snapshot 的报告指标保留，不能擅自把指数 / Elo / 偏好结果改称任务准确率。</p>
+<h3 id="subsection-25">综合评测审计</h3>
+<p>高成本基准部分跳过；缺失单元格不是失败率 100%。部分竞品值来自官方、部分由作者重测，要结合主表脚注。模型版本、sampling、scaffold、judge、重试与上下文策略不同，使榜单只能在具体任务协议下解释，不能直接构成公平 FLOPs 排名。</p>
+<h2 id="section-13">Appendix F：定性案例说明了什么</h2>
+<figure class="original" id="figure-11"><img alt="Figure 11: Qualitative example of Kimi K2.5 analyzing a complete playthrough of Black Myth: Wukong (24 hours of continuous gameplay across 32 videos at 1080p) using parallel visual agents. See generated webpage and source videos (all rights reserved by source authors)." loading="lazy" src="assets/original/fig-11-video_agent_case.png"/><figcaption>Figure 11: Qualitative example of Kimi K2.5 analyzing a complete playthrough of Black Myth: Wukong (24 hours of continuous gameplay across 32 videos at 1080p) using parallel visual agents. See generated webpage and source videos (all rights reserved by source authors).<br/>Source: Original paper · Figure 11 · <a href="https://arxiv.org/html/2602.02276v2/video_agent_case.png">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 11 阅读顺序。</strong>查看并行视觉 agent 如何分析 32 段、总计约 24 小时的 1080p《黑神话：悟空》流程视频，并汇总为网页产物。原视频约 40GB；角色分工把大型视频集合拆成局部任务，再聚合内容。</p>
+<p><strong>价值与边界。</strong>它展示长视频与多 agent 在实际产物中的可用形态，不是包含失败率、人工校验和总成本的量化 benchmark。网页流畅不证明所有事件、字幕、时间戳与引用都正确。1080p 描述源视频，不能认定每一帧都以 1080p 输入语言模型。</p>
+<figure class="original" id="figure-12"><img alt="Figure 12: Qualitative examples of Kimi K2.5 solving visual reasoning tasks via tool use." loading="lazy" src="assets/original/fig-12-vtir_examples.png"/><figcaption>Figure 12: Qualitative examples of Kimi K2.5 solving visual reasoning tasks via tool use.<br/>Source: Original paper · Figure 12 · <a href="https://arxiv.org/html/2602.02276v2/vtir_examples.png">Original asset</a>. Click to zoom.</figcaption></figure>
+<p><strong>Figure 12 模块与数据流。</strong>迷宫先通过视觉解析再用 BFS；颜色面积通过分割与计数；找不同通过局部视觉比较 / 工具处理。图像任务被改写为可执行中间表示，使工具结果帮助核验答案。</p>
+<p><strong>关键洞见。</strong>LLM 无需在自然语言思考中精确模拟每个像素。它可以生成操作、让工具承担确定性计算，再解释结果。但视觉到符号的最初转换若错，正确 BFS 也只会解错图；应分别测感知转换和执行计算，不能把成功案例直接推广成可靠视觉数学系统。</p>
+<h2 id="section-14">Interpretation：工程判断、复现计划与未解决问题</h2>
+<h3 id="subsection-26">强项与隐藏取舍</h3>
+<p><strong>Novelty。</strong>多 agent 架构已有先例；本文较突出的点是对调度策略进行 RL，并与原生多模态训练连接。zero-vision SFT 展示跨模态行为迁移，但不是未接触视觉数据的零样本学习。</p>
+<p><strong>Correctness / evidence。</strong>完整 benchmark、阶段消融与曲线支持若干观察；reward 公式书写、SFT 对照缺失、API 故障与置信区间缺乏限制了更强推论。比例和时序一起变化的实验须视为 schedule 对照。</p>
+<p><strong>Scalability。</strong>独立上下文扩大系统信息容量，理想并发缩短关键路径；权重共享不会消除 KV、工具、摘要与校验成本。任务若强依赖、结果高度耦合或瓶颈在串行汇总，多分支收益就会受限。</p>
+<p><strong>Memory / hardware。</strong>1T 级 checkpoint、EP 通信、长上下文 KV 与视觉 prefill 使部署依赖集群系统。端侧不宜以 32B active 推定可直接运行；若用更小模型执行视觉工具任务，也须重新验证感知与工具格式稳定性。</p>
+<p><strong>Reproducibility。</strong>开放权重和推理配置有助复现生成能力，但训练数据、reward 标度、PARL schedule、scaffold 和资源预算并未全部公开，下载模型不等于复现官方 Swarm 服务。</p>
+<h3 id="subsection-27">公开量化与部署配置</h3>
+<p>官方权重使用 native INT4 / compressed-tensors，group size 32、symmetric；attention、shared / dense 部分、lm_head、vision 与 projector 等在配置的 ignore 范围内。<code>dtype=bfloat16</code> 不表示全部权重 BF16，也不能称全部模型 INT4。许可证为 Modified MIT，并包含达到月活超过 100M 或月收入超过 $20M 等商业规模条件后的署名要求；应阅读完整 LICENSE。</p>
+<p>官方部署路线包括 vLLM、SGLang、KTransformers，建议 transformers≥4.57.1。不同框架的 MLA cache layout、量化 kernel、EP 与 prefix sharing 可能不同。需要分别报告权重驻留、CPU RSS 峰值、GPU allocated / reserved、视觉编码 workspace 和 KV 峰值。</p>
+<h3 id="subsection-28">我会补做的实验</h3>
+<ol>
+<li><strong>分离训练因素。</strong>等数据 / FLOPs 比 text-only 与 text+vision SFT；视觉 RL 与额外文本 RL 对照；注入时间和比例做二维消融。</li>
+<li><strong>分离系统因素。</strong>固定 executor，比较 learned PARL / 手写角色 / 随机角色，context sharding / 单 context，并行 / 串行；同时报告 tokens、工具数、GPU-hours、美元、p50 / p95 完成时间。</li>
+<li><strong>测失败链路。</strong>加入工具超时、迟到回调、straggler、子任务取消 / 恢复、重复搜索、冲突答案，审计 final artifact、引用和缓存状态一致性。</li>
+<li><strong>测视觉损耗。</strong>分辨率、帧采样、g=1/2/4、短暂小字 / 多语言 OCR、INT4 对 BF16；把感知错误、工具调用错误与计算错误分别归因。</li>
+<li><strong>测 serving。</strong>同输入、同精度、同 batch 的视觉 TTFT / decode TPOT；记录 per-op 耗时、EP 通信、MLA 历史读取、KV 峰值。Swarm 另外报告用户完成时间，避免拿 token 延迟代替任务延迟。</li>
+</ol>
+<h2 id="section-15">External：技术演进与截至 2026-10-29 的状态</h2>
+<h3 id="subsection-29">相关工作矩阵</h3>
+<div aria-label="Explanatory comparison table" class="table-wrap" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>工作 / 时间</th>
+<th>核心路线</th>
+<th>优点</th>
+<th>局限 / 与 K2.5 的关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://arxiv.org/abs/2303.15343">SigLIP，2023，2303.15343</a></td>
+<td>图文 sigmoid 对比目标</td>
+<td>高效视觉表征初始化</td>
+<td>图文对齐本身不提供工具执行策略</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2307.06304">NaViT，2023，2307.06304</a></td>
+<td>原生分辨率 patch packing</td>
+<td>减少固定 resize 的限制</td>
+<td>token / attention 成本仍随分辨率增长；K2.5 视觉输入继承相近思想</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2504.07491">Kimi-VL，2025，2504.07491</a></td>
+<td>MoonViT + MoE VLM</td>
+<td>视觉与高效语言 backbone 结合</td>
+<td>规模与视频 / agent 训练范围不同，是 K2.5 先行路线</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2507.20534">Kimi K2，2025，2507.20534</a></td>
+<td>大规模 MoE、MuonClip、agentic 能力</td>
+<td>文本与工具能力基础</td>
+<td>本文进一步加入联合视觉训练与 PARL</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2508.07999">WideSearch，2025，2508.07999</a></td>
+<td>200 个广度信息收集任务</td>
+<td>原子 item 能分析漏项与错项</td>
+<td>Item-F1 与整任务 exact success 必须区分</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2511.00279">LongCat-Flash-Omni，2025-10，2511.00279</a></td>
+<td>多模态 MoE 与 MDP 训练并行</td>
+<td>同样处理模态导致的 pipeline 不平衡</td>
+<td>其 &gt;90% 吞吐与 DEP 的 90% 条件不同，不能直接排名</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2511.21631">Qwen3-VL，2025-11，2511.21631</a></td>
+<td>MRoPE、DeepStack、时间对齐</td>
+<td>另一条视觉注入 / 视频表示路线</td>
+<td>不同位置与融合策略，不能只看参数与 context</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2512.02556">DeepSeek-V3.2，2025-12，2512.02556</a></td>
+<td>稀疏 attention、agent 数据与长交互</td>
+<td>优化历史访问与工具推理</td>
+<td>与 K2.5 的视觉压缩 / 并行上下文分片作用层次不同</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="subsection-30">Before / This Paper / After</h3>
+<p>2023 的 SigLIP / NaViT 解决视觉表征与输入方式；2025 的 Kimi-VL / K2 分别形成视觉—MoE 与语言 agent 基础。2026-01-27 K2.5 产品发布，2026-02-02 v1、08-07 v2 报告说明联合训练与 PARL。后续官方 help 记载 K2.6 于 04-20 发布、支持 300 subagents / 4000 calls，当前服务提及 K3 Swarm；v2 日期晚于部分产品后续，不宜按论文版本日期推断产品首次出现时间。</p>
+<p><strong>External · 多 agent 工程先例。</strong><a href="https://www.anthropic.com/engineering/multi-agent-research-system">Anthropic 多智能体研究系统</a> 已描述 orchestrator / workers、独立 context 与并行查找，并报告自家任务上的提升及多 agent 约 15× 普通 chat token 使用。这里的 15× 不是 K2.5 测量。该资料强调协调、上下文压缩与可观测性，和本文关键路径 / 信息容量解释一致，也说明多 agent 的潜在成本。</p>
+<h3 id="subsection-31">当前状态：按 benchmark 与协议限定</h3>
+<p><strong>Kimi 官方路线。</strong><a href="https://www.kimi.ai/help/agent/agent-swarm">Agent Swarm help</a> 与 <a href="https://www.kimi.ai/blog/kimi-k3">K3 官方介绍</a> 显示产品已向后续模型发展。K3 官方自述 2.8T、1M context、KDA + AttnRes、16/896 Stable Latent MoE；这些属于另一模型，不是 K2.5 的配置。help 的 BrowseComp 15.9→33.3 与本文 60.6→78.4 协议不明，不能替换原表。部分旧 blog 当前混入新模型表头，必须按阅读日页面核验，不把所有数字当原始发布快照。本文未据仅有发布承诺断言 K3 权重已可下载。</p>
+<p><strong>OSWorld 已换任务。</strong><a href="https://os-world.github.io/">原 OSWorld 页</a> 宣布 2026-06-26 推出 OSWorld 2.0。<a href="https://osworld-v2.xlang.ai/">OSWorld 2.0</a> 2026-10-15 榜单快照使用 108 个长时任务、31 个网站，平均需超过 250 steps；榜单条件为 500 steps。该快照 Claude Opus 5 max / batch v2.1 binary=44.33、partial=77.67；Kimi 2.6 standard / v2026.06.24 binary=4.6、partial=22.1，版本和模式均不同。此处用于说明新任务与新协议，不能用 44.33 与旧 OSWorld-Verified 63.3 直接比较或宣布 K2.5 退步。</p>
+<p><strong>开源与独立复现。</strong>K2.5 权重与推理实现公开；本文未找到在相同工具、上下文及总成本条件下完整独立复现 PARL / Swarm 收益的证据。闭源 API 排名和官方宣传不能替代此项。当前不存在跨视觉、代码、研究 agent 与 GUI 的单一通用 SOTA，应按任务、版本、预算和指标分别报告。</p>
+<h3 id="subsection-32">Related Readings</h3>
+<ul>
+<li><a href="../vit/">Vision Transformer：视觉 patch 与输入成本</a></li>
+<li><a href="../sparse-moe/">Sparsely-Gated MoE：路由、容量与通信</a></li>
+<li><a href="../gqa/">GQA：Query 与 KV 的不同成本</a></li>
+<li><a href="../pagedattention/">PagedAttention：KV 容量、并发与 prefix sharing</a></li>
+<li><a href="../vrope/">VRoPE：视频位置、连续性与 token 压缩</a></li>
+<li><a href="../awq/">AWQ：量化精度与实际 kernel 性能</a></li>
+</ul>
+<h2 id="section-16">References &amp; Source Audit</h2>
+<p><strong>Original paper。</strong><a href="https://arxiv.org/pdf/2602.02276v2">2602.02276v2 PDF</a>、<a href="https://arxiv.org/html/2602.02276v2">HTML</a>、<a href="https://arxiv.org/abs/2602.02276">arXiv metadata</a>。原图 1–12、完整表 1–6、5 个独立显示公式全部保留。HTML 的 budget 公式重复嵌套按一个公式计数。Figure 8 caption 中 HTML 重复的乘号文本规范为 ×，数值不变。</p>
+<p><strong>Official code / model。</strong><a href="https://github.com/MoonshotAI/Kimi-K2.5">GitHub</a>、<a href="https://huggingface.co/moonshotai/Kimi-K2.5/blob/4d01dfe0332d63057c186e0b262165819efb6611/config.json">固定 revision 配置</a>、<a href="https://huggingface.co/moonshotai/Kimi-K2.5/blob/4d01dfe0332d63057c186e0b262165819efb6611/modeling_kimi_k25.py">固定 revision 视觉实现</a>、<a href="https://github.com/MoonshotAI/Kimi-K2.5/blob/main/LICENSE">LICENSE</a>。</p>
+<p><strong>Related primary sources。</strong>相关论文见矩阵；后续状态见官方 help、K3 与 OSWorld 2.0 链接，检索截止 2026-10-29。区分原论文报告、源码核查、本文解析计算和最新页面自述；未进行训练或硬件性能复现。</p>
+<p><strong>最终判断。</strong>K2.5 展示了从共享多模态表征到工具执行，再到可学习任务分工的完整方向。部署时应同时核算视觉编码、语言 prefill / decode、并发 KV 和外部工具；验证时应分开感知正确性、执行正确性和最终产物完整性。论文的性能收益有价值，但仍需等成本、分因素与失效链路实验，才能判断它在具体业务中的收益。</p><div class="source-downloads"><a href="sources/figure-manifest.json">Figure provenance</a><a href="sources/tables.json">Complete original tables</a><a href="sources/equations.json">Original equations</a><a href="sources/config.json">Configuration snapshot</a><a href="https://bytedance.larkoffice.com/docx/GBCwdxZ55oewj1xQZDzcdLZYnuf">Feishu mirror</a></div></main></div>
+<footer class="site-footer"><span>Paper Readings · Howie Yin</span><a href="../">All paper readings →</a></footer></div>
+<dialog id="figure-modal" class="image-modal" aria-label="Figure zoom"><div class="modal-top"><p id="modal-caption"></p><button type="button" id="modal-close">Close</button></div><img id="modal-image" alt=""><a id="modal-source">Open full-resolution asset</a></dialog><script src="assets/reading.js"></script></body></html>

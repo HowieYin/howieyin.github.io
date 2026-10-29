@@ -1,0 +1,15 @@
+flowchart TB
+  H["Hidden state h · 7168"] --> DK["KV down projection"]
+  DK --> C["Cache latent cKV · 512"]
+  H --> KR["RoPE K projection + rotation"]
+  KR --> R["Cache shared kR · 64"]
+  H --> Q["Current Q: content 128 + RoPE 64 / head"]
+  Q --> A["Absorb content K weights into current Q"]
+  C --> S["Scores: latent dot + separate RoPE dot"]
+  R --> S
+  A --> S
+  S --> P["Causal softmax over history"]
+  C --> Z["Weighted latent sum z · 512 / head"]
+  P --> Z
+  Z --> V["Value up projection · 128 / head"]
+  V --> O["Concatenate heads + output projection"]
