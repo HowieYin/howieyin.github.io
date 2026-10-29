@@ -24,6 +24,6 @@
 - Officialfollowups verifiedLlama3.2 beforev3revision, Llama4totalvsactive, OLMo3fullflow, DeepSeekV3route, latest2026MetaMuseWonderclaim. Emptyresearchblog and estimatedaggregator scores excluded from quantitativeSOTA.
 - No localGPU/NPUmodeltraining/benchmark is claimed.
 
-## Remaining release checks
+## Release validation
 
-Feishu creation/readback/owner-edit permission, Pagesdeployment and production5widthbrowserQA are required separately. See publishing-report.md after release.
+Feishu readback and online presentation assessment passed; requested account has full_access and edit/manage permissions. GitHub Pages build/deploy succeeded. Production five-width browser QA and navigation/source checks passed. See publishing-report.md and the adjacent JSON evidence.

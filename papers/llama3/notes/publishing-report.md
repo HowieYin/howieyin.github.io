@@ -20,6 +20,19 @@ Feishu readback passed: 40 images (38 original panels plus two explanatory diagr
 
 The requested account yinhongyi@bytedance.com matches the document owner. Collaborator readback confirms full_access; separate edit and permission-management checks both returned true.
 
-The original site generator rendered 26 readings across six topics. The homepage and Training & Scaling archive include this reading; GQA, Scaling Laws and ViT link back to it.
+The original site generator includes this reading across the existing six-topic catalog; concurrent publications were retained. The homepage and Training & Scaling archive include this reading; GQA, Scaling Laws and ViT link back to it.
 
-Production deployment and online QA remain to be verified. Exact commit and deployment evidence will be appended after verification.
+Production verification passed on 2026-10-29.
+
+- Content commit: 8d10d15. Integrated publication commit: 475d208.
+- Verified deployed commit: 233697271563194e632afd2c90887bd54fa88b31.
+- GitHub Actions: https://github.com/HowieYin/howieyin.github.io/actions/runs/40875183473 — build, deploy and status reporting succeeded.
+- Production browser QA: 375/390/430/1440/1920 pixels, all passed. All 30 original figures/38 panels, 35 original tables/36 panels, nine display-formula groups, two diagrams and three interactive components were present.
+- Dark/light, TOC, zoom/Escape, wide-table scroll, formula rendering, KV/CP/confusion-matrix arithmetic and base-rate changes passed without document overflow or browser errors.
+- Online navigation/source checks: 23 passed, covering homepage, paper archive and category navigation at all five widths, three backlinks, the original PDF and linked audit/source files.
+- Desktop/mobile screenshots visually reviewed. Local evidence is in notes/qa-screenshots; published JSON records are adjacent to this report.
+- All 471 submitted Feishu formulas, 40 images and 40 tables survived readback; the online presentation assessment also passed. The requested owner has full_access, edit and management permissions.
+
+Concurrent pushes were merged without force-pushing or replacing existing readings. A stale Pages status-report job whose deployment was already cancelled was terminated to unblock the latest build. Earlier superseded builds were cancelled by GitHub; the verified deployment above succeeded.
+
+Only release records are updated after these checks; article HTML, CSS, JavaScript and original assets remain identical to the verified content deployment.

@@ -1,0 +1,132 @@
+{
+  "base": "http://127.0.0.1:8884",
+  "results": [
+    {
+      "path": "/",
+      "width": 375,
+      "scrollWidth": 375,
+      "errors": []
+    },
+    {
+      "path": "/papers/",
+      "width": 375,
+      "scrollWidth": 375,
+      "errors": []
+    },
+    {
+      "path": "/papers/topics/training-scaling/",
+      "width": 375,
+      "scrollWidth": 375,
+      "errors": []
+    },
+    {
+      "path": "/",
+      "width": 390,
+      "scrollWidth": 390,
+      "errors": []
+    },
+    {
+      "path": "/papers/",
+      "width": 390,
+      "scrollWidth": 390,
+      "errors": []
+    },
+    {
+      "path": "/papers/topics/training-scaling/",
+      "width": 390,
+      "scrollWidth": 390,
+      "errors": []
+    },
+    {
+      "path": "/",
+      "width": 430,
+      "scrollWidth": 430,
+      "errors": []
+    },
+    {
+      "path": "/papers/",
+      "width": 430,
+      "scrollWidth": 430,
+      "errors": []
+    },
+    {
+      "path": "/papers/topics/training-scaling/",
+      "width": 430,
+      "scrollWidth": 430,
+      "errors": []
+    },
+    {
+      "path": "/",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "errors": []
+    },
+    {
+      "path": "/papers/",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "errors": []
+    },
+    {
+      "path": "/papers/topics/training-scaling/",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "errors": []
+    },
+    {
+      "path": "/",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "errors": []
+    },
+    {
+      "path": "/papers/",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "errors": []
+    },
+    {
+      "path": "/papers/topics/training-scaling/",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "errors": []
+    },
+    {
+      "backlink": "gqa",
+      "errors": []
+    },
+    {
+      "backlink": "scaling-laws",
+      "errors": []
+    },
+    {
+      "backlink": "vit",
+      "errors": []
+    },
+    {
+      "file": "/papers/llama3/sources/2407.21783v3.pdf",
+      "status": 200,
+      "errors": []
+    },
+    {
+      "file": "/papers/llama3/notes/audit.md",
+      "status": 200,
+      "errors": []
+    },
+    {
+      "file": "/papers/llama3/notes/publishing-report.md",
+      "status": 200,
+      "errors": []
+    },
+    {
+      "file": "/papers/llama3/notes/sources.json",
+      "status": 200,
+      "errors": []
+    },
+    {
+      "file": "/papers/llama3/assets/generated/alignment.mmd",
+      "status": 200,
+      "errors": []
+    }
+  ]
+}

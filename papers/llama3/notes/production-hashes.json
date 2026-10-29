@@ -1,0 +1,34 @@
+[
+  {
+    "path": "index.html",
+    "url": "https://howieyin.github.io/papers/llama3/",
+    "status": 200,
+    "bytes": 361190,
+    "sha256": "4373e6845aad56c0b79755b9481d95eb036674dfa348ec032ec67bb7e63e76f6",
+    "matches": true
+  },
+  {
+    "path": "assets/reading.css",
+    "url": "https://howieyin.github.io/papers/llama3/assets/reading.css",
+    "status": 200,
+    "bytes": 18296,
+    "sha256": "a88c2b70012206905f43bd3ed2207db8680ab8cf2ee61996692d59f23a8b3e6d",
+    "matches": true
+  },
+  {
+    "path": "assets/reading.js",
+    "url": "https://howieyin.github.io/papers/llama3/assets/reading.js",
+    "status": 200,
+    "bytes": 2805,
+    "sha256": "f9eda958d28bbffaf7e915cda0718bfdccab78e6f5ed0bbdec9357062c920c4a",
+    "matches": true
+  },
+  {
+    "path": "assets/components.js",
+    "url": "https://howieyin.github.io/papers/llama3/assets/components.js",
+    "status": 200,
+    "bytes": 3702,
+    "sha256": "92bd2b1097ec193d125f62a18f6ce64773914d36fb5a10d71465d5276c6f1c0b",
+    "matches": true
+  }
+]
