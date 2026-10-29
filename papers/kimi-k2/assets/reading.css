@@ -95,5 +95,15 @@
 .stage-bars{display:flex;height:32px;overflow:hidden;border-radius:3px;margin:24px 0}
 .stage-bars span{display:block;min-width:2px;background:#6d8daa}.stage-bars span:nth-child(2){background:#a1b8ce}.stage-bars span:nth-child(3){background:#ad9063}
 .reading #figure-13 .figure-panel:first-child{grid-column:1/-1}
-.reading figure.generated img{max-width:780px}
+.reading figure.generated img{width:auto;height:auto;max-width:min(100%,780px);max-height:min(68vh,660px);max-height:min(68dvh,660px);object-fit:contain}
+.image-modal[open]{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;box-sizing:border-box;height:94vh;height:94dvh;max-height:94dvh;overflow:hidden}
+.image-modal img{width:100%;height:100%;min-width:0;min-height:0;max-height:100%;margin:0 auto;background:transparent}
+.image-modal .modal-top p{max-height:min(14vh,112px);max-height:min(14dvh,112px)}
+.modal-viewport{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain}
+.modal-viewport.is-zoomed img{max-width:none;max-height:none}
+.modal-tools{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.modal-zoom-controls{display:flex;gap:6px}
+.modal-zoom-controls button{background:#1c2d44;color:#dfebf8;border:1px solid #657d9a;padding:7px 11px;font:12px var(--mono);cursor:pointer}
+.modal-zoom-controls button:disabled{opacity:.45;cursor:default}
+.modal-viewport:focus-visible,.modal-zoom-controls button:focus-visible{outline:2px solid #9fc1e4;outline-offset:-2px}
 .reading u{text-underline-offset:3px}

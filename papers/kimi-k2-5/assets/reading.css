@@ -79,7 +79,9 @@
 .reading .original-table tr:first-child td{background:#172638}
 .reading .original-table td:first-child{min-width:130px}
 .reading .original-table table{min-width:780px}
-.reading figure.generated img{max-width:100%}
+.reading figure.generated picture{display:block}
+.reading figure.generated img{width:auto;max-width:100%;max-height:min(600px,75svh);margin:auto;object-fit:contain}
+@media(max-width:600px){.reading figure.generated img{width:100%;max-width:336px;max-height:none}}
 .reading .equation .copy-button{margin-top:12px}
 .light .reading .original-table tr:first-child td{background:#dce7f1}
 .reading h4{scroll-margin-top:24px}
