@@ -715,6 +715,7 @@
 <li><strong>现代模型成本。</strong> 同时报告 GQA/MQA/MLA、低精度 KV、SWA/mixed groups 的 bytes/token、满块命中、实际搬运字节与各 rank 复制因子。</li>
 </ol>
 <p>这些是本精读提出的方向，不是论文已经完成的实验。当前材料支持把 PagedAttention 视为重要服务系统基础，具体收益仍需用业务调用链与 per-op 测量兑现。</p>
+<p><strong>关联阅读：</strong><a href="../glm5/">GLM-5：稀疏注意力、异步 RL 与 Agentic Engineering</a>。其 MLA latent 与 DSA index cache 需要分别计量；分页管理、候选选择与 attention kernel 分别影响容量、访问量和执行成本。</p>
 <h2 id="section-16">References、关联阅读与复现范围</h2>
 <p><strong>原论文与官方材料。</strong> <a href="https://arxiv.org/pdf/2309.06180v1" rel="noopener">指定 v1 PDF</a>、<a href="https://arxiv.org/abs/2309.06180" rel="noopener">arXiv metadata</a>、<a href="https://doi.org/10.1145/3600006.3613165" rel="noopener">ACM DOI</a>、<a href="https://github.com/vllm-project/vllm" rel="noopener">官方仓库</a>、<a href="https://sky.cs.berkeley.edu/project/vllm/" rel="noopener">Berkeley project</a>、<a href="https://blog.vllm.ai/2023/06/20/vllm.html" rel="noopener">2023 作者博客</a>。</p>
 <p><strong>相关论文。</strong> <a href="https://www.usenix.org/conference/osdi22/presentation/yu" rel="noopener">Orca / OSDI 2022</a>、<a href="https://arxiv.org/abs/2312.07104" rel="noopener">SGLang</a>、<a href="https://arxiv.org/abs/2401.08671" rel="noopener">DeepSpeed-FastGen</a>、<a href="https://arxiv.org/abs/2401.09670" rel="noopener">DistServe</a>、<a href="https://arxiv.org/abs/2403.02310" rel="noopener">Sarathi-Serve</a>、<a href="https://arxiv.org/abs/2405.04437" rel="noopener">vAttention</a>、<a href="https://arxiv.org/abs/2501.01005" rel="noopener">FlashInfer</a>。演进矩阵给出各自比较条件，不能把跨论文 speedup 相乘。</p>

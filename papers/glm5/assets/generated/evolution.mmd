@@ -1,0 +1,9 @@
+flowchart TB
+  MLA["2024 · DeepSeek-V2<br/>MLA：压缩历史 KV"] --> DSA["2025-12 · DeepSeek-V3.2<br/>DSA：全历史 indexer + sparse core"]
+  GLM["2025-08 · GLM-4.5<br/>ARC 后训练管线"] --> G5["2026-02 · GLM-5 v2<br/>共享 MTP · 异步 Agent RL · 工程验证"]
+  DSA --> G5
+  G5 --> IC["2026-03 · IndexCache<br/>跨层复用 selection，降低 indexer 费用"]
+  G5 --> SAO["2026-07 · SAO<br/>单 rollout + value model，降低组式等待"]
+  IC --> G53["2026-08 · GLM-5.3 官方报告<br/>后训练继续演进；基准版本需单独核对"]
+  SAO --> G53
+  G53 --> NOW["2026-10-29 · 当前核查<br/>权重 / serving / 一致性文档<br/>不把新方法倒写进 2 月论文"]

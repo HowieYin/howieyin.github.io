@@ -1,0 +1,123 @@
+<table class="ltx_tabular ltx_align_middle" id="A2.T11.5.1">
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_tt"></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Benchmark (Metric)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">DeepSeek-V3</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">Kimi-K2</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-4.5</span></td>
+<td class="ltx_td ltx_align_center ltx_border_tt"><span class="ltx_text ltx_font_bold">GLM-5</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td"></td>
+<td class="ltx_td"></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">Base</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">Base</span></td>
+<td class="ltx_td ltx_align_center ltx_border_r"><span class="ltx_text ltx_font_bold">Base</span></td>
+<td class="ltx_td ltx_align_center"><span class="ltx_text ltx_font_bold">Base</span></td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_border_t" rowspan="3"></td>
+<td class="ltx_td ltx_align_center ltx_border_t">Architecture</td>
+<td class="ltx_td ltx_align_center ltx_border_t">MoE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">MoE</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">MoE</td>
+<td class="ltx_td ltx_align_center ltx_border_t">MoE</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center"># Activated Params</td>
+<td class="ltx_td ltx_align_center">37B</td>
+<td class="ltx_td ltx_align_center">32B</td>
+<td class="ltx_td ltx_align_center ltx_border_r">32B</td>
+<td class="ltx_td ltx_align_center">40B</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center"># Total Params</td>
+<td class="ltx_td ltx_align_center">671B</td>
+<td class="ltx_td ltx_align_center">1043B</td>
+<td class="ltx_td ltx_align_center ltx_border_r">355B</td>
+<td class="ltx_td ltx_align_center">744B</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="6"><span class="ltx_text ltx_font_bold">English</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">SimpleQA (EM)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">26.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">35.3</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">30.0</td>
+<td class="ltx_td ltx_align_center ltx_border_t">36.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">BBH (EM)</td>
+<td class="ltx_td ltx_align_center">88.4</td>
+<td class="ltx_td ltx_align_center">88.7</td>
+<td class="ltx_td ltx_align_center ltx_border_r">86.2</td>
+<td class="ltx_td ltx_align_center">87.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">MMLU (EM)</td>
+<td class="ltx_td ltx_align_center">87.2</td>
+<td class="ltx_td ltx_align_center">87.8</td>
+<td class="ltx_td ltx_align_center ltx_border_r">86.1</td>
+<td class="ltx_td ltx_align_center">88.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">HellaSwag (EM)</td>
+<td class="ltx_td ltx_align_center">88.9</td>
+<td class="ltx_td ltx_align_center">94.6</td>
+<td class="ltx_td ltx_align_center ltx_border_r">87.1</td>
+<td class="ltx_td ltx_align_center">88.1</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">PIQA (EM)</td>
+<td class="ltx_td ltx_align_center">84.7</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center ltx_border_r">85.3</td>
+<td class="ltx_td ltx_align_center">84.6</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">TriviaQA (EM)</td>
+<td class="ltx_td ltx_align_center">82.9</td>
+<td class="ltx_td ltx_align_center">85.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r">80.0</td>
+<td class="ltx_td ltx_align_center">80.9</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2"><span class="ltx_text ltx_font_bold">Code</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">EvalPlus (Pass@1)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">65.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">80.3</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">78.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t">87.0</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">LiveCodeBench-Base (Pass@1)</td>
+<td class="ltx_td ltx_align_center">24.6</td>
+<td class="ltx_td ltx_align_center">26.3</td>
+<td class="ltx_td ltx_align_center ltx_border_r">28.1</td>
+<td class="ltx_td ltx_align_center">34.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_t" rowspan="2"><span class="ltx_text ltx_font_bold">Math</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">GSM8K (EM)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">87.6</td>
+<td class="ltx_td ltx_align_center ltx_border_t">92.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">79.4</td>
+<td class="ltx_td ltx_align_center ltx_border_t">68.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">MATH (EM)</td>
+<td class="ltx_td ltx_align_center">62.6</td>
+<td class="ltx_td ltx_align_center">70.2</td>
+<td class="ltx_td ltx_align_center ltx_border_r">61.0</td>
+<td class="ltx_td ltx_align_center">56.4</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span class="ltx_text ltx_font_bold">Chinese</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t">CLUEWSC (EM)</td>
+<td class="ltx_td ltx_align_center ltx_border_t">82.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t">83.5</td>
+<td class="ltx_td ltx_align_center ltx_border_t">84.2</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">C-Eval (EM)</td>
+<td class="ltx_td ltx_align_center">90.1</td>
+<td class="ltx_td ltx_align_center">92.5</td>
+<td class="ltx_td ltx_align_center ltx_border_r">86.9</td>
+<td class="ltx_td ltx_align_center">88.8</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center">C3 (EM)</td>
+<td class="ltx_td ltx_align_center">78.6</td>
+<td class="ltx_td ltx_align_center">-</td>
+<td class="ltx_td ltx_align_center ltx_border_r">83.1</td>
+<td class="ltx_td ltx_align_center">80.3</td></tr>
+<tr class="ltx_tr">
+<td class="ltx_td ltx_align_center ltx_border_bb">Chinese-SimpleQA (EM)</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">72.1</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">77.6</td>
+<td class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">70.1</td>
+<td class="ltx_td ltx_align_center ltx_border_bb">74.6</td></tr>
+</table>
