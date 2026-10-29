@@ -1,0 +1,452 @@
+[
+  {
+    "number": 1,
+    "id": "S0.F1",
+    "caption": "Figure 1 : Human evaluations of various models on our API prompt distribution, evaluated by how often outputs from each model were preferred to those from the 175B SFT model.\nOur InstructGPT models (PPO-ptx) as well as its variant trained without pretraining mix (PPO) significantly outperform the GPT-3 baselines (GPT, GPT prompted); outputs from our 1.3B PPO-ptx model are preferred to those from the 175B GPT-3. Error bars throughout the paper are 95% confidence intervals.",
+    "page": 2,
+    "file": "fig-01.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 2,
+    "id": "S1.F2",
+    "caption": "Figure 2 : A diagram illustrating the three steps of our method: (1) supervised fine-tuning (SFT), (2) reward model (RM) training, and (3) reinforcement learning via proximal policy optimization (PPO) on this reward model. Blue arrows indicate that this data is used to train one of our models. In Step 2, boxes A-D are samples from our models that get ranked by labelers. See Section 3 for more details on our method.",
+    "page": 3,
+    "file": "fig-02.png",
+    "source": "Original vector panel; source TeX trim applied",
+    "copyable": false
+  },
+  {
+    "number": 3,
+    "id": "S3.F3",
+    "caption": "Figure 3 : Preference results of our models, measured by winrate against the 175B SFT model. Left: results on prompts submitted to GPT models on the API; Right: results on prompts submitted to InstructGPT models on the API; Top: results from held-out labelers; Bottom: results from training labelers. We omit GPT (prompted) from the evals on prompts submitted to GPT-3 models (left) as these prompts are already designed to perform well for GPT-3, as opposed to prompts submitted to InstructGPT models (right).",
+    "page": 11,
+    "file": "fig-03.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 4,
+    "id": "S4.F4",
+    "caption": "Figure 4 : Metadata results on the API distribution. Note that, due to dataset sizes, these results are collapsed across model sizes. See Appendix E.2 for analysis that includes model size. Compared to GPT-3, the PPO models are more appropriate in the context of a customer assistant, are better at following explicit constraints in the instruction and attempting the correct instruction, and less likely to ‘hallucinate’ (meaning, making up information on closed domain tasks like summarization).",
+    "page": 12,
+    "file": "fig-04.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 5,
+    "id": "S4.F5",
+    "caption": "Figure 5 : Comparing our models with FLAN and T0 in terms of Likert scores on a 1-7 scale, on the InstructGPT prompt distribution. FLAN and T0 perform better than default GPT-3, and comparably with a few-shot GPT-3 model placed into ‘instruction-following’ mode.",
+    "page": 12,
+    "file": "fig-05.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 6,
+    "id": "S4.F6",
+    "caption": "Figure 6 : Results on the TruthfulQA dataset. Gray bars indicate ratings of truthfulness; colored bars indicate ratings of truthfulness and informativeness.",
+    "page": 13,
+    "file": "fig-06.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 7,
+    "id": "S4.F7",
+    "caption": "Figure 7 : Comparing human evaluations and automatic evaluations (Perspective API scores) on RealToxicityPrompts. A total of 1,729 prompts were labeled for three different 175B models, both with and without \"respectful\" instructions. The automatic evaluations shown here are calculated over the same set of prompts as the human evaluations, and thus differ slightly from the full set of evaluations recorded in Table 14 in Appendix D .",
+    "page": 14,
+    "file": "fig-07.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 8,
+    "id": "S4.F8",
+    "caption": "Figure 8 : Examples of generalization in the 175B PPO-ptx model (InstructGPT 175B) compared to GPT-3 175B with no additional prefixing. Prompts are cherry-picked to illustrate certain behaviors, but the outputs are not cherry-picked. (1) InstructGPT can follow instructions in other languages, though it sometimes generates outputs in English. GPT-3 requires more careful prompting, similarly to in English. (2) InstructGPT can summarize and answer questions about code more reliably than GPT-3 (though its answer here isn’t quite correct). For the code QA example, GPT-3 does answer the question about 50% of the time.",
+    "page": 15,
+    "file": "fig-08.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 9,
+    "id": "S4.F9",
+    "caption": "Figure 9 : Simple mistakes in the 175B PPO-ptx model (InstructGPT 175B) compared to GPT-3 175B with no additional prefixing. Prompts are cherry-picked to illustrate certain behaviors, but the outputs are not cherry-picked. (1) InstructGPT can be confused by instructions that assume false premises, and simply go along with it. (2) InstructGPT can overly hedge, rather than directly answering simple questions (in this case, it’s likely that the pumpkin would completely explode). Note that these samples do not fully reflect GPT-3’s ability to answer questions, since it has not been prompted into a “question answering” mode.",
+    "page": 16,
+    "file": "fig-09.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 10,
+    "id": "A2.F10",
+    "caption": "Figure 10 : Excerpt from the instructions given to labelers for final evaluations of model outputs on our prompt distribution. We provide full instructions here .",
+    "page": 37,
+    "file": "fig-10.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 11,
+    "id": "A2.F11",
+    "caption": "Figure 11 : Complete instructions given to labelers for evaluating model outputs for toxicity on the RealToxicityPrompts distribution.",
+    "page": 38,
+    "file": "fig-11.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 12,
+    "id": "A2.F12",
+    "caption": "Figure 12 : Screenshots of our labeling interface. (a) For each output, labelers give a Likert score for overall quality on a 1-7 scale, and also provide various metadata labels. (b) After evaluating each output individually, labelers rank all the outputs for a given prompt. Ties are encouraged in cases where two outputs seem to be of similar quality.",
+    "page": 39,
+    "file": "fig-12.png",
+    "source": "Original interface panels in source order",
+    "copyable": false
+  },
+  {
+    "number": 13,
+    "id": "A3.F13",
+    "caption": "Figure 13 : Tuning FLAN and T0 based on reward model scores",
+    "page": 43,
+    "file": "fig-13.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 14,
+    "id": "A4.F14",
+    "caption": "Figure 14: Winogender: prompting, examples, and dataset features.",
+    "page": 45,
+    "file": "fig-14.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 15,
+    "id": "A4.F15",
+    "caption": "Figure 15: CrowS-Pairs: prompting, examples, and dataset features.",
+    "page": 45,
+    "file": "fig-15.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 16,
+    "id": "A4.F16",
+    "caption": "Figure 16: RealToxicityPrompts: prompting, examples, and dataset features.",
+    "page": 45,
+    "file": "fig-16.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 17,
+    "id": "A4.F17",
+    "caption": "Figure 17: TruthfulQA: prompting, examples, and dataset features.",
+    "page": 46,
+    "file": "fig-17.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 18,
+    "id": "A4.F18",
+    "caption": "Figure 18: DROP: prompting, examples, and dataset features.",
+    "page": 46,
+    "file": "fig-18.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 19,
+    "id": "A4.F19",
+    "caption": "Figure 19: QuAC: prompting, examples, and dataset features.",
+    "page": 47,
+    "file": "fig-19.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 20,
+    "id": "A4.F20",
+    "caption": "Figure 20: Squadv2: prompting, examples, and dataset features.",
+    "page": 47,
+    "file": "fig-20.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 21,
+    "id": "A4.F21",
+    "caption": "Figure 21: Hellaswag: prompting, examples, and dataset features.",
+    "page": 48,
+    "file": "fig-21.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 22,
+    "id": "A4.F22",
+    "caption": "Figure 22: RTE: prompting, examples, and dataset features.",
+    "page": 48,
+    "file": "fig-22.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 23,
+    "id": "A4.F23",
+    "caption": "Figure 23: SST: prompting, examples, and dataset features.",
+    "page": 48,
+    "file": "fig-23.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 24,
+    "id": "A4.F24",
+    "caption": "Figure 24: WSC: prompting, examples, and dataset features.",
+    "page": 49,
+    "file": "fig-24.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 25,
+    "id": "A4.F25",
+    "caption": "Figure 25: WMT Fr → \\rightarrow En 15: prompting, examples, and dataset features.",
+    "page": 49,
+    "file": "fig-25.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 26,
+    "id": "A4.F26",
+    "caption": "Figure 26: CNN/DM: prompting, examples, and dataset features.",
+    "page": 49,
+    "file": "fig-26.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 27,
+    "id": "A4.F27",
+    "caption": "Figure 27: TL;DR: prompting, examples, and dataset features.",
+    "page": 50,
+    "file": "fig-27.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 28,
+    "id": "A5.F28",
+    "caption": "Figure 28 : Zero-shot performance of our models on various public NLP datasets. The 175B PPO models consistently show performance regressions, which is mitigated by adding updates on the pretraining data during fine-tuning. Few-shot performance is shown in Figure 29 . Error bars for translation are not available because we use a software package that does not report them.",
+    "page": 51,
+    "file": "fig-28.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 29,
+    "id": "A5.F29",
+    "caption": "Figure 29 : Few-shot performance of our models on various public NLP datasets (compare to zero-shot performance shown in Figure 28",
+    "page": 52,
+    "file": "fig-29.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 30,
+    "id": "A5.F30",
+    "caption": "Figure 30 : Metadata ratings as a function of model type and model size",
+    "page": 53,
+    "file": "fig-30.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 31,
+    "id": "A5.F31",
+    "caption": "Figure 31 : Likert scores for each of our models",
+    "page": 54,
+    "file": "fig-31.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 32,
+    "id": "A5.F32",
+    "caption": "Figure 32 : Bias results on Winogender and CrowS-Pairs.",
+    "page": 54,
+    "file": "fig-32.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 33,
+    "id": "A5.F33",
+    "caption": "Figure 33 : Evaluation on public NLP datasets as a function of pretraining loss coefficient. There is a pretraining coefficient that leads to a significant improvement on DROP and SQuAD and not much regression on validatoin reward.",
+    "page": 55,
+    "file": "fig-33.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 34,
+    "id": "A5.F34",
+    "caption": "Figure 34 : Evaluation on public NLP datasets as a function of KL reward coefficient. Increasing the KL coefficient does not fully mitigate the regressions on DROP and SQuAD.",
+    "page": 55,
+    "file": "fig-34.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 35,
+    "id": "A5.F35",
+    "caption": "Figure 35 : Evaluation on public NLP datasets as a function of training episodes",
+    "page": 57,
+    "file": "fig-35.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 36,
+    "id": "A5.F36",
+    "caption": "Figure 36 : Likert scores as a function of KL reward coefficient. The blue line indicates the reward value when the coefficient is zero (not shown on the rest of the graph due to log scale of the x axis).",
+    "page": 57,
+    "file": "fig-36.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 37,
+    "id": "A5.F37",
+    "caption": "Figure 37 : Human likert scores for PPO with different init models.",
+    "page": 57,
+    "file": "fig-37.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 38,
+    "id": "A5.F38",
+    "caption": "Figure 38 : Human evaluation metrics as a function of learning rates.",
+    "page": 58,
+    "file": "fig-38.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 39,
+    "id": "A5.F39",
+    "caption": "Figure 39 : Toxicity scores on RealToxicityPrompts as a function of input prompt toxicity. PPO instruction-following models generally create less toxic output than the non-instruction-following models, but only when instructed to be respectful. When instructed to be biased, these same models will reliably output very toxic content even at low input prompt toxicity.",
+    "page": 59,
+    "file": "fig-39.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 40,
+    "id": "A5.F40",
+    "caption": "Figure 40 : Continuity and relative toxicity ratings for the RealToxicityPrompts experiment.",
+    "page": 60,
+    "file": "fig-40.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 41,
+    "id": "A5.F41",
+    "caption": "Figure 41 : Win rates of PPO-ptx and SFT against 175B GPT-3 in RealToxicityPrompts.",
+    "page": 60,
+    "file": "fig-41.png",
+    "source": "Original author-provided vector panel",
+    "copyable": false
+  },
+  {
+    "number": 42,
+    "id": "A6.F42",
+    "caption": "Figure 42: Model samples on a prompt cherry-picked to show instruction following behavior in other languages, along with random samples from the GPT-3 175B and InstructGPT 175B models. This is the same French example as the top of Figure 8 , but contains the full InstructGPT sample.",
+    "page": 62,
+    "file": "fig-42.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 43,
+    "id": "A6.F43",
+    "caption": "Figure 43: Model samples on a prompt cherry-picked to show instruction following behavior in other languages, along with random samples from the GPT-3 175B and InstructGPT 175B models. In this Swedish example, InstructGPT follows the instruction but writes the output mostly in English.",
+    "page": 63,
+    "file": "fig-43.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 44,
+    "id": "A6.F44",
+    "caption": "Figure 44: Model samples on a prompt cherry-picked to show instruction following on potentially harmful prompts, along with random samples from the GPT-3 175B and InstructGPT 175B models.",
+    "page": 63,
+    "file": "fig-44.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 45,
+    "id": "A6.F45",
+    "caption": "Figure 45: Model samples on a prompt cherry-picked to show ability to follow instructions to describe code, along with random samples from the GPT-3 175B and InstructGPT 175B models.",
+    "page": 64,
+    "file": "fig-45.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 46,
+    "id": "A6.F46",
+    "caption": "Figure 46: Labeler-written prompt from our dataset, along with the human-written demonstration, and completions from GPT-3 175B and InstructGPT175B. Prompt is lightly cherry-picked (5 selected from 15 to show a diverse range of tasks), and the completions are not cherry-picked.",
+    "page": 65,
+    "file": "fig-46.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 47,
+    "id": "A6.F47",
+    "caption": "Figure 47: Labeler-written prompt from our dataset, along with the human-written demonstration, and completions from GPT-3 175B and InstructGPT175B. Prompt is lightly cherry-picked (5 selected from 15 to show a diverse range of tasks), and the completions are not cherry-picked.",
+    "page": 65,
+    "file": "fig-47.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 48,
+    "id": "A6.F48",
+    "caption": "Figure 48: Labeler-written prompt from our dataset, along with the human-written demonstration, and completions from GPT-3 175B and InstructGPT175B. Prompt is lightly cherry-picked (5 selected from 15 to show a diverse range of tasks), and the completions are not cherry-picked.",
+    "page": 66,
+    "file": "fig-48.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 49,
+    "id": "A6.F49",
+    "caption": "Figure 49: Labeler-written prompt from our dataset, along with the human-written demonstration, and completions from GPT-3 175B and InstructGPT175B. Prompt is lightly cherry-picked (5 selected from 15 to show a diverse range of tasks), and the completions are not cherry-picked.",
+    "page": 67,
+    "file": "fig-49.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  },
+  {
+    "number": 50,
+    "id": "A6.F50",
+    "caption": "Figure 50: Labeler-written prompt from our dataset, along with the human-written demonstration, and completions from GPT-3 175B and InstructGPT175B. Prompt is lightly cherry-picked (5 selected from 15 to show a diverse range of tasks), and the completions are not cherry-picked.",
+    "page": 68,
+    "file": "fig-50.png",
+    "source": "Original PDF text/benchmark panel crop; caption is separate",
+    "copyable": true
+  }
+]
