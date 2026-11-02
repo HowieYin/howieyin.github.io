@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0c1016">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="2026-10-26至2026-11-01 AI技术情报：GPT-6.1 Terra、Gemini Carbon、Mistral Large 4、LFM3、GAAC、Mooncake、NIXL、MLX与AI行业。">
+<title>AI 情报｜2026-10-26 ～ 2026-11-01 — Howie Yin</title>
+<link rel="canonical" href="https://howieyin.github.io/weekly/2026-10-26_2026-11-01.html">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../styles.css?v=3">
+<link rel="stylesheet" href="../assets/article-navigation.css">
+<script src="../assets/article-navigation.js" defer></script>
+<style>
+.report { padding: 48px 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.report h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.6px; line-height: 1.4; margin-bottom: 28px; }
+.report h2 { margin: 52px 0 20px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; }
+.report h3 { font-size: 20px; margin: 28px 0 14px; }
+.report p, .report li { color: var(--secondary); }
+.report strong { color: var(--text); }
+.report a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.report li { margin: 9px 0; }
+.report code { font-family: var(--mono); font-size: .85em; }
+.report pre { overflow-x: auto; padding: 20px; background: #111720; border: 1px solid var(--line); border-radius: 8px; }
+.report img { display: block; max-width: 100%; height: auto; background: white; padding: 16px; border-radius: 6px; margin: 24px auto; width: 680px; }
+.report .table-scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 6px; }
+.report table { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 14px; }
+.report th, .report td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.report th { color: var(--text); background: #111720; }
+.report td { color: var(--secondary); }
+.report .toc { padding: 24px; border: 1px solid var(--line); border-radius: 8px; margin: 32px 0; }
+.report .toc ul { padding-left: 22px; }
+@media(max-width:640px) { .report { font-size: 15px; padding: 32px 0; } .report h2 { font-size: 22px; } .report img { padding: 8px; } }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="page">
+<header class="site-header">
+<a class="wordmark" href="../" aria-label="Howie Yin, home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="./" aria-current="page">Weekly</a><a href="../foundations/">Foundations</a><a href="../lab/">Lab</a><a href="../#about">About</a></nav>
+</header>
+<main id="main" class="report">
+<p class="eyebrow">AI INTELLIGENCE / 2026-10-26 — 2026-11-01</p>
+<details class="toc"><summary>Contents</summary><ul><li><a href="#summary">本期摘要</a></li><li><a href="#openai-terra">01｜OpenAI GPT‑6.1 Terra：把视觉行动的单位任务成本降下来</a></li><li><a href="#gemini-carbon">02｜Google Gemini 4 Carbon：能力、上线范围与测试条件必须分开</a></li><li><a href="#mistral-large-4">03｜Mistral Large 4：开放权重之后，真正的工程增量是什么</a></li><li><a href="#lfm3">04｜Liquid AI LFM3：硬件参与架构搜索，端侧能力来自整条链</a></li><li><a href="#gaac">05｜GAAC：无损 KV 的价值在少搬数据，而不在压缩率榜首</a></li><li><a href="#mooncake">06｜vLLM / Mooncake：固定超时为何同时伤害成功率和资源回收</a></li><li><a href="#nixl">07｜vLLM / NIXL：按物理 Region 序号配 KV，会在混合布局中出错</a></li><li><a href="#mlx">08｜Apple Silicon / MLX：从量化归约错误到中小行数 NAX 调度</a></li><li><a href="#gemini-api">09｜Gemini API：CLI、Computer Use GA 与存储默认值是三件独立变化</a></li><li><a href="#copilot">10｜GitHub Universe：多模型 Harness 开始承担完整的软件交付</a></li><li><a href="#nvidia-local-ai">11｜NVIDIA 本地 AI：新增语音模型与资源共享，硬件峰值仍不是业务性能</a></li><li><a href="#industry">12｜公司与行业：Anthropic 的 IPO 申请与云厂商的经营披露</a></li><li><a href="#science">13｜AI for Science 与 Physical AI：可验证产物比“自主完成”的叙事更重要</a></li><li><a href="#open-source">14｜GitHub 与开源：发布、合并、当前热度采用不同统计口径</a></li><li><a href="#trends">本期总结与技术趋势判断</a></li><li><a href="#recommendations">对 Howie 的建议</a></li><li><a href="#verification">覆盖边界与核验说明</a></li><li><a href="#sources">来源</a></li></ul></details>
+<article><h1 id="ai-2026-10-26-2026-11-01">AI 情报｜2026-10-26 ～ 2026-11-01</h1>
+<p><strong>结论：本期的核心变化是“更便宜地完成任务”和“更可靠地保存状态”同时推进。GPT‑6.1 Terra、Copilot Fusion 与 LFM3 分别从模型、Harness 和端侧架构降低任务成本；Mistral Large 4、GAAC、Mooncake 与 NIXL 则说明，KV 的表示、布局、生命周期和通信正确性已成为推理系统的关键设计。</strong></p>
+<p>覆盖时间：<strong>2026-10-26 至 2026-11-01，含首尾</strong>。采集与核验日期：<strong>2026-11-02，Asia/Shanghai</strong>。时间口径采用事件发生或首次公开日期；只有日历日期的官方文章保留其原始日期，GitHub 与 arXiv 的 UTC 时间同时核对北京时间。财报对应更早的经营季度，但本期新增的是首次披露的结果。</p>
+<p>历史基线：<a href="https://howieyin.github.io/weekly/2026-10-18_2026-10-25.html">AI 情报｜2026-10-18 ～ 2026-10-25</a>。已排除此前报道且无实质增量的 DeepInfer 初始开放、vLLM 0.32.0、SGLang 0.5.22、TorchTPU、MiniMax M3.1 Flash、Kimi K3.1 Pro、Claude Duet 和 GTC Berlin 基础设施公告。延续事件在正文说明新增内容。</p>
+<p>证据说明：<strong>厂商/作者报告、社区测量、本文分析分别标明</strong>。本文未进行模型本地性能复测；不把相同 Benchmark 名字、不同版本/Harness/推理预算的分数直接横比。动态模型卡和文档可能滞后于代码或在发布后更新；冲突明确保留。P1 为值得本期学习或复测的变化，P2 为继续观察的信号。</p>
+<h2 id="summary">本期摘要</h2>
+<ol>
+<li><strong>GPT‑6.1 Terra：图像理解、Computer Use 与价格效率一起提升。</strong> 10-26 发布；标准 API 每百万 Token 输入 $1、缓存输入 $0.05、输出 $5。官方的“任务快 3×”是 Agent 任务耗时，不能当作 TPOT 快 3×。<a href="#s1">S1</a> <a href="#s2">S2</a></li>
+<li><strong>Gemini 4 Carbon：长周期编程与安全任务增强，但仍限量开放。</strong> 10-28 公告；本周先给部分安全防御团队，普通开发者全面可用时间未确定。公布的 $2/$10 是计划上市的输入/输出价格。<a href="#s3">S3</a></li>
+<li><strong>Mistral Large 4：本期新增可下载权重和部署实现。</strong> 10-29 开放 FP8/NVFP4；约 1T 总参数、49B 激活，计入 Embedding/Output 为 52B，1M Context。跨层 KV 共享、稀疏 MLA、DSpark 和 DCP 要一起阅读。<a href="#s4">S4</a> <a href="#s5">S5</a> <a href="#s6">S6</a></li>
+<li><strong>LFM3：最值得端侧 VLM/OCR 工程师复测的新家族。</strong> 10-27 发布；24 层由 13 个短卷积、5 个 SWA、6 个全局 Attention 组成。文本 1.7B / 256K，视觉 1.92B / 128K，不能给整个家族套同一个 Context。<a href="#s7">S7</a> <a href="#s8">S8</a></li>
+<li><strong>GAAC：无损 KV 压缩进入 Attention Kernel。</strong> 10-28 首次提交；BF16 KV 压缩 1.405–1.407×，DGX Spark 的端到端 W4A16 Decode Step 为 1.04–1.15×。同内存预算下吞吐 +13%–29%还包含更大 Batch 的收益。<a href="#s11">S11</a> <a href="#s12">S12</a></li>
+<li><strong>vLLM / Mooncake：Decoder 续租修正固定超时的两难。</strong> 10-29 UTC 合并；故障时尽快释放 KV，排队时继续保留。作者的 2×A800 实验中，20 秒固定超时导致 79/128 请求失败，20 秒续租实现 128/128 成功；背压仍未解决。<a href="#s13">S13</a></li>
+<li><strong>NIXL：KV 传输统一按 Layer 配对。</strong> 10-31 合并；把不同 Packed Layout、PP/TP 和 Cache Group 的映射显式化，Connector 协议 15→16。升级必须检查两端兼容性。<a href="#s14">S14</a></li>
+<li><strong>MLX：量化精度修复与 NAX 调度优化同样重要。</strong> 全负值 Affine Group 的最大值归约修复于 10-28 合并；11-01 的 NAX PR 改善 M=6–256 的特定矩阵形状，M=1 无变化，不能写成单请求 Decode 普遍翻倍。<a href="#s15">S15</a> <a href="#s16">S16</a></li>
+<li><strong>Agent 接口与 Harness：Gemini API CLI、Computer Use GA 与 Copilot Fusion。</strong> Gemini CLI 于 10-27 Beta，Computer Use 于 10-30 GA；GitHub 10-28 公布多模型编排、跨端会话延续及消费 AI Credits 的企业采购方式。<a href="#s17">S17</a> <a href="#s18">S18</a> <a href="#s19">S19</a> <a href="#s20">S20</a></li>
+<li><strong>公司与行业：增长强、资本需求也强。</strong> Anthropic 10-26 提交 S‑1，尚未生效；微软 Azure 增长 48%，Google Cloud 增长 103%，AWS 增长 39.3%。这些业务的收入范围不同，不能据此直接排“纯 AI 增长榜”。<a href="#s24">S24</a> <a href="#s25">S25</a> <a href="#s26">S26</a> <a href="#s27">S27</a></li>
+</ol>
+<h2 id="openai-terra">01｜OpenAI GPT‑6.1 Terra：把视觉行动的单位任务成本降下来</h2>
+<p><strong>事件｜2026-10-26；P1。</strong> OpenAI 发布 GPT‑6.1 Terra，API ID 为 <code>gpt-6.1-terra</code>；ChatGPT Work 与 Codex 的 Plus、Pro、Enterprise、Edu 用户可用。官方研究索引同时给出系统卡增补的 10-26 日期，不以搜索摘要时间认定发布日期。<a href="#s1">S1</a> <a href="#s2">S2</a></p>
+<p><strong>技术解读。</strong> 本次公开增量集中在视觉推理、Computer Use、写作、事实性和编程，而不是公开架构创新。参数量、Attention/MoE 配置、训练 FLOPs 和 KV 大小未在本次已读发布文中披露。对系统选型，应看“读图→操作→验证”的任务闭环，而不仅是文本榜单。</p>
+<p><strong>性能 / 数据｜以下为 OpenAI 报告。</strong></p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>发布文结果</th>
+<th>解释与边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>标准 API，$/百万 Token</td>
+<td>输入 1；缓存输入 0.05；输出 5</td>
+<td>相比 GPT‑5.6 Terra 和 GPT‑6.1 Sol 标准价格低 50%；实际账单取决于输出/推理 Token、Cache 和工具</td>
+</tr>
+<tr>
+<td>Agents’ Last Exam v1</td>
+<td>Medium 相比 GPT‑5.6 Terra +15 个百分点，约 1/3 任务成本</td>
+<td>专业 Computer Use 任务；不能替代自己的表单、OCR、桌面操作评测</td>
+</tr>
+<tr>
+<td>Agent 任务时间</td>
+<td>比 GPT‑6 Astra 与 GPT‑6.1 Sol 快超过 3×</td>
+<td>任务级时间包含思考、工具和重试；没有公开同硬件 TPOT 数字</td>
+</tr>
+<tr>
+<td>内部事实错误测试，Low</td>
+<td>53.6%→16.7%，下降 36.9 个百分点</td>
+<td>内部诱错 Prompt 集；不能称开放域“准确率 83.3%”</td>
+</tr>
+<tr>
+<td>内部事实错误测试，Max</td>
+<td>降为 4.3%</td>
+<td>需要同时计入更高推理预算</td>
+</tr>
+<tr>
+<td>Terminal-Bench 4.0，Max</td>
+<td>50.3%，旧版公开成绩 21.5%</td>
+<td>版本为 4.0；不与 LFM3 的 Terminal-Bench 2.1 直接比较</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 长期 Agent 总成本可写成“单次调用价格 × Token 消耗 × 调用/重试次数”，再加工具、沙盒和延迟。低价与较少失败若能同时实现，比只降低单 Token 价格更有用。发布文没有完整可比的 TTFT/TPOT/硬件条件，不能推断 Serving Kernel 的具体加速来源。</p>
+<p><strong>判断｜本文分析。</strong> 值得作为视觉工作流、票据录入和批量 GUI 操作的云端候选，先做同任务 A/B。复杂编程仍需对照更强模型；应保留任务完成率、操作错误、幻觉字段、Cache 命中率、总 Token 与人工接管次数。对端侧的意义主要是可作为教师/对照系统，发布本身不提供本地权重。</p>
+<p><strong>来源：</strong> <a href="https://openai.com/index/introducing-gpt-6-1-terra/">OpenAI 发布文</a>；<a href="https://openai.com/research/index/publication/">官方研究日期索引</a>。</p>
+<h2 id="gemini-carbon">02｜Google Gemini 4 Carbon：能力、上线范围与测试条件必须分开</h2>
+<p><strong>事件｜2026-10-28；P1。</strong> Google 发布 Gemini 4 Carbon 公告；本周先向部分 Cyber Defenders 提供，通过 Fairwind 逐步扩展可信伙伴。面向普通开发者、企业和消费者的全面开放日期未确定，不能写成“Gemini API 已全面上线 Carbon”。<a href="#s3">S3</a></p>
+<p><strong>技术解读。</strong> 重点是长周期工程任务、安全漏洞定位/验证/修复和减少不实陈述。官方称内部任务可持续运行数日，但没有给出可复现的完整任务集、成功率分布和计算预算，也未披露参数或架构。长时间运行是模型与 Harness 的组合行为，无法仅凭“运行数日”证明每一步都有效。</p>
+<p><strong>性能 / 数据｜Google 发布文口径。</strong></p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>数字 / 状态</th>
+<th>关键条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Artificial Analysis Intelligence Index v5.0</td>
+<td>59，发布文称第 1</td>
+<td>聚合指数版本必须是 v5.0；这是官方转述的当次榜单</td>
+</tr>
+<tr>
+<td>SEC-bench Pro / ExploitGym / CWE-bench</td>
+<td>88.2% / 54.8% / 71.0%</td>
+<td>官方说明安全 Benchmark 在不带 Guardrails 的条件下评测；不等同产品允许的任务范围</td>
+</tr>
+<tr>
+<td>WebDev Arena</td>
+<td>1768 Elo，第 4，增加 89 Elo</td>
+<td>网页生成偏好评测，不是低层系统代码正确率</td>
+</tr>
+<tr>
+<td>计划标准 API 价格</td>
+<td>输入 $2、输出 $10/百万 Token；缓存输入便宜 95%</td>
+<td>缓存价按公告可推算为 $0.10；这是分析计算，非本次实际账单</td>
+</tr>
+<tr>
+<td>内部高严重度 Misalignment Alerts</td>
+<td>相比 Argon 下降近 80%</td>
+<td>内部告警口径；不能和其他厂商安全指标直接横比</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 模型竞争正在进入完整工程链路：发现问题、复现、修复，再验证是否改到了根因。发布文中“Chrome 高质量补丁比某其他模型好 10×”未给出完整可比样本和模型身份，本报告不将其当作通用编码倍数。</p>
+<p><strong>判断｜本文分析。</strong> 持续观察公开访问、评测 Harness、拒答条件、长任务实际预算和 Token 膨胀。没有访问权时无需围绕 Carbon 重写现有工具链。能力测试与带安全层的产品行为应分别验证。</p>
+<p><strong>来源：</strong> <a href="https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon/?verification=20261029">Google 官方发布文</a>。</p>
+<h2 id="mistral-large-4">03｜Mistral Large 4：开放权重之后，真正的工程增量是什么</h2>
+<p><strong>事件｜2026-10-29；P1；「延续此前事件」。</strong> Mistral Large 4 此前已于 10-06 进入 Public Preview。本期新增是可下载的 FP8/NVFP4 权重、模型卡与配套推理实现，不能把 10-29 写成模型第一次出现。Hugging Face 10-29 发布文和 Mistral 官方模型卡交叉确认本期开放状态；Mistral 官网新闻页本次正文获取失败，不据此编造价格变更。<a href="#s4">S4</a> <a href="#s5">S5</a></p>
+<p><strong>技术解读。</strong> 该模型把“专家容量”和“上下文访问”做成两个独立稀疏维度：MoE Router 每 Token 选少量 FFN Experts；DSA Indexer 为每个 Query 选此前的 Key Positions。MLA 压缩 KV 表示；跨层共享再减少重复存储；NoPE、SSMax、LeRoPE 调节位置与长度行为。</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>架构项</th>
+<th>官方模型卡 / vLLM 实现文</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数 / Context</td>
+<td>约 1T 总参数；49B Active，含 Embedding/Output 为 52B；1M Context</td>
+</tr>
+<tr>
+<td>Decoder</td>
+<td>72 层；Hidden 6144；64 Attention Heads</td>
+</tr>
+<tr>
+<td>MoE</td>
+<td>第 0 层 Dense；其余 71 层为 128 Routed Experts，Top‑4＋1 Shared</td>
+</tr>
+<tr>
+<td>MLA</td>
+<td>KV LoRA Rank 512；RoPE Dim 64；默认 <code>fp8_ds_mla</code></td>
+</tr>
+<tr>
+<td>DSA</td>
+<td>Top‑2048；44 层自有 Indexer，28 层复用此前层的 Top‑k</td>
+</tr>
+<tr>
+<td>NoPE / KV Sharing</td>
+<td>每 4 层之一 NoPE；39、43…71 共 9 层读 Layer 35 的 Latent KV</td>
+</tr>
+<tr>
+<td>Vision</td>
+<td>Pixtral Encoder：30 层、Hidden 2048、14×14 Patch</td>
+</tr>
+<tr>
+<td>DSpark</td>
+<td>内置 3 层 Sliding-window MLA Drafter；独立 Draft KV Group</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>性能 / 数据。</strong> Mistral 模型卡报告 AA Coding Agent Index 48%，与 GLM‑5.3 接近、平均 Token 少 47%；HF 发布文另报 49.8%。这是来源之间的口径/快照差异，本次未取得完全对齐的评测配置，<strong>不合并成一个确定分数，也不将差异解释为已证实的模型升级</strong>。<a href="#s4">S4</a> <a href="#s5">S5</a></p>
+<p>vLLM 发布文按实际 Cache Layout 给出 <strong>47,136 B/Token</strong>，其中 Latent 41,328 B、Indexer 5,808 B；每层都自有 KV 的假设为 53,040 B/Token，相比少约 <strong>11.1%</strong>。该数字对应文中的每 GPU、尚未按 Context Parallelism 分片的表示，不是集群总显存；也不能把 “Top‑2048”理解成历史 KV 只保留 2048 Token。<a href="#s6">S6</a></p>
+<p><strong>为什么值得关注。</strong> 稀疏 Attention 减少访问位置，不自动消除历史存储；Index Cache、跨层共享、DCP 和 Host Offload 仍需共同设计。KV Sharing 是训练时形成的模型结构，不能对普通模型任意让两层共享缓存并期待精度不变。</p>
+<p><strong>判断｜本文分析。</strong> 可作为稀疏 MLA、KV 共享、DSpark 与多模态组合的代码研究对象。1T 模型的权重驻留仍按总参数而非 Active Parameters 计算；“只激活 49B”不意味着可像 49B Dense 模型一样单卡部署。许可证是 Mistral Ecosystem Open-Weight License；官方模型卡明确 Model-as-a-Service 业务需要单独商业许可，本报告不将其称为无条件 MIT。</p>
+<p><strong>来源：</strong> <a href="https://huggingface.co/mistralai/Mistral-Large-4-1T-A52B">Mistral 官方模型卡</a>；<a href="https://huggingface.co/blog/mistral-large4">HF 10-29 发布介绍</a>；<a href="https://vllm.ai/blog/2026-10-29-mistral-large-4">vLLM 官方实现</a>。</p>
+<h3 id="technical-detail-1">Mistral Large 4 部署：DCP 的容量收益不是免费延迟收益</h3>
+<p><strong>事件｜2026-10-29；P1。</strong> 本期 Day‑0 vLLM 实现针对 ML4 增加 MRV2、Breakable CUDA Graphs、DCP/PCP、DSpark、NIXL P/D 与跨层共享适配。这是部署增量；不能把正在 Upstream 的每项工作都写成通用稳定版已包含。<a href="#s6">S6</a></p>
+<p><strong>技术解读。</strong> MLA 只有一个 Latent KV Head，普通 TP 中会在 Rank 间复制。DCP 按 Token 分片减少复制，代价是每步交换 Indexer 候选、LSE 和 Attention 结果。实现将 All-gather/Reduce-scatter 的若干路径改为对称内存通信、直接 Top‑k 交换和有效位置压缩，减少通信与小 Kernel 开销。</p>
+<p><strong>性能 / 数据｜vLLM 团队报告；不是本地复测。</strong></p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>配置 / 实验</th>
+<th>收益</th>
+<th>同时需要看的代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8×GB300，FP8，TP8→DCP8</td>
+<td>KV Pool 2.38M→18.88M Token，约 7.9×</td>
+<td>单步新增通信；这是容量，不是 TPS 7.9×</td>
+</tr>
+<tr>
+<td>8×GB300，NVFP4，TP8→DCP8</td>
+<td>KV Pool 3.60M→28.76M Token</td>
+<td>使用率设置 0.85；上下文池包含并发请求</td>
+</tr>
+<tr>
+<td>同节点 NVFP4，无 Spec，8K/60K Context</td>
+<td>DCP8 TPOT 比 TP8 慢约 16%–28%</td>
+<td>KV 未满时，TP8 通常更快</td>
+</tr>
+<tr>
+<td>FP8，TP8 DCP8，60K 输入/1K 输出，C1</td>
+<td>优化前后 TTFT p50 6.89→4.73 s；TPOT p50 17.82→12.50 ms</td>
+<td>比较的是 DCP 实现优化前后，不是对全部 Serving 引擎</td>
+</tr>
+<tr>
+<td>同组实验 C64</td>
+<td>文中输出指标 139.1→204.0 tok/s，+47%</td>
+<td>按原文口径保留；不跨图拼为单用户速度</td>
+</tr>
+<tr>
+<td>NVFP4 对 FP8，TP8，无 Spec</td>
+<td>每 Token Decode 1.08–1.19×；KV 容量约 1.5×</td>
+<td>精度实测各任务差异最多 2.1 分、平均 −0.3 分，不叫绝对无损</td>
+</tr>
+<tr>
+<td>内置 DSpark，TP8</td>
+<td>约 2×输出吞吐，约 2.9 Token/Step</td>
+<td>200 个真实 Prompt、Greedy、输出至多 512 Token；不泛化到高温度/其他任务</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 本文特别值得读的不是最高 TPS，而是 PCP 的一个正确性修复：Graph Capture 把 Prefill/Decode Split 冻结，导致运行时 Gather 使用错误边界；只把动态 Gather 作为 Eager Break，其余 Cache Write 保持在 Graph 中，恢复正确行为。源文的 GSM8K‑200 从 0.315→0.975，带 DSpark 为 0.980，是该特定配置的验证，不能视为模型普遍“准确率翻三倍”。</p>
+<p><strong>判断｜本文分析。</strong> 对长 Agent Session，先判断是否已受 KV 容量约束，再决定 DCP。复测需同时覆盖动态 Batch Split、共享层写入跳过、Indexer Cache、Draft Reject/回滚和 P/D 分片组合。HF 文给出的部分示例用 <code>--enforce-eager</code>，vLLM 专用实现强调 Graph；上线应固定具体镜像/Commit，不能拼接不同页面的 Flag。</p>
+<p><strong>来源：</strong> <a href="https://vllm.ai/blog/2026-10-29-mistral-large-4">vLLM ML4 实现、容量与 Benchmark</a>。</p>
+<h2 id="lfm3">04｜Liquid AI LFM3：硬件参与架构搜索，端侧能力来自整条链</h2>
+<p><strong>事件｜2026-10-27；P1。</strong> Liquid AI 发布文本、视觉、音频、Omni 和 Decision 的 LFM3 家族，约 2B 级，Base 与后训练权重可获取。发布文称架构搜索覆盖 14 个设备/后端组合，包括 Apple/AMD、Arm/x86、手机和 Qualcomm Hexagon；这不证明所有格式在所有 NPU 上已同日稳定支持。<a href="#s7">S7</a></p>
+<p><strong>技术解读。</strong> 文本骨干 24 层：13 个 Gated Short Convolution（Kernel 7）、5 个 SWA（Window 256）、6 个 Global GQA。Head-wise Sigmoid Gate、Partial RoPE、Sandwich Norm 用于表达力和数值稳定。卷积状态与 SWA 有界，Global Attention 的 KV 仍随 Context 增长。</p>
+<p>训练包含 22T Pretraining Tokens，最后 3.5T 为 Curated Mid-training；文本后训练经过 SFT、Mixed RL、六域教师的 On-policy Distillation、真实 Harness 内 Agentic RL。不是只把 Attention 换成卷积就获得全部任务收益。</p>
+<p><strong>性能 / 数据｜Liquid AI 自报。</strong></p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>LFM3‑1.7B / 对照</th>
+<th>解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数 / Context</td>
+<td>Text 1.7B / 256K</td>
+<td>约 1GB 的 4-bit 文本权重不是总进程 RAM</td>
+</tr>
+<tr>
+<td>BFCL V4</td>
+<td>71.39 vs LFM2.5‑2.6B 55.89</td>
+<td>Tool-use；Harness 与 Schema 行为需复测</td>
+</tr>
+<tr>
+<td>SWE-bench Verified，OpenCode</td>
+<td>43.40 vs 18.00</td>
+<td>不能与不同 Harness 的旗舰模型横比</td>
+</tr>
+<tr>
+<td>Terminal-Bench 2.1，OpenCode</td>
+<td>12.92</td>
+<td>通用终端任务仍有限；不是 Terra 的 TB4.0</td>
+</tr>
+<tr>
+<td>RULER 128K</td>
+<td>65.56；Qwen3.5‑4B 为 84.63</td>
+<td>小模型长 Context 可用，不等于该长度已高保真</td>
+</tr>
+<tr>
+<td>llama.cpp，Q4_0，32K Context，AMD Ryzen AI Max+395</td>
+<td>Prefill 3771 tok/s；Decode 129.6 tok/s；Memory 2.75GB</td>
+<td>发布文条件；没有分项 CPU/GPU/NPU 用量和功耗</td>
+</tr>
+<tr>
+<td>同口径，Apple M5 Max</td>
+<td>Prefill 8028 tok/s；Decode 237.1 tok/s；Memory 2.25GB</td>
+<td>不能当作手机端 TPS</td>
+</tr>
+<tr>
+<td>同口径，iPhone 17 Pro</td>
+<td>Prefill 1061 tok/s；Decode 43.6 tok/s；Memory 1.90GB</td>
+<td>长时间温控、电量和峰值内存需要另测</td>
+</tr>
+<tr>
+<td>128K KV</td>
+<td>1.6GB；Qwen3.5‑4B 4.3GB；MiniCPM5‑2B 5.6GB</td>
+<td>同发布文 KV 对照；不是整个模型驻留</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 低成本专用 Agent 同时需要少读权重、少存历史、短输出和较高工具完成率。对 Howie，实际价值在长 Prompt 后的 Decode、结构化输出、Conv State 回滚和 VLM 预处理。不能只用单个“参数更小”说明性能；也不要把“本地 Token 无云 API 费用”理解成算力、电池和维护成本为零。</p>
+<p><strong>判断｜本文分析。</strong> 文本模型值得作为本地工具路由/信息整理候选；复杂系统编程、知识和长 Context 检索要与更大模型对照。复测要按原始 FP/BF16→量化→导出→端侧 Runtime 分段定位精度损失，不能只比较两个最终量化模型。</p>
+<p><strong>来源：</strong> <a href="https://www.liquid.ai/blog/lfm3">LFM3 官方发布文</a>。</p>
+<h3 id="technical-detail-2">LFM3‑VL‑2B：OCR、GUI 与视频的新候选，部署状态按代码核对</h3>
+<p><strong>事件｜2026-10-27 发布；llama.cpp 文本/视觉支持 10-27 UTC 合并，视频支持 10-28 合并；P1。</strong> 模型卡仍写相关 llama.cpp PR “in review”，但 GitHub API 确认 #31252 与 #31283 已合并。因此本报告采用合并记录，并保留“模型卡滞后”这个来源差异，不声称 SGLang/vLLM 稳定 Release 都已包含支持。<a href="#s8">S8</a> <a href="#s9">S9</a> <a href="#s10">S10</a></p>
+<p><strong>技术解读。</strong> VL 模型实际 1.92B：语言 1.73B、Vision 164M、Projector 25M；视觉编码器 14 层，8 个 Gated Depthwise 2D Conv＋6 个 Bidirectional Attention。16×16 Patch，每 2×2 Patch 合并为一个语言 Token；视频采样 2fps。Context 为 <strong>128K</strong>，不是文本模型的 256K。必须保留原生尺寸、Patch 合并和视频时间顺序。</p>
+<p><strong>性能 / 数据｜模型卡分组平均分。</strong></p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>分组</th>
+<th style="text-align: right;">Thinking</th>
+<th style="text-align: right;">No Thinking</th>
+<th style="text-align: right;">LFM2.5‑VL‑3B</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Document / OCR / Chart</td>
+<td style="text-align: right;">83.9</td>
+<td style="text-align: right;">71.6</td>
+<td style="text-align: right;">71.2</td>
+</tr>
+<tr>
+<td>Visual Grounding</td>
+<td style="text-align: right;">77.3</td>
+<td style="text-align: right;">72.6</td>
+<td style="text-align: right;">68.3</td>
+</tr>
+<tr>
+<td>GUI Understanding</td>
+<td style="text-align: right;">83.1</td>
+<td style="text-align: right;">81.5</td>
+<td style="text-align: right;">66.0</td>
+</tr>
+<tr>
+<td>Video</td>
+<td style="text-align: right;">61.2</td>
+<td style="text-align: right;">54.0</td>
+<td style="text-align: right;">41.3</td>
+</tr>
+<tr>
+<td>全部类别平均</td>
+<td style="text-align: right;">71.4</td>
+<td style="text-align: right;">62.1</td>
+<td style="text-align: right;">57.6</td>
+</tr>
+</tbody>
+</table></div>
+<p>这些是 62 个 Vision Benchmark 的分组汇总，不是单一 OCR 准确率；没有公开混淆矩阵，不能推算 TP/FP/TN/FN、Precision/Recall/F1。Thinking 的视觉收益较大，但总完成时间与输出长度没有在这张表对齐。</p>
+<p><strong>为什么值得关注。</strong> 对图片理解和 OCR，Vision Encoder 仅 164M，但语言骨干与预处理决定 Token 预算。2fps 可能漏掉短瞬态事件；GUI Understanding 分数也不是实际操作完成率。模型卡明确不推荐编码、多轮对话和复杂推理，不能把文本家族的 Agent 能力完整套到 VL。</p>
+<p><strong>判断｜本文分析。</strong> 优先复测票据/表格、中文小字、长截图、低光、旋转、连续视频和框坐标；分别测 Think/No-think 的精度、TTFT、TPOT 与峰值内存。llama.cpp 视频 PR 确认 VL 支持视频但不支持视频声轨；Omni 才支持 Video＋Soundtrack。QNN/ONNX 导出还需检查 Conv/GQA/SWA/Gate 的算子覆盖、Cache/State 更新和量化敏感层。</p>
+<p><strong>来源：</strong> <a href="https://huggingface.co/LiquidAI/LFM3-VL-2B">官方 VL 模型卡</a>；<a href="https://github.com/ggml-org/llama.cpp/pull/31252">llama.cpp #31252</a>；<a href="https://github.com/ggml-org/llama.cpp/pull/31283">视频 #31283</a>。</p>
+<h2 id="gaac">05｜GAAC：无损 KV 的价值在少搬数据，而不在压缩率榜首</h2>
+<p><strong>事件｜2026-10-28 03:03:51 UTC；P1。</strong> Notre Dame 的 Yipin Guo、Arun M George、Siddharth Joshi 首次提交 GAAC，arXiv:2610.38210v1。与上期 KV‑Surgeon 的离线、带近似的上下文压缩不同，本次研究逐比特保留 KV 数值并将解压融合到 Decode Attention。<a href="#s11">S11</a> <a href="#s12">S12</a></p>
+<p><strong>技术解读。</strong></p>
+<ol>
+<li>BF16 的 Sign＋Mantissa 原样存成 1 Byte，只压缩 8-bit Exponent。离线为每 Layer/Head/Channel 标定连续指数区间。</li>
+<li>每 8 个元素共用 2-bit Tag，选择 3-bit Offset、4-bit Offset 或 Raw Exponent。越界时扩大组编码，不能把值截断到标定区间。</li>
+<li>3-bit 模式每元素占 8＋3＋0.25＝11.25 bit；理论全为该模式的比例为 16/11.25≈1.422×。实际 Tag、较宽模式和固定 Slot 进一步降低有效节省。</li>
+<li>Attention 按 Tile 读压缩数据，边恢复边计算，不先展开整份 Cache。新 Token 进入 BF16 Tail，Block 满后压缩进固定容量 Slot；过大时保留 Raw Block。</li>
+</ol>
+<p><strong>性能 / 数据｜原论文实验。</strong> 主要硬件为 DGX Spark GB10、48 SM、128GB Unified LPDDR5x，实测带宽约 240GB/s；模型用 AWQ W4A16，Serving 基线为 vLLM <strong>0.17.1</strong>。它不是与本期 vLLM 主线最新 Kernel 的对照。</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层次</th>
+<th>结果</th>
+<th>不应得出的结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF16 表示</td>
+<td>5 个测试模型 1.405–1.407×无损压缩</td>
+<td>不是 4×量化；也不是 1.41×端到端加速</td>
+</tr>
+<tr>
+<td>Resident KV</td>
+<td>固定 Slot 后约少 26%；Qwen3‑8B/128K 为 19.3→14.2GB</td>
+<td>不是总 RAM 少 26%</td>
+</tr>
+<tr>
+<td>DGX Spark Attention</td>
+<td>Batch1、64K，FA2 BF16 KV 对照为 1.19–1.27×</td>
+<td>Attention 局部收益不能套到全部模型步骤</td>
+</tr>
+<tr>
+<td>同 Batch End-to-end Decode Step</td>
+<td>W4A16 为 1.04–1.15×</td>
+<td>尚无可据此填写的 Prefill TTFT 改善</td>
+</tr>
+<tr>
+<td>同 KV 内存预算 Serving</td>
+<td>总吞吐 +13%–29%，可多放一个并发 Sequence</td>
+<td>Batch 已不同；不是单请求 TPOT 提升 29%</td>
+</tr>
+<tr>
+<td>Apple M4</td>
+<td>同结构 BF16 Kernel 对照，Attention 1.02–1.25×</td>
+<td>M4 Batch1/64K 为约 1.10×；1.25×对应 8 Sequences/64K</td>
+</tr>
+<tr>
+<td>FP8 再压缩</td>
+<td>E4M3 1.09–1.14×；E5M2 1.25–1.30×</td>
+<td>FP8 本身相对 BF16 可能有损；GAAC 仅精确保留传入 FP8</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Per-op 证据。</strong> 论文 Table 5 在 64K 的时间拆解（μs）：</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>部分</th>
+<th style="text-align: right;">FA2</th>
+<th style="text-align: right;">先完整解压再 Attention</th>
+<th style="text-align: right;">GAAC 融合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>KV Loading</td>
+<td style="text-align: right;">1117.8</td>
+<td style="text-align: right;">1117.8</td>
+<td style="text-align: right;">823.5</td>
+</tr>
+<tr>
+<td>独立 Exponent Decode</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">930.8</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Computation</td>
+<td style="text-align: right;">241.5</td>
+<td style="text-align: right;">241.5</td>
+<td style="text-align: right;">290.7</td>
+</tr>
+<tr>
+<td>Measured Total</td>
+<td style="text-align: right;">1359.3</td>
+<td style="text-align: right;">2290.1</td>
+<td style="text-align: right;">1114.2</td>
+</tr>
+</tbody>
+</table></div>
+<p>少搬 KV 省 <strong>294.3μs</strong>，新增计算 <strong>49.2μs</strong>；先完整解压反而变慢。这一拆分比压缩率更直接说明系统收益。论文的 2＋3＋4＋Raw 模式仅将比例由 1.406 提高到 1.439，却将 Decode Codec 时间 187.1→526.7μs；更复杂编码不一定值得。</p>
+<p><strong>为什么值得关注。</strong> 它给“量化权重后 KV 仍是瓶颈”的端侧长 Context 场景提供另一条路线。标定失配影响压缩率，Raw Fallback 维持数值正确；跨任务 WikiText 标定到 HumanEval 的比例约 1.402，与目标域 Oracle 1.406 接近。不过保留 KV Bit Pattern 不等于改变 Kernel 后整个 Logits 或采样序列保证 Bitwise Identical。</p>
+<p><strong>判断｜本文分析。</strong> 本期最值得读的推理论文之一。先复现原始 BF16 KV 恢复、再做 Fusion Profile；同时记录压缩写入、Metadata、Tail、Slot Padding、Load、解压与 Attention 时间。对 HTP/NPU，还需核对是否能表达这种按组解码和 Tile Fusion；论文 Metal 路径不能直接证明 QNN 可获得同样收益。短 Context、权重占主导、稀疏/线性模型的同 Batch 收益可能更小。</p>
+<p><strong>来源：</strong> <a href="https://arxiv.org/abs/2610.38210v1">arXiv 日期与摘要</a>；<a href="https://arxiv.org/html/2610.38210v1">原论文全文 v1</a>。</p>
+<h2 id="mooncake">06｜vLLM / Mooncake：固定超时为何同时伤害成功率和资源回收</h2>
+<p><strong>事件｜PR #64193 于 2026-10-29 20:46 UTC 合并，即北京时间 10-30；P1。</strong> MooncakeConnector 增加 Opt-in <code>kv_lease_duration</code>，由 Decoder 续租 Prefiller 的 KV。上期关注 P/D 与会话状态，本期新增明确的生命周期控制与故障实验。<a href="#s13">S13</a></p>
+<p><strong>技术解读。</strong> 固定 480s 超时的矛盾是：D 崩溃后 P 持有无主 KV 太久；调短超时，又会丢掉仍在 D 排队的合法请求。新方案让 D 从请求进入队列起跟踪 Transfer IDs，约每 <code>lease/6</code> 向配对的 P Worker 续租；Pull 完成或 Abort 后停止。P 释放后保留标识，让 Late Pull 立即报错。</p>
+<p><strong>性能 / 数据｜PR 作者实测。</strong> 2×A800、200G HDR IB、Mooncake TE 0.3.13.post1、DeepSeek‑MoE‑16B、P/D 各 TP1；128 请求，输入 3000/输出 1000，负载约为 D KV 容量的 2.4×。</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>原方案</th>
+<th>PR 方案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D 约 t=23s 被杀；480s Timeout 对 30s Lease</td>
+<td>P KV 99%至约 t=484s；早期 Probe 475.5s</td>
+<td>P KV 至 t≈103s 低于 5%；同 Probe 61.3s，之后 Probe 36–46ms</td>
+</tr>
+<tr>
+<td>D 未崩溃、最长排队约 80s；20s Timeout 对 20s Lease</td>
+<td>79/128 失败，49/128 成功</td>
+<td>128/128 成功，未过期</td>
+</tr>
+<tr>
+<td>续租开销</td>
+<td>—</td>
+<td>每 128 Transfer IDs 约 1KB，发到每个配对 P Worker，每 lease/6 一次</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 崩溃回收的“约 103 秒”不是 30 秒 Lease 失效：D 死亡时仍在 P 排队的请求之后才完成 Prefill，各自开始 Lease。端到端资源恢复包含新产生的 KV 和扫描时间，不应只用租期当作整机恢复时间。</p>
+<p><strong>判断｜本文分析。</strong> 对 Howie，这比一个单纯 TPS PR 更接近链路正确性。优先覆盖 D 崩溃、D 长队列、续租网络失败、Late Pull、多 TP Worker、Abort 与滚动升级。功能默认不启用；两端需匹配配置。PR 明确<strong>背压未改变</strong>：慢 Decoder 可让 P KV 接近满载；租约提升成功率，但不能替代 D 侧 Host Staging/准入控制。作者单测 144 通过和 E2E 不等于本文实际复测或全体 CI 已通过。</p>
+<p><strong>来源：</strong> <a href="https://github.com/vllm-project/vllm/pull/64193">Mooncake Lease PR #64193</a>。</p>
+<h2 id="nixl">07｜vLLM / NIXL：按物理 Region 序号配 KV，会在混合布局中出错</h2>
+<p><strong>事件｜2026-10-31 05:51 UTC 合并；P1。</strong> PR #63416 将所有 KV Transfer 统一为按两端共有 Layer 配对的规则，协议版本 <code>NIXL_CONNECTOR_VERSION</code> 15→16。<a href="#s14">S14</a></p>
+<p><strong>技术解读。</strong> 旧路径分别使用 Region Index、PP Window、Layer Name 和 Packed-row Split。P/D 的 Layer 如何共享 Region、Cache Group、Block Size、TP/PP 方案不同时，物理 Region 序号可能不再代表同一逻辑层。</p>
+<p>新 Handshake 通告 <code>region_members</code> 与 <code>layer_group_ids</code>，生成 <code>(remote region, local region, cache group)</code> 映射；K/V 分开时按顺序配对，Shared Region 按成员去重，Packed Rows 先按 Layer 展开。缺层、Region 数量不匹配、混合 SSM Cache Plan 不一致等直接拒绝。它改变映射规则，不代表原先拒绝的所有拓扑都被开放。</p>
+<p><strong>性能 / 数据。</strong> 没有可核验的通用 TPS 提升。PR 的验证包括真实模型 Cache Planner/Allocator 生成的布局，逐 Byte 检查拷贝与未使用页面；TP/PP 在单进程模拟，GPU 部分在一个 GB300 上使用真实 Attention Backend。gpt‑oss‑20b 的 P TP1→D TP2 End-to-end GSM8K 为 0.364，对照非 P/D 0.362，1320 请求、2640 NIXL Reads，无失败传输；不推广到全部混合模型。</p>
+<p><strong>为什么值得关注。</strong> MLA＋DSA、SWA＋Full Attention、KDA/Mamba/SSM 和共享 KV 已使“每层一份 Cache、两端布局一样”的默认假设失效。网络带宽足够但拷错 Region，仍可能产生静默精度错误；布局一致性应在 Handshake 检查，而不是靠生成文本看起来合理。</p>
+<p><strong>判断｜本文分析。</strong> 需要加入跨 TP、PP、Packed/Unpacked、不同 Page Size 的 Byte-tag Transfer 检查，并验证不支持拓扑会及时拒绝。PR 报告另发现强制 <code>BLHNC</code> 的某些混合模型布局问题，明确作为独立待修项；不能将此 PR 描述为修复全部 NIXL 问题。协议版本改变意味着旧 Peer 会兼容性拒绝，滚动升级需安排两端。</p>
+<p><strong>来源：</strong> <a href="https://github.com/vllm-project/vllm/pull/63416">NIXL Region Pairing PR #63416</a>。</p>
+<h2 id="mlx">08｜Apple Silicon / MLX：从量化归约错误到中小行数 NAX 调度</h2>
+<h3 id="technical-detail-3">全负值量化组：精度损耗来自转换逻辑</h3>
+<p><strong>事件｜PR #4775 于 2026-10-28 08:14 UTC 合并；P1。</strong> Metal/CUDA Affine Quantization 的全负值 Group 将最大值归约初始化为 0，错误扩展表示范围。修复改为负无穷，与 CPU Maximum Reduction Identity 一致。<a href="#s15">S15</a></p>
+<p><strong>技术解读。</strong> 若 Group 的真实 Min/Max 都小于 0，初始化 0 会把 Max 错放在区间外，拉大 Scale，增加重构误差。量化后的模型精度变差可能来自这里，不能自动归因于小模型能力。用独立绝对误差上界检验能避免“转换和参考实现共享同一错误”。</p>
+<p><strong>性能 / 数据。</strong> 作者报告 CPU/Metal 7 个 Bit Width×3 个 Group Size×5 种数值模式共 105 组通过；量化测试 57 Passed / 1 Skipped。CUDA 修改存在，但作者未在本地编译或运行 CUDA，<strong>不得写为两种 GPU 后端均已作者实测</strong>。没有端到端任务提升百分比。</p>
+<p><strong>为什么值得关注。</strong> 对量化与导出链路，应保留全负、全正、常数、零、Mixed Group，并比较 CPU/Metal/CUDA 的 Scale、Bias 与重构值。</p>
+<p><strong>判断｜本文分析。</strong> 本文未复测；正式集成前固定包含修复的 Commit。最新公开 MLX Release 仍为 10-14 的 v0.32.4，合并记录不能当作 pip Stable 已更新。</p>
+<p><strong>来源：</strong> <a href="https://github.com/ml-explore/mlx/pull/4775">MLX #4775</a>；<a href="https://github.com/ml-explore/mlx/releases">MLX Releases</a>。</p>
+<h3 id="technical-detail-4">NAX Split‑K：修正形状分派，收益集中在 M&gt;1</h3>
+<p><strong>事件｜PR #4781 于 2026-11-01 11:13 UTC 合并；P1；「延续此前事件」。</strong> 上期 #4712/#4723 改善多 Draft 验证与少量行量化矩阵。本期新增 FP 格式 NAX Split‑K、Staged Schedule，以及 Affine 6–16 行的 <code>qmv_nax</code> 路径。<a href="#s16">S16</a></p>
+<p><strong>技术解读。</strong> 中小 M 的量化 Matmul 既容易因 Tile Padding 浪费工作，也容易因并行不足不能覆盖 GPU。Split‑K 增加 K 方向并行，Staged Schedule 改善数据供给；代价是分块归并和额外调度。Dispatch 应按 M/N/K、格式和核心数选择，而不是始终强推 NAX。</p>
+<p><strong>性能 / 数据｜作者 Microbenchmark。</strong> M5 Pro 16-core、M5 Max 40-core、M6 12-core、macOS 27.0.1；36 Projection Shapes，5 格式，多个 M：</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>例子</th>
+<th>作者报告速度比</th>
+<th>边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FP 格式，M=17–256</td>
+<td>通常 1.3–2.6×，单个 Shape 最高 5.2×</td>
+<td>这是 Matmul，不是整模型 TPS</td>
+</tr>
+<tr>
+<td>Affine 4/8-bit，M=6–16</td>
+<td>1.00–1.64×</td>
+<td>小 Batch / Draft Verification 才可能落入这段</td>
+</tr>
+<tr>
+<td>M5 Pro MXFP4，M=32</td>
+<td>2.54×</td>
+<td>跨模型 Shapes 汇总的原 PR 数字</td>
+</tr>
+<tr>
+<td>M5 Max MXFP4，M=32</td>
+<td>1.98×</td>
+<td>不同核心数改变最优分派</td>
+</tr>
+<tr>
+<td>M=1</td>
+<td>1.00×，无变化</td>
+<td>单请求普通 Decode 不直接受益</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 合并之后应在实际生成链路确认 Projection 行数、接受 Token 数和权重读次数。Amdahl 限制：如果这类 Matmul 仅占端到端时间一部分，局部 2×不可能自动变为整模型 2×；PR 也存在部分 Shape 回退。</p>
+<p><strong>判断｜本文分析。</strong> 对 Howie 可围绕 Draft Verification 与 Batch6/8/12/16/17/32 做 Profile，避免只测 Batch1 后错判无价值。</p>
+<p><strong>来源：</strong> <a href="https://github.com/ml-explore/mlx/pull/4781">MLX #4781</a>。</p>
+<h2 id="gemini-api">09｜Gemini API：CLI、Computer Use GA 与存储默认值是三件独立变化</h2>
+<p><strong>事件｜CLI 10-27 Beta，Computer Use 10-30 GA，存储默认值 10-26；P1。</strong> 均由 Gemini API Release Notes 确认。Computer Use 此前已有 Preview，本期为 GA 增量，不是第一次支持 GUI 操作。<a href="#s17">S17</a></p>
+<p><strong>技术解读。</strong> <code>gemini-api</code> 是面向 Shell Agent、脚本与 CI 的无状态客户端，调用 Interactions API；不是一个替代现有模型的自主 Agent。关键设计是非交互默认、离线 Schema、Dry-run、结构化错误和将媒体写到文件后只输出路径，减少子进程阻塞与 Base64 污染 Context。</p>
+<p><strong>性能 / 数据与行为。</strong></p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>变化</th>
+<th>核验内容</th>
+<th>工程含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CLI</td>
+<td>默认无隐藏本地会话；显式用 Interaction ID 串联</td>
+<td>Harness 自己持有状态和取消/恢复记录</td>
+</tr>
+<tr>
+<td>退出码</td>
+<td>0 成功；1 Runtime/API；2 Usage/Validation；3 Auth</td>
+<td>不必解析自然语言错误文本</td>
+</tr>
+<tr>
+<td>媒体输入</td>
+<td>Inline 原文件上限 14MB；大文件用 Files Upload；上传文件 48h 后删除</td>
+<td>文件生命周期仍需显式管理</td>
+</tr>
+<tr>
+<td>通信</td>
+<td>HTTP、SSE、后台任务；无双向 WebSocket</td>
+<td>Live Audio/Video 仍需 SDK/Live API</td>
+</tr>
+<tr>
+<td>Computer Use GA</td>
+<td>Interactions 与 GenerateContent 都支持</td>
+<td>截图、动作执行、环境与结果回传由客户端实现</td>
+</tr>
+<tr>
+<td>新 Paid Projects 默认存储</td>
+<td>GenerateContent <code>store=true</code>；已有项目保留现设置</td>
+<td>不希望存请求时显式 <code>store=false</code> 或关闭相应日志</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 稳定工具协议提高的是调用链可靠性。Computer Use 的 GA 并不包含“已经代你接好所有浏览器”：客户端要执行动作、缩放坐标、回传截图和记录 Result。模型状态、后台任务、文件 URI 与本地 State 是不同对象，不应共用一套含糊生命周期。</p>
+<p><strong>判断｜本文分析。</strong> CLI 可作为现有 Agent 的媒体/分析工具候选；不要为试用而修改业务方接口。重点验证退出码、超时、后台取消、路径输出、Schema 冲突和已存在 Interaction 的恢复。存储默认变更应检查<strong>新项目</strong>，不能误报为所有历史项目设置都改变。</p>
+<p><strong>来源：</strong> <a href="https://ai.google.dev/gemini-api/docs/changelog">Release Notes</a>；<a href="https://ai.google.dev/gemini-api/docs/cli">CLI 官方文档</a>；<a href="https://ai.google.dev/gemini-api/docs/computer-use">Computer Use 官方文档</a>。</p>
+<h2 id="copilot">10｜GitHub Universe：多模型 Harness 开始承担完整的软件交付</h2>
+<p><strong>事件｜2026-10-28；P1。</strong> GitHub 公布 Copilot App、Fusion、Projects、跨客户端 Session Continuity、可学习结果的 Automations、Code Review Max 以及企业按 AI Credits 采购的变化。<a href="#s20">S20</a></p>
+<p><strong>技术解读。</strong> Fusion 根据推理、生成、Debug 与 Tool Use 的任务需求选择一个或多个模型。Projects 组织跨 Repo 的托管并行 Session；Session Continuity 让同一云端 Agent 在 App、VS Code、CLI 和 Web 之间延续。价值来自 Router、Context/State、工具与反馈，而不只是多放几个模型名称。</p>
+<p><strong>性能 / 数据｜GitHub 报告。</strong> AA Coding Agent Index 中 Fusion Max 在 Opus 5.5 Max 的 2 分以内，任务成本约一半、时间少 40%；该文章未给出本文可核验的逐任务样本与全配置，因此作为厂商报告保留，不宣称所有代码任务都可省 50%。Code Review Max “高严重度问题 F1 最佳”未在该文给 TP/FP/TN/FN，本报告不反推指标。</p>
+<p>GitHub 还披露本年已增加 400 万 CPU Cores、160PB High-speed Storage、50Tb/s Network Capacity；这是全年披露的累计基础设施，不是本周新增容量。迁移 Azure 多 Region 计划到明年初完成，不能写为当前已经完成。</p>
+<p><strong>为什么值得关注。</strong> Agent 生成更多 Patch、Repo 操作、Telemetry 和并行 Session，使瓶颈从模型 API 延伸到 Git、存储、网络、Sandbox 和状态协调。底层 Git 的 Compute/Storage 分离与降低协调值得 Infra 工程师跟踪。</p>
+<p><strong>判断｜本文分析。</strong> 对自建 Harness，借鉴显式任务状态、跨端接续、模型路由和验证记录；学习结果后提出修改应当可审核，不把自动“学习”当作改动已经安全可靠。企业新模式当前需经 Sales，Self-service “coming soon”；现有 Business/Enterprise 可保留原计划，不能说订阅被强制取消。</p>
+<p><strong>来源：</strong> <a href="https://github.blog/news-insights/company-news/github-universe-2026-evolving-every-layer-of-the-stack/">GitHub 官方 Universe 2026 公告</a>。</p>
+<h2 id="nvidia-local-ai">11｜NVIDIA 本地 AI：新增语音模型与资源共享，硬件峰值仍不是业务性能</h2>
+<p><strong>事件｜2026-10-28；P1/P2；「延续此前事件」。</strong> RTX Spark 笔记本本体此前已经发布。本期增量为 Nemotron 3.5 Transcribe、LFM3 配套与前台应用/后台 Agent 的 GPU 资源控制，不重复上期硬件原始发布。<a href="#s21">S21</a></p>
+<p><strong>技术解读。</strong> Nemotron 3.5 Transcribe 将转写、Speaker Attribution、翻译和 Audio QA 放进一个 Promptable Checkpoint；语言部分为混合 Mamba/Transformer MoE。模型文件名为 30B‑A4B，厂商介绍约 4.3B Active；全权重仍是 30B 级，不能只按 4B 计算内存。<a href="#s22">S22</a></p>
+<p><strong>性能 / 数据与开放状态。</strong></p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>官方/技术介绍</th>
+<th>边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speech 能力</td>
+<td>转写 40 语言、翻译 31、Speaker Attribution 13；最长 1h，至多 8 Speakers</td>
+<td>各任务语言范围不同；Audio QA 训练语言为英语</td>
+</tr>
+<tr>
+<td>English Open ASR</td>
+<td>平均 WER 5.33%</td>
+<td>不等于中文、长会议或重叠语音的相同 WER</td>
+</tr>
+<tr>
+<td>批量吞吐</td>
+<td>1×RTX PRO 6000 Blackwell，100h 音频少于 3min</td>
+<td>30s Clips、高并发、<strong>尚待发布的 NVFP4</strong>；不是手机 Streaming 延迟</td>
+</tr>
+<tr>
+<td>Granary v2</td>
+<td>463,062h、48 语言、16 Source Corpora</td>
+<td>数据集 Manifest 总量，不是模型完整训练混合比例</td>
+</tr>
+<tr>
+<td>RTX Spark 产品背景</td>
+<td>最多 128GB Unified Memory、FP4 峰值至多 1PFLOP</td>
+<td>已有硬件参数；没有同条件 TTFT/TPOT、持续功耗数据</td>
+</tr>
+<tr>
+<td>NVIDIA App Resource Management</td>
+<td>可优先前台或后台；需 Windows HAGS</td>
+<td>不保证实时性隔离；是否改善尾延迟需实际争用测试</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 技术介绍的医学 ASR 微调案例，在 Held-out Speakers 上 WER 22.44%→12.17%，相对下降 45.8%；全数据集 11.8%包含用于选择 Prompt/Checkpoint 的样本，不宜作为干净测试成绩。一般英语 LibriSpeech Test-clean WER 1.54%→1.69%，说明专用领域微调仍可能有保持能力的代价。</p>
+<p><strong>判断｜本文分析。</strong> 值得借鉴“真实带口音数据＋合成数据＋明确文字规范＋独立 Speaker 测试”的标定/微调流程。Transcribe 定位 Recorded Audio，不是 Live Streaming；NVFP4 和 NeMo‑Speech.cpp 的本期已发布状态在 NVIDIA 总览与较新技术页措辞不一致，报告保守记录为量化版本/本地组合仍需单独核验，不追认全部同日可用。</p>
+<p><strong>来源：</strong> <a href="https://blogs.nvidia.com/blog/local-ai-rtx-spark-laptops-updates-models-agents-games/">NVIDIA 10-28 本地 AI 更新</a>；<a href="https://huggingface.co/blog/nvidia/nemotron-transcribe-granary/">NVIDIA / HF Transcribe 与 Granary 技术介绍</a>。</p>
+<h2 id="industry">12｜公司与行业：Anthropic 的 IPO 申请与云厂商的经营披露</h2>
+<p><strong>事件｜Anthropic 10-26，微软/Alphabet 10-28，Amazon 10-29；P1。</strong> Anthropic 确认向 SEC 提交 S‑1，拟在 Nasdaq Global Select Market 以 ANT 交易；股数和价格区间未确定，注册声明尚未生效。<strong>这是拟 IPO 申请，不是已上市或已获审批。</strong> 未读取完整 S‑1 财务正文，不采用二手材料中新增的营收、估值和计算承诺数字。<a href="#s24">S24</a></p>
+<p><strong>技术解读。</strong> 模型公司资本需求和云平台 AI 业务增长相互联系，但各家云收入中有传统计算、存储、应用、硬件系统等不同成分；订单/RPO、Token、收入、利润和 Cash CapEx 不能互换。</p>
+<p><strong>性能 / 数据｜官方财报首次披露；美元单位保留 billion。</strong></p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>公司 / 本次期间</th>
+<th>核验数字</th>
+<th>解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Microsoft FY27 Q1，季度截至 09-30</td>
+<td>Revenue $92.3B，+19%；Microsoft Cloud $63.9B，+30%；Azure +48%；Commercial RPO $677B，+73%</td>
+<td>FY27 Q1 不是 FY26 Q1；Cloud/Segment 范围不同</td>
+</tr>
+<tr>
+<td>Alphabet 2026 Q3</td>
+<td>Revenue $127.6B，+25%；Google Cloud $30.709B，+103%；Cloud Operating Income $11.121B</td>
+<td>官方称 TPU Systems Sales 是增长重要来源之一，不能全归因于 API 推理</td>
+</tr>
+<tr>
+<td>Alphabet 模型业务披露</td>
+<td>第一方 Model APIs 接近 32B Token/min，超过去年 4×；Gemini App 1B Users</td>
+<td>官方累计/运行口径；Token/min 不是客户收入，更不是单模型 TPS</td>
+</tr>
+<tr>
+<td>Amazon 2026 Q3</td>
+<td>AWS $46.0B，+39.3%；AWS Operating Income $17.8B；Bedrock Token Volume 近 17× YoY</td>
+<td>Token 倍增不等于收入倍增；与不同 Cloud 范围不可直接排名</td>
+</tr>
+<tr>
+<td>Amazon Cash Flow / 指引</td>
+<td>TTM Operating Cash Flow $168.3B；TTM Free Cash Flow 为 <strong>−$42.4B</strong>；全年 Cash CapEx 仍预计 $220B</td>
+<td>FCF 是过去 12 个月，CapEx 是全年前瞻；AI 投资是压力重要原因</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 云收入扩张与现金流压力可以同时发生。新设备、供电/机房、内存供应和服务良率影响回报兑现；不能仅用 CapEx 增长判断效率，也不能仅用某季度 FCF 为负判断 AI 需求消失。</p>
+<p><strong>判断｜本文分析。</strong> 工程上仍应关注 Goodput、每完成任务成本、GPU/内存利用和跨云迁移成本。Amazon 财报 Highlights 包含季度内发布的 TorchNeuron、Strands、Kiro 等事项，本报告只把<strong>经营数据首次披露</strong>作为本期事件；没有独立日期证据的产品不全部追认为本周发布。Meta 检索到的 Q3 官方日期为 10-21，在本期之外，未重报。</p>
+<p><strong>来源：</strong> <a href="https://www.anthropic.com/news/s1-sec">Anthropic S‑1 公告</a>；<a href="https://www.microsoft.com/en-us/Investor/earnings/FY-2027-Q1/press-release-webcast">Microsoft FY27 Q1</a>；<a href="https://s206.q4cdn.com/479360582/files/doc_news/2026/Oct/28/attachments/2026q3-alphabet-earnings-release.pdf">Alphabet Q3 官方 PDF</a>；<a href="https://press.aboutamazon.com/2026/10/amazon-com-announces-third-quarter-results">Amazon Q3</a>。</p>
+<h2 id="science">13｜AI for Science 与 Physical AI：可验证产物比“自主完成”的叙事更重要</h2>
+<p><strong>事件｜OpenAI 10-26、Anthropic 10-27、NVIDIA 10-29；P2。</strong> 本期披露了学术验证协作、药物研发案例和 Agent 构建仿真的工作流。核心增量是新公开材料和验证过程，不能把此前内部产生结果的日期改成当期首次计算。<a href="#s28">S28</a> <a href="#s29">S29</a> <a href="#s30">S30</a></p>
+<p><strong>技术解读。</strong> OpenAI 发布数学/复杂性/物理的 AI 研究声明，采用自然语言材料、Lean Formalization 和外部学术工作组。ETH 的内部自然语言结果在 10-16、Formalization 在 10-17；本期事件是 10-26 的公开材料与协作披露。QCD/Yang–Mills 材料按工作组意见暂不完整公开。本文没有审查完整形式化证明，<strong>记录为 OpenAI 声明及待独立审查，不写成学界已最终确认，也不推导为 P=NP 或计算瓶颈已经消失</strong>。</p>
+<p>Anthropic 披露与六个药物研发组织的合作，并涉及自己的早期研究；主要仍处于 Preclinical。NVIDIA 披露用 Agent 联合 OpenUSD、Physics、Rendering、Sensor 与测量误差构建/修改仿真，实际需要用户指导和闭环核验。</p>
+<p><strong>性能 / 数据。</strong></p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>工作流</th>
+<th>来源报告</th>
+<th>边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anthropic / Enveda 文档审核</td>
+<td>1061 页，发现人类已知 11 问题并再标出 7 问题；人工审核 &gt;25h→&lt;3h，少 89%</td>
+<td>合作方案例；未知全部 Ground Truth，不能算完整 Precision/Recall/F1</td>
+</tr>
+<tr>
+<td>Anthropic / BigHat</td>
+<td>约 1010 Variants、约 10 周；部分分子性质显著改善</td>
+<td>前临床分子实验，不能称已有新药临床成功</td>
+</tr>
+<tr>
+<td>NVIDIA 仓库仿真</td>
+<td>80 Conveyors、40 Arms、800 Boxes，1080p/30fps，2min 测试；640 次放置</td>
+<td>短模拟，不是实物生产线可靠性</td>
+</tr>
+<tr>
+<td>NVIDIA Hurdle 仿真</td>
+<td>Unitree G1 在 100 次模拟中成功 64 次</td>
+<td>模拟试验成功率；未证实真实机器人相同成绩</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> “工具闭环”已扩展到科学和仿真：模型提出方案，实验/计算给反馈，系统记录中间产物，再决定修正。报告中真正可迁移的部分是数据来源、验证协议、失败追踪和可复现配置。</p>
+<p><strong>判断｜本文分析。</strong> 对 Howie，可借鉴把 Agent 任务结束条件绑定到可检查的文件、测试和指标，而不是模型自己宣布完成。论文证明、医学结果、仿真与真实部署应各自保持证据级别；无需把宏大理论声明当作近期推理优化路线。</p>
+<p><strong>来源：</strong> <a href="https://openai.com/index/building-scientific-understanding-with-academic-communities/">OpenAI 学术协作公开说明</a>；<a href="https://www.anthropic.com/research/early-progress-drug-development">Anthropic 研发案例</a>；<a href="https://blogs.nvidia.com/blog/developers-simulation-frontier-ai-agents/">NVIDIA Omniverse Agent 案例</a>。</p>
+<h2 id="open-source">14｜GitHub 与开源：发布、合并、当前热度采用不同统计口径</h2>
+<p><strong>事件。</strong> 本期技术增量主要为 LFM3 的 llama.cpp 接入、Mistral Large 4 开放部署，以及 MLX/vLLM 的明确合并 PR。没有证据表明 vLLM、SGLang、MLX 在本期发布了新的正式稳定版；vLLM 最新看到的 <strong>v0.33.0rc3 发布于 11-02，范围外</strong>。即使其 Release Body 已写大量 v0.33.0 功能，也不能当作本期 0.33.0 正式发布。<a href="#s23">S23</a> <a href="#s31">S31</a> <a href="#s32">S32</a></p>
+<p><strong>技术解读。</strong> Repo Created、Pushed、Trending、PR Merged 与 Release Published 分别表示不同状态。尤其模型卡可能已经列出一串 Runtime，却仍没有正式版可安装；需要先查 PR 和版本，不照抄自动生成的示例。</p>
+<p><strong>性能 / 数据｜总 Star Top 的当次观察，非本期新事件。</strong> 2026-11-02 使用 GitHub CLI Search，查询 <code>topic:llm stars:&gt;1000</code>，按 Stars 降序，取前五。范围由 Repo Topic 标记决定，<strong>不是全球所有 AI 项目 Top5</strong>，也不是 10-26～11-01 历史快照。</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Repo</th>
+<th style="text-align: right;">当次 Stars</th>
+<th>类别 / 用处</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/affaan-m/ECC">affaan-m/ECC</a></td>
+<td style="text-align: right;">295,163</td>
+<td>Agent Harness、Skills/Memory/工作流；需要按具体机制和任务评估</td>
+</tr>
+<tr>
+<td><a href="https://github.com/NousResearch/hermes-agent">NousResearch/hermes-agent</a></td>
+<td style="text-align: right;">259,669</td>
+<td>持续运行 Agent；观察工具、状态与资源治理</td>
+</tr>
+<tr>
+<td><a href="https://github.com/firecrawl/firecrawl">firecrawl/firecrawl</a></td>
+<td style="text-align: right;">197,829</td>
+<td>网页数据采集；关注结构、重试、来源和成本</td>
+</tr>
+<tr>
+<td><a href="https://github.com/Significant-Gravitas/AutoGPT">Significant-Gravitas/AutoGPT</a></td>
+<td style="text-align: right;">187,870</td>
+<td>Agent 自动化平台；Star 不代表所有任务完成率</td>
+</tr>
+<tr>
+<td><a href="https://github.com/ollama/ollama">ollama/ollama</a></td>
+<td style="text-align: right;">185,657</td>
+<td>本地模型运行；对照 Runtime、模型格式与可用性</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么值得关注。</strong> 上期同限定查询中包含的条目已变化，可能来自 Topic/可见性/排序和热度变化；没有可比历史快照，不能据两次不完整列表计算当周增长，更不能自动解释移出名单的原因。</p>
+<p><strong>判断。</strong> 本次没有覆盖期内可比的 24h/7d/30d Star Snapshots，<strong>不发布 Star 飙升榜数字</strong>。当前列表只作开发工具发现；实际优先级仍按问题、机制、性能、正确性和可复现性确定。</p>
+<p><strong>来源：</strong> <a href="https://github.com/search?q=topic%3Allm%20stars%3A%3E1000&amp;type=repositories&amp;s=stars&amp;o=desc">GitHub 限定查询</a>；<a href="https://github.com/vllm-project/vllm/releases">vLLM Releases</a>；<a href="https://github.com/sgl-project/sglang/releases">SGLang Releases</a>；<a href="https://github.com/ml-explore/mlx/releases">MLX Releases</a>。</p>
+<h2 id="trends">本期总结与技术趋势判断</h2>
+<p>以下为<strong>分析</strong>，不是厂商已证明的普遍规律。</p>
+<ul>
+<li><strong>任务成本正在成为主要竞争指标。</strong> Terra 的低价视觉行动、Fusion 的路由/编排、LFM3 的小模型专用化都是同一方向，但单 Token 价格、输出效率、成功率、重试与工具成本要一起评估。</li>
+<li><strong>KV 从一个 Tensor 变成完整状态系统。</strong> ML4 设计表示和共享；GAAC 将编码融入 Kernel；Mooncake 管理所有权与租期；NIXL 检查布局映射。只优化带宽或显存，无法代替生命周期和正确性。</li>
+<li><strong>更多稀疏性意味着更复杂的布局。</strong> MoE Expert Sparsity、Attention Top‑k、SWA、有界 Conv/SSM State 与跨层 KV Sharing 各自解决不同瓶颈，不能用一个“稀疏倍率”概括。</li>
+<li><strong>端侧收益要求架构、量化、导出和 Runtime 联合设计。</strong> LFM3 的多设备架构搜索和 MLX 的数值修复说明，精度与速度都可能在转换/执行环节失去；产品级测试不能只测语言能力。</li>
+<li><strong>容量和延迟是不同目标。</strong> DCP 增加近 8×容量仍可能增加单步 TPOT；GAAC 多并发总吞吐增长仍可能主要来自 Batch 增大。每次 Benchmark 都要说明优化的是哪个目标。</li>
+<li><strong>行业扩张与现金压力并存。</strong> 云业务增长、TPU 系统销售与 Bedrock Token 放量提供需求证据；资本开支和自由现金流则约束供给效率。不要据其中一个数字单独预测行业转折。</li>
+</ul>
+<h2 id="recommendations">对 Howie 的建议</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>行动</th>
+<th>最小有价值的验证</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1：优先复测</td>
+<td>LFM3‑VL‑2B 的端侧 OCR/GUI/视频</td>
+<td>原始精度、4-bit、导出格式逐级对照；中文小字/长图/旋转/低光；Think 与 No-think；TTFT/TPOT/峰值内存</td>
+</tr>
+<tr>
+<td>P1：优先阅读</td>
+<td>GAAC Codec＋Attention Fusion</td>
+<td>逐比特 KV 恢复、Raw Fallback；分项 Load/解压/写入；同 Batch 与同内存两条曲线；长 Context 的总 RAM 与单步耗时</td>
+</tr>
+<tr>
+<td>P1：优先自检</td>
+<td>全负值 Affine Quantization Group</td>
+<td>CPU/Metal/CUDA 的 Min/Max、Scale、Bias 和误差；把量化/转换损失同模型能力分开</td>
+</tr>
+<tr>
+<td>P1：服务回归</td>
+<td>Mooncake Lease 与 NIXL Layout</td>
+<td>D Crash、Queue&gt;Lease、Late Pull、滚动升级、TP/PP 不同；Byte-tag 拷贝与生成精度</td>
+</tr>
+<tr>
+<td>P1：算子 Profile</td>
+<td>MLX M=6/8/12/16/17/32 的 NAX 路径</td>
+<td>Draft Accept Length、各 Projection 形状、Matmul 占比；勿由 Microbenchmark 直接推端到端</td>
+</tr>
+<tr>
+<td>P2：按条件实验</td>
+<td>ML4 稀疏 MLA / KV Sharing / DCP</td>
+<td>先判 KV 是否瓶颈，再比较 TPOT、TTFT、容量、传输与回滚；无相应集群时先读代码</td>
+</tr>
+<tr>
+<td>P2：同任务 A/B</td>
+<td>Terra / Fusion 的视觉与编程工作流</td>
+<td>相同输入、Harness、推理预算；成功率、总 Token、工具/沙盒费用、人工接管和延迟</td>
+</tr>
+<tr>
+<td>持续观察</td>
+<td>Carbon 可用性、Transcribe 量化、云资本回报</td>
+<td>普通 API 实际开放、固定模型版本、NVFP4 正式文件/工具；不凭预告安排生产依赖</td>
+</tr>
+</tbody>
+</table></div>
+<p>端侧内存实验继续建议同时记录 CPU <code>VmHWM</code> 与 HTP/ION <code>dmabuf_dump</code>，区分权重、Vision Workspace、KV/Conv State、共享缓冲和 RPC 临时峰值。性能报告保留毫秒级 TTFT/TPOT、温控/电池、输入图像 Token 量与运行时配置。</p>
+<h2 id="verification">覆盖边界与核验说明</h2>
+<ol>
+<li><strong>时间和去重。</strong> 先读上期全文与日期记录，再检索本期。ML4、RTX Spark、Computer Use、MLX 少量行优化分别标记本期增量；不重报旧版发布。SubTernary arXiv:2610.28671 首次提交 10-17，虽本次搜索出现，但已排除。Meta Q3 10-21、MLX 0.32.4 10-14、vLLM rc3 11-02 不在本期。</li>
+<li><strong>来源差异。</strong> ML4 模型卡的 AA Coding Agent Index 48 与 HF 49.8 未完全对齐；LFM3 模型卡 “in review”与 llama.cpp 已合并日期不同；NVIDIA 总览与技术页的 Transcribe 量化措辞不同。均在正文保留，未用推测补齐。</li>
+<li><strong>未取得充分当期证据的方向。</strong> 中英文查询包含 DeepSeek、Qwen、GLM、Kimi、MiniMax 与 Apple/Qualcomm/AMD/Intel/国产硬件；本次未形成足够完整的“本期新事件＋原始来源”链，不等于这些公司没有任何动态。没有新增事件的主题不凑数。</li>
+<li><strong>来源访问限制。</strong> Mistral 官网新闻/部分文档静态正文返回空内容，改用官方 HF 模型卡、HF 发布文与 vLLM 实现文；不从无法读取页面推断价格。公开页面/API 足以取得主要来源，本次没有依赖登录态资料。</li>
+<li><strong>证据层级。</strong> 论文为 arXiv v1，性能属于作者实验；PR 测试与厂商 Benchmark 非 Howie 本地运行。科学重大声明未审读完整形式化证明，按公开声明记录。财报为首次公开经营披露，前瞻指引保持前瞻属性。</li>
+<li><strong>GitHub 榜单。</strong> 当前 Stars 仅用于 11-02 的限定范围观察；历史增长无法核验，不填写 24h/7d/30d 增量。GitHub Trending、Repo 创建时间不能代替增长。</li>
+<li><strong>无高价值已核验传闻。</strong> 本期未纳入匿名模型/芯片、人员流动或融资传闻。Anthropic IPO 申请已有官方确认，不能继续当作传闻，也不能超前写成完成上市。</li>
+<li><strong>审核范围。</strong> 内容检查覆盖日期、历史重复、名称、数字分母、Benchmark 版本、内存/延迟层次、Stable/PR/Preview/GA 与来源对应；页面继续复用历史基线的样式、侧边 Contents、标题层级和文末集中来源。本期为新的独立页面，历史报告不修改。</li>
+</ol>
+<h2 id="sources">来源</h2>
+<p>以下为本次实际读取的原始/配套来源。链接文本保留完整 URL；文章动态更新时，应同时参照固定版本/合并日期。官方报告不等于独立实测，查询列表不等于历史快照。</p>
+<p><span id="s1"></span><strong>S1｜OpenAI，GPT‑6.1 Terra，2026-10-26。</strong> <a href="https://openai.com/index/introducing-gpt-6-1-terra/">https://openai.com/index/introducing-gpt-6-1-terra/</a></p>
+<p><span id="s2"></span><strong>S2｜OpenAI Research / Publication，系统卡增补日期 2026-10-26。</strong> <a href="https://openai.com/research/index/publication/">https://openai.com/research/index/publication/</a></p>
+<p><span id="s3"></span><strong>S3｜Google，Introducing Gemini 4 Carbon，2026-10-28。</strong> <a href="https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon/?verification=20261029">https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon/?verification=20261029</a></p>
+<p><span id="s4"></span><strong>S4｜Mistral，Mistral Large 4‑1T‑A52B 官方模型卡，11-02 读取。</strong> <a href="https://huggingface.co/mistralai/Mistral-Large-4-1T-A52B">https://huggingface.co/mistralai/Mistral-Large-4-1T-A52B</a></p>
+<p><span id="s5"></span><strong>S5｜Hugging Face，Welcome Le Chonk: Mistral Large 4，2026-10-29。</strong> <a href="https://huggingface.co/blog/mistral-large4">https://huggingface.co/blog/mistral-large4</a></p>
+<p><span id="s6"></span><strong>S6｜Mistral / vLLM Team，Day 0 support for Mistral Large 4，2026-10-29。</strong> <a href="https://vllm.ai/blog/2026-10-29-mistral-large-4">https://vllm.ai/blog/2026-10-29-mistral-large-4</a></p>
+<p><span id="s7"></span><strong>S7｜Liquid AI，Introducing LFM3，2026-10-27。</strong> <a href="https://www.liquid.ai/blog/lfm3">https://www.liquid.ai/blog/lfm3</a></p>
+<p><span id="s8"></span><strong>S8｜Liquid AI，LFM3‑VL‑2B 官方模型卡，11-02 读取。</strong> <a href="https://huggingface.co/LiquidAI/LFM3-VL-2B">https://huggingface.co/LiquidAI/LFM3-VL-2B</a></p>
+<p><span id="s9"></span><strong>S9｜llama.cpp #31252，LFM3 Text/Vision，2026-10-27 16:06:41 UTC 合并。</strong> <a href="https://github.com/ggml-org/llama.cpp/pull/31252">https://github.com/ggml-org/llama.cpp/pull/31252</a></p>
+<p><span id="s10"></span><strong>S10｜llama.cpp #31283，LFM3 Video，2026-10-28 11:23:07 UTC 合并。</strong> <a href="https://github.com/ggml-org/llama.cpp/pull/31283">https://github.com/ggml-org/llama.cpp/pull/31283</a></p>
+<p><span id="s11"></span><strong>S11｜Guo / George / Joshi，GAAC 元数据，2026-10-28 03:03:51 UTC 提交 v1。</strong> <a href="https://arxiv.org/abs/2610.38210v1">https://arxiv.org/abs/2610.38210v1</a></p>
+<p><span id="s12"></span><strong>S12｜GAAC 原论文全文 v1，含实验与 Per-op 分解。</strong> <a href="https://arxiv.org/html/2610.38210v1">https://arxiv.org/html/2610.38210v1</a></p>
+<p><span id="s13"></span><strong>S13｜vLLM #64193，Mooncake KV Lease，2026-10-29 20:46:05 UTC 合并。</strong> <a href="https://github.com/vllm-project/vllm/pull/64193">https://github.com/vllm-project/vllm/pull/64193</a></p>
+<p><span id="s14"></span><strong>S14｜vLLM #63416，NIXL Layer Region Pairing，2026-10-31 05:51:20 UTC 合并。</strong> <a href="https://github.com/vllm-project/vllm/pull/63416">https://github.com/vllm-project/vllm/pull/63416</a></p>
+<p><span id="s15"></span><strong>S15｜MLX #4775，全负值 Affine Group，2026-10-28 08:14:45 UTC 合并。</strong> <a href="https://github.com/ml-explore/mlx/pull/4775">https://github.com/ml-explore/mlx/pull/4775</a></p>
+<p><span id="s16"></span><strong>S16｜MLX #4781，NAX Split‑K / Affine QMV，2026-11-01 11:13:59 UTC 合并。</strong> <a href="https://github.com/ml-explore/mlx/pull/4781">https://github.com/ml-explore/mlx/pull/4781</a></p>
+<p><span id="s17"></span><strong>S17｜Google Gemini API Release Notes，10-26 / 10-27 / 10-30。</strong> <a href="https://ai.google.dev/gemini-api/docs/changelog">https://ai.google.dev/gemini-api/docs/changelog</a></p>
+<p><span id="s18"></span><strong>S18｜Google Gemini API CLI 文档，11-02 读取。</strong> <a href="https://ai.google.dev/gemini-api/docs/cli">https://ai.google.dev/gemini-api/docs/cli</a></p>
+<p><span id="s19"></span><strong>S19｜Google Computer Use 文档，11-02 读取。</strong> <a href="https://ai.google.dev/gemini-api/docs/computer-use">https://ai.google.dev/gemini-api/docs/computer-use</a></p>
+<p><span id="s20"></span><strong>S20｜GitHub，Universe 2026: Evolving every layer of the stack，2026-10-28。</strong> <a href="https://github.blog/news-insights/company-news/github-universe-2026-evolving-every-layer-of-the-stack/">https://github.blog/news-insights/company-news/github-universe-2026-evolving-every-layer-of-the-stack/</a></p>
+<p><span id="s21"></span><strong>S21｜NVIDIA，RTX Spark / Local AI updates，2026-10-28。</strong> <a href="https://blogs.nvidia.com/blog/local-ai-rtx-spark-laptops-updates-models-agents-games/">https://blogs.nvidia.com/blog/local-ai-rtx-spark-laptops-updates-models-agents-games/</a></p>
+<p><span id="s22"></span><strong>S22｜NVIDIA / HF，Nemotron Transcribe / Granary 技术介绍，11-02 读取；本期日期由 S21 佐证。</strong> <a href="https://huggingface.co/blog/nvidia/nemotron-transcribe-granary/">https://huggingface.co/blog/nvidia/nemotron-transcribe-granary/</a></p>
+<p><span id="s23"></span><strong>S23｜MLX Releases，最新稳定 v0.32.4 为 2026-10-14。</strong> <a href="https://github.com/ml-explore/mlx/releases">https://github.com/ml-explore/mlx/releases</a></p>
+<p><span id="s24"></span><strong>S24｜Anthropic，S‑1 SEC 公告，2026-10-26。</strong> <a href="https://www.anthropic.com/news/s1-sec">https://www.anthropic.com/news/s1-sec</a></p>
+<p><span id="s25"></span><strong>S25｜Microsoft，FY27 Q1 Earnings Release，2026-10-28。</strong> <a href="https://www.microsoft.com/en-us/Investor/earnings/FY-2027-Q1/press-release-webcast">https://www.microsoft.com/en-us/Investor/earnings/FY-2027-Q1/press-release-webcast</a></p>
+<p><span id="s26"></span><strong>S26｜Alphabet，2026 Q3 Earnings Release PDF，2026-10-28。</strong> <a href="https://s206.q4cdn.com/479360582/files/doc_news/2026/Oct/28/attachments/2026q3-alphabet-earnings-release.pdf">https://s206.q4cdn.com/479360582/files/doc_news/2026/Oct/28/attachments/2026q3-alphabet-earnings-release.pdf</a></p>
+<p><span id="s27"></span><strong>S27｜Amazon，Q3 Results，2026-10-29。</strong> <a href="https://press.aboutamazon.com/2026/10/amazon-com-announces-third-quarter-results">https://press.aboutamazon.com/2026/10/amazon-com-announces-third-quarter-results</a></p>
+<p><span id="s28"></span><strong>S28｜OpenAI，Working with academic communities，2026-10-26。</strong> <a href="https://openai.com/index/building-scientific-understanding-with-academic-communities/">https://openai.com/index/building-scientific-understanding-with-academic-communities/</a></p>
+<p><span id="s29"></span><strong>S29｜Anthropic，Early progress on accelerating drug development，2026-10-27。</strong> <a href="https://www.anthropic.com/research/early-progress-drug-development">https://www.anthropic.com/research/early-progress-drug-development</a></p>
+<p><span id="s30"></span><strong>S30｜NVIDIA，Developers / Simulation / Frontier AI Agents，2026-10-29。</strong> <a href="https://blogs.nvidia.com/blog/developers-simulation-frontier-ai-agents/">https://blogs.nvidia.com/blog/developers-simulation-frontier-ai-agents/</a></p>
+<p><span id="s31"></span><strong>S31｜vLLM Releases，v0.33.0rc3 为 2026-11-02，范围外。</strong> <a href="https://github.com/vllm-project/vllm/releases">https://github.com/vllm-project/vllm/releases</a></p>
+<p><span id="s32"></span><strong>S32｜SGLang Releases，最新稳定 v0.5.22 为 2026-10-19。</strong> <a href="https://github.com/sgl-project/sglang/releases">https://github.com/sgl-project/sglang/releases</a></p>
+<p><span id="s33"></span><strong>S33｜GitHub Search，11-02 CLI 观察，<code>topic:llm stars:&gt;1000</code>、Stars 降序前五；非历史增长榜。</strong> <a href="https://github.com/search?q=topic%3Allm%20stars%3A%3E1000&amp;type=repositories&amp;s=stars&amp;o=desc">https://github.com/search?q=topic%3Allm%20stars%3A%3E1000&amp;type=repositories&amp;s=stars&amp;o=desc</a></p></article>
+</main>
+<footer class="site-footer"><span>© 2026 Howie Yin</span><div class="footer-links"><a href="./">Back to archive ←</a><a href="../">Home ←</a></div></footer>
+</div>
+</body>
+</html>
