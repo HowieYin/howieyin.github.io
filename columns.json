@@ -41,6 +41,13 @@
       "readLabel": "Read the article",
       "articles": [
         {
+          "title": "KV Cache 量化：为什么 Key 按通道，Value 按 Token？",
+          "path": "foundations/kivi-kv-cache-quantization.html",
+          "date": "2026-11-05",
+          "description": "KIVI's asymmetric grouping, residual cache and complete memory ledger. Attention error, KVQuant, backend behavior and GPU/NPU decode costs explained.",
+          "topic": "Inference & quantization"
+        },
+        {
           "title": "Online Softmax：为什么多算几次，反而能少读写显存？",
           "path": "foundations/online-softmax.html",
           "date": "2026-10-26",
@@ -60,6 +67,13 @@
       "emptyText": "No experiments yet.",
       "readLabel": "Explore the experiment",
       "articles": [
+        {
+          "title": "旋转不改变计算，为什么 INT4 误差会变？",
+          "path": "lab/rotation-quantization.html",
+          "date": "2026-11-05",
+          "description": "A reproducible Hadamard experiment with an outlier case and a zero-error counterexample. QuaRot, SpinQuant and the limits of RMSNorm/RoPE invariance.",
+          "topic": "Numerical precision"
+        },
         {
           "title": "同加一个常数，为什么FP16的Softmax会变？",
           "path": "lab/softmax-invariance-fp16.html",

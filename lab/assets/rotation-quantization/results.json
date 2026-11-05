@@ -1,0 +1,54 @@
+{
+  "scope": "Synthetic float64 CPU experiment; no full-model or speed claims",
+  "seed": 20261105,
+  "dimension": 64,
+  "environment": {
+    "python": "3.12.2",
+    "numpy": "2.4.6",
+    "platform": "macOS-27.2-arm64-arm-64bit"
+  },
+  "quantizer": "symmetric [-7,7], per-row activation, per-column weight; ties-to-even; no clipping search",
+  "invariance": {
+    "orthogonality_max_abs_error": 0.0,
+    "joint_qk_max_abs_error": 7.105427357601002e-15,
+    "rmsnorm_without_gamma_max_abs_error": 1.3322676295501878e-15,
+    "rmsnorm_with_unfolded_gamma_rel_l2": 0.3672876968911051,
+    "relu_wrong_commutation_rel_l2": 0.9762002461725074,
+    "post_rope_joint_rotation_max_abs_error": 1.0658141036401503e-14,
+    "pre_rope_unchanged_rope_wrong_rel_l2": 1.4378581928786962
+  },
+  "outlier_case": {
+    "original": {
+      "mean_row_max_abs": 20.0,
+      "mean_peak_to_rms": 7.941453910585421,
+      "input_reconstruction_rel_l2": 0.12077006669216173,
+      "activation_only_output_rel_l2": 0.11196895166674595,
+      "weight_and_activation_output_rel_l2": 0.15784905102368935
+    },
+    "hadamard": {
+      "mean_row_max_abs": 3.2417983006144757,
+      "mean_peak_to_rms": 1.2871977154505365,
+      "input_reconstruction_rel_l2": 0.05110856262566449,
+      "activation_only_output_rel_l2": 0.05169160784265179,
+      "weight_and_activation_output_rel_l2": 0.09965152424073942
+    },
+    "full_precision_compensation_max_abs_error": 7.993605777301127e-15
+  },
+  "grid_aligned_counterexample": {
+    "original": {
+      "mean_row_max_abs": 7.0,
+      "mean_peak_to_rms": 1.6114459445444815,
+      "input_reconstruction_rel_l2": 0.0,
+      "activation_only_output_rel_l2": 0.0,
+      "weight_and_activation_output_rel_l2": 0.11522812474251364
+    },
+    "hadamard": {
+      "mean_row_max_abs": 12.078125,
+      "mean_peak_to_rms": 2.7689087739582297,
+      "input_reconstruction_rel_l2": 0.1185217370957376,
+      "activation_only_output_rel_l2": 0.13197459322282143,
+      "weight_and_activation_output_rel_l2": 0.16849942552943095
+    },
+    "full_precision_compensation_max_abs_error": 7.105427357601002e-15
+  }
+}

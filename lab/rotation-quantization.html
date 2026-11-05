@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="dark" name="color-scheme"/><meta content="#0c1016" name="theme-color"/>
+<meta content="可复现 NumPy 实验：Hadamard 如何降低离群值量化误差，又为何破坏零误差网格；结合 QuaRot、SpinQuant 和 RMSNorm/RoPE 的放置条件。" name="description"/>
+<title>旋转不改变计算，为什么 INT4 误差会变？ — Howie Yin</title>
+<link href="https://howieyin.github.io/lab/rotation-quantization.html" rel="canonical"/>
+<link href="../assets/favicon.svg" rel="icon" type="image/svg+xml"/>
+<link href="../assets/article-navigation.css" rel="stylesheet"/>
+<script defer="" src="../assets/article-navigation.js"></script>
+<link href="../styles.css?v=3" rel="stylesheet"/><style>
+.report { padding: 48px 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.report h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.6px; line-height: 1.4; margin-bottom: 28px; }
+.report h2 { margin: 52px 0 20px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; }
+.report h3 { font-size: 20px; margin: 28px 0 14px; }
+.report p, .report li { color: var(--secondary); }
+.report strong { color: var(--text); }
+.report a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.report li { margin: 9px 0; }
+.report code { font-family: var(--mono); font-size: .85em; }
+.report pre { overflow-x: auto; padding: 20px; background: #111720; border: 1px solid var(--line); border-radius: 8px; }
+.report img { display: block; max-width: 100%; height: auto; background: white; padding: 16px; border-radius: 6px; margin: 24px auto; width: 680px; }
+.report .table-scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 6px; }
+.report table { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 14px; }
+.report th, .report td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.report th { color: var(--text); background: #111720; }
+.report td { color: var(--secondary); }
+.report .toc { padding: 24px; border: 1px solid var(--line); border-radius: 8px; margin: 32px 0; }
+.report .toc ul { padding-left: 22px; }
+@media(max-width:640px) { .report { font-size: 15px; padding: 32px 0; } .report h2 { font-size: 22px; } .report img { padding: 8px; } }
+
+.formula { padding: 20px; margin: 24px 0; background: #111720; border-left: 3px solid var(--accent); font-family: var(--mono); font-size: 14px; overflow-x: auto; }
+.diagram { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:24px 0; padding:20px; border:1px solid var(--line); border-radius:8px; }
+.diagram div { flex:1 1 160px; padding:14px; background:#111720; border:1px solid var(--line); border-radius:6px; }
+.diagram span:not(.diagram-arrow) { display:block; color:var(--secondary); font-size:13px; margin-top:8px; }
+</style></head>
+<body><a class="skip-link" href="#main">Skip to content</a><div class="page">
+<header class="site-header"><a aria-label="Howie Yin, home" class="wordmark" href="../"><span aria-hidden="true" class="brand-mark"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../weekly/">Weekly</a><a href="../foundations/">Foundations</a><a aria-current="page" href="../lab/">Lab</a><a href="../#about">About</a></nav></header>
+<main class="report" id="main"><p class="eyebrow">LAB / ROTATION &amp; QUANTIZATION</p><details class="toc" hidden=""><summary>Contents</summary><ul><li><a href="#section-01">1｜一根很长的刺，为什么能摊成一片平面？</a></li><li><a href="#section-02">2｜数学等价怎么成立：必须同时补偿权重</a></li><li><a href="#section-03">3｜量化不跟着坐标轴一起旋转</a></li><li><a href="#section-04">4｜复现方法：一个脚本同时给出正例与反例</a></li><li><a href="#section-05">5｜实测正例：离群值组的误差下降</a></li><li><a href="#section-06">6｜实测反例：本来零误差，旋转后变成 13.20%</a></li><li><a href="#section-07">7｜错误放置实验：RMSNorm、非线性与 RoPE</a></li><li><a href="#section-08">8｜QuaRot：把坐标变换组织成完整推理方案</a></li><li><a href="#section-09">9｜SpinQuant：同样都“摊平”，为什么有的旋转更好？</a></li><li><a href="#section-10">10｜工程意义：省下的量化成本，能覆盖旋转成本吗？</a></li><li><a href="#section-11">11｜自己动手：三个有信息量的改动</a></li><li><a href="#section-12">12｜总结与启发：等价变换也是精度设计空间</a></li><li><a href="#sources">来源</a></li></ul></details><article><h1 id="rotation-quantization">旋转不改变计算，为什么 INT4 误差会变？</h1>
+<p><strong>核心结论：正交变换保留长度和点积，却不保留坐标轴上的最大值，也不保留量化网格。只要同时补偿权重，浮点下的线性计算可以保持等价；在不同坐标系里做 INT4 舍入，误差却可能下降，也可能上升。我们在同一个本地实验里复现两种情况。</strong></p>
+<p>类型：趣味实验 / 数值精度 / 量化工程。发布：2026-11-05。实验环境：Python 3.12.2、NumPy 2.4.6、macOS ARM64 CPU；float64 模拟量化。固定 seed=20261105，输入 8×64，权重 64×24。<strong>本地没有加载 LLM，没有运行 GPU/NPU，没有测量速度或 perplexity。</strong></p>
+<p>延伸阅读：<a href="softmax-invariance-fp16.html">FP16 Softmax 平移实验</a> 讨论“实数恒等式遇到浮点表示”。这一篇研究另一个节点：<strong>可逆的坐标变换遇到低比特网格</strong>。此前权重量化论文阅读可从 <a href="../papers/">Paper Readings</a> 进入；本篇补充 QuaRot、SpinQuant 的旋转机制与可玩的反例。</p>
+<h2 id="section-01">1｜一根很长的刺，为什么能摊成一片平面？</h2>
+<p>想象 64 维向量里只有一个通道为 20，其他通道约为 0.3。用一个 per-token scale 做对称 INT4 量化，20 决定了步长：20/7≈2.86。多数小数距离零还不到半格，舍入后就会消失。</p>
+<p>若把向量换到另一组正交坐标轴，长度不变，但原先集中在一个通道里的幅值可以分散到多个通道。新的最大绝对值下降，量化步长变细，小分量就有机会被区分。</p>
+<div aria-label="Rotation and quantization intuition" class="diagram">
+<div><strong>原坐标</strong><span>一个大通道支配行内 scale<br/>20 与许多小数挤在同一网格</span></div>
+<span class="diagram-arrow">→</span>
+<div><strong>正交混合</strong><span>长度保留，坐标极值变化<br/>网格重新覆盖数值分布</span></div>
+<span class="diagram-arrow">→</span>
+<div><strong>INT4 舍入</strong><span>信息损失发生在新坐标中<br/>结果受变换和 scale 共同影响</span></div>
+</div>
+<p><em>教学示意。正交矩阵也可含反射，量化文献通常把这类变换统称 rotation。</em></p>
+<p>这不是让离群信息消失，而是让它不再独占一个坐标轴。是否变得更好，取决于新的坐标分布、权重与任务；第一节的直觉还不是普适保证。</p>
+<h2 id="section-02">2｜数学等价怎么成立：必须同时补偿权重</h2>
+<p>统一采用行向量记法：X 是 Token×特征，W 是输入特征×输出特征，R 为 D×D 正交矩阵，满足 RRᵀ=RᵀR=I。</p>
+<div class="formula" role="math">Y = XW<br/>X′ = XR；W′ = RᵀW<br/>X′W′ = XRRᵀW = XW</div>
+<p>例如二维向量 [a,b] 经过归一化 Hadamard：</p>
+<div class="formula" role="math">H₂ = (1/√2) · [[1,1],[1,−1]]<br/>[a,b]H₂ = [(a+b)/√2, (a−b)/√2]</div>
+<p>[20,0] 变成 [14.142…,14.142…]，L2 长度仍为 20，最大坐标却下降。如果只把 X 换成 XR，却忘了把 W 换成 RᵀW，输出当然会改变；这不是量化误差，是模型已被改写。</p>
+<p>另一个等价关系出现在 Attention：</p>
+<div class="formula" role="math">(QR)(KR)ᵀ = QRRᵀKᵀ = QKᵀ</div>
+<p>同一 head 的 Q 和 K 共享同一个正交变换，点积保持。只改一边、两边使用不同 R，或者把 head 任意混合，都不能直接套这个式子。GQA 的多个 Query heads 共享一个 KV head 时，变换也必须保持对应关系。</p>
+<h2 id="section-03">3｜量化不跟着坐标轴一起旋转</h2>
+<p>本实验使用对称 per-token 模拟 INT4：每行 scale=max|x|/7，码点为 −7…7。标准 signed INT4 的 −8 码未使用，采用 round-to-nearest、ties-to-even，没有 clipping 搜索。</p>
+<div class="formula" role="math">s(x) = maxᵢ |xᵢ| / 7<br/>Q₄(x) = s(x) · clip(round(x/s(x)), −7, 7)</div>
+<p>这里 Q₄ 返回反量化后的浮点数。<strong>没有实际打包 4-bit，也没有整数 GEMM。</strong></p>
+<p>在原坐标中量化后直接算 Q₄(X)W；换坐标后算 Q₄(XR)RᵀW。两者不相等，因为：</p>
+<div class="formula" role="math">通常 Q₄(XR)Rᵀ ≠ Q₄(X)</div>
+<p>舍入到网格是不可逆操作。旋转把轴对齐网格映到另一组网格，且动态 max scale 本身也改变。所以保留欧氏几何，并不保留量化结果。</p>
+<p>一个有用的量是 peak-to-RMS=max|xᵢ| / sqrt(mean(xᵢ²))。分母在正交变换下不变，分子可以变化。比值很大说明行内能量集中，少数坐标更容易把 scale 撑大；但降低这个比值也不是完整模型准确率的充分条件。</p>
+<h2 id="section-04">4｜复现方法：一个脚本同时给出正例与反例</h2>
+<p>下载 <a href="assets/rotation-quantization/experiment.py">experiment.py</a> 与 <a href="assets/rotation-quantization/results.json">results.json</a>。安装 NumPy 后运行：</p>
+<pre><code class="language-bash">python3 -m pip install numpy==2.4.6
+python3 experiment.py --output results.json
+</code></pre>
+<p>脚本先用固定随机种子构造 64×24 权重，再产生两组输入：</p>
+<ul>
+<li><strong>离群值组</strong>：8 个 Token，其他特征从标准差 0.3 的正态分布采样，首通道固定 20。</li>
+<li><strong>网格对齐组</strong>：特征为 −7…7 的整数，首通道固定 7，因此原坐标的 scale=1，能被量化器精确表示。</li>
+</ul>
+<p>使用 64 阶归一化 Hadamard，元素为 ±1/8。递归矩阵的核心构造：</p>
+<pre><code class="language-python">h = np.ones((1, 1), dtype=np.float64)
+while len(h) &lt; 64:
+    h = np.block([[h, h], [h, -h]])
+r = h / 8.0
+
+x_rotated = x @ r
+w_rotated = r.T @ w
+y_reference = x @ w
+y_quantized_rotated = quantize(x_rotated) @ w_rotated
+</code></pre>
+<p>完整代码还计算权重与激活共同量化：激活按行，权重按输出列，各自独立 scale，使用相同的模拟量化器。它没有实现 GPTQ、QuaRot 全模型变换或 SpinQuant 训练，因此只能比较这个构造本身。</p>
+<h3 id="detail-01">指标口径</h3>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>定义</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mean row max</td>
+<td>8 行各自 max abs 的平均</td>
+<td>看 scale 被谁主导</td>
+</tr>
+<tr>
+<td>mean peak/RMS</td>
+<td>各行 peak-to-RMS 的平均</td>
+<td>看坐标能量集中度</td>
+</tr>
+<tr>
+<td>输入重建相对 L2</td>
+<td>‖X̂−X‖_F / ‖X‖_F</td>
+<td>旋转量化后先乘 Rᵀ回原坐标</td>
+</tr>
+<tr>
+<td>输出相对 L2</td>
+<td>‖Ŷ−Y‖_F / ‖Y‖_F</td>
+<td>看误差穿过 W 后的变化</td>
+</tr>
+<tr>
+<td>浮点补偿最大误差</td>
+<td>max(abs(XR·RᵀW−XW))</td>
+<td>检查补偿与数值舍入</td>
+</tr>
+</tbody>
+</table></div>
+<p>所有相对 L2 的分母是整批参考张量的 Frobenius norm。表中百分比不是 Token 分类准确率，也不是逐元素相对误差的平均；与论文任务 accuracy 不能直接比较。</p>
+<h2 id="section-05">5｜实测正例：离群值组的误差下降</h2>
+<p>以下数值来自本文 CPU 运行，百分比由 JSON 相对 L2 换算，保留两位小数：</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>离群值组</th>
+<th style="text-align: right;">原坐标</th>
+<th style="text-align: right;">Hadamard 坐标</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mean row max abs</td>
+<td style="text-align: right;">20.0000</td>
+<td style="text-align: right;">3.2418</td>
+</tr>
+<tr>
+<td>mean peak/RMS</td>
+<td style="text-align: right;">7.9415</td>
+<td style="text-align: right;">1.2872</td>
+</tr>
+<tr>
+<td>输入重建相对 L2</td>
+<td style="text-align: right;">12.08%</td>
+<td style="text-align: right;">5.11%</td>
+</tr>
+<tr>
+<td>只量化激活的输出相对 L2</td>
+<td style="text-align: right;"><strong>11.20%</strong></td>
+<td style="text-align: right;"><strong>5.17%</strong></td>
+</tr>
+<tr>
+<td>同时量化 W/A 的输出相对 L2</td>
+<td style="text-align: right;">15.78%</td>
+<td style="text-align: right;">9.97%</td>
+</tr>
+</tbody>
+</table></div>
+<p>旋转后量化网格更细，输入误差和本例的线性输出误差都下降。只量化激活的输出误差约降到原来的 0.46 倍；这是一组受控构造的效果，不能写成模型 accuracy 提高 54%。</p>
+<p>float64 下完整补偿的最大绝对差为 <strong>7.99×10⁻¹⁵</strong>；Q/K 同旋转的点积差约 <strong>7.11×10⁻¹⁵</strong>。它们接近舍入误差量级，支持“先检查浮点等价，再讨论量化差异”。</p>
+<p>也注意权重侧：RᵀW 会改变 W 的分布。激活变好，不保证权重量化也变好；本例共同量化后仍改善，只说明这一组 W/X 组合如此。</p>
+<h2 id="section-06">6｜实测反例：本来零误差，旋转后变成 13.20%</h2>
+<p>第二组输入故意恰好落在原量化网格上。原 scale=1，每个整数都能表示；换坐标之后，这项特殊优势被破坏。</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>网格对齐组</th>
+<th style="text-align: right;">原坐标</th>
+<th style="text-align: right;">Hadamard 坐标</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mean row max abs</td>
+<td style="text-align: right;">7.0000</td>
+<td style="text-align: right;">12.0781</td>
+</tr>
+<tr>
+<td>mean peak/RMS</td>
+<td style="text-align: right;">1.6114</td>
+<td style="text-align: right;">2.7689</td>
+</tr>
+<tr>
+<td>输入重建相对 L2</td>
+<td style="text-align: right;"><strong>0.00%</strong></td>
+<td style="text-align: right;">11.85%</td>
+</tr>
+<tr>
+<td>只量化激活的输出相对 L2</td>
+<td style="text-align: right;"><strong>0.00%</strong></td>
+<td style="text-align: right;"><strong>13.20%</strong></td>
+</tr>
+<tr>
+<td>同时量化 W/A 的输出相对 L2</td>
+<td style="text-align: right;">11.52%</td>
+<td style="text-align: right;">16.85%</td>
+</tr>
+</tbody>
+</table></div>
+<p>Hadamard 混合后，有些坐标相加，最大绝对值还变大了。浮点补偿最大差仍只有 7.11×10⁻¹⁵，说明等价关系没有失效；误差出现在新坐标的量化环节。</p>
+<p>原坐标共同量化并非零误差，因为权重 W 没有被构造成整数网格。<strong>“输入本来可精确量化”不等于“整个线性层可精确量化”。</strong></p>
+<p>这个反例没有否定 QuaRot。它否定的是更强、也更容易误说的命题：“任意向量经过一次正交旋转，量化一定更好。”真实 LLM 的分布往往有离群结构，研究方法针对这个结构，而不是对所有输入给出逐点保证。</p>
+<h2 id="section-07">7｜错误放置实验：RMSNorm、非线性与 RoPE</h2>
+<h3 id="detail-02">RMSNorm：保留 norm，还要处理 gamma</h3>
+<p>不含可学习逐通道缩放时，RMSNorm(x)=x/sqrt(mean(x²)+ε)。正交变换保留 norm，因此：</p>
+<div class="formula" role="math">RMSNorm(xR) = RMSNorm(x)R</div>
+<p>实验最大差约 1.33×10⁻¹⁵。但真实 RMSNorm 往往还有逐通道 gamma。一般的 diag(gamma) 与 R 不交换，如果 gamma 没有按方案折叠进相邻权重，直接搬运旋转会改变函数。本例使用 gamma 从 0.5 到 1.5 的线性序列，错误交换产生 <strong>36.73% 相对 L2</strong>。</p>
+<p>QuaRot 明确先把可学习缩放融合进相邻权重，再利用归一化部分的不变性。[1，§2–3] 普通 LayerNorm 还包含减均值步骤，任意 R 未必保留全 1 向量方向，不能从 RMSNorm 推导直接泛化过去。</p>
+<h3 id="detail-03">非线性：不能随便穿过 ReLU / SiLU</h3>
+<p>一般有 ReLU(xR)≠ReLU(x)R。本地故意错误交换，差异达到 <strong>97.62% 相对 L2</strong>。这个指标比较两种数学函数，不是量化前后误差。</p>
+<p>因此不能简单把一个旋转塞进 MLP 的任意中间位置，再在末端乘逆矩阵就宣称等价。合法变换要让非线性看到正确的输入，或者放在可补偿的线性接口；SwiGLU 的逐元素乘法也有约束。</p>
+<h3 id="detail-04">RoPE：Q/K 共同旋转，还要放对位置</h3>
+<p>令 P_m、P_n 是两个位置的 RoPE 矩阵。在<strong>已应用 RoPE 的 Q/K 后</strong>共同乘 R：</p>
+<div class="formula" role="math">(QP_mR)(KP_nR)ᵀ = QP_mP_nᵀKᵀ</div>
+<p>本例位置为 11 和 37，正确放置的点积最大差约 1.07×10⁻¹⁴。若把 R 移到 RoPE 前，却仍保留原 P：</p>
+<div class="formula" role="math">(QRP_m)(KRP_n)ᵀ = QRP_mP_nᵀRᵀKᵀ</div>
+<p>一般不等价，因为 R 与不同位置的旋转不交换。本例错误放置造成 <strong>143.79% 相对 L2</strong>。若连位置变换一起改基，可用 P′=RᵀPR 维持相应等价，但新矩阵可能失去原先便宜的成对旋转结构，工程代价另算。</p>
+<p>这与本次 <a href="../foundations/kivi-kv-cache-quantization.html">KV Cache 量化文章</a> 的 pre-RoPE 设计是不同问题：KVQuant 在解压后补做正确位置旋转；这里检查的是另一个 R 能否随意穿过 RoPE。</p>
+<h2 id="section-08">8｜QuaRot：把坐标变换组织成完整推理方案</h2>
+<p>论文：<strong>QuaRot: Outlier-Free 4-Bit Inference in Rotated LLMs</strong>，Saleh Ashkboos 等，ETH Zurich、EPFL、Microsoft、IST Austria 等；首版 2024-04-01，NeurIPS 2024；本文核对 v2（2024-10-29）。官方代码：<a href="https://github.com/spcl/QuaRot">spcl/QuaRot</a>。[1][2]</p>
+<p>它的贡献不只是乘一个 Hadamard，而是围绕 Transformer 的合法接口，把可离线融合的权重变换、需要在线执行的 Hadamard、权重量化与激活 / Cache 量化组织在一起。某些区域采用共同的残差坐标系，输入投影与输出投影相应补偿；非线性并没有被任意穿越。</p>
+<p>论文保留 RMSNorm 归一化计算的 FP32 路径，低比特矩阵乘法的 INT32 累加结果再按 scale 转回浮点。[1，§3] 因此“4-bit inference”不能解释成所有 op、所有中间缓冲都只有 4-bit。</p>
+<p>在其 <strong>Llama-2-70B</strong> 设置下，论文报告 WikiText-2 perplexity 增量最多约 0.47、保留约 99% 的零样本任务表现。这里的 99% 是相对保留比例，不是所有任务绝对 accuracy=99%；完整实验还依赖 GPTQ 等权重处理，不能把全部效果归因于单独的随机旋转。</p>
+<p>论文说明方法具有实际可实现性；本文实验仅隔离其中一个原因：动态量化网格对坐标基底敏感。</p>
+<h2 id="section-09">9｜SpinQuant：同样都“摊平”，为什么有的旋转更好？</h2>
+<p>论文：<strong>SpinQuant: LLM Quantization with Learned Rotations</strong>，Zechun Liu、Changsheng Zhao 等，Meta；首版 2024-05-26，ICLR 2025；本文核对 v4（2025-02-20）。官方代码：<a href="https://github.com/facebookresearch/SpinQuant">facebookresearch/SpinQuant</a>。[3][4]</p>
+<p>它做了一个关键观察：在 <strong>Llama-2-7B、W4A4、100 次随机试验</strong>中，随机正交旋转的最佳与最差零样本平均分相差约 <strong>13 个百分点</strong>；随机 Hadamard 也有约 <strong>6 个百分点</strong>差异。[3，§2.2，Figure 4]</p>
+<p>两种旋转都可能降低离群值，但它们对每层的量化噪声方向、权重表示和下游敏感方向不同。我们的网格反例已经说明：最大值和 norm 无法完整描述“距离可表示数有多远”。</p>
+<p>SpinQuant 在量化设置下用校准数据优化旋转，并用 Cayley 变换等方式保持正交约束；部分旋转可融合进权重，部分在线 Hadamard 保持结构。[3，§3] 这一步是<strong>量化导向的旋转学习</strong>，不应描述为无需校准的随机预处理。</p>
+<p>这也解释了为何不能只用一层 MSE 做最终选择。若误差沿着 W 的高增益或任务敏感方向传播，即使局部幅值更均匀，最后输出仍可能更差。受控线性实验给出直觉，完整网络实验才回答任务能力。</p>
+<h2 id="section-10">10｜工程意义：省下的量化成本，能覆盖旋转成本吗？</h2>
+<p>一个一般的 D×D 稠密旋转需要 O(D²) 运算；Hadamard 具有蝶形结构，对 2 的幂维度可用 O(D log D) 加减完成。<strong>本脚本为了透明使用稠密矩阵乘法，没有实现 Fast Walsh–Hadamard Transform，也没有测加速。</strong></p>
+<p>假设一行输入先在线旋转再送入低比特 GEMM，TPOT 的变化同时包含：旋转读写、max/scale 统计、quantize、pack、整数 GEMM、dequantize、Kernel launch。若能把旋转与量化融合，临时内存与 launch 可以减少；若各步独立小 Kernel，收益会被固定开销吞掉。</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>可能的收益</th>
+<th>必须核对的成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prefill / 大矩阵</td>
+<td>低比特 GEMM 有较充分并行度</td>
+<td>在线旋转与中间激活读写</td>
+</tr>
+<tr>
+<td>Decode / 小 Batch</td>
+<td>减少权重与 Cache 读取</td>
+<td>每 Token 固定开销、低占用率</td>
+</tr>
+<tr>
+<td>CPU</td>
+<td>压缩存储、SIMD 计算机会</td>
+<td>位解码、蝶形访问、线程调度</td>
+</tr>
+<tr>
+<td>NPU / HTP</td>
+<td>适配已有低比特矩阵乘法</td>
+<td>旋转是否设备内支持、图切分与 CPU 回退</td>
+</tr>
+<tr>
+<td>端侧常驻 Runner</td>
+<td>能复用离线变换的静态权重</td>
+<td>KV 动态状态、跨设备同步与实测峰值</td>
+</tr>
+</tbody>
+</table></div>
+<p>Hadamard 本身不自动减少 dense Attention 的 S² 交互，也不自动减少模型层数。静态 W′ 与 W 参数个数相同；Cache 和 activations 的存储收益来自后续量化，而不是旋转变少了维度。</p>
+<p>一般稠密 R 在正交约束下仍可含 D² 个存储项，额外状态不能忽略；结构化固定变换可以更紧凑地表达。模型中能离线融合的部分通常不必每 Token 重算，在线部分仍需要 Kernel 支持。</p>
+<p>对真实部署，应先比对原模型与旋转模型的高精度输出，再加入 W-only、A-only、KV-only、W/A/KV 联合量化。对每一步分别记录精度损耗，避免把导出或转换时已出现的误差归给低比特 Kernel。</p>
+<h2 id="section-11">11｜自己动手：三个有信息量的改动</h2>
+<p><strong>改变离群强度。</strong> 把首通道 20 改为 1、5、50，重新运行；观察 max/RMS 与输出误差是否同步变化。不要预设一条普适单调曲线，输入分布变化会改变网格对齐。</p>
+<p><strong>加入随机符号 Hadamard。</strong> 对行向量可取 R=D_sign·H，D_sign 为对角 ±1；它仍正交，但混合结果不同。连续跑多个 seed，报告中位数、范围与坏例子，避免只挑最好的旋转。注意 H·D_sign 只在混合后翻符号，实验目的不一样。</p>
+<p><strong>换成分组量化。</strong> 把 64 维分成 16 或 32 一组，每组独立 scale，再比较相同量化设置的旋转前后。这能研究 rotation 与 group size 的耦合，但 scale 数增加，真实存储需要另外记账。</p>
+<p>对于真实模型，这些探索应转成真实 OCR、图片理解与多轮上下文的校准 / 评测。float64 教学构造没有覆盖 FP16/BF16 Hadamard 的中间舍入、clipping、Tensor Core 累加或 HTP 的编码限制。</p>
+<h2 id="section-12">12｜总结与启发：等价变换也是精度设计空间</h2>
+<p>这次实验留下三个可复用的判断：</p>
+<ul>
+<li><strong>数学等价要先证明，再测浮点差异。</strong> 权重补偿、RMSNorm gamma、非线性边界与 RoPE 位置都是具体条件。</li>
+<li><strong>量化误差依赖坐标系。</strong> orthogonal 不等于 quantization-invariant；离群值组改善，网格对齐组恶化，两个结果可以同时成立。</li>
+<li><strong>“更平”只是中间指标。</strong> 真实收益要同时看 W/A/KV、任务表现、转换链路与在线 per-op 成本。</li>
+</ul>
+<p>最有意思的地方是：模型函数在高精度下可以保持不变，但它的<strong>低精度可实现性</strong>仍有优化空间。QuaRot 展示了结构化变换，SpinQuant 进一步把“选哪个等价表示”变成可学习的问题；而一个几十行的核心实验，就足以帮助我们识别这条思路的力量与边界。</p>
+<h2 id="sources">来源</h2>
+<p>[1] QuaRot 原论文 v2，§2 computational invariance、§3 变换和量化实现、实验结果。https://arxiv.org/html/2404.00456v2 — <a href="https://arxiv.org/html/2404.00456v2">原文</a>；<a href="https://arxiv.org/abs/2404.00456">版本记录</a>。</p>
+<p>[2] QuaRot 官方代码。https://github.com/spcl/QuaRot — <a href="https://github.com/spcl/QuaRot">GitHub</a>。</p>
+<p>[3] SpinQuant 原论文 v4，§2.2 / Figure 4 随机旋转差异、§3 学习旋转。https://arxiv.org/html/2405.16406v4 — <a href="https://arxiv.org/html/2405.16406v4">原文</a>；<a href="https://arxiv.org/abs/2405.16406">版本记录</a>。</p>
+<p>[4] SpinQuant 官方代码。https://github.com/facebookresearch/SpinQuant — <a href="https://github.com/facebookresearch/SpinQuant">GitHub</a>。</p>
+<p>[5] 本文独立实验：<a href="assets/rotation-quantization/experiment.py">Python 源码</a> / <a href="assets/rotation-quantization/results.json">完整 JSON 结果</a>。结果为固定种子合成输入上的 CPU float64 模拟，不是模型能力或硬件性能结论。</p></article></main>
+<footer class="site-footer"><span>© 2026 Howie Yin</span><div class="footer-links"><a href="./">Back to archive ←</a><a href="../">Home ←</a></div></footer>
+</div></body></html>

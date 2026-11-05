@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="dark" name="color-scheme"/><meta content="#0c1016" name="theme-color"/>
+<meta content="KIVI 的非对称分组、残留窗口与显存账本：从 Attention 误差到 GPU/NPU 的 Decode 成本，连接 KVQuant 与真实 Cache 后端。" name="description"/>
+<title>KV Cache 量化：为什么 Key 按通道，Value 按 Token？ — Howie Yin</title>
+<link href="https://howieyin.github.io/foundations/kivi-kv-cache-quantization.html" rel="canonical"/>
+<link href="../assets/favicon.svg" rel="icon" type="image/svg+xml"/>
+<link href="../assets/article-navigation.css" rel="stylesheet"/>
+<script defer="" src="../assets/article-navigation.js"></script>
+<link href="../styles.css?v=3" rel="stylesheet"/><style>
+.report { padding: 48px 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.report h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.6px; line-height: 1.4; margin-bottom: 28px; }
+.report h2 { margin: 52px 0 20px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; }
+.report h3 { font-size: 20px; margin: 28px 0 14px; }
+.report p, .report li { color: var(--secondary); }
+.report strong { color: var(--text); }
+.report a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.report li { margin: 9px 0; }
+.report code { font-family: var(--mono); font-size: .85em; }
+.report pre { overflow-x: auto; padding: 20px; background: #111720; border: 1px solid var(--line); border-radius: 8px; }
+.report img { display: block; max-width: 100%; height: auto; background: white; padding: 16px; border-radius: 6px; margin: 24px auto; width: 680px; }
+.report .table-scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 6px; }
+.report table { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 14px; }
+.report th, .report td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.report th { color: var(--text); background: #111720; }
+.report td { color: var(--secondary); }
+.report .toc { padding: 24px; border: 1px solid var(--line); border-radius: 8px; margin: 32px 0; }
+.report .toc ul { padding-left: 22px; }
+@media(max-width:640px) { .report { font-size: 15px; padding: 32px 0; } .report h2 { font-size: 22px; } .report img { padding: 8px; } }
+
+.formula { padding: 20px; margin: 24px 0; background: #111720; border-left: 3px solid var(--accent); font-family: var(--mono); font-size: 14px; overflow-x: auto; }
+.diagram { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:24px 0; padding:20px; border:1px solid var(--line); border-radius:8px; }
+.diagram div { flex:1 1 160px; padding:14px; background:#111720; border:1px solid var(--line); border-radius:6px; }
+.diagram span:not(.diagram-arrow) { display:block; color:var(--secondary); font-size:13px; margin-top:8px; }
+</style></head>
+<body><a class="skip-link" href="#main">Skip to content</a><div class="page">
+<header class="site-header"><a aria-label="Howie Yin, home" class="wordmark" href="../"><span aria-hidden="true" class="brand-mark"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../weekly/">Weekly</a><a aria-current="page" href="../foundations/">Foundations</a><a href="../lab/">Lab</a><a href="../#about">About</a></nav></header>
+<main class="report" id="main"><p class="eyebrow">FOUNDATIONS / KV CACHE QUANTIZATION</p><details class="toc" hidden=""><summary>Contents</summary><ul><li><a href="#section-01">1｜先分清两笔内存：权重不随对话变长，KV 会</a></li><li><a href="#section-02">2｜先把轴画对：“per-channel”到底沿哪一维分组？</a></li><li><a href="#section-03">3｜为什么 Key 按通道：离群值常沿着列出现</a></li><li><a href="#section-04">4｜为什么 Value 按 Token：重建误差小，不等于输出误差小</a></li><li><a href="#section-05">5｜Residual Cache：Key 批量转存，Value 滚动淘汰</a></li><li><a href="#section-06">6｜显存算细：2-bit 的长期成本可能是 3-bit</a></li><li><a href="#section-07">7｜存成低比特，不代表乘法也变成 INT2</a></li><li><a href="#section-08">8｜原论文精度与速度：各自能证明什么？</a></li><li><a href="#section-09">9｜KVQuant 与 RoPE：同一个旋转会改变分组的效果</a></li><li><a href="#section-10">10｜从论文到后端：实现名称相同，行为可能不同</a></li><li><a href="#section-11">11｜总结与启发：Cache 是一个有生命周期的数值系统</a></li><li><a href="#sources">来源</a></li></ul></details><article><h1 id="kivi-kv-cache-quantization">KV Cache 量化：为什么 Key 按通道，Value 按 Token？</h1>
+<p><strong>核心结论：KV Cache 量化不只是把 FP16 换成 2-bit。Key 和 Value 的数值分布、参与 Attention 的方式、追加数据的生命周期都不同，因此适合不同的量化分组。理解 KIVI 的非对称设计，才能看清“省了多少显存”“为什么保留最新 Token”以及“为什么未必改善单请求 TPOT”。</strong></p>
+<p>类型：基础知识 / Paper 解读 / 推理工程。发布：2026-11-05。前置：矩阵乘法、Attention、量化 scale。本文以 KIVI 为主线，连接 KVQuant 与实际 Cache 后端；原论文测量、教学推导、工具行为分别标注。未运行完整模型、GPU 或 HTP 性能复测。</p>
+<p>延伸阅读：此前的 <a href="online-softmax.html">Online Softmax</a> 解释如何避免保存完整 Attention 概率矩阵。本篇继续研究另一笔账：<strong>已经生成、每一步 Decode 都要重新读取的 K/V，能否用更少的字节保存？</strong> GQA、MLA 与权重量化的既有论文阅读可从 <a href="../papers/">Paper Readings</a> 进入；本篇关注它们之外的 Cache 表示与生命周期。</p>
+<h2 id="section-01">1｜先分清两笔内存：权重不随对话变长，KV 会</h2>
+<p>权重量化主要压缩模型参数。KV Cache 是推理时每层保存的历史 Key 和 Value，随着有效上下文长度增长。即使权重已经是 INT4，Cache 仍可能是 FP16：<strong>W4 不自动意味着 KV4。</strong></p>
+<p>用一个简化的 dense Decoder 记账：Batch 大小 B，层数 L，每层 KV head 数 H_kv，head dimension D，Cache 长度 S，每个标量占 e 字节。如果各层同形状，且不考虑滑窗、共享与压缩：</p>
+<div class="formula" role="math">M_KV = 2 · B · L · H_kv · S · D · e</div>
+<p>前面的 2 对应 K 和 V，不能再次乘一次“两个矩阵”。GQA 中用 <strong>KV head 数</strong>，不是 Query head 数；不同请求长度不等时，B·S 应替换成有效 Token 数之和。Paged Cache 的已分配块、对齐与碎片另外计算。</p>
+<p>教学例子：B=1、L=32、H_kv=8、D=128、S=8192、FP16 每数 2 bytes，Cache 恰好为 <strong>1 GiB</strong>。如果误用 32 个 Query heads，就会把 GQA 的 Cache 估成 4 GiB。这个配置用于推导，不是给某个模型做的显存实测。</p>
+<p>Prefill 一次处理很多 Query，矩阵乘法并行度较高；Decode 每请求通常只增加一个 Query，却要扫描历史 K/V。长上下文时，这种小 Query、长历史的访问可能使 Cache 带宽成为瓶颈。权重读取、MLP、调度与 Kernel launch 也可能主导，不能只看 Cache 大小判断整条链路。</p>
+<h2 id="section-02">2｜先把轴画对：“per-channel”到底沿哪一维分组？</h2>
+<p>固定一层、一个 Batch 元素和一个 KV head，把 K、V 都写成 <strong>[S, D]</strong>：行是 Token，列是特征通道。软件可能按 [B,H,S,D] 或其他布局保存，但逻辑含义不变。</p>
+<div aria-label="Key and Value quantization grouping" class="diagram">
+<div><strong>Key / 固定通道</strong><span>K[t:t+G, j]<br/>同一列的 G 个历史 Token<br/>共享 scale 与 offset</span></div>
+<span class="diagram-arrow">≠</span>
+<div><strong>Value / 固定 Token</strong><span>V[t, j:j+G]<br/>同一行的 G 个特征<br/>共享 scale 与 offset</span></div>
+</div>
+<p><em>教学示意：展示逻辑分组，不代表实际 GPU 的连续地址与 pack 格式。</em></p>
+<p>KIVI 的 Key <strong>按通道</strong>量化，是固定通道 j，在时间轴上取 G 个数；Value <strong>按 Token</strong>量化，是固定 Token t，在特征轴上取 G 个数。[1] “Per-token”也不一定让整行只有一个 scale，KIVI 仍在行内进一步分组。</p>
+<p>例如 D=128、G=32，一个 Value Token 对应 4 个组。对于 Key，同一个通道的历史 128 个 Token 可以分成 4 个时间组。<strong>量化组跨哪一轴</strong>与<strong>物理内存哪一轴连续</strong>是不同的问题，后者要靠布局和 Kernel 配合。</p>
+<h3 id="detail-01">两位量化的小例子</h3>
+<p>给一组数 [0,1,2,3]，2-bit 共有 4 个码，恰好能全部表示。改成 [0,1,2,30]，同组最大值把步长拉到 10，前面三个小数就可能落到同一个码。</p>
+<div class="formula" role="math">m = min(group)；s = (max(group) − m) / (2ᵇ − 1)<br/>q = clip(round((x − m)/s), 0, 2ᵇ − 1)<br/>x̂ = s · q + m</div>
+<p>这里 m 是<strong>实数 offset</strong>，不要默认为已取整的整数 zero-point。若改用 x̂=s(q−z)，则 z=−m/s，可能不是整数，也可能在低比特码的范围外。换一种 zero-point 表示会改变误差。全常数组 s=0，需要专门处理。</p>
+<p>这就是分组的意义：有限的码点应该服务于分布相近的数，而不是被无关的极端值占据整个范围。</p>
+<h2 id="section-03">3｜为什么 Key 按通道：离群值常沿着列出现</h2>
+<p>KIVI 分析 Llama 等模型的 Cache 后观察到：Key 的大幅值常集中在某些特征通道，跨多个 Token 重复出现；Value 没有同样稳定的通道离群结构。[1，§3]</p>
+<p>假设一列的典型值约 30，其他列的值约 1。如果每个 Token 的多个特征共享一个 scale，大幅值通道会不断压缩其他通道可用的分辨率。换成固定通道、跨 Token 统计范围，各列拥有自己的尺度，小幅值列不用迁就 30。</p>
+<p>这不是证明所有模型、所有 head、所有层都有相同离群模式。KIVI 用模型分布和下游实验支持这项设计；迁移到新的 VLM 或特殊 Attention 时，应重新检查分布。部分层、视觉前缀和特殊 Token 的误差可能显著不同。</p>
+<p>Key 还有一个独特的困难：<strong>生成当前 Token 时，未来同组的 Key 尚未出现。</strong> 如果一个通道组需要 G 个时间点才能确定 min/max，就不能像 Value 那样，立刻完成整组量化。非对称分组会自然引出非对称的 Cache 管理。</p>
+<h2 id="section-04">4｜为什么 Value 按 Token：重建误差小，不等于输出误差小</h2>
+<p>用行向量记法，单 head 的一次 Attention 为：</p>
+<div class="formula" role="math">z = qKᵀ / √D；p = softmax(z)；o = pV</div>
+<p>z 是历史 Token 的分数，p 是归一化权重，o 是输出。若只给 Value 引入误差 E_V：</p>
+<div class="formula" role="math">V̂ = V + E_V；Δo = pE_V = Σₜ pₜ E_V[t,:]</div>
+<p>Attention 往往只给部分 Token 较大的权重。按 Token 分组让每一行 Value 有自己的局部范围，较少让别的历史 Token 的幅值干扰当前这行的表示。若按通道跨时间分组，一行被重点关注的 Value 可能因为同列别的 Token 而使用不合适的范围。</p>
+<p>因此应比较 <strong>pV 的输出误差</strong>，不能只用 V 的平均重建误差决定分组。KIVI 的分组消融包含这种现象：某种分组能更好重建 V，却更差地重建 Attention 输出。[1，§3.2，Table 2]</p>
+<p>Key 的误差位置更靠前：</p>
+<div class="formula" role="math">K̂ = K + E_K；δz = qE_Kᵀ / √D<br/>δp ≈ (diag(p) − ppᵀ) δz</div>
+<p>这是 Softmax 的一阶近似。相近候选的分数顺序可能改变，随后所有 Value 的权重跟着改变。K 与 V 同时量化时，既有权重变化，也有 Value 重建误差及交叉项。</p>
+<p>真正相关的是 Query 方向、Token 权重和输出敏感性，而不只是元素 MSE。<strong>“K 比 V 更重要”也不是普适排序</strong>：不同层、任务、上下文与概率分布会改变敏感性。</p>
+<h2 id="section-05">5｜Residual Cache：Key 批量转存，Value 滚动淘汰</h2>
+<p>KIVI 把 Cache 分成量化历史和高精度 residual，常用参数 G=32、R=128；R 必须适配 Key 的时间分组。[1，§3.3][2]</p>
+<p>Key 的做法是先积攒高精度 Token，缓冲区满 R 后，把整个缓冲区按通道分组量化、转存，然后清空。每个时间组在封存时已拥有完整成员，不必每来一个新 Token 都重新估计、重写旧码。</p>
+<p>Value 的组在<strong>同一个 Token 内</strong>，当这个 Token 到来时，成员就已齐全。它维护最近 R 个高精度 Token 的滚动窗口，新 Token 加入后，把超出窗口的旧 Value 量化转存。</p>
+<div aria-label="KIVI cache lifecycle" class="diagram">
+<div><strong>Key buffer</strong><span>积攒 → 满 R → 整块量化<br/>高精度长度随 flush 呈锯齿变化</span></div>
+<span class="diagram-arrow">／</span>
+<div><strong>Value window</strong><span>加入 → 超过 R → 最旧行转存<br/>稳定后保留最近 R 个 Token</span></div>
+</div>
+<p>这意味着“保留 128 个 FP16 Token”对 K 和 V 不是同一种状态。K 在一个 flush 周期里大约平均保留 R/2 个，V 稳定后保留 R 个；具体某步的 K residual 可能为 0、64 或接近 128。</p>
+<h3 id="detail-02">一次 Decode 的逻辑</h3>
+<ol>
+<li>当前层产生新的 q、k、v，并按模型要求处理位置编码。</li>
+<li>当前 Query 访问量化历史和高精度残留，合成同一个 Attention 的分数与输出。</li>
+<li>新 K/V 进入高精度区域；按各自规则，把满足条件的旧数据转成低比特存储。</li>
+</ol>
+<p>这是算法级示意，计算与转存的调用顺序、当前 Token 是否已在缓存内，要以具体实现为准。对量化区与高精度区分别做 Softmax、再相加是不正确的，必须保持共同的归一化；Online Softmax 的可合并统计量提供了相关直觉。</p>
+<p>KIVI 的 Prefill 当前计算使用高精度 K/V，再压缩需要保存的历史。因此<strong>Prefill 算法的工作内存峰值</strong>并不必然下降到压缩后的 Cache 大小，后续 Decode 还要付新 Token 量化的成本。</p>
+<h2 id="section-06">6｜显存算细：2-bit 的长期成本可能是 3-bit</h2>
+<p>若每组 G 个数保存 b-bit 数据，再保存 FP16 scale 和 FP16 offset，共 4 bytes 元数据，量化历史的平均占用为：</p>
+<div class="formula" role="math">e_quant = b/8 + 4/G bytes / scalar<br/>b_effective = b + 32/G bits / scalar</div>
+<p>G=32、b=2 时，每数是 0.25+0.125=0.375 bytes，即 <strong>3-bit</strong>。仅比较很长的量化历史，与 FP16 相比是约 5.33 倍压缩。元数据的字节数竟达到数据载荷的一半。</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>教学设置</th>
+<th style="text-align: right;">载荷</th>
+<th style="text-align: right;">元数据摊销</th>
+<th style="text-align: right;">长历史等效位宽</th>
+<th style="text-align: right;">FP16 / 新占用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2-bit，G=16</td>
+<td style="text-align: right;">2 bit</td>
+<td style="text-align: right;">2 bit</td>
+<td style="text-align: right;">4 bit</td>
+<td style="text-align: right;">4.00×</td>
+</tr>
+<tr>
+<td>2-bit，G=32</td>
+<td style="text-align: right;">2 bit</td>
+<td style="text-align: right;">1 bit</td>
+<td style="text-align: right;">3 bit</td>
+<td style="text-align: right;">5.33×</td>
+</tr>
+<tr>
+<td>2-bit，G=64</td>
+<td style="text-align: right;">2 bit</td>
+<td style="text-align: right;">0.5 bit</td>
+<td style="text-align: right;">2.5 bit</td>
+<td style="text-align: right;">6.40×</td>
+</tr>
+<tr>
+<td>4-bit，G=32</td>
+<td style="text-align: right;">4 bit</td>
+<td style="text-align: right;">1 bit</td>
+<td style="text-align: right;">5 bit</td>
+<td style="text-align: right;">3.20×</td>
+</tr>
+</tbody>
+</table></div>
+<p><em>以上是解析字节模型。更大的组可能降低元数据占比，却扩大数值范围、增加误差；不能把右列当优化建议。</em></p>
+<p>再纳入 residual。沿用第 1 节的尺寸，选择 S=8256：K residual=64，V residual=128，G=32、R=128，假设采用上述元数据格式、没有 padding。</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>存储部分</th>
+<th style="text-align: right;">2-bit Cache</th>
+<th style="text-align: right;">4-bit Cache</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>量化数据载荷</td>
+<td style="text-align: right;">127.50 MiB</td>
+<td style="text-align: right;">255.00 MiB</td>
+</tr>
+<tr>
+<td>scale + offset</td>
+<td style="text-align: right;">63.75 MiB</td>
+<td style="text-align: right;">63.75 MiB</td>
+</tr>
+<tr>
+<td>FP16 residual</td>
+<td style="text-align: right;">12.00 MiB</td>
+<td style="text-align: right;">12.00 MiB</td>
+</tr>
+<tr>
+<td>合计</td>
+<td style="text-align: right;"><strong>203.25 MiB</strong></td>
+<td style="text-align: right;"><strong>330.75 MiB</strong></td>
+</tr>
+<tr>
+<td>FP16 基线</td>
+<td style="text-align: right;">1032.00 MiB</td>
+<td style="text-align: right;">1032.00 MiB</td>
+</tr>
+<tr>
+<td>解析压缩比</td>
+<td style="text-align: right;"><strong>5.08×</strong></td>
+<td style="text-align: right;"><strong>3.12×</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>解析脚本：<a href="assets/kivi-kv-cache-quantization/memory_accounting.py">memory_accounting.py</a>；完整状态：<a href="assets/kivi-kv-cache-quantization/memory_results.json">memory_results.json</a>。运行 <code>python3 memory_accounting.py --output memory_results.json</code>，不需要 NumPy。它计算字节数，没有分配真实 Cache。</p>
+<p>脚本还揭示短上下文：S=64 时，两边全是高精度 residual，压缩比为 1；S=128 的 2-bit 状态只有约 1.68×。实际进程还要加权重、临时激活、量化工作区、pack 对齐和分配器开销。端侧可进一步结合 VmHWM 与 dma-buf/ION 占用检查峰值，不能用这张账本代替物理内存测量。</p>
+<h2 id="section-07">7｜存成低比特，不代表乘法也变成 INT2</h2>
+<p>如果先把整个量化 Cache 解压为 FP16，再运行普通 Attention，那么新临时缓冲、解压写入和随后的 FP16 读取会侵蚀收益。KIVI 使用融合的反量化与矩阵乘法 Kernel：按 tile 读取 packed 数据，在计算附近恢复数值。[1][2]</p>
+<p><strong>INT2 存储格式与 INT2 运算能力要分开。</strong> KIVI 的混合精度计算不等于硬件直接执行原生 2-bit Tensor Core GEMM。pack/unpack、scale 读取、局部转置和 FP 计算都属于 per-op 账本。</p>
+<p>算法上的 dense Attention 乘加量没有因此变成线性或常数。每请求、每层 Decode 的 K/V 相关乘加仍约为 O(H_q·S·D)，Cache 存储为 O(H_kv·S·D)，量化新数据另有统计与转换开销。完整 Prefill 的 dense 注意力仍含 S² 级的交互。</p>
+<h3 id="detail-03">GPU、CPU 与 NPU / HTP</h3>
+<p>GPU 的关键在融合 Kernel、访存合并、pack 布局和足够并行度。CPU 还要看位操作、SIMD、Cache 命中与线程成本，少 bytes 有机会换来收益，也可能被解码指令抵消。</p>
+<p>对 HTP/NPU，首先确认 Attention 算子支持的 Cache dtype、scale 维度、动态长度与读写接口。仅权重 GEMM 支持 INT4，不意味着 Cache 路径支持 KIVI。若 unpack 跑在 CPU，每 Token 还增加 CPU→设备拷贝、同步或 RPC，端到端 TPOT 可能恶化。</p>
+<p>最值得记录的分项是：新 Token quantize、Key flush、历史 unpack、QK、Softmax、PV、跨设备拷贝和同步。Key 周期性 flush 还可能制造延迟尖峰，平均 TPOT 会把这种抖动藏起来。这里是从生命周期推导的工程风险，未在本机 HTP 上测量。</p>
+<h2 id="section-08">8｜原论文精度与速度：各自能证明什么？</h2>
+<p>论文：<strong>KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache</strong>，Zirui Liu、Jiayi Yuan 等，Rice University 及合作者；首版 2024-02-05，ICML 2024。本文核对 arXiv v2（2024-07-25），官方实现为 <a href="https://github.com/jy-yuan/KIVI">jy-yuan/KIVI</a>。[1][2]</p>
+<p>下面是原论文 Table 3 的 <strong>Llama-2-13B</strong> 结果，列保留原表的任务分数，越高越好；不是本文复测：</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>方法</th>
+<th style="text-align: right;">CoQA</th>
+<th style="text-align: right;">TruthfulQA</th>
+<th style="text-align: right;">GSM8K</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FP16</td>
+<td style="text-align: right;">66.37</td>
+<td style="text-align: right;">29.53</td>
+<td style="text-align: right;">22.67</td>
+</tr>
+<tr>
+<td>Fake 2-bit，K 按通道 / V 按 Token</td>
+<td style="text-align: right;">63.53</td>
+<td style="text-align: right;">28.60</td>
+<td style="text-align: right;">12.21</td>
+</tr>
+<tr>
+<td>KIVI 2-bit（含 residual）</td>
+<td style="text-align: right;">66.23</td>
+<td style="text-align: right;">29.84</td>
+<td style="text-align: right;">20.77</td>
+</tr>
+<tr>
+<td>KIVI 4-bit</td>
+<td style="text-align: right;">66.38</td>
+<td style="text-align: right;">29.49</td>
+<td style="text-align: right;">23.65</td>
+</tr>
+</tbody>
+</table></div>
+<p>只选对分组仍可能明显损失精度；加上 residual 后，2-bit GSM8K 仍低于 FP16 <strong>1.90 个百分点</strong>。某些格子高于基线不能说明量化普遍提高能力；单次任务测量有波动，任务间表现也不同。“Tuning-free”指无需专门训练或离线校准流程，不是所有量化误差消失。</p>
+<p>效率实验使用 <strong>A100 80GB、Llama-2-7B、ShareGPT 工作负载</strong>，平均输入约 161、输出约 338 Token，按能容纳的 Batch 比较：论文报告最高约 4× Batch 容量、2.35–3.47× 吞吐。[1，§4.3]</p>
+<p>这支持“同一设备能容纳更多并发，并在该工作负载上提升吞吐”。它<strong>不直接证明相同 Batch 的单请求 TPOT 提升 3.47×</strong>，也不能迁移成 HTP 的性能预测。论文的 residual 长度消融并非处处单调，不能把 R 越大视为精度必然越高的定律。</p>
+<h2 id="section-09">9｜KVQuant 与 RoPE：同一个旋转会改变分组的效果</h2>
+<p>同期工作的 <strong>KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization</strong>，Coleman Hooper 等，UC Berkeley / ICSI / LBNL；首版 2024-01-31、NeurIPS 2024，本文核对 v6（2025-05-28）。官方代码：<a href="https://github.com/SqueezeAILab/KVQuant">SqueezeAILab/KVQuant</a>。[3][4]</p>
+<p>KVQuant 也采用 per-channel Key，但进一步组合：<strong>RoPE 前量化 Key、校准得到的非均匀码点、逐向量的 dense-and-sparse 离群值分离</strong>。它使用离线校准，不等同于 KIVI 的 tuning-free 分组与 residual。</p>
+<p>为什么 RoPE 前后有差异？位置旋转会把成对特征混合，不同位置角度不同；原本“某列一直很大”的模式，可能扩散到另一列，破坏跨 Token 的范围稳定性。先存 pre-RoPE Key，需要反量化后按历史位置应用 RoPE，KVQuant 为此提供融合 Kernel。[3，§3.2]</p>
+<p>这个结论有一个很好的反例：KVQuant 附录 P 的 Table 20 中，LLaMA-7B 的 <strong>per-token Key、未分组 INT3</strong> 基线，pre-RoPE perplexity 为 14.68，post-RoPE 为 10.87，后者更好。两列混合可能降低单行的极值，帮助行内量化；表中各分组设置的差异并不完全一致。<strong>“RoPE 前量化更好”必须带着分组条件一起说。</strong></p>
+<p>论文报告多个模型的 3-bit 方案在 WikiText-2/C4 上小于 0.1 的 perplexity 增量，并描述百万级 Cache 容量。但能保存一百万 Token，与模型能可靠理解一百万 Token，是两个独立实验命题：位置外推、有效检索、Attention 算力与 TTFT 都要另测。</p>
+<p>关于旋转与量化的进一步直觉，见本次 <a href="../lab/rotation-quantization.html">INT4 旋转实验</a>：几何等价不代表量化网格等价。</p>
+<h2 id="section-10">10｜从论文到后端：实现名称相同，行为可能不同</h2>
+<p>Hugging Face 2024 年的量化 Cache 技术博客明确说明，其当时的集成对 <strong>K 和 V 都做 per-token</strong>，与 KIVI 的非对称策略不同，并展示 int2 比 int4 更容易损失效果。[5] 所以看到“受 KIVI 启发”不能据此推断分组完全一致。</p>
+<p>本文固定引用 Transformers 官方 <code>kv_cache</code> 文档 <strong>v5.19.0</strong>，而非持续更新的默认入口；该版本对 quanto 推荐 axis=0，对 HQQ 推荐 axis=1。[6] 这些数字属于后端 API 的约定，不能脱离张量布局机械解释成“0 就是 Token”。</p>
+<p>该版本文档也提醒：短上下文、显存充足时，quantized cache 可能损害延迟；能力表中其 compile 与 sliding layers 支持存在限制。<strong>这是所读文档版本的状态，不是所有框架的永久限制。</strong></p>
+<p>评估新后端时，明确写下实际的 K/V 分组轴、组大小、scale dtype、offset 表示、residual 规则、位置编码位置、反量化融合方式。然后用固定 Batch 比较 TTFT/TPOT，用固定显存预算比较最大并发和 Tokens/s，把两种实验分开报告。</p>
+<h2 id="section-11">11｜总结与启发：Cache 是一个有生命周期的数值系统</h2>
+<p>这篇最值得留下的知识不是“2-bit 很省”，而是以下四条：</p>
+<ul>
+<li><strong>K/V 的轴不同，是分布与 Attention 输出敏感性共同决定的。</strong> 只优化 Cache 元素 MSE 可能选错方案。</li>
+<li><strong>Residual 同时处理数值质量与时间分组问题。</strong> Key 批量 flush 与 Value 滚动窗口不能混为一谈。</li>
+<li><strong>容量、带宽、算力、单请求延迟是四种指标。</strong> 有更多并发空间，不等于每步 Decode 一定更快。</li>
+<li><strong>权重量化与 Cache 量化是可组合但独立的路径。</strong> 新模型、视觉 Token 和新硬件后端都需要检查各自的转换、存储与算子链路。</li>
+</ul>
+<p>下一步最有价值的实验：用同一份真实多轮 / OCR / 长上下文数据，比较 FP16、4-bit、2-bit 的任务准确率、长历史检索、分层输出误差与 flush 步延迟。把“哪里丢了精度”和“哪个 op 花了时间”对应起来，才有可能得到既省内存又保住业务质量的方案。</p>
+<h2 id="sources">来源</h2>
+<p>[1] KIVI 原论文 v2，§3 方法与分组、Table 3 精度、§4.3 效率。https://arxiv.org/html/2402.02750v2 — <a href="https://arxiv.org/html/2402.02750v2">原文</a>；<a href="https://arxiv.org/abs/2402.02750">版本记录</a>。</p>
+<p>[2] KIVI 官方代码与实现说明。https://github.com/jy-yuan/KIVI — <a href="https://github.com/jy-yuan/KIVI">GitHub</a>。</p>
+<p>[3] KVQuant 原论文 v6，§3.2 pre-RoPE、§3.3 非均匀量化、附录 P Table 20 分组相关反例。https://arxiv.org/html/2401.18079v6 — <a href="https://arxiv.org/html/2401.18079v6">原文</a>；<a href="https://arxiv.org/abs/2401.18079">版本记录</a>。</p>
+<p>[4] KVQuant 官方代码。https://github.com/SqueezeAILab/KVQuant — <a href="https://github.com/SqueezeAILab/KVQuant">GitHub</a>。</p>
+<p>[5] Hugging Face，Quantizing the KV Cache，2024-05-16；当时集成实现与 KIVI 的区别。https://huggingface.co/blog/kv-cache-quantization — <a href="https://huggingface.co/blog/kv-cache-quantization">技术博客</a>。</p>
+<p>[6] Transformers Cache strategies，查阅：2026-11-05，固定引用 v5.19.0；新版的后端参数与支持表可能不同。https://huggingface.co/docs/transformers/v5.19.0/kv_cache — <a href="https://huggingface.co/docs/transformers/v5.19.0/kv_cache">版本化官方文档</a>。</p>
+<p>[7] 本文解析字节模型：<a href="assets/kivi-kv-cache-quantization/memory_accounting.py">Python</a> / <a href="assets/kivi-kv-cache-quantization/memory_results.json">JSON</a>。所有容量结果均来自显式假设，非硬件性能或物理内存测量。</p></article></main>
+<footer class="site-footer"><span>© 2026 Howie Yin</span><div class="footer-links"><a href="./">Back to archive ←</a><a href="../">Home ←</a></div></footer>
+</div></body></html>
