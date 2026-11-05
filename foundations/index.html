@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0c1016">
     <meta name="color-scheme" content="dark">
-    <meta name="description" content="AI Foundations by Howie Yin: first principles, technical deep dives, the evolution of ideas, and research surveys.">
+    <meta name="description" content="AI Foundations by Howie Yin: first principles, technical deep dives, the evolution of ideas, and worked examples.">
     <title>AI Foundations — Howie Yin</title>
     <link rel="canonical" href="https://howieyin.github.io/foundations/">
     <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="../styles.css?v=3">
+    <link rel="stylesheet" href="../styles.css?v=4">
+    <link rel="stylesheet" href="../papers/archive.css?v=2">
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -21,6 +22,7 @@
           <a href="./" aria-current="page">Foundations</a>
           <a href="../lab/">Lab</a>
           <a href="../papers/">Paper Readings</a>
+          <a href="../surveys/">Surveys</a>
           <a href="../#about">About</a>
         </nav>
       </header>
@@ -34,11 +36,17 @@
             <li>Model architecture</li><li>Training &amp; reasoning</li><li>Inference &amp; efficiency</li><li>Multimodal AI &amp; agents</li>
           </ul>
         </section>
-        <section class="archive-empty" aria-labelledby="archive-title">
-          <p class="eyebrow">KNOWLEDGE ARCHIVE</p>
-          <h2 id="archive-title"><a href="online-softmax.html">Online Softmax：为什么多算几次，反而能少读写显存？</a></h2>
-          <p>From stable normalization to blockwise attention: equations, worked examples, original paper figures, memory traffic and engineering limits.</p>
-          <a class="text-link" href="online-softmax.html">Read the article ↗</a>
+        <section class="column-archive paper-category-archive" aria-labelledby="archive-title">
+          <div class="paper-directory-heading">
+            <h2 id="archive-title">All articles</h2>
+            <p>1 article · Newest first</p>
+          </div>
+          <article class="paper-entry">
+<p class="paper-metadata"><time datetime="2026-10-26">October 26, 2026</time> · Inference &amp; efficiency</p>
+<h3 class="paper-entry-title"><a href="online-softmax.html">Online Softmax：为什么多算几次，反而能少读写显存？</a></h3>
+<p class="paper-entry-description">From stable normalization to blockwise attention: equations, worked examples, original paper figures, memory traffic and engineering limits.</p>
+<a class="text-link" href="online-softmax.html">Read the article <span aria-hidden="true">↗</span></a>
+</article>
         </section>
         <section class="content-section" aria-labelledby="formats-title">
           <div class="section-heading">
@@ -49,7 +57,7 @@
               <li><strong>First principles.</strong> The problem, the intuition, and a concrete worked example.</li>
               <li><strong>Deep dives.</strong> Equations, tensor shapes, implementation choices, and practical limits.</li>
               <li><strong>Evolution of ideas.</strong> How a method developed and which bottlenecks drove each change.</li>
-              <li><strong>Research surveys.</strong> A map of the literature, competing approaches, and open questions.</li>
+              <li><strong>Worked examples.</strong> Concrete calculations and code that make an idea easier to reason about.</li>
             </ol>
           </div>
         </section>

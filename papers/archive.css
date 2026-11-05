@@ -133,7 +133,8 @@
   .paper-topic-heading > p:last-child { margin-top: 8px; }
   .paper-entry-title { font-size: 18px; }
   .paper-profile { padding-bottom: 30px; }
-  #papers .section-body { padding-left: 0; }
+  #weekly .section-body, #foundations .section-body, #lab .section-body,
+  #papers .section-body, #surveys .section-body { padding-left: 0; }
   .paper-topic-links, .paper-category-navigation .paper-topic-links { grid-template-columns: 1fr; gap: 7px; }
   .paper-topic-links a { min-height: 44px; padding: 10px 12px; font-size: 12px; }
   .paper-latest-item { padding: 14px 0; }

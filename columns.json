@@ -1,0 +1,85 @@
+{
+  "columns": [
+    {
+      "slug": "weekly",
+      "title": "AI Weekly",
+      "index": "01",
+      "label": "Industry & research briefings",
+      "description": "A weekly perspective on models, research, AI hardware, agents, open source, and the businesses shaping the field.",
+      "latestLabel": "Latest reports",
+      "archiveLabel": "All reports",
+      "emptyText": "No reports yet.",
+      "readLabel": "Read the report",
+      "articles": [
+        {
+          "title": "AI 情报｜2026-10-26 ～ 2026-11-01",
+          "path": "weekly/2026-10-26_2026-11-01.html",
+          "date": "2026-11-01",
+          "periodStart": "2026-10-26",
+          "description": "GPT-6.1 Terra, Gemini Carbon, Mistral Large 4, LFM3, GAAC, Mooncake, NIXL, MLX and AI industry results. Model capabilities, task costs and inference state examined through primary sources.",
+          "topic": "Weekly briefing"
+        },
+        {
+          "title": "AI 情报｜2026-10-18 ～ 2026-10-25",
+          "path": "weekly/2026-10-18_2026-10-25.html",
+          "date": "2026-10-25",
+          "periodStart": "2026-10-18",
+          "description": "DeepInfer, vLLM / SGLang, TorchTPU, MiniMax, Kimi, MLX, agent runtimes and AI infrastructure. A source-backed technical briefing with performance caveats and practical implications.",
+          "topic": "Weekly briefing"
+        }
+      ]
+    },
+    {
+      "slug": "foundations",
+      "title": "AI Foundations",
+      "index": "02",
+      "label": "From intuition to understanding",
+      "description": "Explore the ideas behind AI, from approachable fundamentals to implementation-level deep dives. Follow how methods evolved and understand the choices behind them.",
+      "latestLabel": "Latest articles",
+      "archiveLabel": "All articles",
+      "emptyText": "No articles yet.",
+      "readLabel": "Read the article",
+      "articles": [
+        {
+          "title": "Online Softmax：为什么多算几次，反而能少读写显存？",
+          "path": "foundations/online-softmax.html",
+          "date": "2026-10-26",
+          "description": "From stable normalization to blockwise attention: equations, worked examples, original paper figures, memory traffic and engineering limits.",
+          "topic": "Inference & efficiency"
+        }
+      ]
+    },
+    {
+      "slug": "lab",
+      "title": "AI Lab",
+      "index": "03",
+      "label": "Try it. Measure it. Question it.",
+      "description": "A place for clever tricks, hands-on experiments, and counterintuitive results. Explore what works, when it breaks, and why.",
+      "latestLabel": "Latest experiments",
+      "archiveLabel": "All experiments",
+      "emptyText": "No experiments yet.",
+      "readLabel": "Explore the experiment",
+      "articles": [
+        {
+          "title": "同加一个常数，为什么FP16的Softmax会变？",
+          "path": "lab/softmax-invariance-fp16.html",
+          "date": "2026-10-26",
+          "description": "A reproducible CPU experiment on representation loss, rounding and non-associativity. Includes Python code, measured results and clear limits.",
+          "topic": "Numerical precision"
+        }
+      ]
+    },
+    {
+      "slug": "surveys",
+      "title": "AI Surveys",
+      "index": "05",
+      "label": "Mapping a field, connecting the ideas",
+      "description": "My explorations of AI research directions: how a field developed, how approaches compare, and which questions remain open.",
+      "latestLabel": "Latest surveys",
+      "archiveLabel": "All surveys",
+      "emptyText": "No surveys yet.",
+      "readLabel": "Read the survey",
+      "articles": []
+    }
+  ]
+}

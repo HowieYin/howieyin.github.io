@@ -12,27 +12,46 @@ and bodies may use the language appropriate to their content.
 - **AI Weekly** (`weekly/`): AI industry reports covering models, research,
   hardware, infrastructure, agents, products and open source.
 - **AI Foundations** (`foundations/`): fundamentals, technical deep dives,
-  the evolution of ideas and research surveys.
+  the evolution of ideas and worked examples.
 - **AI Lab** (`lab/`): practical tricks, reproducible experiments,
   counterintuitive findings and myth testing.
 - **Paper Readings** (`papers/`): a personal archive of papers read, with original
   sources, reading dates, methods, experiments, limitations and personal insights.
   Do not automatically count news coverage or knowledge articles as completed
   paper readings. Each reading should have its own page and archive entry.
+- **AI Surveys** (`surveys/`): personal explorations of technical fields and
+  research directions, comparing approaches, tracing their evolution and
+  identifying open questions.
 
-Each column has a homepage section and a standalone archive page. The archives
-are explicitly empty until real articles are published; topic descriptions are
-editorial directions, not published content.
+Each column has a homepage section and a standalone archive page. The homepage
+shows up to three recent articles per column and a Visit link to the full archive.
+AI Surveys is empty until the first real survey is published.
 
 ## Editing
 
 - `index.html`: English homepage, column cards, About and Projects.
-- `weekly/index.html`, `foundations/index.html`, `lab/index.html`, `papers/index.html`: column landing
-  pages. Replace the empty archive block with links to published articles when
-  content is ready, and update the homepage publication status accordingly.
+- `weekly/index.html`, `foundations/index.html`, `lab/index.html`, `papers/index.html`,
+  `surveys/index.html`: column landing pages.
+- `columns.json`: article catalog and homepage copy for Weekly, Foundations, Lab
+  and Surveys.
 - `styles.css`: layout, colors and responsive styles.
 - `assets/`: locally served fonts and favicon. No external services are needed at
 runtime.
+
+After adding a static article inside `weekly/`, `foundations/`, `lab/` or
+`surveys/`, prepend an entry to its column in `columns.json` and run:
+
+```bash
+python3 scripts/build_columns.py
+```
+
+Each article has a `title`, repository-relative `path`, ISO `date`, `description`
+and English `topic`. For weekly reports, `date` is the coverage end date and
+`periodStart` is the start; the UI displays the coverage period. Other columns
+use the publication date. The generator sorts newest first, preserves catalog
+order for equal dates, and checks article files exist before writing. It updates
+the latest three homepage entries and every article in the column archive.
+Do not hand-edit these generated lists; add content through the catalog.
 
 Paper navigation is generated from `papers/readings.json`. Each reading has one
 primary category; the catalog retains its title, complete archive description,
@@ -54,10 +73,8 @@ Do not hand-edit generated paper indexes or the homepage paper section.
 `papers/archive.css` styles these components without changing article layouts.
 Commit the catalog and regenerated HTML together when publishing.
 
-For a new article, add its static HTML file inside the relevant column directory,
-then link to it from that column's archive. Keep site navigation in English;
-article bodies can use the language appropriate to the content. Use relative
-links and match the existing shared stylesheet.
+Keep site navigation in English; article bodies can use the language appropriate
+to the content. Use relative links and match the existing shared stylesheet.
 
 The fonts are [DM Sans](https://github.com/google/fonts/tree/main/ofl/dmsans)
 and [IBM Plex Mono](https://github.com/google/fonts/tree/main/ofl/ibmplexmono), licensed under

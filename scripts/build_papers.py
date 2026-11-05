@@ -76,8 +76,8 @@ def page(title, description, body, root, canonical, archive=False):
     <title>{escape(title)} — Howie Yin</title>
     <link rel="canonical" href="https://howieyin.github.io/{canonical}">
     <link rel="icon" href="{root}assets/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="{root}styles.css?v=3">
-    <link rel="stylesheet" href="{root}papers/archive.css?v=1">
+    <link rel="stylesheet" href="{root}styles.css?v=4">
+    <link rel="stylesheet" href="{root}papers/archive.css?v=2">
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -89,6 +89,7 @@ def page(title, description, body, root, canonical, archive=False):
           <a href="{root}foundations/">Foundations</a>
           <a href="{root}lab/">Lab</a>
           <a href="{papers_link}"{current}>Paper Readings</a>
+          <a href="{root}surveys/">Surveys</a>
           <a href="{root}#about">About</a>
         </nav>
       </header>
@@ -194,7 +195,7 @@ def home_section(categories, papers):
                 <h3 class="paper-subheading">Browse by topic</h3>
                 {topic_navigation(categories, papers, "papers/topics/")}
               </div>
-              <a class="text-link" href="papers/">Visit Paper Readings <span aria-hidden="true">↗</span></a>
+              <a class="text-link column-visit" href="papers/">Visit Paper Readings <span aria-hidden="true">↗</span></a>
             </div>
           </section>'''
 
@@ -209,10 +210,10 @@ def main():
     )
     if replacements != 1:
         raise ValueError("Expected exactly one homepage Paper Readings section.")
-    stylesheet = '    <link rel="stylesheet" href="papers/archive.css?v=1">\n'
+    stylesheet = '    <link rel="stylesheet" href="papers/archive.css?v=2">\n'
     if stylesheet.strip() not in home:
-        home = home.replace('    <link rel="stylesheet" href="styles.css?v=3">\n',
-                            '    <link rel="stylesheet" href="styles.css?v=3">\n' + stylesheet)
+        home = home.replace('    <link rel="stylesheet" href="styles.css?v=4">\n',
+                            '    <link rel="stylesheet" href="styles.css?v=4">\n' + stylesheet)
     outputs = {home_path: home}
     outputs[ROOT / "papers/index.html"] = page(
         "Paper Readings", "Howie Yin's close readings of research papers, organized by model architecture, attention, long context, quantization, speculative decoding, and training.",
