@@ -145,13 +145,13 @@
 <p><strong>重要区别：</strong> K个概率之和通常小于1，这是完整Softmax分布中选出的概率；若再在K项上重归一化，得到的是另一个“截断后分布”。Top-k Sampling可能需要这种再归一化，但不能把两者当同一个输出。</p>
 <p>Top-K维护随K增长成本增加，局部候选队列/排序/寄存器压力可能压过IO收益；Top-K很大时不应假设同样的5×。</p>
 <h2 id="5-benchmarkv100">5｜原论文 Benchmark：V100的结果证明了什么？</h2>
-<p>平台：Tesla V100 PCIe 16GB；ECC和Persistence开启；CUDA9.1；CUB1.8.0；FP32；Batch4000或10；Top-K实验K=5。下图保留原论文图，不是新硬件实测。[2]</p>
-<p><img alt="原论文Figure 1：Batch4000的Softmax表现" src="assets/online-softmax/paper-figure-1.svg"/></p>
-<p><em>原图Figure 1。横轴Logit向量长度N（原文V）；左轴Online/Safe比例，右轴Elements/s。较长向量/大Batch时DRAM流量开始主导，Online接近1.3×；短向量各方案接近。</em></p>
-<p><img alt="原论文Figure 2：Batch10的Softmax表现" src="assets/online-softmax/paper-figure-2.svg"/></p>
-<p><em>原图Figure 2。只有10个Threadblock时GPU未充分占满，绝对吞吐较低，Online优势约1.15×而非大Batch的1.3×。少读写不保证硬件始终Bandwidth-bound。</em></p>
-<p><img alt="原论文Figure 3：Softmax与Top-K融合" src="assets/online-softmax/paper-figure-3.svg"/></p>
-<p><em>原图Figure 3。对比包含Safe未融合、Safe融合、Online融合；最高约5×不仅来自Online统计，还来自不物化完整概率和融合。不能将5×归因为Softmax公式本身。</em></p>
+<p>平台：Tesla V100 PCIe 16GB；ECC和Persistence开启；CUDA9.1；CUB1.8.0；FP32；Batch4000或10；Top-K实验K=5。下图按原论文矢量点位与双轴定义重绘，不是新硬件实测。[2]</p>
+<p><img alt="重绘版Figure 1：Batch 4000时Naive、Online与Safe Softmax吞吐，以及Online相对Safe的性能比" src="assets/online-softmax/paper-figure-1.svg?v=3"/></p>
+<p><em>基于原论文Figure 1矢量点位重绘。横轴Logit向量长度V；左轴为吞吐（10⁹ elements/s），右轴为Online/Safe性能比。较长向量/大Batch时DRAM流量开始主导，Online接近1.3×；短向量各方案接近。不是新硬件实测。</em> <a href="assets/online-softmax/paper-figure-1.svg?v=3">Open full-size chart ↗</a></p>
+<p><img alt="重绘版Figure 2：Batch 10时Naive、Online与Safe Softmax吞吐，以及Online相对Safe的性能比" src="assets/online-softmax/paper-figure-2.svg?v=3"/></p>
+<p><em>基于原论文Figure 2矢量点位重绘。只有10个Threadblock时GPU未充分占满，绝对吞吐较低，Online优势约1.15×而非大Batch的1.3×。少读写不保证硬件始终Bandwidth-bound。不是新硬件实测。</em> <a href="assets/online-softmax/paper-figure-2.svg?v=3">Open full-size chart ↗</a></p>
+<p><img alt="重绘版Figure 3：Online与Safe Softmax加Top-K在融合和未融合实现下的吞吐及性能比" src="assets/online-softmax/paper-figure-3.svg?v=3"/></p>
+<p><em>基于原论文Figure 3矢量点位重绘。对比包含Safe未融合、Safe融合、Online融合；最高约5×不仅来自Online统计，还来自不物化完整概率和融合。不能将5×归因为Softmax公式本身。不是新硬件实测。</em> <a href="assets/online-softmax/paper-figure-3.svg?v=3">Open full-size chart ↗</a></p>
 <div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
 <thead>
 <tr>
@@ -263,7 +263,7 @@
 <h2 id="_4">来源</h2>
 <ol>
 <li><a href="https://arxiv.org/abs/1805.02867">Online Softmax版本记录</a>：Milakov / Gimelshein，2018。</li>
-<li><a href="https://ar5iv.labs.arxiv.org/html/1805.02867">Online Softmax原文HTML</a>：章节、Algorithm3/4、Figure1/2/3及V100测量；<a href="https://github.com/NVIDIA/online-softmax">作者代码</a>。原图保留原作者内容，非重绘，版权与许可以原论文为准。</li>
+<li><a href="https://ar5iv.labs.arxiv.org/html/1805.02867">Online Softmax原文HTML</a>：章节、Algorithm3/4、Figure1/2/3及V100测量；<a href="https://github.com/NVIDIA/online-softmax">作者代码</a>。本文图1–3按原论文矢量图中的点位和双轴定义重绘，仅改善网页可读性；数据与结论仍归原论文，不是本文复测。</li>
 <li><a href="https://arxiv.org/abs/2205.14135">FlashAttention原论文</a>，Dao等，2022；<a href="https://arxiv.org/html/2205.14135v1">原文HTML</a>、<a href="https://github.com/Dao-AILab/flash-attention">官方实现</a>。本文仅将其用于后续机制关联，不代替整篇论文精读。</li>
 <li><a href="https://docs.pytorch.org/docs/2.13/notes/numerical_accuracy.html">PyTorch Numerical Accuracy</a>：有限精度、Batch与Reduction差异。</li>
 </ol></article></main>
