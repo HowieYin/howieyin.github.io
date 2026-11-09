@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="dark" name="color-scheme"/><meta content="#0c1016" name="theme-color"/>
+<meta content="四个不同 Value、两套合法概率、同一个输出：可复现 Attention 零空间实验、反例与两篇经典可解释性论文的争论。" name="description"/>
+<title>Attention 热力图几乎反过来，模型输出为什么还能不变？ — Howie Yin</title>
+<link href="https://howieyin.github.io/lab/attention-not-explanation.html" rel="canonical"/>
+<link href="../assets/favicon.svg" rel="icon" type="image/svg+xml"/>
+<link href="../assets/article-navigation.css" rel="stylesheet"/>
+<script defer="" src="../assets/article-navigation.js"></script>
+<link href="../styles.css?v=3" rel="stylesheet"/><style>
+.report { padding: 48px 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.report h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.6px; line-height: 1.4; margin-bottom: 28px; }
+.report h2 { margin: 52px 0 20px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; }
+.report h3 { font-size: 20px; margin: 28px 0 14px; }
+.report p, .report li { color: var(--secondary); }
+.report strong { color: var(--text); }
+.report a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.report li { margin: 9px 0; }
+.report code { font-family: var(--mono); font-size: .85em; }
+.report pre { overflow-x: auto; padding: 20px; background: #111720; border: 1px solid var(--line); border-radius: 8px; }
+.report img { display: block; max-width: 100%; height: auto; background: white; padding: 16px; border-radius: 6px; margin: 24px auto; width: 680px; }
+.report .table-scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 6px; }
+.report table { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 14px; }
+.report th, .report td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.report th { color: var(--text); background: #111720; }
+.report td { color: var(--secondary); }
+.report .toc { padding: 24px; border: 1px solid var(--line); border-radius: 8px; margin: 32px 0; }
+.report .toc ul { padding-left: 22px; }
+@media(max-width:640px) { .report { font-size: 15px; padding: 32px 0; } .report h2 { font-size: 22px; } .report img { padding: 8px; } }
+
+.formula { padding: 20px; margin: 24px 0; background: #111720; border-left: 3px solid var(--accent); font-family: var(--mono); font-size: 14px; overflow-x: auto; }
+.diagram { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:24px 0; padding:20px; border:1px solid var(--line); border-radius:8px; }
+.diagram div { flex:1 1 160px; padding:14px; background:#111720; border:1px solid var(--line); border-radius:6px; }
+.diagram span:not(.diagram-arrow) { display:block; color:var(--secondary); font-size:13px; margin-top:8px; }
+</style></head>
+<body><a class="skip-link" href="#main">Skip to content</a><div class="page">
+<header class="site-header"><a aria-label="Howie Yin, home" class="wordmark" href="../"><span aria-hidden="true" class="brand-mark"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../weekly/">Weekly</a><a href="../foundations/">Foundations</a><a aria-current="page" href="../lab/">Lab</a><a href="../#about">About</a></nav></header>
+<main class="report" id="main"><p class="eyebrow">LAB / ATTENTION &amp; EXPLANATION</p><details class="toc" hidden=""><summary>Contents</summary><ul><li><a href="#section-01">1｜看起来最可信的一张图，可能只回答了半个问题</a></li><li><a href="#section-02">2｜经典争论：Attention is not Explanation 发现了什么？</a></li><li><a href="#section-03">3｜四个 Value：没有任何两个完全相同</a></li><li><a href="#section-04">4｜这不是巧合：输出只能看到部分权重方向</a></li><li><a href="#section-05">5｜概率合法，不等于同一个 Q/K 模块能够生成它</a></li><li><a href="#section-06">6｜本地复现：报告距离，也报告向量本身</a></li><li><a href="#section-07">7｜三个反例：不是想怎么换就怎么换</a></li><li><a href="#section-08">8｜为什么“亮的 Token”也未必贡献最大？</a></li><li><a href="#section-09">9｜反驳论文为什么叫 Attention is not not Explanation？</a></li><li><a href="#section-10">10｜如果要检查 VLM 的 OCR 热力图，应该怎么做？</a></li><li><a href="#section-11">11｜总结与启发：热力图是线索，解释还需要实验</a></li><li><a href="#sources">来源</a></li></ul></details><article><h1 id="attention-not-explanation">Attention 热力图几乎反过来，模型输出为什么还能不变？</h1>
+<p><strong>核心结论：Attention 权重决定 Value 的混合比例，却不单独决定信息贡献。在固定 Value 时，不同的合法概率分布可能产生同一个加权向量；因此一张热力图不能自动升级为“模型为什么这样回答”的因果证明。这个反例也没有证明 Attention 一概无用：解释是否可靠，仍要结合模型结构、干预方式与对照实验。</strong></p>
+<p>类型：趣味实验 / 可解释性 / Attention。发布：2026-11-09。本次实验只需要 NumPy，不需要下载模型或调用 API。原论文实验、本文构造的数学反例和进一步工程建议分别标注。</p>
+<p>延伸阅读：此前 <a href="../foundations/online-softmax.html">Online Softmax</a> 和 <a href="../papers/flashattention/index.html">FlashAttention</a> 解释如何算出加权 Value；这次换一个问题：<strong>概率算对了，是否就知道模型在依赖什么？</strong> 文章里的 T1–T4 只是位置标签，不赋予真实词义。</p>
+<h2 id="section-01">1｜看起来最可信的一张图，可能只回答了半个问题</h2>
+<p>在 VLM 中，我们常画某个文本 Token 对图像 Patch 的 Attention 热力图。某块区域颜色更亮，读者很容易理解成“模型因为看见这里，才给出答案”。在文本模型中，某个词占了 49% 权重，也很容易被当成最重要证据。</p>
+<p>Attention 的确在混合信息，但热力图只画混合系数 α，没有画被混合的向量 V。相同的 0.49 乘以不同 Value，经过输出投影、残差与后续层，作用可以完全不同；几个贡献还可能互相抵消。</p>
+<p>最简单的类比是调色。两套颜料混合比例可以很不一样，却调出同一颜色，因为颜料本身不独立。想从最终颜色唯一恢复配方，需要知道颜料，而且需要额外的独立性条件。</p>
+<p>这次不靠模型讲故事。先用四个二维 Value，构造两张几乎相反的热力图，直接算输出。</p>
+<h2 id="section-02">2｜经典争论：Attention is not Explanation 发现了什么？</h2>
+<p><strong>Attention is not Explanation</strong>，Sarthak Jain、Byron C. Wallace，Northeastern University，NAACL 2019；arXiv:1902.10186。官方代码是 <a href="https://github.com/successar/AttentionExplanation">successar/AttentionExplanation</a>。本文读取原文 v3 与会议记录。[1][2]</p>
+<p>论文主要研究带 Attention 的 BiLSTM 编码器，在文本分类、QA、NLI 上检查两个问题：Attention 是否与梯度、Leave-one-out 特征重要性相关；替换 Attention 分布是否一定改变预测。</p>
+<p>这些替代重要性指标也不是“解释的真值”。原论文在讨论中承认，它们在非线性网络里的含义与理想相关性阈值仍有局限；低相关性提供警示，不能单独判定哪种解释正确。</p>
+<p>作者发现，BiLSTM 的 Attention 与这些重要性指标往往只有较弱或不稳定的相关性；很多样本可以找到与原分布很不同、却产生近似相同预测的反事实权重。论文还测试随机置换，对照非循环的平均编码器等结构。结论与模型和任务有关，不是对所有架构的全称命题。</p>
+<p>原论文 Figure 1 的影评例子，两套不同热力图给出几乎相同的负面预测，约 0.01；作者报告该样本随机置换的预测差异中位数约 0.006。<strong>这是论文案例，不是本文的复测结果。</strong> 当时的 BiLSTM 分类实验也不能直接当作现代多层 LLM/VLM 的测量。</p>
+<p>“存在替代分布”对唯一归因构成挑战，但留下另一个问题：替代权重是否能由同一个训练好的 Attention 模块在真实输入上产生？后文会介绍对此的反驳。</p>
+<h2 id="section-03">3｜四个 Value：没有任何两个完全相同</h2>
+<p>固定一个 Query、一层单 Head Attention，忽略 Dropout，先只研究加权结果 <code>o = αV</code>。Value 与两组概率如下：</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>位置</th>
+<th>Value 向量</th>
+<th style="text-align: right;">分布 A</th>
+<th style="text-align: right;">分布 B</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>T1</td>
+<td>[0, 1]</td>
+<td style="text-align: right;">0.49</td>
+<td style="text-align: right;">0.01</td>
+</tr>
+<tr>
+<td>T2</td>
+<td>[1, 0]</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.49</td>
+</tr>
+<tr>
+<td>T3</td>
+<td>[1, 2]</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.49</td>
+</tr>
+<tr>
+<td>T4</td>
+<td>[2, 1]</td>
+<td style="text-align: right;">0.49</td>
+<td style="text-align: right;">0.01</td>
+</tr>
+</tbody>
+</table></div>
+<p>两组权重都严格大于 0，和为 1。A 几乎全看 T1/T4，B 几乎全看 T2/T3。四个 Value 互不相同，因此这个例子不依赖“重复 Token 的 Value 完全一样”。</p>
+<p>直接计算：</p>
+<div class="formula" role="math">o<sub>A</sub> = 0.49[0,1] + 0.01[1,0] + 0.01[1,2] + 0.49[2,1] = [1,1]<br/>o<sub>B</sub> = 0.01[0,1] + 0.49[1,0] + 0.49[1,2] + 0.01[2,1] = [1,1]</div>
+<p>原因不是 Softmax 计算出错，而是 <code>V₁ + V₄ = V₂ + V₃ = [2,2]</code>。把质量从一对位置移到另一对，输出抵消得刚刚好。</p>
+<svg role="img" aria-label="Figure 1: attention A and B differ with identical output, TV 0.96" style="display:block;width:680px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:24px auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="498.509078pt" height="352.920313pt" viewBox="0 0 498.509078 352.920313" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_attention-figure_1">
+  <g id="figure_attention-patch_1">
+   <path d="M 0 352.920313
+L 498.509078 352.920313
+L 498.509078 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="figure_attention-axes_1">
+   <g id="figure_attention-patch_2">
+    <path d="M 43.92 299.6375
+L 405.504 299.6375
+L 405.504 50.1575
+L 43.92 50.1575
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="figure_attention-QuadMesh_1">
+    <path d="M 43.92 50.1575
+L 134.316 50.1575
+L 134.316 174.8975
+L 43.92 174.8975
+L 43.92 50.1575
+" clip-path="url(#figure_attention-pcfce8144f5)" style="fill: #083573"/>
+    <path d="M 134.316 50.1575
+L 224.712 50.1575
+L 224.712 174.8975
+L 134.316 174.8975
+L 134.316 50.1575
+" clip-path="url(#figure_attention-pcfce8144f5)" style="fill: #f3f8fe"/>
+    <path d="M 224.712 50.1575
+L 315.108 50.1575
+L 315.108 174.8975
+L 224.712 174.8975
+L 224.712 50.1575
+" clip-path="url(#figure_attention-pcfce8144f5)" style="fill: #f3f8fe"/>
+    <path d="M 315.108 50.1575
+L 405.504 50.1575
+L 405.504 174.8975
+L 315.108 174.8975
+L 315.108 50.1575
+" clip-path="url(#figure_attention-pcfce8144f5)" style="fill: #083573"/>
+    <path d="M 43.92 174.8975
+L 134.316 174.8975
+L 134.316 299.6375
+L 43.92 299.6375
+L 43.92 174.8975
+" clip-path="url(#figure_attention-pcfce8144f5)" style="fill: #f3f8fe"/>
+    <path d="M 134.316 174.8975
+L 224.712 174.8975
+L 224.712 299.6375
+L 134.316 299.6375
+L 134.316 174.8975
+" clip-path="url(#figure_attention-pcfce8144f5)" style="fill: #083573"/>
+    <path d="M 224.712 174.8975
+L 315.108 174.8975
+L 315.108 299.6375
+L 224.712 299.6375
+L 224.712 174.8975
+" clip-path="url(#figure_attention-pcfce8144f5)" style="fill: #083573"/>
+    <path d="M 315.108 174.8975
+L 405.504 174.8975
+L 405.504 299.6375
+L 315.108 299.6375
+L 315.108 174.8975
+" clip-path="url(#figure_attention-pcfce8144f5)" style="fill: #f3f8fe"/>
+   </g>
+   <g id="figure_attention-matplotlib.axis_1">
+    <g id="figure_attention-xtick_1">
+     <g id="figure_attention-line2d_1">
+      <defs>
+       <path id="figure_attention-ma0b8dc8bc5" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#figure_attention-ma0b8dc8bc5" x="89.118" y="299.6375" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_1">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="89.118" y="316.514453" transform="rotate(-0 89.118 316.514453)">T1</text>
+     </g>
+    </g>
+    <g id="figure_attention-xtick_2">
+     <g id="figure_attention-line2d_2">
+      <g>
+       <use xlink:href="#figure_attention-ma0b8dc8bc5" x="179.514" y="299.6375" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_2">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="179.514" y="316.514453" transform="rotate(-0 179.514 316.514453)">T2</text>
+     </g>
+    </g>
+    <g id="figure_attention-xtick_3">
+     <g id="figure_attention-line2d_3">
+      <g>
+       <use xlink:href="#figure_attention-ma0b8dc8bc5" x="269.91" y="299.6375" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_3">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="269.91" y="316.514453" transform="rotate(-0 269.91 316.514453)">T3</text>
+     </g>
+    </g>
+    <g id="figure_attention-xtick_4">
+     <g id="figure_attention-line2d_4">
+      <g>
+       <use xlink:href="#figure_attention-ma0b8dc8bc5" x="360.306" y="299.6375" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_4">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="360.306" y="316.514453" transform="rotate(-0 360.306 316.514453)">T4</text>
+     </g>
+    </g>
+   </g>
+   <g id="figure_attention-matplotlib.axis_2">
+    <g id="figure_attention-ytick_1">
+     <g id="figure_attention-line2d_5">
+      <defs>
+       <path id="figure_attention-m979d053f2a" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#figure_attention-m979d053f2a" x="43.92" y="112.5275" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_5">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="36.92" y="117.465977" transform="rotate(-0 36.92 117.465977)">A</text>
+     </g>
+    </g>
+    <g id="figure_attention-ytick_2">
+     <g id="figure_attention-line2d_6">
+      <g>
+       <use xlink:href="#figure_attention-m979d053f2a" x="43.92" y="237.2675" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_6">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="36.92" y="242.205977" transform="rotate(-0 36.92 242.205977)">B</text>
+     </g>
+    </g>
+   </g>
+   <g id="figure_attention-patch_3">
+    <path d="M 43.92 299.6375
+L 43.92 50.1575
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="figure_attention-patch_4">
+    <path d="M 43.92 299.6375
+L 405.504 299.6375
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="figure_attention-text_7">
+    <text style="font-size: 22px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="89.118" y="118.242344" transform="rotate(-0 89.118 118.242344)">0.49</text>
+   </g>
+   <g id="figure_attention-text_8">
+    <text style="font-size: 22px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #1c3550" x="179.514" y="118.242344" transform="rotate(-0 179.514 118.242344)">0.01</text>
+   </g>
+   <g id="figure_attention-text_9">
+    <text style="font-size: 22px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #1c3550" x="269.91" y="118.242344" transform="rotate(-0 269.91 118.242344)">0.01</text>
+   </g>
+   <g id="figure_attention-text_10">
+    <text style="font-size: 22px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="360.306" y="118.242344" transform="rotate(-0 360.306 118.242344)">0.49</text>
+   </g>
+   <g id="figure_attention-text_11">
+    <text style="font-size: 22px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #1c3550" x="89.118" y="242.982344" transform="rotate(-0 89.118 242.982344)">0.01</text>
+   </g>
+   <g id="figure_attention-text_12">
+    <text style="font-size: 22px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="179.514" y="242.982344" transform="rotate(-0 179.514 242.982344)">0.49</text>
+   </g>
+   <g id="figure_attention-text_13">
+    <text style="font-size: 22px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="269.91" y="242.982344" transform="rotate(-0 269.91 242.982344)">0.49</text>
+   </g>
+   <g id="figure_attention-text_14">
+    <text style="font-size: 22px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #1c3550" x="360.306" y="242.982344" transform="rotate(-0 360.306 242.982344)">0.01</text>
+   </g>
+   <g id="figure_attention-text_15">
+    <text style="font-size: 16px; font-family: 'DejaVu Sans'; text-anchor: middle" x="224.712" y="30.1575" transform="rotate(-0 224.712 30.1575)">Different attention • identical weighted output</text>
+   </g>
+  </g>
+  <g id="figure_attention-axes_2">
+   <g id="figure_attention-patch_5">
+    <path d="M 423.36 299.6375
+L 435.834 299.6375
+L 435.834 50.1575
+L 423.36 50.1575
+z
+" style="fill: #ffffff"/>
+   </g>
+   <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAABEAAAFbCAYAAAAz2WVEAAABsklEQVR4nO2bUYoDMQxDvWXuf939KGR6AOUvCjyEdABhy4pi0unf//d95xDPOcXM55xi5nnnvJTHwDGPgcOliacdiLAunzhIQO0YpoNpJ832GGE9tjfF4zkLyicGElI8Qmyfdo1Oba8kWbbv9rghoQgLukYxwno0wdi+eaKo7RW1vSLM9r1GNyTNE0Ftr6jtFSDbL4Oy9cmGZIF8wnmEoaxbjumA2vFMx0GywjShnB2T7SntoK4MR9pTKgGtFhhhQT7hREG3RwHHsSCfeEZsWS0w8ejZHrtuCYlFWI5PMJqQ4jFME8pbQdqVUU2UxHRlnCNOE4xPMBmL2pQgazloxGEbtekBEyIsKR4dlXAepjh5wvFJ2JXhmY6jksbjnUpI8UgRlhSPlB+JQHmSFo/dHjckEGHTfMKJx2oi4LTTs6MIa6e2v1QJyifVREkMlSzDDtqzowjzCaqdrO/tMZqQrlHIiNM0wQibpkmYTzriOySkf/VmaYJpp2fnEglIE8wBRGlCaWfe869yLO1YKnFpAmmnmlyqpGdHUZ8oSD7BvD1iki1uxJSz0yhQ1CeKMJ9Y2vkB9aYbcgPApVkAAAAASUVORK5CYII=" id="figure_attention-image415edde27b" transform="scale(1 -1) translate(0 -249.84)" x="423.36" y="-49.68" width="12.24" height="249.84"/>
+   <g id="figure_attention-matplotlib.axis_3"/>
+   <g id="figure_attention-matplotlib.axis_4">
+    <g id="figure_attention-ytick_3">
+     <g id="figure_attention-line2d_7">
+      <defs>
+       <path id="figure_attention-m6cf810129c" d="M 0 0
+L 3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#figure_attention-m6cf810129c" x="435.834" y="299.6375" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_16">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="442.834" y="304.575977" transform="rotate(-0 442.834 304.575977)">0.0</text>
+     </g>
+    </g>
+    <g id="figure_attention-ytick_4">
+     <g id="figure_attention-line2d_8">
+      <g>
+       <use xlink:href="#figure_attention-m6cf810129c" x="435.834" y="249.7415" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_17">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="442.834" y="254.679977" transform="rotate(-0 442.834 254.679977)">0.1</text>
+     </g>
+    </g>
+    <g id="figure_attention-ytick_5">
+     <g id="figure_attention-line2d_9">
+      <g>
+       <use xlink:href="#figure_attention-m6cf810129c" x="435.834" y="199.8455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_18">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="442.834" y="204.783977" transform="rotate(-0 442.834 204.783977)">0.2</text>
+     </g>
+    </g>
+    <g id="figure_attention-ytick_6">
+     <g id="figure_attention-line2d_10">
+      <g>
+       <use xlink:href="#figure_attention-m6cf810129c" x="435.834" y="149.9495" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_19">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="442.834" y="154.887977" transform="rotate(-0 442.834 154.887977)">0.3</text>
+     </g>
+    </g>
+    <g id="figure_attention-ytick_7">
+     <g id="figure_attention-line2d_11">
+      <g>
+       <use xlink:href="#figure_attention-m6cf810129c" x="435.834" y="100.0535" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_20">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="442.834" y="104.991977" transform="rotate(-0 442.834 104.991977)">0.4</text>
+     </g>
+    </g>
+    <g id="figure_attention-ytick_8">
+     <g id="figure_attention-line2d_12">
+      <g>
+       <use xlink:href="#figure_attention-m6cf810129c" x="435.834" y="50.1575" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_attention-text_21">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="442.834" y="55.095977" transform="rotate(-0 442.834 55.095977)">0.5</text>
+     </g>
+    </g>
+    <g id="figure_attention-text_22">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="477.386031" y="174.8975" transform="rotate(-90 477.386031 174.8975)">Attention weight</text>
+    </g>
+   </g>
+   <g id="figure_attention-LineCollection_1"/>
+   <g id="figure_attention-patch_6">
+    <path d="M 423.36 299.6375
+L 429.597 299.6375
+L 435.834 299.6375
+L 435.834 50.1575
+L 429.597 50.1575
+L 423.36 50.1575
+L 423.36 299.6375
+z
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="figure_attention-text_23">
+   <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start" x="18" y="332.0375" transform="rotate(-0 18 332.0375)">o(A) = o(B) = [1, 1]    •    TV = 0.96    •    JSD = 0.595108 nats</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="figure_attention-pcfce8144f5">
+   <rect x="43.92" y="50.1575" width="361.584" height="249.48"/>
+  </clipPath>
+ </defs>
+</svg>
+
+
+
+
+<p><em>图 1｜同一颜色刻度下的两组合法 Attention 权重。亮点换了位置，加权结果保持 <code>[1,1]</code>。颜色和单元格数字均由本地数据生成，底部注明输出与距离。 <a href="assets/attention-not-explanation/attention-maps.svg">打开完整 SVG</a></em></p>
+<p>把两组分布比较一下：L1 距离 1.92，总变差距离 TV=0.96；TV 最大值是 1，已经很接近最大差异。使用自然对数的 Jensen–Shannon Divergence 为 0.595108 nats，最大值 ln 2≈0.693147。<strong>权重差得很大，不代表输出一定差得很大。</strong></p>
+<h2 id="section-04">4｜这不是巧合：输出只能看到部分权重方向</h2>
+<p>令 V 有 N 行、d<sub>v</sub> 列；α 是长度 N 的行向量。寻找另一组 <code>α′ = α + δ</code>，需要：</p>
+<div class="formula" role="math">δV = 0；δ1 = 0；α + δ ≥ 0</div>
+<p>第一条让输出不变，第二条保持概率和为 1，第三条保持合法概率。δ 不是要全部为正，而是有些位置加、有些位置减。</p>
+<p>本例的方向为 <code>δ = 0.48[−1,+1,+1,−1]</code>。既满足权重和不变，也满足 Value 加权抵消。<strong>只讲 V 的零空间还不够</strong>：若改变了总概率，得到的向量可能不是 Attention 分布。</p>
+<p>将 Value 与全 1 列拼成 C：</p>
+<div class="formula" role="math">C = [V, 1] ∈ ℝ<sup>N×(dᵥ+1)</sup><br/>δC = 0；自由方向数 = N − rank(C)</div>
+<p>当 <code>N &gt; dᵥ + 1</code>，一定存在非零线性自由方向；如果 α 在概率单纯形内部，即有效位置的权重严格为正，就可以沿某个自由方向移动足够小的距离，保持全部条件。本例 N=4、d<sub>v</sub>=2，C 的秩为 3，剩一个自由方向。</p>
+<p>这是一个<strong>充分条件</strong>，不是必要条件：Value 有额外仿射依赖时，更短序列也可能不唯一。反过来，若 C 满行秩，则固定 Value 和概率归一化条件下，输出能够唯一确定 α。</p>
+<svg role="img" aria-label="Figure 2: two pairs of Value vectors share midpoint one comma one" style="display:block;width:680px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:24px auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="345.472266pt" height="381.118359pt" viewBox="0 0 345.472266 381.118359" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_values-figure_1">
+  <g id="figure_values-patch_1">
+   <path d="M 0 381.118359
+L 345.472266 381.118359
+L 345.472266 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="figure_values-axes_1">
+   <g id="figure_values-patch_2">
+    <path d="M 50.272266 326.117344
+L 327.472266 326.117344
+L 327.472266 48.917344
+L 50.272266 48.917344
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="figure_values-matplotlib.axis_1">
+    <g id="figure_values-xtick_1">
+     <g id="figure_values-line2d_1">
+      <path d="M 76.926112 326.117344
+L 76.926112 48.917344
+" clip-path="url(#figure_values-pc992b8b35d)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.2; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_values-line2d_2">
+      <defs>
+       <path id="figure_values-ma0b8dc8bc5" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#figure_values-ma0b8dc8bc5" x="76.926112" y="326.117344" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_values-text_1">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="76.926112" y="342.994297" transform="rotate(-0 76.926112 342.994297)">0</text>
+     </g>
+    </g>
+    <g id="figure_values-xtick_2">
+     <g id="figure_values-line2d_3">
+      <path d="M 183.541496 326.117344
+L 183.541496 48.917344
+" clip-path="url(#figure_values-pc992b8b35d)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.2; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_values-line2d_4">
+      <g>
+       <use xlink:href="#figure_values-ma0b8dc8bc5" x="183.541496" y="326.117344" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_values-text_2">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="183.541496" y="342.994297" transform="rotate(-0 183.541496 342.994297)">1</text>
+     </g>
+    </g>
+    <g id="figure_values-xtick_3">
+     <g id="figure_values-line2d_5">
+      <path d="M 290.156881 326.117344
+L 290.156881 48.917344
+" clip-path="url(#figure_values-pc992b8b35d)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.2; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_values-line2d_6">
+      <g>
+       <use xlink:href="#figure_values-ma0b8dc8bc5" x="290.156881" y="326.117344" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_values-text_3">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="290.156881" y="342.994297" transform="rotate(-0 290.156881 342.994297)">2</text>
+     </g>
+    </g>
+    <g id="figure_values-text_4">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="188.872266" y="359.995313" transform="rotate(-0 188.872266 359.995313)">Value coordinate 1</text>
+    </g>
+   </g>
+   <g id="figure_values-matplotlib.axis_2">
+    <g id="figure_values-ytick_1">
+     <g id="figure_values-line2d_7">
+      <path d="M 50.272266 299.463498
+L 327.472266 299.463498
+" clip-path="url(#figure_values-pc992b8b35d)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.2; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_values-line2d_8">
+      <defs>
+       <path id="figure_values-m979d053f2a" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#figure_values-m979d053f2a" x="50.272266" y="299.463498" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_values-text_5">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.272266" y="304.401974" transform="rotate(-0 43.272266 304.401974)">0</text>
+     </g>
+    </g>
+    <g id="figure_values-ytick_2">
+     <g id="figure_values-line2d_9">
+      <path d="M 50.272266 192.848113
+L 327.472266 192.848113
+" clip-path="url(#figure_values-pc992b8b35d)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.2; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_values-line2d_10">
+      <g>
+       <use xlink:href="#figure_values-m979d053f2a" x="50.272266" y="192.848113" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_values-text_6">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.272266" y="197.78659" transform="rotate(-0 43.272266 197.78659)">1</text>
+     </g>
+    </g>
+    <g id="figure_values-ytick_3">
+     <g id="figure_values-line2d_11">
+      <path d="M 50.272266 86.232728
+L 327.472266 86.232728
+" clip-path="url(#figure_values-pc992b8b35d)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.2; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_values-line2d_12">
+      <g>
+       <use xlink:href="#figure_values-m979d053f2a" x="50.272266" y="86.232728" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_values-text_7">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.272266" y="91.171205" transform="rotate(-0 43.272266 91.171205)">2</text>
+     </g>
+    </g>
+    <g id="figure_values-text_8">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="27.877969" y="187.517344" transform="rotate(-90 27.877969 187.517344)">Value coordinate 2</text>
+    </g>
+   </g>
+   <g id="figure_values-line2d_13">
+    <path d="M 76.926112 192.848113
+L 290.156881 192.848113
+" clip-path="url(#figure_values-pc992b8b35d)" style="fill: none; stroke-dasharray: 7.4,3.2; stroke-dashoffset: 0; stroke: #315f91; stroke-width: 2"/>
+   </g>
+   <g id="figure_values-line2d_14">
+    <path d="M 183.541496 299.463498
+L 183.541496 86.232728
+" clip-path="url(#figure_values-pc992b8b35d)" style="fill: none; stroke-dasharray: 7.4,3.2; stroke-dashoffset: 0; stroke: #ad6335; stroke-width: 2"/>
+   </g>
+   <g id="figure_values-patch_3">
+    <path d="M 50.272266 326.117344
+L 50.272266 48.917344
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="figure_values-patch_4">
+    <path d="M 50.272266 326.117344
+L 327.472266 326.117344
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="figure_values-PathCollection_1">
+    <defs>
+     <path id="figure_values-C0_0_3110b8fe0d" d="M 0 4.873397
+C 1.29244 4.873397 2.532119 4.359905 3.446012 3.446012
+C 4.359905 2.532119 4.873397 1.29244 4.873397 -0
+C 4.873397 -1.29244 4.359905 -2.532119 3.446012 -3.446012
+C 2.532119 -4.359905 1.29244 -4.873397 0 -4.873397
+C -1.29244 -4.873397 -2.532119 -4.359905 -3.446012 -3.446012
+C -4.359905 -2.532119 -4.873397 -1.29244 -4.873397 0
+C -4.873397 1.29244 -4.359905 2.532119 -3.446012 3.446012
+C -2.532119 4.359905 -1.29244 4.873397 0 4.873397
+z
+"/>
+    </defs>
+    <g clip-path="url(#figure_values-pc992b8b35d)">
+     <use xlink:href="#figure_values-C0_0_3110b8fe0d" x="76.926112" y="192.848113" style="fill: #315f91; stroke: #315f91"/>
+    </g>
+    <g clip-path="url(#figure_values-pc992b8b35d)">
+     <use xlink:href="#figure_values-C0_0_3110b8fe0d" x="183.541496" y="299.463498" style="fill: #ad6335; stroke: #ad6335"/>
+    </g>
+    <g clip-path="url(#figure_values-pc992b8b35d)">
+     <use xlink:href="#figure_values-C0_0_3110b8fe0d" x="183.541496" y="86.232728" style="fill: #ad6335; stroke: #ad6335"/>
+    </g>
+    <g clip-path="url(#figure_values-pc992b8b35d)">
+     <use xlink:href="#figure_values-C0_0_3110b8fe0d" x="290.156881" y="192.848113" style="fill: #315f91; stroke: #315f91"/>
+    </g>
+   </g>
+   <g id="figure_values-text_9">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start" x="86.521496" y="180.054267" transform="rotate(-0 86.521496 180.054267)">T1 [0,1]</text>
+   </g>
+   <g id="figure_values-text_10">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start" x="193.136881" y="290.934267" transform="rotate(-0 193.136881 290.934267)">T2 [1,0]</text>
+   </g>
+   <g id="figure_values-text_11">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start" x="193.136881" y="105.423498" transform="rotate(-0 193.136881 105.423498)">T3 [1,2]</text>
+   </g>
+   <g id="figure_values-text_12">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start" x="231.518419" y="180.054267" transform="rotate(-0 231.518419 180.054267)">T4 [2,1]</text>
+   </g>
+   <g id="figure_values-patch_5">
+    <path d="M 147.121107 247.622092
+Q 164.776682 221.069215 181.813209 195.447349
+" style="fill: none; stroke: #416646; stroke-linecap: round"/>
+    <path d="M 177.15695 198.115542
+L 181.813209 195.447349
+L 181.154009 200.773272
+" style="fill: none; stroke: #416646; stroke-linecap: round"/>
+   </g>
+   <g id="figure_values-text_13">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(85.455343 261.604832)">Shared midpoint</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(85.455343 276.008113)">Output [1,1]</text>
+   </g>
+   <g id="figure_values-text_14">
+    <text style="font-size: 17px; font-family: 'DejaVu Sans'; text-anchor: middle" x="188.872266" y="30.917344" transform="rotate(-0 188.872266 30.917344)">Two mixtures, one point</text>
+   </g>
+   <g id="figure_values-PathCollection_2">
+    <defs>
+     <path id="figure_values-m109b3ae24e" d="M 0 -7.071068
+L -1.587554 -2.18508
+L -6.724985 -2.18508
+L -2.568716 0.834626
+L -4.156269 5.720614
+L -0 2.700907
+L 4.156269 5.720614
+L 2.568716 0.834626
+L 6.724985 -2.18508
+L 1.587554 -2.18508
+z
+" style="stroke: #416646"/>
+    </defs>
+    <g clip-path="url(#figure_values-pc992b8b35d)">
+     <use xlink:href="#figure_values-m109b3ae24e" x="183.541496" y="192.848113" style="fill: #416646; stroke: #416646"/>
+    </g>
+   </g>
+   <g id="figure_values-legend_1">
+    <g id="figure_values-line2d_15">
+     <path d="M 59.272266 62.015781
+L 69.272266 62.015781
+L 79.272266 62.015781
+" style="fill: none; stroke-dasharray: 7.4,3.2; stroke-dashoffset: 0; stroke: #315f91; stroke-width: 2"/>
+    </g>
+    <g id="figure_values-text_15">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start" x="87.272266" y="65.515781" transform="rotate(-0 87.272266 65.515781)">T1 + T4 pair</text>
+    </g>
+    <g id="figure_values-line2d_16">
+     <path d="M 59.272266 77.016562
+L 69.272266 77.016562
+L 79.272266 77.016562
+" style="fill: none; stroke-dasharray: 7.4,3.2; stroke-dashoffset: 0; stroke: #ad6335; stroke-width: 2"/>
+    </g>
+    <g id="figure_values-text_16">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start" x="87.272266" y="80.516562" transform="rotate(-0 87.272266 80.516562)">T2 + T3 pair</text>
+    </g>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="figure_values-pc992b8b35d">
+   <rect x="50.272266" y="48.917344" width="277.2" height="277.2"/>
+  </clipPath>
+ </defs>
+</svg>
+
+
+
+
+<p><em>图 2｜Value 平面里的四个点。两条虚线连接的点对具有同一个中点 <code>[1,1]</code>，对应两套几乎相反的配方。坐标轴和位置标签展示了抵消的几何原因。 <a href="assets/attention-not-explanation/value-geometry.svg">打开完整 SVG</a></em></p>
+<p>Brunner 等的 <strong>On Identifiability in Transformers</strong>（ICLR 2020）将这种非唯一性放到 Transformer Head 的 Value 与输出投影中讨论，并提出 Effective Attention：移除映射到输出零空间的权重成分，作为补充诊断。[5] 本文显式加入归一化约束，避免把任意零空间向量直接称作合法 Softmax 分布。</p>
+<p>Effective Attention 的投影结果可能带负值，也不保证和为 1；它不是可直接替换原始 Softmax 的概率分布。</p>
+<h2 id="section-05">5｜概率合法，不等于同一个 Q/K 模块能够生成它</h2>
+<p>对任意严格正且归一化的 α，可令 <code>logitsᵢ = log αᵢ</code>，于是 <code>Softmax(logits)=α</code>。本例 A、B 都能由有限 Logits 产生，脚本验证这一点。</p>
+<p>但“存在某个 Logit 向量”与“固定输入、固定 Q/K 参数的模型能够输出这组 Logits”是不同条件。对固定 Q、K，分数已经确定，模型不会自由选择零空间方向。</p>
+<p>在一个 Attention 行上强制替换 α，相当于做内部干预：V 和其余计算先保持不变。若该 Head 的 AV 完全不变，其他 Head、残差和后续输入也保持相同时，下游确定性计算自然会相同。但这没有构造另一个原始输入，也没有证明一种新的训练参数能对整个数据集输出替代 Attention。</p>
+<p>若要求同时修改完整 Attention 矩阵，还会受到共享 Q/K、Head 维度、因果 Mask 等约束。本例只替换一个拥有四个有效位置的 Query 行；可以对应 Decode 的某一步，不主张它来自任意固定模型的另一组自然生成轨迹。</p>
+<p>这道区分很实用：一张“对抗热力图”可以证明局部映射不唯一，却不自动成为另一个同等可信的真实模型解释。</p>
+<h2 id="section-06">6｜本地复现：报告距离，也报告向量本身</h2>
+<p>本次在 macOS、Python 3.12.2、NumPy 2.4.6、float64 下运行。除手算例子外，还固定种子 20261109，生成 N=12、d<sub>v</sub>=3 的随机 Value，通过 SVD 找 <code>[V,1]</code> 的零空间方向。为保持严格正概率，只走到可行边界的 95%，没有追求最大差异。</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>实验</th>
+<th style="text-align: right;">Attention L1</th>
+<th style="text-align: right;">TV</th>
+<th style="text-align: right;">JSD（nats）</th>
+<th style="text-align: right;">输出最大绝对差异</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>四位置 A → B</td>
+<td style="text-align: right;">1.920000</td>
+<td style="text-align: right;">0.960000</td>
+<td style="text-align: right;">0.595108</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>随机 Value、SVD 等价分布</td>
+<td style="text-align: right;">0.307622</td>
+<td style="text-align: right;">0.153811</td>
+<td style="text-align: right;">0.038938</td>
+<td style="text-align: right;">5.32×10⁻¹⁷</td>
+</tr>
+<tr>
+<td>随意交换 A 的 T1/T2</td>
+<td style="text-align: right;">0.960000</td>
+<td style="text-align: right;">0.480000</td>
+<td style="text-align: right;">0.297554</td>
+<td style="text-align: right;">0.48</td>
+</tr>
+<tr>
+<td>同一 A/B，改用 V=I₄</td>
+<td style="text-align: right;">1.920000</td>
+<td style="text-align: right;">0.960000</td>
+<td style="text-align: right;">0.595108</td>
+<td style="text-align: right;">0.48</td>
+</tr>
+</tbody>
+</table></div>
+<p>随机例子的 C 秩为 4，自由方向数为 8；输出约 <code>[-0.221384,0.337357,0.287179]</code>。SVD 基向量符号和退化子空间基在不同数值库中可能不同，所以随机 Attention 的具体数值不必逐 Bit 相同；合法性和输出一致性是复现标准。</p>
+<p>这里没有分类标签，因此 Accuracy、Precision、Recall、F1 不适用于这个数学实验。要回答的是概率距离与向量一致性，而不是模型任务正确率。完整 <a href="assets/attention-not-explanation/experiment.py">源代码</a> 与 <a href="assets/attention-not-explanation/results.json">results.json</a> 包含输入、分布、输出、环境与断言。</p>
+<p>安装 NumPy 后，下载脚本运行：</p>
+<pre><code class="language-bash">python3 experiment.py
+</code></pre>
+<p>最小版本只有几行：</p>
+<pre><code class="language-python">import numpy as np
+
+V = np.array([[0., 1.], [1., 0.], [1., 2.], [2., 1.]])
+a = np.array([.49, .01, .01, .49])
+b = np.array([.01, .49, .49, .01])
+print(a @ V, b @ V)                 # [1. 1.] [1. 1.]
+print(np.abs(a - b).sum())          # 1.92
+print(np.max(np.abs((a - b) @ V)))  # 0.0
+</code></pre>
+<h2 id="section-07">7｜三个反例：不是想怎么换就怎么换</h2>
+<p><strong>随意置换会破坏抵消。</strong> 把 A 的 T1、T2 权重交换，得到 <code>[0.01,0.49,0.01,0.49]</code>，输出为 <code>[1.48,0.52]</code>。概率仍合法，但不再满足 δV=0。因此论文某些样本上随机置换影响很小，不能推广成所有 Attention 都可以随便打乱。</p>
+<p><strong>Value 满行秩时，可以唯一恢复权重。</strong> 取 <code>V=I₄</code>，则 <code>αV=α</code>。A 与 B 的输出直接就是两套分布，最大差异 0.48，没有可行非零零空间方向。这说明“权重不唯一”依赖 Value 的结构与维度。</p>
+<p><strong>微小 Value 变化会让原方向失效。</strong> 在手算例子中，把 V₁ 的第一坐标增加 ε，其余不变，沿用原 A/B：</p>
+<div class="formula" role="math">o<sub>A</sub> − o<sub>B</sub> = [0.48ε, 0]</div>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th style="text-align: right;">ε</th>
+<th style="text-align: right;">输出最大绝对差异</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">0.00048</td>
+</tr>
+<tr>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.0048</td>
+</tr>
+<tr>
+<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.048</td>
+</tr>
+</tbody>
+</table></div>
+<p>旧方向不再保持输出。但 N=4、d<sub>v</sub>=2 的条件还在，重新计算新的零空间方向，通常仍能找到局部等价分布。<strong>某一对具体权重失去等价性，与整个映射变得唯一，也不是一回事。</strong></p>
+<p>若使用硬 Mask，有效支持集才是 N；被 Mask 的位置不能自由加权。若权重在边界上已有零值，零空间不保证任意方向都能移动。FP16/BF16 下还需考虑 Softmax、乘加和归约误差；本文 float64 的零差异不是生产模型 Bitwise 不变的保证。</p>
+<h2 id="section-08">8｜为什么“亮的 Token”也未必贡献最大？</h2>
+<p>固定下游线性探针 <code>s = o·w</code>，可以写成：</p>
+<div class="formula" role="math">s = Σᵢ αᵢ(Vᵢ·w)</div>
+<p>关注的是某个输出方向上的贡献，就必须同时看 α 和 <code>Vᵢ·w</code>。例如一个权重只有 0.01 的 Value，如果沿 w 的投影为 100，贡献为 1；另一个权重 0.49，但投影为 0，贡献为 0。这只是局部线性教学例子，不是完整 Transformer 的归因公式。</p>
+<p>若干预的是 Logits z，通过 Softmax 微分，在固定 V 与线性探针下还有：</p>
+<div class="formula" role="math">∂s/∂zᵢ = αᵢ[(Vᵢ·w) − s]</div>
+<p>高权重但 Value 投影接近当前输出时，继续提高该 Logit 的局部影响可以很小。大 Attention 系数与大梯度因此没有必然的一一对应。</p>
+<p>更深一层，Transformer 的 Value 已由前面多层混合上下文，位置 i 的 Vᵢ 不等于“原始 Token i 的纯粹信息”。删除一个 Token，可能同时改变许多位置的 Q/K/V、位置编码和 Mask；不能把这种输入干预当作只将 αᵢ 调小的实验。</p>
+<p>残差路径和其他 Head 还可能带着同一信息绕过本 Head。只看一张 Head 热力图，通常漏掉了这些路径。</p>
+<h2 id="section-09">9｜反驳论文为什么叫 Attention is not not Explanation？</h2>
+<p>Sarah Wiegreffe、Yuval Pinter（Georgia Tech）的 <strong>Attention is not not Explanation</strong>，EMNLP-IJCNLP 2019，arXiv:1908.04626，质疑的不是上述乘法，而是从实验走到总体结论的方法。[3][4]</p>
+<p>核心有两点：Attention 是训练好的模型模块算出来的，不是每个样本上任意独立的自由变量；存在另一套配方，也未必证明原配方不能提供一种有用解释。解释的定义决定应测什么。</p>
+<p>作者提出四种对照：训练时强制 Uniform Attention；用多个随机种子校准分布变化；把学习到的权重作为冻结指导，测试较简单的非上下文模型；端到端训练带距离目标的对抗 Attention 模块，而不是只逐样本改概率。</p>
+<p>其中 Table 2 的正类 F1 显示，Uniform 基线在不同任务上影响不同：IMDb 的重现实验从 0.902 到 0.879；SST 从 0.831 到 0.822；Diabetes 从 0.775 到 0.706。<strong>这些是论文的原表数据，本文没有重新训练这些模型。</strong> Uniform 模型是训练协议的一部分，不等于仅在推理时把某个模型权重换成平均。</p>
+<p>该论文也能找到端到端对抗分布，但相比逐样本搜索，它们不那么极端，且在冻结指导的简单模型诊断上表现不同。它支持的是“需要具体评估 Attention 解释的用途”，没有证明所有热力图都忠实。</p>
+<p>两篇论文共同给出的好习惯是：先写出解释要声称什么，再设计可证伪的实验。我们要验证的是局部计算敏感性、输入证据、跨样本稳定性，还是仅仅展示信息流？这些目标不能互相替代。</p>
+<h2 id="section-10">10｜如果要检查 VLM 的 OCR 热力图，应该怎么做？</h2>
+<p>一个可执行的验证问题是：“在这批 OCR 样本上，亮 Patch 是否比同面积随机 Patch 更影响指定答案 Token 的分数？”这比先问“热力图看起来合理吗”更容易得到有边界的结果。</p>
+<p>固定模型、预处理、分辨率、Prompt、答案 Token 对齐与推理模式。先分别记录各 Head/层的分布，避免把跨层平均当成一个真实 Attention 模块。对于 FlashAttention 这类不保存完整概率矩阵的后端，诊断时可能要显式导出或重算分数；还应确认诊断路径的输出与原路径在容差内一致。</p>
+<p>然后至少做两种有区别的干预：在单个 Attention 行上替换/屏蔽权重并明确是否重新归一化；在输入图像上遮挡或替换 Patch 后重新跑完整模型。前者测内部通路，后者会连带改变 Q/K/V。两者一起看，才能避免把位置颜色直接当成输入因果证据。</p>
+<p>对照应包含同面积随机区域、低 Attention 区域和不同遮挡样式；注意图像遮挡会制造分布外输入。记录输出 Logits/答案概率差异，而不只比较最终字符串：同一个答案可能掩盖概率已经明显改变。真实 OCR 集还应报告字符/词错误率、精确匹配率，或者在明确定义的二元识别任务中列出 TP/FP/TN/FN 与 Precision/Recall/F1。</p>
+<p>若想做本文式局部反例，可以导出固定 V 后寻找可行等价 α′，再注入该行；并明确它是否只是一种数学干预，是否满足原始 Q/K 模块的可达性。若改的是输出投影后的映射 T，还应检查 AV 本身有没有改变。当前文章没有运行此类 VLM 评测，以上是后续验证方案。</p>
+<h2 id="section-11">11｜总结与启发：热力图是线索，解释还需要实验</h2>
+<p>这次四位置实验留下三个可以反复使用的直觉：<strong>权重与 Value 要一起看；输出不唯一并不等于模型自然会生成所有替代权重；局部干预与输入因果效应要分开测。</strong></p>
+<p>热力图可以帮助发现模式、定位值得研究的 Head、比较模型处理同类样本的差异。想进一步说“这块文字导致了回答”，就需要把观察转换成干预、对照与可重复的输出测量。</p>
+<p>最有意思的地方并不是“图会骗人”，而是我们终于能说清楚图展示了什么：一套内部混合系数。只要知道它没有展示哪些向量、哪些旁路、哪些依赖，就能把漂亮的颜色变成可检验的技术问题。</p>
+<h2 id="sources">来源</h2>
+<ol>
+<li>Jain &amp; Wallace，<strong>Attention is not Explanation</strong>，NAACL 2019，Northeastern University。原文 v3（含 §4 反事实实验、§6 讨论）：<a href="https://arxiv.org/html/1902.10186v3">https://arxiv.org/html/1902.10186v3</a>。会议记录 / PDF：<a href="https://aclanthology.org/N19-1357/">https://aclanthology.org/N19-1357/</a>。</li>
+<li>原作者代码：<a href="https://github.com/successar/AttentionExplanation">https://github.com/successar/AttentionExplanation</a>。</li>
+<li>Wiegreffe &amp; Pinter，<strong>Attention is not not Explanation</strong>，EMNLP-IJCNLP 2019，Georgia Tech。原文 v2、§3–4 与 Table 2：<a href="https://arxiv.org/html/1908.04626v2">https://arxiv.org/html/1908.04626v2</a>。会议记录 / PDF：<a href="https://aclanthology.org/D19-1002/">https://aclanthology.org/D19-1002/</a>。</li>
+<li>原作者代码：<a href="https://github.com/sarahwie/attention">https://github.com/sarahwie/attention</a>。</li>
+<li>Brunner, Liu, Pascual, Richter, Ciaramita &amp; Wattenhofer，<strong>On Identifiability in Transformers</strong>，ICLR 2020；ETH Zurich / Google。重点：§3 非唯一性、Effective Attention，§5 上下文混合。原文：<a href="https://arxiv.org/html/1908.04211v3">https://arxiv.org/html/1908.04211v3</a>。</li>
+<li>本文 <a href="assets/attention-not-explanation/experiment.py">NumPy 实验</a>、<a href="assets/attention-not-explanation/results.json">原始结果</a>。图 1/2 为本文四位置构造的原创数据图；未复刻原论文热力图，未执行预训练 LLM/VLM 的精度或归因评测。</li>
+</ol></article></main>
+<footer class="site-footer"><span>© 2026 Howie Yin</span><div class="footer-links"><a href="./">Back to archive ←</a><a href="../">Home ←</a></div></footer>
+</div></body></html>

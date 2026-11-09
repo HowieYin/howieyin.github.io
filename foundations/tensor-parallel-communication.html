@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="dark" name="color-scheme"/><meta content="#0c1016" name="theme-color"/>
+<meta content="从列切分与行切分推导 Transformer 的通信边界：前向与反向、ring 字节账本、GQA/Sequence Parallel 及 Prefill/Decode 工程取舍。" name="description"/>
+<title>Tensor Parallel：为什么每层 Transformer 都要“开两次会”？ — Howie Yin</title>
+<link href="https://howieyin.github.io/foundations/tensor-parallel-communication.html" rel="canonical"/>
+<link href="../assets/favicon.svg" rel="icon" type="image/svg+xml"/>
+<link href="../assets/article-navigation.css" rel="stylesheet"/>
+<script defer="" src="../assets/article-navigation.js"></script>
+<link href="../styles.css?v=3" rel="stylesheet"/><style>
+.report { padding: 48px 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.report h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.6px; line-height: 1.4; margin-bottom: 28px; }
+.report h2 { margin: 52px 0 20px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; }
+.report h3 { font-size: 20px; margin: 28px 0 14px; }
+.report p, .report li { color: var(--secondary); }
+.report strong { color: var(--text); }
+.report a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.report li { margin: 9px 0; }
+.report code { font-family: var(--mono); font-size: .85em; }
+.report pre { overflow-x: auto; padding: 20px; background: #111720; border: 1px solid var(--line); border-radius: 8px; }
+.report img { display: block; max-width: 100%; height: auto; background: white; padding: 16px; border-radius: 6px; margin: 24px auto; width: 680px; }
+.report .table-scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 6px; }
+.report table { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 14px; }
+.report th, .report td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.report th { color: var(--text); background: #111720; }
+.report td { color: var(--secondary); }
+.report .toc { padding: 24px; border: 1px solid var(--line); border-radius: 8px; margin: 32px 0; }
+.report .toc ul { padding-left: 22px; }
+@media(max-width:640px) { .report { font-size: 15px; padding: 32px 0; } .report h2 { font-size: 22px; } .report img { padding: 8px; } }
+
+.formula { padding: 20px; margin: 24px 0; background: #111720; border-left: 3px solid var(--accent); font-family: var(--mono); font-size: 14px; overflow-x: auto; }
+.diagram { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:24px 0; padding:20px; border:1px solid var(--line); border-radius:8px; }
+.diagram div { flex:1 1 160px; padding:14px; background:#111720; border:1px solid var(--line); border-radius:6px; }
+.diagram span:not(.diagram-arrow) { display:block; color:var(--secondary); font-size:13px; margin-top:8px; }
+</style></head>
+<body><a class="skip-link" href="#main">Skip to content</a><div class="page">
+<header class="site-header"><a aria-label="Howie Yin, home" class="wordmark" href="../"><span aria-hidden="true" class="brand-mark"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../weekly/">Weekly</a><a aria-current="page" href="../foundations/">Foundations</a><a href="../lab/">Lab</a><a href="../#about">About</a></nav></header>
+<main class="report" id="main"><p class="eyebrow">FOUNDATIONS / TENSOR PARALLELISM</p><details class="toc" hidden=""><summary>Contents</summary><ul><li><a href="#section-01">1｜先问一个更具体的问题：切开权重后，谁拿到完整答案？</a></li><li><a href="#section-02">2｜这条路线从哪里来：Megatron 的目标与证据</a></li><li><a href="#section-03">3｜Column Parallel：按输出通道切，非线性可以留在本地</a></li><li><a href="#section-04">4｜Row Parallel：每张卡输出完整宽度，但只贡献一部分</a></li><li><a href="#section-05">5｜Attention 也开一次会：Head 内独立，输出投影再汇合</a></li><li><a href="#section-06">6｜训练为什么又有两次：前向和反向互为镜像</a></li><li><a href="#section-07">7｜通信账本：8 KiB 很小，64 次等待却可能很贵</a></li><li><a href="#section-08">8｜Prefill、Decode 和端侧：瓶颈为什么换了位置？</a></li><li><a href="#section-09">9｜哪些改进改变了“两次会”的形式？</a></li><li><a href="#section-10">10｜本地验证：把前向、反向与字节账本都写进脚本</a></li><li><a href="#section-11">11｜总结与启发：先标数据布局，再谈设备数量</a></li><li><a href="#sources">来源</a></li></ul></details><article><h1 id="tensor-parallel-communication">Tensor Parallel：为什么每层 Transformer 都要“开两次会”？</h1>
+<p><strong>核心结论：Tensor Parallel 把一层的权重和计算分给多张卡，但中间结果并非始终可以独立使用。经典 Megatron 方案让第一层线性投影按输出通道切、第二层按输入通道切，把通信留到“局部贡献必须相加”的位置：Attention 输出投影一次、MLP 输出投影一次。容量可以扩大，单请求 Decode 延迟却未必下降。</strong></p>
+<p>类型：基础知识 / AI Infra / 推理工程。发布：2026-11-09。前置：矩阵乘法、Multi-head Attention、基本 GPU 内存概念。本文区分原论文测量、数学推导与本地 CPU 正确性验证；未执行多 GPU 性能测试。</p>
+<p>延伸阅读：此前的 <a href="../papers/gqa/index.html">GQA</a> 讨论“多少个 KV Head 才够”，<a href="../papers/flashattention/index.html">FlashAttention</a> 讨论单设备内部如何少读写显存。这次补上设备之间的链路：一个 Token 穿过 32 层时，为什么会有一串必须等待的通信。</p>
+<h2 id="section-01">1｜先问一个更具体的问题：切开权重后，谁拿到完整答案？</h2>
+<p>假设一台设备放不下整个模型。把权重分给两张卡，很容易让每张卡各存一半；困难在于下一步计算需要什么形状的结果。</p>
+<p>计算 <code>Y = XW</code> 可以沿两种方向切 W。若每张卡负责不同的输出通道，两张卡得到的是 Y 的不同列，<strong>拼起来</strong>才是完整 Y。若每张卡负责不同的输入通道，每张卡已经输出完整宽度，但它们只是 Y 的部分贡献，<strong>加起来</strong>才是完整 Y。</p>
+<p>这两种结果长得很不一样：一个是“不同字段”，一个是“同一个字段的不同加数”。All-gather 解决收集不同字段，All-reduce 解决把同字段的加数归约后发给所有参与者。误把它们当成可以互换的同步函数，是读并行代码时很常见的错误。</p>
+<p>经典方案的巧妙之处是：<strong>第一步产生的分片，恰好是第二步需要的分片。</strong> 不必在两次 GEMM 之间先恢复完整中间向量。[1][2]</p>
+<h2 id="section-02">2｜这条路线从哪里来：Megatron 的目标与证据</h2>
+<p>原论文是 <strong>Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism</strong>，Mohammad Shoeybi、Mostofa Patwary、Raul Puri 等，NVIDIA；arXiv:1909.08053，首版 2019-09，本文读取 v4（2020-03）。NVIDIA 在 2019-08 的官方介绍已展示同一并行思路。代码为 <a href="https://github.com/NVIDIA/Megatron-LM">NVIDIA/Megatron-LM</a>。[1][2][3]</p>
+<p>此前 Data Parallel 通常让各设备拥有完整模型、各处理不同训练样本；能增加吞吐，却不能直接解决“单份模型连优化器状态都放不下”。Pipeline Parallel 可以把不同层放到不同设备，但需要处理流水调度和空泡。Mesh-TensorFlow 已探索通用分布式张量计算。Megatron 选择利用 Transformer 的结构，在既有 PyTorch 实现中插入少量通信操作，让层内并行可与数据并行、流水并行组合。</p>
+<p>原论文报告：8.3B 模型、512 张 V100、8 路模型并行 × 64 路数据并行，整体训练达到 15.1 PFLOP/s，相对其单卡基线的扩展效率最高约 76%。这是一组<strong>训练、模型大小扩展与多种并行组合下的历史结果</strong>。不能把它翻译成“同一个模型用 8 张卡，单 Token 就会快 8×”，也不能据此预测今天 PCIe 机器上的 TP 延迟。</p>
+<p>更值得长期记住的是切分规律。当前 Megatron Core 官方 API 仍保留 <code>ColumnParallelLinear</code>、<code>RowParallelLinear</code>，说明这条结构化切分路线继续存在；具体通信可以受 Sequence Parallel、后端融合和配置影响。[4]</p>
+<h2 id="section-03">3｜Column Parallel：按输出通道切，非线性可以留在本地</h2>
+<p>为避免“行列”与框架存储混淆，全文使用右乘记法：</p>
+<div class="formula" role="math">X ∈ ℝ<sup>T×H</sup>；W₁ ∈ ℝ<sup>H×F</sup>；W₂ ∈ ℝ<sup>F×H</sup><br/>MLP(X) = φ(XW₁ + b₁)W₂ + b₂</div>
+<p>T 是本次参与计算的 Token 行数，例如 Prefill 的若干输入 Token，或 Decode 中多个活跃请求各自的新 Token；H 是 Hidden Size；F 是中间维度；p 是 TP 设备数。这里先假定 F 能被 p 整除。</p>
+<p>把 W₁ 的列切为 <code>W₁ = [W₁⁽¹⁾ … W₁⁽ᵖ⁾]</code>。每张卡都有完整 X，却只有 <code>H×(F/p)</code> 的权重：</p>
+<div class="formula" role="math">Z⁽ʳ⁾ = φ(XW₁⁽ʳ⁾ + b₁⁽ʳ⁾) ∈ ℝ<sup>T×(F/p)</sup></div>
+<p>GELU、ReLU、SiLU 都是逐元素函数，所以某个通道的非线性不需要其他设备的通道。这是第一层选列切分的重要原因。若先沿输入维度切 W₁，再分别对局部乘积做 GELU，一般会得到 <code>φ(a)+φ(b) ≠ φ(a+b)</code>：需要先求和，才能过非线性。</p>
+<p><strong>列切分得到的分片并不自动需要 All-gather。</strong> 官方 <code>gather_output=False</code> 可以让下游直接消费局部输出；若每层线性算完都无条件 gather，就会破坏这套设计的通信优势。[4]</p>
+<p>PyTorch 通常存储线性权重为 <code>[out_features, in_features]</code>，与本文 W 的方向转置。因此论文中的“列切 W”可能对应 checkpoint 张量的第 0 轴切分。读实现时先确认乘法约定，再看轴号。</p>
+<h2 id="section-04">4｜Row Parallel：每张卡输出完整宽度，但只贡献一部分</h2>
+<p>把 W₂ 沿输入维度分成 p 段，各段形状 <code>(F/p)×H</code>，恰好与 Z 的分片对应：</p>
+<div class="formula" role="math">U⁽ʳ⁾ = Z⁽ʳ⁾W₂⁽ʳ⁾ ∈ ℝ<sup>T×H</sup><br/>Y = Σᵣ U⁽ʳ⁾ + b₂</div>
+<p>这次每张卡输出 T×H，但 U 不是完整答案。各卡只算了 F/p 个中间通道的贡献，必须对这些贡献求和。经典布局用一次 All-reduce，让每张卡都拿到同一个完整 Y，继续做残差与下一层。</p>
+<p>一个两卡、单 Token 的手算例子：设中间激活 <code>Z=[1,2,3,4]</code>，W₂ 的四行是 <code>[1,0]、[0,1]、[1,1]、[2,−1]</code>。GPU 0 的局部输出是 <code>[1,2]</code>，GPU 1 是 <code>[11,−1]</code>；完整结果为 <code>[12,1]</code>。把两个局部结果拼成四维向量，显然不能接回原来的二维残差。</p>
+<p>输出 Bias b₂ 应在求和后加一次。若每张卡先加完整 Bias 再求和，会把 Bias 加 p 次。这也解释了官方 Row Parallel API 为什么将 Bias 保持为非分片状态，并允许调用方延后融合。[4]</p>
+<svg role="img" aria-label="Figure 1: two-rank MLP layout, local projections and final sum" style="display:block;width:680px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:24px auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="538.2pt" height="344.877188pt" viewBox="0 0 538.2 344.877188" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_tp_flow-figure_1">
+  <g id="figure_tp_flow-patch_1">
+   <path d="M 0 344.877188
+L 538.2 344.877188
+L 538.2 -0
+L 0 -0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="figure_tp_flow-axes_1">
+   <g id="figure_tp_flow-text_1">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="20.79" y="94.029187" transform="rotate(-0 20.79 94.029187)">GPU 0</text>
+   </g>
+   <g id="figure_tp_flow-text_2">
+    <g id="figure_tp_flow-patch_2">
+     <path d="M 51.201562 150.468
+L 85.238438 150.468
+Q 91.238438 150.468 91.238438 144.468
+L 91.238438 115.662375
+Q 91.238438 109.662375 85.238438 109.662375
+L 51.201562 109.662375
+Q 45.201562 109.662375 45.201562 115.662375
+L 45.201562 144.468
+Q 45.201562 150.468 51.201562 150.468
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(51.944063 125.981672)">Full X</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(51.201562 140.384016)">T × H</text>
+   </g>
+   <g id="figure_tp_flow-text_3">
+    <g id="figure_tp_flow-patch_3">
+     <path d="M 169.23375 150.468
+L 235.04625 150.468
+Q 241.04625 150.468 241.04625 144.468
+L 241.04625 115.662375
+Q 241.04625 109.662375 235.04625 109.662375
+L 169.23375 109.662375
+Q 163.23375 109.662375 163.23375 115.662375
+L 163.23375 144.468
+Q 163.23375 150.468 169.23375 150.468
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(169.23375 125.981672)">φ(X W1[0])</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(180.344063 140.384016)">T × F/2</text>
+   </g>
+   <g id="figure_tp_flow-text_4">
+    <g id="figure_tp_flow-patch_4">
+     <path d="M 308.874375 150.468
+L 374.405625 150.468
+Q 380.405625 150.468 380.405625 144.468
+L 380.405625 115.662375
+Q 380.405625 109.662375 374.405625 109.662375
+L 308.874375 109.662375
+Q 302.874375 109.662375 302.874375 115.662375
+L 302.874375 144.468
+Q 302.874375 150.468 308.874375 150.468
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(308.874375 125.981672)">Z[0] W2[0]</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(324.621563 140.384016)">T × H</text>
+   </g>
+   <g id="figure_tp_flow-patch_5">
+    <path d="M 114.860034 130.065188
+Q 133.785362 130.065188 151.592657 130.065188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 146.392657 127.465188
+L 151.592657 130.065188
+L 146.392657 132.665188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="figure_tp_flow-patch_6">
+    <path d="M 254.35782 130.065188
+Q 271.886801 130.065188 288.297749 130.065188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 283.097749 127.465188
+L 288.297749 130.065188
+L 283.097749 132.665188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="figure_tp_flow-patch_7">
+    <path d="M 393.231671 131.518863
+Q 412.785243 152.241445 431.571516 172.150855
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 429.89383 166.584404
+L 431.571516 172.150855
+L 426.111744 170.153134
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="figure_tp_flow-text_5">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="20.79" y="182.733188" transform="rotate(-0 20.79 182.733188)">GPU 1</text>
+   </g>
+   <g id="figure_tp_flow-text_6">
+    <g id="figure_tp_flow-patch_8">
+     <path d="M 51.201562 239.172
+L 85.238438 239.172
+Q 91.238438 239.172 91.238438 233.172
+L 91.238438 204.366375
+Q 91.238438 198.366375 85.238438 198.366375
+L 51.201562 198.366375
+Q 45.201562 198.366375 45.201562 204.366375
+L 45.201562 233.172
+Q 45.201562 239.172 51.201562 239.172
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(51.944063 214.685672)">Full X</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(51.201562 229.088016)">T × H</text>
+   </g>
+   <g id="figure_tp_flow-text_7">
+    <g id="figure_tp_flow-patch_9">
+     <path d="M 169.23375 239.172
+L 235.04625 239.172
+Q 241.04625 239.172 241.04625 233.172
+L 241.04625 204.366375
+Q 241.04625 198.366375 235.04625 198.366375
+L 169.23375 198.366375
+Q 163.23375 198.366375 163.23375 204.366375
+L 163.23375 233.172
+Q 163.23375 239.172 169.23375 239.172
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(169.23375 214.685672)">φ(X W1[1])</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(180.344063 229.088016)">T × F/2</text>
+   </g>
+   <g id="figure_tp_flow-text_8">
+    <g id="figure_tp_flow-patch_10">
+     <path d="M 308.874375 239.172
+L 374.405625 239.172
+Q 380.405625 239.172 380.405625 233.172
+L 380.405625 204.366375
+Q 380.405625 198.366375 374.405625 198.366375
+L 308.874375 198.366375
+Q 302.874375 198.366375 302.874375 204.366375
+L 302.874375 233.172
+Q 302.874375 239.172 308.874375 239.172
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(308.874375 214.685672)">Z[1] W2[1]</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(324.621563 229.088016)">T × H</text>
+   </g>
+   <g id="figure_tp_flow-patch_11">
+    <path d="M 114.860034 218.769188
+Q 133.785362 218.769188 151.592657 218.769188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 146.392657 216.169188
+L 151.592657 218.769188
+L 146.392657 221.369188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="figure_tp_flow-patch_12">
+    <path d="M 254.35782 218.769188
+Q 271.886801 218.769188 288.297749 218.769188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 283.097749 216.169188
+L 288.297749 218.769188
+L 283.097749 221.369188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="figure_tp_flow-patch_13">
+    <path d="M 393.231671 217.315512
+Q 412.785243 196.59293 431.571516 176.68352
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 426.111744 178.681241
+L 431.571516 176.68352
+L 429.89383 182.249971
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="figure_tp_flow-text_9">
+    <g id="figure_tp_flow-patch_14">
+     <path d="M 447.250156 204.322012
+L 481.549844 204.322012
+Q 488.049844 204.322012 488.049844 197.822012
+L 488.049844 151.012363
+Q 488.049844 144.512363 481.549844 144.512363
+L 447.250156 144.512363
+Q 440.750156 144.512363 440.750156 151.012363
+L 440.750156 197.822012
+Q 440.750156 204.322012 447.250156 204.322012
+z
+" style="fill: #dfebdf; stroke: #639063; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 13px; font-family: 'DejaVu Sans'" transform="translate(449.908047 162.190586)">SUM</text>
+    <text style="font-size: 13px; font-family: 'DejaVu Sans'" transform="translate(448.625313 177.794141)">+ b2</text>
+    <text style="font-size: 13px; font-family: 'DejaVu Sans'" transform="translate(447.250156 193.397695)">Full Y</text>
+   </g>
+   <g id="figure_tp_flow-text_10">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle" x="269.1" y="293.613188" transform="rotate(-0 269.1 293.613188)">No gather between projections • Bias added once after reduction</text>
+   </g>
+   <g id="figure_tp_flow-text_11">
+    <text style="font-size: 18px; font-family: 'DejaVu Sans'; text-anchor: middle" x="269.1" y="31.677188" transform="rotate(-0 269.1 31.677188)">Column → local activation → row → sum</text>
+   </g>
+  </g>
+ </g>
+</svg>
+
+
+
+
+<p><em>图 1｜两卡 MLP 的数据流，教学示意。完整输入被复制；中间通道分片一直留在本地；两张卡的完整宽度部分和最终归约。对应图上的 Partial U 才是必须求和的位置。 <a href="assets/tensor-parallel-communication/mlp-flow.svg">打开完整 SVG</a></em></p>
+<p>SwiGLU 仍可使用类似组合：</p>
+<div class="formula" role="math">Z = SiLU(XW<sub>gate</sub>) ⊙ (XW<sub>up</sub>)；Y = ZW<sub>down</sub></div>
+<p>关键条件是 gate 与 up 必须切到<strong>同一组中间通道</strong>，让逐元素乘法在本地完成。若两路分片索引不同，需要先对齐布局，不能只看每个张量的尺寸相同就认为正确。</p>
+<h2 id="section-05">5｜Attention 也开一次会：Head 内独立，输出投影再汇合</h2>
+<p>在标准 MHA 中，不同 Head 使用不同 Q/K/V 投影。把完整 Head 分给设备后，每张卡能够独立算本地 Head 的分数、Softmax 和加权 Value。经典 Head Parallel 布局下，<strong>每个本地 Head 仍能访问其全部有效 KV 位置</strong>；没有把上下文长度也切开。[1]</p>
+<p>以 8 个 Head、TP=2 为例，每卡负责 4 个 Head。每卡产生 <code>T×(H/2)</code> 的 Head 输出，W<sub>O</sub> 沿对应输入通道切开，得到 <code>T×H</code> 的部分和，再归约：</p>
+<div class="formula" role="math">O = Concat(O₁,…,Oₕ)W<sub>O</sub> = Σᵣ O⁽ʳ⁾W<sub>O</sub>⁽ʳ⁾</div>
+<p>所以一个标准 Transformer Block 中，Attention 的 W<sub>O</sub> 后一次、MLP 的 W₂/W<sub>down</sub> 后一次，前向共两次 All-reduce。QKV 投影内部没有额外必需的跨卡归约，是因为 Head 的计算边界正好落在分片边界上。</p>
+<p>GQA/MQA 让事情更有趣：多个 Query Head 共用一个 KV Head，Q 与 KV 的切分粒度不再一致。若 TP 超过 KV Head 数，不能期待 KV Cache 永远再除以 p；后端可能复制部分 KV Head、采用另一种布局，或限制配置。比如 8 个 Q Head、2 个 KV Head、TP=4，一种做法是每卡拥有 2 个 Q Head，但对应 KV 在两卡间重复。是否这样实现必须核查具体后端。</p>
+<p>RoPE 通常可在本地 Head 内完成，但配对的旋转通道要同时可用。若进一步切到 Head 内部，之前“无需通信”的前提就需要重新推导。长上下文的 Context Parallel 也属于另一维度的切分，不能套用“本地 Head 已有全部 KV”。</p>
+<h2 id="section-06">6｜训练为什么又有两次：前向和反向互为镜像</h2>
+<p>原论文用 f、g 两类操作描述通信：f 前向为恒等、反向为 All-reduce；g 前向为 All-reduce、反向为恒等。一个 MLP 和一个 Attention 块各一对，所以经典 Block 前向两次、反向两次，共四次 TP 归约。[1][2]</p>
+<p>直观地看，列切分的第一层前向，各卡都读同一个 X；反向时各分片各自计算 X 的一部分梯度贡献：</p>
+<div class="formula" role="math">dX = Σᵣ dA⁽ʳ⁾(W₁⁽ʳ⁾)ᵀ</div>
+<p>每个上游 X 元素参与了所有输出通道，梯度必须相加。第二层输出求和的反向，则把同一个 dY 交给各局部乘积即可。</p>
+<p>这里说的四次不包含 Data Parallel 的权重梯度归约、Embedding/词表头、Norm 参数梯度同步、激活重计算或其他布局通信。训练内存也不仅是权重：可切分的大矩阵、梯度和优化器状态大体随 TP 分摊，但复制的激活、残差、通信缓冲和未分片参数仍占空间。</p>
+<p>归约次序会改变低精度舍入顺序，数学等价不保证 FP16/BF16 逐 Bit 一致。故比较 TP 配置时，应先检查正确性与 Logits 漂移，再比较性能。随机数、Dropout 和初始化的跨分片一致性也是训练实现必须处理的问题。</p>
+<h2 id="section-07">7｜通信账本：8 KiB 很小，64 次等待却可能很贵</h2>
+<p>一次典型前向归约的逻辑输入大小为：</p>
+<div class="formula" role="math">M = T · H · s Bytes</div>
+<p>s 是归约元素的字节数；假设传输 FP16/BF16 则为 2。权重量化到 INT4，不代表归约也传 INT4。M 是完整激活的大小，不是每卡权重大小，更不是总 KV Cache。</p>
+<p>在理想 ring 的 Reduce-scatter + All-gather 中，每个 Rank 发送：</p>
+<div class="formula" role="math">Bytes<sub>send, AR</sub> = 2(p−1)M/p<br/>Time<sub>AR</sub> ≈ 2(p−1)α + 2(p−1)M/(pβ)</div>
+<p>α 是每步通信的有效启动延迟；β 是有效链路带宽，单位 Bytes/s。此模型忽略协议、归约算力、链路竞争与复杂拓扑。小消息可能用 Tree 或专用算法，实际框架也可能融合通信；ring 是帮助理解成本的模型，不能当硬件预测器。</p>
+<p>下面固定 H=4096、s=2、32 层。<strong>每 Rank 只计发送字节，不把接收再加一次，也不乘设备数；每层前向两次归约。</strong> KiB/MiB/GiB 都按 1024 进制。</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Token 行数 T</th>
+<th style="text-align: right;">一次归约逻辑输入 M</th>
+<th style="text-align: right;">TP=2：32 层发送</th>
+<th style="text-align: right;">TP=4：32 层发送</th>
+<th style="text-align: right;">TP=8：32 层发送</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td style="text-align: right;">8 KiB</td>
+<td style="text-align: right;">512 KiB</td>
+<td style="text-align: right;">768 KiB</td>
+<td style="text-align: right;">896 KiB</td>
+</tr>
+<tr>
+<td>32</td>
+<td style="text-align: right;">256 KiB</td>
+<td style="text-align: right;">16 MiB</td>
+<td style="text-align: right;">24 MiB</td>
+<td style="text-align: right;">28 MiB</td>
+</tr>
+<tr>
+<td>4096</td>
+<td style="text-align: right;">32 MiB</td>
+<td style="text-align: right;">2 GiB</td>
+<td style="text-align: right;">3 GiB</td>
+<td style="text-align: right;">3.5 GiB</td>
+</tr>
+</tbody>
+</table></div>
+<p>这些是脚本计算的<strong>解析字节数</strong>，不是 NIC/NVLink 计数器实测。TP=8、T=1 时，32 层逻辑上仍串过 64 次归约；在上述 ring 模型里，每次 14 个步骤，仅启动项的累计就是 <code>896α</code>。这是符号推导，没有给 α 硬套一个毫秒数。</p>
+<svg role="img" aria-label="Figure 2: analytical ring bytes sent per rank for 32 forward layers" style="display:block;width:680px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:24px auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="539.486016pt" height="379.598672pt" viewBox="0 0 539.486016 379.598672" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_tp_bytes-figure_1">
+  <g id="figure_tp_bytes-patch_1">
+   <path d="M 0 379.598672
+L 539.486016 379.598672
+L 539.486016 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="figure_tp_bytes-axes_1">
+   <g id="figure_tp_bytes-patch_2">
+    <path d="M 75.086016 324.597656
+L 521.486016 324.597656
+L 521.486016 47.397656
+L 75.086016 47.397656
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="figure_tp_bytes-matplotlib.axis_1">
+    <g id="figure_tp_bytes-xtick_1">
+     <g id="figure_tp_bytes-line2d_1">
+      <defs>
+       <path id="figure_tp_bytes-ma0b8dc8bc5" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#figure_tp_bytes-ma0b8dc8bc5" x="95.376925" y="324.597656" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_tp_bytes-text_1">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="95.376925" y="341.474609" transform="rotate(-0 95.376925 341.474609)">2</text>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-xtick_2">
+     <g id="figure_tp_bytes-line2d_2">
+      <g>
+       <use xlink:href="#figure_tp_bytes-ma0b8dc8bc5" x="230.649652" y="324.597656" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_tp_bytes-text_2">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="230.649652" y="341.474609" transform="rotate(-0 230.649652 341.474609)">4</text>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-xtick_3">
+     <g id="figure_tp_bytes-line2d_3">
+      <g>
+       <use xlink:href="#figure_tp_bytes-ma0b8dc8bc5" x="501.195107" y="324.597656" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_tp_bytes-text_3">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="501.195107" y="341.474609" transform="rotate(-0 501.195107 341.474609)">8</text>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-text_4">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="298.286016" y="358.475625" transform="rotate(-0 298.286016 358.475625)">Tensor parallel degree p</text>
+    </g>
+   </g>
+   <g id="figure_tp_bytes-matplotlib.axis_2">
+    <g id="figure_tp_bytes-ytick_1">
+     <g id="figure_tp_bytes-line2d_4">
+      <path d="M 75.086016 311.997656
+L 521.486016 311.997656
+" clip-path="url(#figure_tp_bytes-p632db6c3eb)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.25; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_tp_bytes-line2d_5">
+      <defs>
+       <path id="figure_tp_bytes-m979d053f2a" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#figure_tp_bytes-m979d053f2a" x="75.086016" y="311.997656" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_tp_bytes-text_5">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="68.086016" y="316.936133" transform="rotate(-0 68.086016 316.936133)">0.5</text>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_2">
+     <g id="figure_tp_bytes-line2d_6">
+      <path d="M 75.086016 292.321462
+L 521.486016 292.321462
+" clip-path="url(#figure_tp_bytes-p632db6c3eb)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.25; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_tp_bytes-line2d_7">
+      <g>
+       <use xlink:href="#figure_tp_bytes-m979d053f2a" x="75.086016" y="292.321462" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_tp_bytes-text_6">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="68.086016" y="297.259939" transform="rotate(-0 68.086016 297.259939)">1</text>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_3">
+     <g id="figure_tp_bytes-line2d_8">
+      <path d="M 75.086016 213.616686
+L 521.486016 213.616686
+" clip-path="url(#figure_tp_bytes-p632db6c3eb)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.25; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_tp_bytes-line2d_9">
+      <g>
+       <use xlink:href="#figure_tp_bytes-m979d053f2a" x="75.086016" y="213.616686" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_tp_bytes-text_7">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="68.086016" y="218.555163" transform="rotate(-0 68.086016 218.555163)">16</text>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_4">
+     <g id="figure_tp_bytes-line2d_10">
+      <path d="M 75.086016 193.940492
+L 521.486016 193.940492
+" clip-path="url(#figure_tp_bytes-p632db6c3eb)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.25; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_tp_bytes-line2d_11">
+      <g>
+       <use xlink:href="#figure_tp_bytes-m979d053f2a" x="75.086016" y="193.940492" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_tp_bytes-text_8">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="68.086016" y="198.878969" transform="rotate(-0 68.086016 198.878969)">32</text>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_5">
+     <g id="figure_tp_bytes-line2d_12">
+      <path d="M 75.086016 75.883328
+L 521.486016 75.883328
+" clip-path="url(#figure_tp_bytes-p632db6c3eb)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.25; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_tp_bytes-line2d_13">
+      <g>
+       <use xlink:href="#figure_tp_bytes-m979d053f2a" x="75.086016" y="75.883328" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_tp_bytes-text_9">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="68.086016" y="80.821805" transform="rotate(-0 68.086016 80.821805)">2048</text>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_6">
+     <g id="figure_tp_bytes-line2d_14">
+      <path d="M 75.086016 56.207134
+L 521.486016 56.207134
+" clip-path="url(#figure_tp_bytes-p632db6c3eb)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.25; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="figure_tp_bytes-line2d_15">
+      <g>
+       <use xlink:href="#figure_tp_bytes-m979d053f2a" x="75.086016" y="56.207134" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="figure_tp_bytes-text_10">
+      <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: end" x="68.086016" y="61.145611" transform="rotate(-0 68.086016 61.145611)">4096</text>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_7">
+     <g id="figure_tp_bytes-line2d_16">
+      <defs>
+       <path id="figure_tp_bytes-mf87e0d41a2" d="M 0 0
+L -2 0
+" style="stroke: #000000; stroke-width: 0.6"/>
+      </defs>
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="318.331976" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_8">
+     <g id="figure_tp_bytes-line2d_17">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="306.82214" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_9">
+     <g id="figure_tp_bytes-line2d_18">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="302.446304" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_10">
+     <g id="figure_tp_bytes-line2d_19">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="298.655782" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_11">
+     <g id="figure_tp_bytes-line2d_20">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="295.312305" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_12">
+     <g id="figure_tp_bytes-line2d_21">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="272.645268" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_13">
+     <g id="figure_tp_bytes-line2d_22">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="261.135433" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_14">
+     <g id="figure_tp_bytes-line2d_23">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="252.969074" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_15">
+     <g id="figure_tp_bytes-line2d_24">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="246.634755" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_16">
+     <g id="figure_tp_bytes-line2d_25">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="241.459239" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_17">
+     <g id="figure_tp_bytes-line2d_26">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="237.083402" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_18">
+     <g id="figure_tp_bytes-line2d_27">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="233.29288" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_19">
+     <g id="figure_tp_bytes-line2d_28">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="229.949403" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_20">
+     <g id="figure_tp_bytes-line2d_29">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="207.282367" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_21">
+     <g id="figure_tp_bytes-line2d_30">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="195.772531" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_22">
+     <g id="figure_tp_bytes-line2d_31">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="187.606173" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_23">
+     <g id="figure_tp_bytes-line2d_32">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="181.271853" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_24">
+     <g id="figure_tp_bytes-line2d_33">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="176.096337" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_25">
+     <g id="figure_tp_bytes-line2d_34">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="171.720501" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_26">
+     <g id="figure_tp_bytes-line2d_35">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="167.929979" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_27">
+     <g id="figure_tp_bytes-line2d_36">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="164.586501" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_28">
+     <g id="figure_tp_bytes-line2d_37">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="141.919465" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_29">
+     <g id="figure_tp_bytes-line2d_38">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="130.409629" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_30">
+     <g id="figure_tp_bytes-line2d_39">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="122.243271" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_31">
+     <g id="figure_tp_bytes-line2d_40">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="115.908951" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_32">
+     <g id="figure_tp_bytes-line2d_41">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="110.733435" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_33">
+     <g id="figure_tp_bytes-line2d_42">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="106.357599" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_34">
+     <g id="figure_tp_bytes-line2d_43">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="102.567077" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_35">
+     <g id="figure_tp_bytes-line2d_44">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="99.2236" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_36">
+     <g id="figure_tp_bytes-line2d_45">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="76.556563" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_37">
+     <g id="figure_tp_bytes-line2d_46">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="65.046728" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_38">
+     <g id="figure_tp_bytes-line2d_47">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="56.880369" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-ytick_39">
+     <g id="figure_tp_bytes-line2d_48">
+      <g>
+       <use xlink:href="#figure_tp_bytes-mf87e0d41a2" x="75.086016" y="50.54605" style="stroke: #000000; stroke-width: 0.6"/>
+      </g>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-text_11">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle" x="27.877969" y="185.997656" transform="rotate(-90 27.877969 185.997656)">Sent per rank / 32 layers (MiB)</text>
+    </g>
+   </g>
+   <g id="figure_tp_bytes-line2d_49">
+    <path d="M 95.376925 311.997656
+L 230.649652 300.487821
+L 501.195107 296.111984
+" clip-path="url(#figure_tp_bytes-p632db6c3eb)" style="fill: none; stroke: #315f91; stroke-width: 2; stroke-linecap: square"/>
+    <defs>
+     <path id="figure_tp_bytes-mc73875dfc6" d="M 0 3
+C 0.795609 3 1.55874 2.683901 2.12132 2.12132
+C 2.683901 1.55874 3 0.795609 3 0
+C 3 -0.795609 2.683901 -1.55874 2.12132 -2.12132
+C 1.55874 -2.683901 0.795609 -3 0 -3
+C -0.795609 -3 -1.55874 -2.683901 -2.12132 -2.12132
+C -2.683901 -1.55874 -3 -0.795609 -3 0
+C -3 0.795609 -2.683901 1.55874 -2.12132 2.12132
+C -1.55874 2.683901 -0.795609 3 0 3
+z
+" style="stroke: #315f91"/>
+    </defs>
+    <g clip-path="url(#figure_tp_bytes-p632db6c3eb)">
+     <use xlink:href="#figure_tp_bytes-mc73875dfc6" x="95.376925" y="311.997656" style="fill: #315f91; stroke: #315f91"/>
+     <use xlink:href="#figure_tp_bytes-mc73875dfc6" x="230.649652" y="300.487821" style="fill: #315f91; stroke: #315f91"/>
+     <use xlink:href="#figure_tp_bytes-mc73875dfc6" x="501.195107" y="296.111984" style="fill: #315f91; stroke: #315f91"/>
+    </g>
+   </g>
+   <g id="figure_tp_bytes-line2d_50">
+    <path d="M 95.376925 213.616686
+L 230.649652 202.106851
+L 501.195107 197.731014
+" clip-path="url(#figure_tp_bytes-p632db6c3eb)" style="fill: none; stroke: #ad6335; stroke-width: 2; stroke-linecap: square"/>
+    <defs>
+     <path id="figure_tp_bytes-m41e14eab67" d="M -3 3
+L 3 3
+L 3 -3
+L -3 -3
+z
+" style="stroke: #ad6335; stroke-linejoin: miter"/>
+    </defs>
+    <g clip-path="url(#figure_tp_bytes-p632db6c3eb)">
+     <use xlink:href="#figure_tp_bytes-m41e14eab67" x="95.376925" y="213.616686" style="fill: #ad6335; stroke: #ad6335; stroke-linejoin: miter"/>
+     <use xlink:href="#figure_tp_bytes-m41e14eab67" x="230.649652" y="202.106851" style="fill: #ad6335; stroke: #ad6335; stroke-linejoin: miter"/>
+     <use xlink:href="#figure_tp_bytes-m41e14eab67" x="501.195107" y="197.731014" style="fill: #ad6335; stroke: #ad6335; stroke-linejoin: miter"/>
+    </g>
+   </g>
+   <g id="figure_tp_bytes-line2d_51">
+    <path d="M 95.376925 75.883328
+L 230.649652 64.373493
+L 501.195107 59.997656
+" clip-path="url(#figure_tp_bytes-p632db6c3eb)" style="fill: none; stroke: #557e51; stroke-width: 2; stroke-linecap: square"/>
+    <defs>
+     <path id="figure_tp_bytes-m895de89732" d="M 0 -3
+L -3 3
+L 3 3
+z
+" style="stroke: #557e51; stroke-linejoin: miter"/>
+    </defs>
+    <g clip-path="url(#figure_tp_bytes-p632db6c3eb)">
+     <use xlink:href="#figure_tp_bytes-m895de89732" x="95.376925" y="75.883328" style="fill: #557e51; stroke: #557e51; stroke-linejoin: miter"/>
+     <use xlink:href="#figure_tp_bytes-m895de89732" x="230.649652" y="64.373493" style="fill: #557e51; stroke: #557e51; stroke-linejoin: miter"/>
+     <use xlink:href="#figure_tp_bytes-m895de89732" x="501.195107" y="59.997656" style="fill: #557e51; stroke: #557e51; stroke-linejoin: miter"/>
+    </g>
+   </g>
+   <g id="figure_tp_bytes-patch_3">
+    <path d="M 75.086016 324.597656
+L 75.086016 47.397656
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="figure_tp_bytes-patch_4">
+    <path d="M 75.086016 324.597656
+L 521.486016 324.597656
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="figure_tp_bytes-text_12">
+    <text style="font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: middle" x="298.286016" y="29.397656" transform="rotate(-0 298.286016 29.397656)">Ring send-byte ledger • not a latency benchmark</text>
+   </g>
+   <g id="figure_tp_bytes-legend_1">
+    <g id="figure_tp_bytes-line2d_52">
+     <path d="M 409.072578 165.324102
+L 422.072578 165.324102
+L 435.072578 165.324102
+" style="fill: none; stroke: #315f91; stroke-width: 2; stroke-linecap: square"/>
+     <g>
+      <use xlink:href="#figure_tp_bytes-mc73875dfc6" x="422.072578" y="165.324102" style="fill: #315f91; stroke: #315f91"/>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-text_13">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="445.472578" y="169.874102" transform="rotate(-0 445.472578 169.874102)">T = 1</text>
+    </g>
+    <g id="figure_tp_bytes-line2d_53">
+     <path d="M 409.072578 184.825117
+L 422.072578 184.825117
+L 435.072578 184.825117
+" style="fill: none; stroke: #ad6335; stroke-width: 2; stroke-linecap: square"/>
+     <g>
+      <use xlink:href="#figure_tp_bytes-m41e14eab67" x="422.072578" y="184.825117" style="fill: #ad6335; stroke: #ad6335; stroke-linejoin: miter"/>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-text_14">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="445.472578" y="189.375117" transform="rotate(-0 445.472578 189.375117)">T = 32</text>
+    </g>
+    <g id="figure_tp_bytes-line2d_54">
+     <path d="M 409.072578 204.326133
+L 422.072578 204.326133
+L 435.072578 204.326133
+" style="fill: none; stroke: #557e51; stroke-width: 2; stroke-linecap: square"/>
+     <g>
+      <use xlink:href="#figure_tp_bytes-m895de89732" x="422.072578" y="204.326133" style="fill: #557e51; stroke: #557e51; stroke-linejoin: miter"/>
+     </g>
+    </g>
+    <g id="figure_tp_bytes-text_15">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="445.472578" y="208.876133" transform="rotate(-0 445.472578 208.876133)">T = 4,096</text>
+    </g>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="figure_tp_bytes-p632db6c3eb">
+   <rect x="75.086016" y="47.397656" width="446.4" height="277.2"/>
+  </clipPath>
+ </defs>
+</svg>
+
+
+
+
+<p><em>图 2｜每 Rank、32 层前向的解析发送量。单位为 MiB，纵轴对数刻度；三条曲线分别是 1、32、4096 个 Token 行数。图中“1 个 Token”仍不是零通信。 <a href="assets/tensor-parallel-communication/communication-bytes.svg">打开完整 SVG</a></em></p>
+<h2 id="section-08">8｜Prefill、Decode 和端侧：瓶颈为什么换了位置？</h2>
+<p>Prefill 一次处理更多 Token 行，大 GEMM 常能较好利用设备计算资源，分片权重与计算有机会缩短时间；代价是 T×H 归约也变大。长上下文 Attention 另有随上下文增长的计算与内存读写，不能只用线性层账本代表全层耗时。</p>
+<p>小 Batch Decode 每请求通常只增加一行 Query。GEMM 变小，权重读带宽、Kernel 启动和串行链路更突出；跨卡多次同步可能吃掉权重分摊的收益。增加活跃请求能让 T 增大并摊薄每 Token 的启动成本，但可能增加排队时间，吞吐提高与单请求 TPOT 改善需要分别测量。</p>
+<p>经典 TP 下，一张卡的大矩阵大致缩到 1/p，线性层本地 FLOPs 也大致缩到 1/p，<strong>全系统总算术量没有相应变成原来的 1/p</strong>。标准 Attention 的总问题规模仍有 Prefill 的二次项、Decode 对历史 KV 的扫描项，只是分给了不同 Head。复制的 T×H 残差不会自动减少；GQA 的 KV 分片收益要看 Head 布局。</p>
+<p>如果模型单卡已经放得下，服务吞吐也可能更适合多个 Data Parallel 副本，让各卡处理不同请求。TP 的选择应同时看容量、延迟、Batch 和拓扑，不宜单看 GPU 利用率。</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>环境</th>
+<th>可能收益</th>
+<th>应追踪的成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>高带宽 GPU 互联</td>
+<td>权重容量和大 GEMM 分摊</td>
+<td>Collective 等待、链路竞争、小矩阵效率</td>
+</tr>
+<tr>
+<td>PCIe / 跨节点</td>
+<td>容量扩展</td>
+<td>实际拓扑、Host staging、网络同步与尾延迟</td>
+</tr>
+<tr>
+<td>CPU 多插槽</td>
+<td>内存容量与计算分摊</td>
+<td>NUMA、跨插槽数据移动、线程调度</td>
+</tr>
+<tr>
+<td>端侧 GPU / NPU / HTP 混合</td>
+<td>分开存放或执行子图</td>
+<td>RPC、格式转换、缓冲复制、缓存维护</td>
+</tr>
+</tbody>
+</table></div>
+<p>最后一行尤其不能照搬 NCCL 的代价模型。异构设备算子支持、数值格式与性能常不对称，拆成 TP 可能每层都经过昂贵边界。端侧更值得先验证权重常驻、单设备量化、KV 读取和算子融合，再决定哪种切分真的有收益。</p>
+<h2 id="section-09">9｜哪些改进改变了“两次会”的形式？</h2>
+<p>Sequence Parallel 可以在部分残差、Norm、Dropout 区域沿 Token 维度保存分片，用 Reduce-scatter 代替保留完整输出的归约，再在需要完整 Token 行的列并行 GEMM 前 All-gather。Norm 此时对本地 Token 的完整 H 通道计算，不是随意对 H/p 做 RMSNorm。若 Hidden 维度仍被切开，统计量可能另需通信。[4]</p>
+<p>因此“每层两次 All-reduce”是经典复制残差布局的结论，并非所有配置的操作计数。All-reduce 的数学结果可由 Reduce-scatter 与 All-gather 组合得到，但中间布局、时间点和重叠机会不同；将两个名字替换进去不等于通信消失。</p>
+<p>训练时，输入梯度归约还可以与本地权重梯度 GEMM 重叠。依赖仍然存在，只是等待部分可能被其他计算覆盖。判断优化要看关键路径上暴露的通信，而不是只看调用有没有标为 async。</p>
+<p>Parallel 名称最好与切分对象绑定：</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>方式</th>
+<th>分什么</th>
+<th>主要交换什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TP</td>
+<td>同一层的通道 / Head / 矩阵</td>
+<td>局部贡献、布局分片</td>
+</tr>
+<tr>
+<td>DP</td>
+<td>请求或训练样本</td>
+<td>训练权重梯度；独立推理副本一般无需逐层同步</td>
+</tr>
+<tr>
+<td>PP</td>
+<td>不同层</td>
+<td>流水阶段边界激活</td>
+</tr>
+<tr>
+<td>EP</td>
+<td>不同 Expert</td>
+<td>路由后 Token 的 Dispatch / Combine</td>
+</tr>
+<tr>
+<td>SP / CP</td>
+<td>部分区域的 Token / 更完整的上下文</td>
+<td>依具体方案 gather、scatter 或 KV/Attention 交换</td>
+</tr>
+</tbody>
+</table></div>
+<p>这些方式可以组合。Embedding、Vocabulary Parallel Softmax、MoE 和更复杂 Attention 的通信还要单独记账，不能把整个推理引擎简化成“层数 × 2”。</p>
+<h2 id="section-10">10｜本地验证：把前向、反向与字节账本都写进脚本</h2>
+<p>本次在 macOS、Python 3.12.2、NumPy 2.4.6、float64 下运行，固定随机种子 20261109。MLP 输入 <code>6×8</code>、中间维度 16，用 tanh 保持导数易检查；这是并行代数验证，不是预训练模型实验。</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>检查项</th>
+<th style="text-align: right;">TP</th>
+<th style="text-align: right;">本次最大绝对误差</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MLP 前向</td>
+<td style="text-align: right;">2 / 4</td>
+<td style="text-align: right;">1.78×10⁻¹⁵</td>
+</tr>
+<tr>
+<td>MLP dX</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">1.78×10⁻¹⁵</td>
+</tr>
+<tr>
+<td>MLP dW₁、dW₂</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">各 8.88×10⁻¹⁶</td>
+</tr>
+<tr>
+<td>SwiGLU 本地 gate/up 配对</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">小于 2×10⁻¹⁴</td>
+</tr>
+<tr>
+<td>4 Head 因果 Attention + 分片 W<sub>O</sub></td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">8.88×10⁻¹⁶</td>
+</tr>
+</tbody>
+</table></div>
+<p>脚本还用中心差分检查一个 dX 元素，并为 TP=1/2/4/8、T=1/32/4096 输出全部通信账本。所有代数断言阈值为 10⁻¹²，中心差分阈值为 10⁻⁷。</p>
+<p>下载 <a href="assets/tensor-parallel-communication/experiment.py">完整实验脚本</a> 与 <a href="assets/tensor-parallel-communication/results.json">本次 results.json</a>，安装 NumPy 后运行：</p>
+<pre><code class="language-bash">python3 experiment.py
+</code></pre>
+<p>精简版前向就是：</p>
+<pre><code class="language-python">parts = []
+for rank in range(tp):
+    s = slice(rank * F // tp, (rank + 1) * F // tp)
+    z = activation(x @ w1[:, s] + b1[s])
+    parts.append(z @ w2[s, :])
+y = sum(parts) + b2
+</code></pre>
+<p>它在一个 CPU 进程里模拟分片与求和，没有测 Collective 性能。需要多 GPU 复测时，应在相同模型、精度、上下文、Batch 与采样条件下比较 TP=1/2/4/8，分别记录 TTFT、TPOT、吞吐、峰值显存、两类归约耗时以及暴露等待；模型大小固定，才是回答“这个请求有没有加速”。</p>
+<h2 id="section-11">11｜总结与启发：先标数据布局，再谈设备数量</h2>
+<p>真正有用的直觉是：每个中间张量都标成“完整复制”“不同通道分片”或“完整宽度部分和”。标清这三类，就能读出大多数 TP 通信为什么发生、能否延后，以及下一步在等谁。</p>
+<p>两张卡不是两份独立回答；它们共同完成同一层的一份回答。模型容量与吞吐可以受益，但串行 Decode 需要反复等到贡献汇合。对性能排查而言，最值得追的是 <strong>W<sub>O</sub> → 归约 → 残差/Norm → 下一次投影</strong>，以及 <strong>W<sub>down</sub> → 归约 → 下一层</strong> 这两段依赖链。</p>
+<p>下一步可以继续沿知识树研究：Context Parallel 如何交换 KV、MoE 如何把通信移到 Token 路由、Sequence Parallel 如何减少复制激活。这些是在新的张量维度上重新安排计算与通信，而不是再把设备数量乘一次。</p>
+<h2 id="sources">来源</h2>
+<ol>
+<li>Shoeybi et al., <strong>Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism</strong>, arXiv:1909.08053，2019 / v4 2020。重点：§3、§5、附录 B。原文：<a href="https://arxiv.org/html/1909.08053v4">https://arxiv.org/html/1909.08053v4</a>。</li>
+<li>NVIDIA ADLR，<strong>MegatronLM: Training Billion+ Parameter Language Models Using GPU Model Parallelism</strong>，2019-08-13。MLP / Attention 切分及 f、g 操作：<a href="https://research.nvidia.com/labs/adlr/MegatronLM/">https://research.nvidia.com/labs/adlr/MegatronLM/</a>。</li>
+<li>官方代码：<a href="https://github.com/NVIDIA/Megatron-LM">https://github.com/NVIDIA/Megatron-LM</a>。</li>
+<li>NVIDIA <strong>Megatron Core Tensor Parallel API</strong>。Column/Row Parallel、Sequence Parallel、异步梯度归约与 mappings：<a href="https://docs.nvidia.com/megatron-core/developer-guide/latest/api-guide/tensor_parallel.html">https://docs.nvidia.com/megatron-core/developer-guide/latest/api-guide/tensor_parallel.html</a>。动态文档，查阅于 2026-11-09。</li>
+<li>本文 <a href="assets/tensor-parallel-communication/experiment.py">可复现源代码</a>、<a href="assets/tensor-parallel-communication/results.json">原始结果</a>。图 1 为原创布局示意，图 2 为解析字节绘图；ring 时间公式为教学性能模型，未作为硬件实测。</li>
+</ol></article></main>
+<footer class="site-footer"><span>© 2026 Howie Yin</span><div class="footer-links"><a href="./">Back to archive ←</a><a href="../">Home ←</a></div></footer>
+</div></body></html>

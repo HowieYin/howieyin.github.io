@@ -1,0 +1,175 @@
+{
+  "environment": {
+    "python": "3.12.2",
+    "numpy": "2.4.6",
+    "platform": "Darwin",
+    "dtype": "float64"
+  },
+  "seed": 20261109,
+  "mlp_shape": {
+    "tokens": 6,
+    "hidden": 8,
+    "intermediate": 16
+  },
+  "mlp": [
+    {
+      "tp": 1,
+      "forward_max_abs": 0.0,
+      "dx_max_abs": 0.0,
+      "dw1_max_abs": 0.0,
+      "dw2_max_abs": 0.0
+    },
+    {
+      "tp": 2,
+      "forward_max_abs": 1.7763568394002505e-15,
+      "dx_max_abs": 8.881784197001252e-16,
+      "dw1_max_abs": 8.881784197001252e-16,
+      "dw2_max_abs": 8.881784197001252e-16
+    },
+    {
+      "tp": 4,
+      "forward_max_abs": 1.7763568394002505e-15,
+      "dx_max_abs": 1.7763568394002505e-15,
+      "dw1_max_abs": 8.881784197001252e-16,
+      "dw2_max_abs": 8.881784197001252e-16
+    }
+  ],
+  "swiglu_tp4_max_abs": 1.0658141036401503e-14,
+  "attention_tp4_max_abs": 8.881784197001252e-16,
+  "dx00_finite_difference_abs": 1.5897811955767338e-09,
+  "ledger": [
+    {
+      "tokens": 1,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 1,
+      "payload_bytes": 8192,
+      "sent_bytes_per_allreduce": 0,
+      "sent_bytes_per_layer_forward": 0,
+      "sent_bytes_32_layers_forward": 0,
+      "ring_steps_per_allreduce": 0
+    },
+    {
+      "tokens": 1,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 2,
+      "payload_bytes": 8192,
+      "sent_bytes_per_allreduce": 8192,
+      "sent_bytes_per_layer_forward": 16384,
+      "sent_bytes_32_layers_forward": 524288,
+      "ring_steps_per_allreduce": 2
+    },
+    {
+      "tokens": 1,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 4,
+      "payload_bytes": 8192,
+      "sent_bytes_per_allreduce": 12288,
+      "sent_bytes_per_layer_forward": 24576,
+      "sent_bytes_32_layers_forward": 786432,
+      "ring_steps_per_allreduce": 6
+    },
+    {
+      "tokens": 1,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 8,
+      "payload_bytes": 8192,
+      "sent_bytes_per_allreduce": 14336,
+      "sent_bytes_per_layer_forward": 28672,
+      "sent_bytes_32_layers_forward": 917504,
+      "ring_steps_per_allreduce": 14
+    },
+    {
+      "tokens": 32,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 1,
+      "payload_bytes": 262144,
+      "sent_bytes_per_allreduce": 0,
+      "sent_bytes_per_layer_forward": 0,
+      "sent_bytes_32_layers_forward": 0,
+      "ring_steps_per_allreduce": 0
+    },
+    {
+      "tokens": 32,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 2,
+      "payload_bytes": 262144,
+      "sent_bytes_per_allreduce": 262144,
+      "sent_bytes_per_layer_forward": 524288,
+      "sent_bytes_32_layers_forward": 16777216,
+      "ring_steps_per_allreduce": 2
+    },
+    {
+      "tokens": 32,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 4,
+      "payload_bytes": 262144,
+      "sent_bytes_per_allreduce": 393216,
+      "sent_bytes_per_layer_forward": 786432,
+      "sent_bytes_32_layers_forward": 25165824,
+      "ring_steps_per_allreduce": 6
+    },
+    {
+      "tokens": 32,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 8,
+      "payload_bytes": 262144,
+      "sent_bytes_per_allreduce": 458752,
+      "sent_bytes_per_layer_forward": 917504,
+      "sent_bytes_32_layers_forward": 29360128,
+      "ring_steps_per_allreduce": 14
+    },
+    {
+      "tokens": 4096,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 1,
+      "payload_bytes": 33554432,
+      "sent_bytes_per_allreduce": 0,
+      "sent_bytes_per_layer_forward": 0,
+      "sent_bytes_32_layers_forward": 0,
+      "ring_steps_per_allreduce": 0
+    },
+    {
+      "tokens": 4096,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 2,
+      "payload_bytes": 33554432,
+      "sent_bytes_per_allreduce": 33554432,
+      "sent_bytes_per_layer_forward": 67108864,
+      "sent_bytes_32_layers_forward": 2147483648,
+      "ring_steps_per_allreduce": 2
+    },
+    {
+      "tokens": 4096,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 4,
+      "payload_bytes": 33554432,
+      "sent_bytes_per_allreduce": 50331648,
+      "sent_bytes_per_layer_forward": 100663296,
+      "sent_bytes_32_layers_forward": 3221225472,
+      "ring_steps_per_allreduce": 6
+    },
+    {
+      "tokens": 4096,
+      "hidden": 4096,
+      "bytes_per_element": 2,
+      "tp": 8,
+      "payload_bytes": 33554432,
+      "sent_bytes_per_allreduce": 58720256,
+      "sent_bytes_per_layer_forward": 117440512,
+      "sent_bytes_32_layers_forward": 3758096384,
+      "ring_steps_per_allreduce": 14
+    }
+  ],
+  "scope": "CPU algebra verification; analytical ring send bytes; no hardware latency benchmark"
+}

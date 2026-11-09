@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="538.2pt" height="344.877188pt" viewBox="0 0 538.2 344.877188" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 344.877188
+L 538.2 344.877188
+L 538.2 -0
+L 0 -0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="20.79" y="94.029187" transform="rotate(-0 20.79 94.029187)">GPU 0</text>
+   </g>
+   <g id="text_2">
+    <g id="patch_2">
+     <path d="M 51.201562 150.468
+L 85.238438 150.468
+Q 91.238438 150.468 91.238438 144.468
+L 91.238438 115.662375
+Q 91.238438 109.662375 85.238438 109.662375
+L 51.201562 109.662375
+Q 45.201562 109.662375 45.201562 115.662375
+L 45.201562 144.468
+Q 45.201562 150.468 51.201562 150.468
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(51.944063 125.981672)">Full X</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(51.201562 140.384016)">T × H</text>
+   </g>
+   <g id="text_3">
+    <g id="patch_3">
+     <path d="M 169.23375 150.468
+L 235.04625 150.468
+Q 241.04625 150.468 241.04625 144.468
+L 241.04625 115.662375
+Q 241.04625 109.662375 235.04625 109.662375
+L 169.23375 109.662375
+Q 163.23375 109.662375 163.23375 115.662375
+L 163.23375 144.468
+Q 163.23375 150.468 169.23375 150.468
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(169.23375 125.981672)">φ(X W1[0])</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(180.344063 140.384016)">T × F/2</text>
+   </g>
+   <g id="text_4">
+    <g id="patch_4">
+     <path d="M 308.874375 150.468
+L 374.405625 150.468
+Q 380.405625 150.468 380.405625 144.468
+L 380.405625 115.662375
+Q 380.405625 109.662375 374.405625 109.662375
+L 308.874375 109.662375
+Q 302.874375 109.662375 302.874375 115.662375
+L 302.874375 144.468
+Q 302.874375 150.468 308.874375 150.468
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(308.874375 125.981672)">Z[0] W2[0]</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(324.621563 140.384016)">T × H</text>
+   </g>
+   <g id="patch_5">
+    <path d="M 114.860034 130.065188
+Q 133.785362 130.065188 151.592657 130.065188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 146.392657 127.465188
+L 151.592657 130.065188
+L 146.392657 132.665188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 254.35782 130.065188
+Q 271.886801 130.065188 288.297749 130.065188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 283.097749 127.465188
+L 288.297749 130.065188
+L 283.097749 132.665188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 393.231671 131.518863
+Q 412.785243 152.241445 431.571516 172.150855
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 429.89383 166.584404
+L 431.571516 172.150855
+L 426.111744 170.153134
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start" x="20.79" y="182.733188" transform="rotate(-0 20.79 182.733188)">GPU 1</text>
+   </g>
+   <g id="text_6">
+    <g id="patch_8">
+     <path d="M 51.201562 239.172
+L 85.238438 239.172
+Q 91.238438 239.172 91.238438 233.172
+L 91.238438 204.366375
+Q 91.238438 198.366375 85.238438 198.366375
+L 51.201562 198.366375
+Q 45.201562 198.366375 45.201562 204.366375
+L 45.201562 233.172
+Q 45.201562 239.172 51.201562 239.172
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(51.944063 214.685672)">Full X</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(51.201562 229.088016)">T × H</text>
+   </g>
+   <g id="text_7">
+    <g id="patch_9">
+     <path d="M 169.23375 239.172
+L 235.04625 239.172
+Q 241.04625 239.172 241.04625 233.172
+L 241.04625 204.366375
+Q 241.04625 198.366375 235.04625 198.366375
+L 169.23375 198.366375
+Q 163.23375 198.366375 163.23375 204.366375
+L 163.23375 233.172
+Q 163.23375 239.172 169.23375 239.172
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(169.23375 214.685672)">φ(X W1[1])</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(180.344063 229.088016)">T × F/2</text>
+   </g>
+   <g id="text_8">
+    <g id="patch_10">
+     <path d="M 308.874375 239.172
+L 374.405625 239.172
+Q 380.405625 239.172 380.405625 233.172
+L 380.405625 204.366375
+Q 380.405625 198.366375 374.405625 198.366375
+L 308.874375 198.366375
+Q 302.874375 198.366375 302.874375 204.366375
+L 302.874375 233.172
+Q 302.874375 239.172 308.874375 239.172
+z
+" style="fill: #edf3fa; stroke: #7195bc; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(308.874375 214.685672)">Z[1] W2[1]</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'" transform="translate(324.621563 229.088016)">T × H</text>
+   </g>
+   <g id="patch_11">
+    <path d="M 114.860034 218.769188
+Q 133.785362 218.769188 151.592657 218.769188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 146.392657 216.169188
+L 151.592657 218.769188
+L 146.392657 221.369188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 254.35782 218.769188
+Q 271.886801 218.769188 288.297749 218.769188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 283.097749 216.169188
+L 288.297749 218.769188
+L 283.097749 221.369188
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 393.231671 217.315512
+Q 412.785243 196.59293 431.571516 176.68352
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+    <path d="M 426.111744 178.681241
+L 431.571516 176.68352
+L 429.89383 182.249971
+" style="fill: none; stroke: #4a647f; stroke-linecap: round"/>
+   </g>
+   <g id="text_9">
+    <g id="patch_14">
+     <path d="M 447.250156 204.322012
+L 481.549844 204.322012
+Q 488.049844 204.322012 488.049844 197.822012
+L 488.049844 151.012363
+Q 488.049844 144.512363 481.549844 144.512363
+L 447.250156 144.512363
+Q 440.750156 144.512363 440.750156 151.012363
+L 440.750156 197.822012
+Q 440.750156 204.322012 447.250156 204.322012
+z
+" style="fill: #dfebdf; stroke: #639063; stroke-linejoin: miter"/>
+    </g>
+    <text style="font-size: 13px; font-family: 'DejaVu Sans'" transform="translate(449.908047 162.190586)">SUM</text>
+    <text style="font-size: 13px; font-family: 'DejaVu Sans'" transform="translate(448.625313 177.794141)">+ b2</text>
+    <text style="font-size: 13px; font-family: 'DejaVu Sans'" transform="translate(447.250156 193.397695)">Full Y</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle" x="269.1" y="293.613188" transform="rotate(-0 269.1 293.613188)">No gather between projections • Bias added once after reduction</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 18px; font-family: 'DejaVu Sans'; text-anchor: middle" x="269.1" y="31.677188" transform="rotate(-0 269.1 31.677188)">Column → local activation → row → sum</text>
+   </g>
+  </g>
+ </g>
+</svg>

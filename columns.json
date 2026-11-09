@@ -41,6 +41,13 @@
       "readLabel": "Read the article",
       "articles": [
         {
+          "title": "Tensor Parallel：为什么每层 Transformer 都要“开两次会”？",
+          "path": "foundations/tensor-parallel-communication.html",
+          "date": "2026-11-09",
+          "description": "Column and row parallelism, per-layer forward/backward collectives, ring byte accounting, GQA layouts and the different costs of prefill and decode.",
+          "topic": "Inference & distributed systems"
+        },
+        {
           "title": "KV Cache 量化：为什么 Key 按通道，Value 按 Token？",
           "path": "foundations/kivi-kv-cache-quantization.html",
           "date": "2026-11-05",
@@ -67,6 +74,13 @@
       "emptyText": "No experiments yet.",
       "readLabel": "Explore the experiment",
       "articles": [
+        {
+          "title": "Attention 热力图几乎反过来，模型输出为什么还能不变？",
+          "path": "lab/attention-not-explanation.html",
+          "date": "2026-11-09",
+          "description": "Different attention maps with identical weighted outputs. A reproducible nullspace experiment, full-rank counterexamples and the debate over causal explanations.",
+          "topic": "Attention & interpretability"
+        },
         {
           "title": "旋转不改变计算，为什么 INT4 误差会变？",
           "path": "lab/rotation-quantization.html",
