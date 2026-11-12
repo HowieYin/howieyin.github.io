@@ -1,0 +1,86 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MoE Contract Explorer</title><style>:root{color-scheme:dark;--bg:#0c1016;--ink:#e7ebf2;--muted:#b2bdcc;--line:#35445a;--link:#99baff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.85 system-ui,-apple-system,"PingFang SC",sans-serif;overflow-wrap:anywhere}
+a{color:var(--link);text-underline-offset:4px}a:hover{color:white}:focus-visible{outline:3px solid #ffd580;outline-offset:4px}
+.site-nav{display:flex;gap:22px;flex-wrap:wrap;padding:20px max(22px,calc((100vw - 1200px)/2));border-bottom:1px solid var(--line)}
+.shell{max-width:1260px;margin:38px auto;display:grid;grid-template-columns:230px minmax(0,900px);gap:54px;padding:0 26px}
+aside{position:sticky;top:24px;max-height:92vh;overflow:auto;align-self:start;font-size:14px;line-height:1.55}aside ul{list-style:none;padding:0}aside li{margin:12px 0}
+main{min-width:0}h1{font-size:clamp(29px,3.1vw,43px);line-height:1.35;margin:0 0 22px}h2{font-size:27px;line-height:1.5;margin-top:64px;border-top:1px solid var(--line);padding-top:28px;scroll-margin-top:24px}h3{font-size:21px;margin-top:32px}
+p{margin:18px 0}strong{color:white}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#131c28;border:1px solid var(--line);padding:18px;font:14px/1.7 ui-monospace,monospace;border-radius:6px}code{font: .9em ui-monospace,monospace;overflow-wrap:anywhere}
+table{border-collapse:collapse;width:100%;margin:24px 0;font-size:15px;line-height:1.7}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:12px 10px}th{background:#172230;font-weight:650}td{overflow-wrap:anywhere}
+caption{display:table-caption;text-align:left;font-size:17px;line-height:1.7;font-weight:600;padding:12px 0;color:var(--ink)}
+.citation{font-size:.8em;white-space:normal}.citation::before{content:"["}.citation::after{content:"]"}
+figure{margin:30px 0;padding:20px;background:#121b27;border:1px solid var(--line);border-radius:6px}figure img{display:block;max-width:100%;height:auto;margin:auto;background:white}figcaption{font-size:15px;color:var(--muted);margin-top:14px;line-height:1.7}
+.diagram-panels{display:grid;gap:16px;margin-top:16px}.diagram-panel{border-left:3px solid #99baff;padding:10px 16px;background:#172230}.diagram-panel h4{font-size:18px;line-height:1.65;margin:0 0 8px}.diagram-panel p{font-size:17px;line-height:1.8;margin:0}.explanation figcaption{color:var(--ink);font-weight:600}
+.assignment-matrix{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;font:18px/1.8 system-ui;text-align:center}.assignment-matrix span{border:1px solid #62738a;padding:5px 1px}.assignment-matrix .selected{color:#fff;background:#21477a}.assignment-matrix .empty{color:#c6ced9;background:#0c1016}
+details{border:1px solid var(--line);padding:12px;margin-top:16px}summary{cursor:pointer}footer{margin:65px 0;color:var(--muted);font-size:14px}
+.skip{position:absolute;left:-10000px}.skip:focus{left:20px;top:20px;background:#18283e;padding:12px}
+label{display:block;margin:20px 0 8px}select,input,button{font:inherit;color:var(--ink);background:#182538;border:1px solid #7186a5;border-radius:4px;padding:8px;max-width:100%}input[type=number]{width:130px}input[type=checkbox]{width:22px;height:22px;vertical-align:middle}button{cursor:pointer;margin:15px 0}.readout{padding:16px;border-left:3px solid var(--link);background:#172230}
+@media(max-width:900px){.shell{display:block;margin:24px auto;padding:0 20px}aside{position:static;max-height:none;margin-bottom:30px}aside ul{columns:2}h2{font-size:24px}table,thead,tbody,tr,th,td{display:block}caption{display:block;width:100%}thead{display:none}tr{margin:20px 0;border:1px solid var(--line);padding:8px}td{display:grid;grid-template-columns:minmax(80px,28%) minmax(0,1fr);gap:12px}td::before{content:attr(data-label);color:var(--muted);font-weight:600}figure{padding:12px}pre{font-size:13px}}
+@media(max-width:480px){body{font-size:16px}.shell{padding:0 16px}aside ul{columns:1}td{display:block}td::before{display:block;margin-bottom:5px}h1{font-size:29px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+@media print{body{background:white;color:black;font-size:11pt}.site-nav,aside,.skip{display:none}.shell{display:block;max-width:none;padding:0}a{color:#163b6c}figure,pre,th{background:white;color:black}h2{break-before:auto}figure,table{break-inside:avoid}}
+</style></head><body><main style="max-width:920px;margin:30px auto;padding:0 20px"><h1>任务合同与Pareto筛选器</h1>
+<p>技术问题：同一组假设候选，为什么“每token输出有定义”与“每token有正专家系数路径”会给出不同结论？这不是实测性能模型。每图192 tokens，12 experts；EC quota4共48 hard records。Soft有48 slots，有限logits与合法非空slot下存在正D/C路径。</p>
+<p>默认44 GFLOPs、accuracy≥.920、12 GB，不要求正专家路径。用Tab定位控件、方向键调数，Space切换路径合同，Reset恢复。可行集先满足硬门，前沿在可行集中按FLOPs↓、accuracy↑、GB↓计算。</p>
+<form id="controls">
+<label for="flops">完整forward预算（GFLOPs）</label><input id="flops" type="number" min="0" max="1000" step="1" value="44" required>
+<label for="quality">最低accuracy（0–1）</label><input id="quality" type="number" min="0" max="1" step=".001" value=".920" required>
+<label for="memory">显存预算（decimal GB）</label><input id="memory" type="number" min="0" max="1000" step="1" value="12" required>
+<label><input id="paths" type="checkbox"> Require a positive expert-coefficient path for every token (W-V+)</label>
+<button type="reset">Reset</button>
+</form>
+<div id="readout" class="readout" role="status" aria-live="polite">W-V · 可行：EC · 三维前沿：EC</div>
+<div id="candidate-table">
+<table><thead><tr><th>Candidate</th><th>GFLOPs / accuracy / GB</th><th>Semantic gate</th><th>Eligibility</th><th>Frontier</th></tr></thead><tbody>
+<tr><td data-label="Candidate">Soft</td><td data-label="Resources">46 / .930 / 10</td><td data-label="Semantic gate">合法finite D/C正路径</td><td data-label="Eligibility">预算不合格</td><td data-label="Frontier">否</td></tr>
+<tr><td data-label="Candidate">BASE</td><td data-label="Resources">45 / .925 / 11</td><td data-label="Semantic gate">合法one-owner正sigmoid</td><td data-label="Eligibility">预算不合格</td><td data-label="Frontier">否</td></tr>
+<tr><td data-label="Candidate">TC</td><td data-label="Resources">52 / .915 / 9</td><td data-label="Semantic gate">no-drop正accepted</td><td data-label="Eligibility">算量与quality不合格</td><td data-label="Frontier">否</td></tr>
+<tr><td data-label="Candidate">EC</td><td data-label="Resources">40 / .940 / 8</td><td data-label="Semantic gate">残差定义192输出；最多48正路径</td><td data-label="Eligibility">可行</td><td data-label="Frontier">是</td></tr>
+</tbody></table>
+</div>
+<h2>静态结论与计算依据</h2>
+<table><thead><tr><th>合同 / quality</th><th>44G前沿</th><th>48G前沿</th></tr></thead><tbody>
+<tr><td data-label="Contract">W-V / .920</td><td data-label="44G">EC</td><td data-label="48G">EC（Soft、BASE可行但被支配）</td></tr>
+<tr><td data-label="Contract">W-V / .932</td><td data-label="44G">EC</td><td data-label="48G">EC</td></tr>
+<tr><td data-label="Contract">W-V+ / .920</td><td data-label="44G">无可行候选</td><td data-label="48G">Soft、BASE</td></tr>
+<tr><td data-label="Contract">W-V+ / .932</td><td data-label="44G">无可行候选</td><td data-label="48G">无可行候选</td></tr>
+</tbody></table>
+<p>若改52G/.915/12GB、W-V+，Soft、BASE、TC都在三维前沿：TC的9GB使其不被另外两点支配。48G/.920/9GB时W-V仅EC、W-V+无可行候选。无解只否定当前候选集合。必要覆盖条件R≥T不充分；提高EC quota时不能沿用原成本或quality。</p>
+<p>路径不是数值非零保证：expert输出可为零；浮点下溢、mask、空slot和NaN须实际检查。控制器只分析这里声明的合法机制假设，不认证真实训练或设备。</p>
+<p>机制来源：<a href="https://arxiv.org/abs/2202.09368v2">Expert Choice Eq.2–4</a>；<a href="https://arxiv.org/abs/2308.00951v2">Soft MoE Algorithm1</a>；<a href="https://arxiv.org/abs/2103.16716v1">BASE Eq.1–2</a>；<a href="https://arxiv.org/abs/2101.03961v3">Switch residual boundary</a>。数值为同设假设输入，不取自这些论文的性能表。</p>
+<noscript><p>JavaScript已关闭。上述默认态与四行静态表完整保留结论；控件无法重新计算。</p></noscript>
+</main><script>const candidates=[
+  {name:"Soft",flops:46,quality:930,memory:10,paths:true,meaning:"finite D/C与合法slot：192路径"},
+  {name:"BASE",flops:45,quality:925,memory:11,paths:true,meaning:"合法one-owner与正sigmoid：192路径"},
+  {name:"TC",flops:52,quality:915,memory:9,paths:true,meaning:"no-drop与正accepted：192路径"},
+  {name:"EC",flops:40,quality:940,memory:8,paths:false,meaning:"残差定义192输出；48 records最多覆盖48"}
+];
+const controls=document.querySelector("#controls");
+function update(){
+  if(!controls.checkValidity()){
+    document.querySelector("#readout").textContent="请输入合法预算：算量/显存≥0，accuracy在0–1之间。";
+    document.querySelector("#candidate-table").innerHTML='<p role="status">无法计算：输入无效，先前候选表已撤销。</p>';
+    return;
+  }
+  const flops=Number(document.querySelector("#flops").value);
+  const quality=Math.round(Number(document.querySelector("#quality").value)*1000);
+  const memory=Number(document.querySelector("#memory").value);
+  const requirePaths=document.querySelector("#paths").checked;
+  const feasible=candidates.filter(candidate=>candidate.flops<=flops&&candidate.quality>=quality&&candidate.memory<=memory&&(!requirePaths||candidate.paths));
+  const frontier=feasible.filter(candidate=>!feasible.some(other=>other!==candidate&&other.flops<=candidate.flops&&other.quality>=candidate.quality&&other.memory<=candidate.memory&&(other.flops<candidate.flops||other.quality>candidate.quality||other.memory<candidate.memory)));
+  document.querySelector("#readout").textContent=`${requirePaths?"W-V+":"W-V"} · 可行：${feasible.map(candidate=>candidate.name).join("、")||"无"} · 三维前沿：${frontier.map(candidate=>candidate.name).join("、")||"无"}${feasible.length?"":"；无解仅针对当前候选集合"}`;
+  const rows=candidates.map(candidate=>{
+    const failures=[];
+    if(requirePaths&&!candidate.paths)failures.push("正路径门失败");
+    if(candidate.flops>flops)failures.push("GFLOPs超限");
+    if(candidate.quality<quality)failures.push("quality不足");
+    if(candidate.memory>memory)failures.push("GB超限");
+    return `<tr><td data-label="Candidate">${candidate.name}</td><td data-label="Resources">${candidate.flops} / ${(candidate.quality/1000).toFixed(3)} / ${candidate.memory}</td><td data-label="Semantic gate">${candidate.meaning}</td><td data-label="Eligibility">${failures.join("；")||"可行"}</td><td data-label="Frontier">${frontier.includes(candidate)?"是":"否"}</td></tr>`;
+  }).join("");
+  document.querySelector("#candidate-table").innerHTML=`<table><thead><tr><th>Candidate</th><th>GFLOPs / accuracy / GB</th><th>Semantic gate</th><th>Eligibility</th><th>Frontier</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+controls.addEventListener("input",update);
+controls.addEventListener("reset",()=>requestAnimationFrame(update));
+controls.addEventListener("submit",event=>event.preventDefault());
+update();
+</script></body></html>

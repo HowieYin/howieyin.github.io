@@ -12,7 +12,7 @@
   .reading-page .page { width: calc(100% - 48px); }
   .reading-page .report { display: block; }
   .contents-toggle, .contents-close { display: block; padding: 10px 14px; border: 1px solid var(--line); border-radius: 6px; background: #111720; color: var(--text); font: inherit; cursor: pointer; }
-  .contents-toggle { position: fixed; left: 0; top: 45%; z-index: 20; writing-mode: vertical-rl; font-size: 12px; }
+  .contents-toggle { position: static; width: 100%; margin: 12px 0 0; text-align: left; font-size: 12px; }
   .contents-close { margin-bottom: 18px; }
   .reading-sidebar { display: none; position: fixed; inset: 0 auto 0 0; width: min(320px, 85vw); max-height: 100dvh; border-radius: 0; background: var(--background); z-index: 40; padding: 24px; }
   .contents-backdrop.is-open { display: block; position: fixed; inset: 0; background: #0009; border: 0; z-index: 30; }

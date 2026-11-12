@@ -115,7 +115,15 @@
       "archiveLabel": "All surveys",
       "emptyText": "No surveys yet.",
       "readLabel": "Read the survey",
-      "articles": []
+      "articles": [
+        {
+          "title": "MoE结构探索：从条件计算到路由、专家结构与系统代价",
+          "path": "surveys/moe-structure-exploration/index.html",
+          "date": "2026-11-12",
+          "description": "A preservation-based comparison of probabilistic mixtures, sparse routing, Expert Choice, Soft MoE, expert structure and systems costs, with reproducible counterexamples and explicit evidence boundaries.",
+          "topic": "MoE architecture & systems"
+        }
+      ]
     }
   ]
 }

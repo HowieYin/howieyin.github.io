@@ -24,7 +24,8 @@
   backdrop.type = "button";
   backdrop.className = "contents-backdrop";
   backdrop.setAttribute("aria-label", "Close contents");
-  document.body.append(toggle, backdrop);
+  main.before(toggle);
+  document.body.append(backdrop);
   const closeButton = sidebar.querySelector(".contents-close");
   const mobile = matchMedia("(max-width: 1000px)");
   const setOpen = (open, restoreFocus = true) => {
