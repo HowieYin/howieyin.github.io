@@ -97,6 +97,17 @@ def update_catalog() -> None:
     path.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def add_favicon(path: Path, href: str) -> None:
+    content = path.read_text(encoding="utf-8")
+    content = replace_once(
+        content,
+        "</title>",
+        f'</title><link href="{href}" rel="icon" type="image/svg+xml">',
+        f"{path.name} title",
+    )
+    path.write_text(content, encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("course_dir", type=Path)
@@ -111,6 +122,9 @@ def main() -> None:
         if target.exists():
             shutil.rmtree(target)
         shutil.copytree(source / directory, target)
+    add_favicon(TARGET / "components" / "contract-explorer.html", "../../../assets/favicon.svg")
+    for reader in (TARGET / "figures" / "readers").glob("*.html"):
+        add_favicon(reader, "../../../../assets/favicon.svg")
     (TARGET / "index.html").write_text(adapt_article(source), encoding="utf-8")
     update_catalog()
     print(f"Published reviewed MoE bundle to {TARGET}")

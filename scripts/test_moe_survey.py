@@ -62,7 +62,12 @@ class MoeSurveyPublicationTest(unittest.TestCase):
 
     def test_component_figures_and_readers_are_published(self):
         base = ARTICLE.parent
-        self.assertTrue((base / "components" / "contract-explorer.html").is_file())
+        component = base / "components" / "contract-explorer.html"
+        self.assertTrue(component.is_file())
+        self.assertIn(
+            'href="../../../assets/favicon.svg"',
+            component.read_text(encoding="utf-8"),
+        )
         figures = sorted((base / "figures").glob("*.svg"))
         readers = sorted((base / "figures" / "readers").glob("*.html"))
         self.assertEqual(7, len(figures))
@@ -71,6 +76,7 @@ class MoeSurveyPublicationTest(unittest.TestCase):
             content = reader.read_text(encoding="utf-8")
             self.assertNotIn("/Users/bytedance/", content)
             self.assertRegex(content, r'\.\./[^"\']+\.svg')
+            self.assertIn('href="../../../../assets/favicon.svg"', content)
 
     def test_catalog_entry_matches_public_article(self):
         catalog = json.loads((ROOT / "columns.json").read_text(encoding="utf-8"))
