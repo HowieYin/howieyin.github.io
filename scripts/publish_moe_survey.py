@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "surveys" / "moe-structure-exploration"
-ARTICLE_DIGEST = "31605229aaeafeec011a151455eb3b965c43810e35374b930cd774c9b72de637"
+ARTICLE_DIGEST = "b644c6c79402052d5d358ea5f9a97f0901abed791b770b00cb6d60d8cef2e598"
 TITLE = "MoE结构探索：从条件计算到路由、专家结构与系统代价"
 
 
@@ -63,7 +63,7 @@ def adapt_article(source: Path) -> str:
         '<a aria-current="page" href="../">Surveys</a><a href="../../#about">About</a></nav>'
         '</header><main class="report" id="main">'
         '<p class="eyebrow">AI SURVEYS / MIXTURE OF EXPERTS</p>'
-        '<details class="toc" hidden><summary>Contents</summary>'
+        '<details class="toc" open><summary>Contents</summary>'
     )
     content = replace_once(content, old_shell, new_shell, "article shell")
     content = replace_once(
