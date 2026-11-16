@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="460.8pt" height="313.776pt" viewBox="0 0 460.8 313.776" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:description>Plot measured token IDs and codepoint split census from results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 313.776
+L 460.8 313.776
+L 460.8 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 129.96 111.9816
+L 381.06 111.9816
+Q 382.734 111.9816 382.734 110.433103
+L 382.734 75.333848
+Q 382.734 73.785352 381.06 73.785352
+L 129.96 73.785352
+Q 128.286 73.785352 128.286 75.333848
+L 128.286 110.433103
+Q 128.286 111.9816 129.96 111.9816
+z
+" clip-path="url(#peb5b402ec2)" style="fill: #286aab; opacity: 0.12"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 129.96 158.436497
+L 255.51 158.436497
+Q 257.184 158.436497 257.184 156.888
+L 257.184 121.788745
+Q 257.184 120.240248 255.51 120.240248
+L 129.96 120.240248
+Q 128.286 120.240248 128.286 121.788745
+L 128.286 156.888
+Q 128.286 158.436497 129.96 158.436497
+z
+" clip-path="url(#peb5b402ec2)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 259.974 158.436497
+L 385.524 158.436497
+Q 387.198 158.436497 387.198 156.888
+L 387.198 121.788745
+Q 387.198 120.240248 385.524 120.240248
+L 259.974 120.240248
+Q 258.3 120.240248 258.3 121.788745
+L 258.3 156.888
+Q 258.3 158.436497 259.974 158.436497
+z
+" clip-path="url(#peb5b402ec2)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 129.96 241.022979
+L 255.51 241.022979
+Q 257.184 241.022979 257.184 239.474483
+L 257.184 204.375228
+Q 257.184 202.826731 255.51 202.826731
+L 129.96 202.826731
+Q 128.286 202.826731 128.286 204.375228
+L 128.286 239.474483
+Q 128.286 241.022979 129.96 241.022979
+z
+" clip-path="url(#peb5b402ec2)" style="fill: #286aab; opacity: 0.12"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 259.974 241.022979
+L 385.524 241.022979
+Q 387.198 241.022979 387.198 239.474483
+L 387.198 204.375228
+Q 387.198 202.826731 385.524 202.826731
+L 259.974 202.826731
+Q 258.3 202.826731 258.3 204.375228
+L 258.3 239.474483
+Q 258.3 241.022979 259.974 241.022979
+z
+" clip-path="url(#peb5b402ec2)" style="fill: #286aab; opacity: 0.12"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 129.96 287.477876
+L 255.51 287.477876
+Q 257.184 287.477876 257.184 285.929379
+L 257.184 250.830124
+Q 257.184 249.281628 255.51 249.281628
+L 129.96 249.281628
+Q 128.286 249.281628 128.286 250.830124
+L 128.286 285.929379
+Q 128.286 287.477876 129.96 287.477876
+z
+" clip-path="url(#peb5b402ec2)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 259.974 287.477876
+L 385.524 287.477876
+Q 387.198 287.477876 387.198 285.929379
+L 387.198 250.830124
+Q 387.198 249.281628 385.524 249.281628
+L 259.974 249.281628
+Q 258.3 249.281628 258.3 250.830124
+L 258.3 285.929379
+Q 258.3 287.477876 259.974 287.477876
+z
+" clip-path="url(#peb5b402ec2)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="22.684966" transform="rotate(-0 7.2 22.684966)">Same UTF-8 bytes, different token boundaries</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="48.493241" transform="rotate(-0 7.2 48.493241)">Input: hello</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="96.517298" transform="rotate(-0 7.2 96.517298)">Encode whole</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="255.51" y="87.721821" transform="rotate(-0 255.51 87.721821)">hello</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #286aab" x="255.51" y="102.174455" transform="rotate(-0 255.51 102.174455)">15339</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="142.972194" transform="rotate(-0 7.2 142.972194)">Encode pieces</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="192.735" y="134.176717" transform="rotate(-0 192.735 134.176717)">hel</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="192.735" y="148.629352" transform="rotate(-0 192.735 148.629352)">50222</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="322.749" y="134.176717" transform="rotate(-0 322.749 134.176717)">lo</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="322.749" y="148.629352" transform="rotate(-0 322.749 148.629352)">385</text>
+   </g>
+   <g id="text_11">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="177.534621" transform="rotate(-0 7.2 177.534621)">Input: abcde</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="225.558677" transform="rotate(-0 7.2 225.558677)">Encode whole</text>
+   </g>
+   <g id="text_13">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="192.735" y="216.7632" transform="rotate(-0 192.735 216.7632)">abc</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #286aab" x="192.735" y="231.215834" transform="rotate(-0 192.735 231.215834)">13997</text>
+   </g>
+   <g id="text_15">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="322.749" y="216.7632" transform="rotate(-0 322.749 216.7632)">de</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #286aab" x="322.749" y="231.215834" transform="rotate(-0 322.749 231.215834)">451</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="272.013573" transform="rotate(-0 7.2 272.013573)">Encode pieces</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="192.735" y="263.218097" transform="rotate(-0 192.735 263.218097)">abcd</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="192.735" y="277.670731" transform="rotate(-0 192.735 277.670731)">69744</text>
+   </g>
+   <g id="text_20">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="322.749" y="263.218097" transform="rotate(-0 322.749 263.218097)">e</text>
+   </g>
+   <g id="text_21">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="322.749" y="277.670731" transform="rotate(-0 322.749 277.670731)">68</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="peb5b402ec2">
+   <rect x="7.2" y="7.2" width="446.4" height="299.376"/>
+  </clipPath>
+ </defs>
+</svg>

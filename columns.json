@@ -49,6 +49,13 @@
       "readLabel": "Read the article",
       "articles": [
         {
+          "title": "Chunked Prefill：长 Prompt 怎样不挡住别人出字？",
+          "path": "foundations/chunked-prefill.html",
+          "date": "2026-11-16",
+          "description": "Sarathi-Serve scheduling, causal KV semantics, token-budget arithmetic and the TTFT / inter-token tradeoff, with a reproducible correctness experiment.",
+          "topic": "Inference & scheduling"
+        },
+        {
           "title": "Tensor Parallel：为什么每层 Transformer 都要“开两次会”？",
           "path": "foundations/tensor-parallel-communication.html",
           "date": "2026-11-09",
@@ -82,6 +89,13 @@
       "emptyText": "No experiments yet.",
       "readLabel": "Explore the experiment",
       "articles": [
+        {
+          "title": "文本一模一样，分段编码为什么会换一串 Token？",
+          "path": "lab/tokenizer-boundaries.html",
+          "date": "2026-11-16",
+          "description": "Real byte-level BPE experiments on text boundaries, equal-count ID changes, stable counterexamples, prefix-cache reuse and incremental Unicode decoding.",
+          "topic": "Tokenization & input engineering"
+        },
         {
           "title": "Attention 热力图几乎反过来，模型输出为什么还能不变？",
           "path": "lab/attention-not-explanation.html",

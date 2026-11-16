@@ -1,0 +1,126 @@
+{
+  "environment": {
+    "python": "3.12.2",
+    "numpy": "2.4.6",
+    "platform": "Darwin",
+    "dtype": "float64"
+  },
+  "seed": 20261116,
+  "tokens": 12,
+  "hidden": 8,
+  "layers": 2,
+  "heads": 2,
+  "architecture": "Simplified two-block causal attention, residual, tanh FFN; no normalization or RoPE",
+  "correctness": [
+    {
+      "chunk_size": 1,
+      "max_abs_error": 1.3322676295501878e-15,
+      "final_kv_bytes": 3072,
+      "causal_pairs_per_head": 78,
+      "iterations": 12
+    },
+    {
+      "chunk_size": 2,
+      "max_abs_error": 8.881784197001252e-16,
+      "final_kv_bytes": 3072,
+      "causal_pairs_per_head": 78,
+      "iterations": 6
+    },
+    {
+      "chunk_size": 3,
+      "max_abs_error": 8.881784197001252e-16,
+      "final_kv_bytes": 3072,
+      "causal_pairs_per_head": 78,
+      "iterations": 4
+    },
+    {
+      "chunk_size": 4,
+      "max_abs_error": 8.881784197001252e-16,
+      "final_kv_bytes": 3072,
+      "causal_pairs_per_head": 78,
+      "iterations": 3
+    },
+    {
+      "chunk_size": 5,
+      "max_abs_error": 8.881784197001252e-16,
+      "final_kv_bytes": 3072,
+      "causal_pairs_per_head": 78,
+      "iterations": 3
+    },
+    {
+      "chunk_size": 12,
+      "max_abs_error": 0.0,
+      "final_kv_bytes": 3072,
+      "causal_pairs_per_head": 78,
+      "iterations": 1
+    }
+  ],
+  "isolated_chunk4_max_abs": 3.001154156441136,
+  "budget_traces": [
+    {
+      "token_budget": 5,
+      "trace": [
+        {
+          "iteration": 1,
+          "decode_tokens": 2,
+          "prefill_tokens": 3,
+          "total_tokens": 5,
+          "prompt_remaining": 9
+        },
+        {
+          "iteration": 2,
+          "decode_tokens": 2,
+          "prefill_tokens": 3,
+          "total_tokens": 5,
+          "prompt_remaining": 6
+        },
+        {
+          "iteration": 3,
+          "decode_tokens": 2,
+          "prefill_tokens": 3,
+          "total_tokens": 5,
+          "prompt_remaining": 3
+        },
+        {
+          "iteration": 4,
+          "decode_tokens": 2,
+          "prefill_tokens": 3,
+          "total_tokens": 5,
+          "prompt_remaining": 0
+        }
+      ]
+    },
+    {
+      "token_budget": 8,
+      "trace": [
+        {
+          "iteration": 1,
+          "decode_tokens": 2,
+          "prefill_tokens": 6,
+          "total_tokens": 8,
+          "prompt_remaining": 6
+        },
+        {
+          "iteration": 2,
+          "decode_tokens": 2,
+          "prefill_tokens": 6,
+          "total_tokens": 8,
+          "prompt_remaining": 0
+        }
+      ]
+    },
+    {
+      "token_budget": 16,
+      "trace": [
+        {
+          "iteration": 1,
+          "decode_tokens": 2,
+          "prefill_tokens": 12,
+          "total_tokens": 14,
+          "prompt_remaining": 0
+        }
+      ]
+    }
+  ],
+  "scope": "CPU numerical equivalence and analytic scheduled token counts, no hardware latency measurements"
+}

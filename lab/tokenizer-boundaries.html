@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="theme-color" content="#0c1016">
+<meta name="description" content="文本一模一样，分段编码为什么会换一串 Token？">
+<title>文本一模一样，分段编码为什么会换一串 Token？ — Howie Yin</title>
+<link rel="canonical" href="https://howieyin.github.io/lab/tokenizer-boundaries.html">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/article-navigation.css">
+<script src="../assets/article-navigation.js" defer></script>
+<link rel="stylesheet" href="../styles.css?v=3"><style>
+.report { padding: 48px 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.report h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.6px; line-height: 1.4; margin-bottom: 28px; }
+.report h2 { margin: 52px 0 20px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; }
+.report h3 { font-size: 20px; margin: 28px 0 14px; }
+.report p, .report li { color: var(--secondary); }
+.report strong { color: var(--text); }
+.report a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.report li { margin: 9px 0; }
+.report code { font-family: var(--mono); font-size: .85em; }
+.report pre { overflow-x: auto; padding: 20px; background: #111720; border: 1px solid var(--line); border-radius: 8px; }
+.report img { display: block; max-width: 100%; height: auto; background: white; padding: 16px; border-radius: 6px; margin: 24px auto; width: 680px; }
+.report .table-scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 6px; }
+.report table { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 14px; }
+.report th, .report td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.report th { color: var(--text); background: #111720; }
+.report td { color: var(--secondary); }
+.report .toc { padding: 24px; border: 1px solid var(--line); border-radius: 8px; margin: 32px 0; }
+.report .toc ul { padding-left: 22px; }
+@media(max-width:640px) { .report { font-size: 15px; padding: 32px 0; } .report h2 { font-size: 22px; } .report img { padding: 8px; } }
+
+.formula { padding: 20px; margin: 24px 0; background: #111720; border-left: 3px solid var(--accent); font-family: var(--mono); font-size: 14px; overflow-x: auto; }
+.diagram { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:24px 0; padding:20px; border:1px solid var(--line); border-radius:8px; }
+.diagram div { flex:1 1 160px; padding:14px; background:#111720; border:1px solid var(--line); border-radius:6px; }
+.diagram span:not(.diagram-arrow) { display:block; color:var(--secondary); font-size:13px; margin-top:8px; }
+</style></head>
+<body><a class="skip-link" href="#main">Skip to content</a><div class="page">
+<header class="site-header"><a class="wordmark" href="../" aria-label="Howie Yin, home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../weekly/">Weekly</a><a href="../foundations/" >Foundations</a><a href="../lab/" aria-current="page">Lab</a><a href="../#about">About</a></nav></header>
+<main id="main" class="report"><p class="eyebrow">LAB / TOKENIZER EXPERIMENT</p><details class="toc" hidden><summary>Contents</summary><ul><li><a href="#section-01">1｜先猜一下：“hel”加“lo”，应该等于“hello”吗？</a></li><li><a href="#section-02">2｜BPE 的关键：编码会看见片段边界两侧</a></li><li><a href="#section-03">3｜反直觉再加一层：数量相同，仍然可能不同</a></li><li><a href="#section-04">4｜完整实验设置：两种编码器、七组切法、85 个切点</a></li><li><a href="#section-05">5｜切点扫描：有些串很敏感，有些完全不变</a></li><li><a href="#section-06">6｜明确的反例：分段不一定改变编码</a></li><li><a href="#section-07">7｜前缀 KV Cache：文字前缀不是可复用 Token 前缀</a></li><li><a href="#section-08">8｜流式输入怎样处理：末尾未必已经稳定</a></li><li><a href="#section-09">9｜另一个坑：逐 Token 解码可能打碎一个中文字</a></li><li><a href="#section-10">10｜“看起来一样”还可能是 Unicode 的另一个问题</a></li><li><a href="#section-11">11｜自己复现与总结：检查 ID，而不只看文字和数量</a></li><li><a href="#section-12">来源</a></li></ul></details><article><h1 id="tokenizer-boundaries">文本一模一样，分段编码为什么会换一串 Token？</h1>
+<p><strong>结论：对现代 byte-level BPE，先拼文本再编码，通常不能用“分别编码后拼 Token”替代。两串 Token 可以解码成完全相同的 UTF-8 字节，甚至 Token 数量也相同，ID 与边界却不同。模型接收的是 Token ID 序列，前缀 KV 复用也必须先比较 Token 前缀。</strong></p>
+<p>类型：趣味实验 / Tokenizer 与输入工程。发布与实验：2026-11-16。使用真实 <code>gpt2</code> 和 <code>cl100k_base</code> 编码器，固定 tiktoken 0.12.0；没有运行语言模型、没有测回答质量或服务延迟。主实验的文本字节完全相同；Unicode 一节另讨论“看起来相同但字节不同”。</p>
+<h2 id="section-01">1｜先猜一下：“hel”加“lo”，应该等于“hello”吗？</h2>
+<p>字符串拼接当然得到 <code>hello</code>。容易顺手再假设：<code>encode("hel") + encode("lo")</code> 应该等于 <code>encode("hello")</code>。如果成立，就可以把任意收到的文本片段独立编码，再把结果接起来。</p>
+<p>实测恰好不成立：</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>编码器</th>
+<th>一次编码 hello</th>
+<th>分别编码 hel / lo 后拼接</th>
+<th>Token 数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>gpt2</td>
+<td>[31373]</td>
+<td>[2978, 5439]</td>
+<td>1 vs 2</td>
+</tr>
+<tr>
+<td>cl100k_base</td>
+<td>[15339]</td>
+<td>[50222, 385]</td>
+<td>1 vs 2</td>
+</tr>
+</tbody>
+</table></div>
+<p>两条路径的 Token 字节拼接后都精确等于 <code>b"hello"</code>。变化来自编码边界，不是某个字符被修改，也不是随机性。[2][3]</p>
+<svg role="img" aria-label="图1：hello与abcde的两种编码路径，文字相同但Token边界和ID不同" style="display:block;width:680px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:24px auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="460.8pt" height="313.776pt" viewBox="0 0 460.8 313.776" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:description>Plot measured token IDs and codepoint split census from results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="token_paths_figure_1">
+  <g id="token_paths_patch_1">
+   <path d="M 0 313.776
+L 460.8 313.776
+L 460.8 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="token_paths_axes_1">
+   <g id="token_paths_patch_2">
+    <path d="M 129.96 111.9816
+L 381.06 111.9816
+Q 382.734 111.9816 382.734 110.433103
+L 382.734 75.333848
+Q 382.734 73.785352 381.06 73.785352
+L 129.96 73.785352
+Q 128.286 73.785352 128.286 75.333848
+L 128.286 110.433103
+Q 128.286 111.9816 129.96 111.9816
+z
+" clip-path="url(#token_paths_peb5b402ec2)" style="fill: #286aab; opacity: 0.12"/>
+   </g>
+   <g id="token_paths_patch_3">
+    <path d="M 129.96 158.436497
+L 255.51 158.436497
+Q 257.184 158.436497 257.184 156.888
+L 257.184 121.788745
+Q 257.184 120.240248 255.51 120.240248
+L 129.96 120.240248
+Q 128.286 120.240248 128.286 121.788745
+L 128.286 156.888
+Q 128.286 158.436497 129.96 158.436497
+z
+" clip-path="url(#token_paths_peb5b402ec2)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="token_paths_patch_4">
+    <path d="M 259.974 158.436497
+L 385.524 158.436497
+Q 387.198 158.436497 387.198 156.888
+L 387.198 121.788745
+Q 387.198 120.240248 385.524 120.240248
+L 259.974 120.240248
+Q 258.3 120.240248 258.3 121.788745
+L 258.3 156.888
+Q 258.3 158.436497 259.974 158.436497
+z
+" clip-path="url(#token_paths_peb5b402ec2)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="token_paths_patch_5">
+    <path d="M 129.96 241.022979
+L 255.51 241.022979
+Q 257.184 241.022979 257.184 239.474483
+L 257.184 204.375228
+Q 257.184 202.826731 255.51 202.826731
+L 129.96 202.826731
+Q 128.286 202.826731 128.286 204.375228
+L 128.286 239.474483
+Q 128.286 241.022979 129.96 241.022979
+z
+" clip-path="url(#token_paths_peb5b402ec2)" style="fill: #286aab; opacity: 0.12"/>
+   </g>
+   <g id="token_paths_patch_6">
+    <path d="M 259.974 241.022979
+L 385.524 241.022979
+Q 387.198 241.022979 387.198 239.474483
+L 387.198 204.375228
+Q 387.198 202.826731 385.524 202.826731
+L 259.974 202.826731
+Q 258.3 202.826731 258.3 204.375228
+L 258.3 239.474483
+Q 258.3 241.022979 259.974 241.022979
+z
+" clip-path="url(#token_paths_peb5b402ec2)" style="fill: #286aab; opacity: 0.12"/>
+   </g>
+   <g id="token_paths_patch_7">
+    <path d="M 129.96 287.477876
+L 255.51 287.477876
+Q 257.184 287.477876 257.184 285.929379
+L 257.184 250.830124
+Q 257.184 249.281628 255.51 249.281628
+L 129.96 249.281628
+Q 128.286 249.281628 128.286 250.830124
+L 128.286 285.929379
+Q 128.286 287.477876 129.96 287.477876
+z
+" clip-path="url(#token_paths_peb5b402ec2)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="token_paths_patch_8">
+    <path d="M 259.974 287.477876
+L 385.524 287.477876
+Q 387.198 287.477876 387.198 285.929379
+L 387.198 250.830124
+Q 387.198 249.281628 385.524 249.281628
+L 259.974 249.281628
+Q 258.3 249.281628 258.3 250.830124
+L 258.3 285.929379
+Q 258.3 287.477876 259.974 287.477876
+z
+" clip-path="url(#token_paths_peb5b402ec2)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="token_paths_text_1">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="22.684966" transform="rotate(-0 7.2 22.684966)">Same UTF-8 bytes, different token boundaries</text>
+   </g>
+   <g id="token_paths_text_2">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="48.493241" transform="rotate(-0 7.2 48.493241)">Input: hello</text>
+   </g>
+   <g id="token_paths_text_3">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="96.517298" transform="rotate(-0 7.2 96.517298)">Encode whole</text>
+   </g>
+   <g id="token_paths_text_4">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="255.51" y="87.721821" transform="rotate(-0 255.51 87.721821)">hello</text>
+   </g>
+   <g id="token_paths_text_5">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #286aab" x="255.51" y="102.174455" transform="rotate(-0 255.51 102.174455)">15339</text>
+   </g>
+   <g id="token_paths_text_6">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="142.972194" transform="rotate(-0 7.2 142.972194)">Encode pieces</text>
+   </g>
+   <g id="token_paths_text_7">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="192.735" y="134.176717" transform="rotate(-0 192.735 134.176717)">hel</text>
+   </g>
+   <g id="token_paths_text_8">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="192.735" y="148.629352" transform="rotate(-0 192.735 148.629352)">50222</text>
+   </g>
+   <g id="token_paths_text_9">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="322.749" y="134.176717" transform="rotate(-0 322.749 134.176717)">lo</text>
+   </g>
+   <g id="token_paths_text_10">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="322.749" y="148.629352" transform="rotate(-0 322.749 148.629352)">385</text>
+   </g>
+   <g id="token_paths_text_11">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="177.534621" transform="rotate(-0 7.2 177.534621)">Input: abcde</text>
+   </g>
+   <g id="token_paths_text_12">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="225.558677" transform="rotate(-0 7.2 225.558677)">Encode whole</text>
+   </g>
+   <g id="token_paths_text_13">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="192.735" y="216.7632" transform="rotate(-0 192.735 216.7632)">abc</text>
+   </g>
+   <g id="token_paths_text_14">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #286aab" x="192.735" y="231.215834" transform="rotate(-0 192.735 231.215834)">13997</text>
+   </g>
+   <g id="token_paths_text_15">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="322.749" y="216.7632" transform="rotate(-0 322.749 216.7632)">de</text>
+   </g>
+   <g id="token_paths_text_16">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #286aab" x="322.749" y="231.215834" transform="rotate(-0 322.749 231.215834)">451</text>
+   </g>
+   <g id="token_paths_text_17">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="272.013573" transform="rotate(-0 7.2 272.013573)">Encode pieces</text>
+   </g>
+   <g id="token_paths_text_18">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="192.735" y="263.218097" transform="rotate(-0 192.735 263.218097)">abcd</text>
+   </g>
+   <g id="token_paths_text_19">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="192.735" y="277.670731" transform="rotate(-0 192.735 277.670731)">69744</text>
+   </g>
+   <g id="token_paths_text_20">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="322.749" y="263.218097" transform="rotate(-0 322.749 263.218097)">e</text>
+   </g>
+   <g id="token_paths_text_21">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="322.749" y="277.670731" transform="rotate(-0 322.749 277.670731)">68</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="token_paths_peb5b402ec2">
+   <rect x="7.2" y="7.2" width="446.4" height="299.376"/>
+  </clipPath>
+ </defs>
+</svg>
+<p><em>tiktoken 0.12.0 / cl100k_base 的真实测量。上半例从 1 个 Token 变为 2 个；下半例都为 2 个 Token，但分别是 abc＋de 与 abcd＋e。图中 Token 块之间的边界不属于输入字符。</em> <a href="assets/tokenizer-boundaries/token-paths.svg">Open full-size chart ↗</a></p>
+<p>可以把问题写得更精确。令 E 为编码，D_bytes 为先拼 Token 字节再解码的逆过程，<code>||</code> 表示序列拼接：</p>
+<div class="formula" role="math">E(x + y) ≠ E(x) || E(y)，一般不保持拼接关系<br/>D_bytes(E(x + y)) = D_bytes(E(x) || E(y)) = UTF8(x + y)</div>
+<p>可逆保证“能够回到输入字节”，不保证一个字节串只能由一种 Token 序列表示。</p>
+<h2 id="section-02">2｜BPE 的关键：编码会看见片段边界两侧</h2>
+<p>Sennrich、Haddow、Birch 的 <strong>Neural Machine Translation of Rare Words with Subword Units</strong>，University of Edinburgh，ACL 2016，将 BPE 引入子词表示。原论文 §3.2 从字符开始，按训练得到的合并次序组合符号，并限制在词内处理。[1]</p>
+<p>GPT-2 的官方编码器进一步使用可逆字节映射：先对文本做正则预分段，再将 UTF-8 字节映射到字节字母表，按词表里的 merge rank 合并相邻符号，最后输出 ID。[2] 本文不是把 2016 字符 BPE 与现代 byte BPE 当成完全相同的实现，也不把 BPE 简化为“从左到右永远选最长词”。</p>
+<p>为什么切点会影响输出？把 <code>hel</code> 和 <code>lo</code> 分开提交时，两次编码都没有机会合并跨越切点的符号；一次提交 <code>hello</code> 时，这个边界不存在。正则预分段本身也可能不同，例如空格常与后面的词进入同一片段。</p>
+<p>以 cl100k_base 为例，<code>" " + "hello"</code> 整体编码是 <code>[24748]</code>，Token 字节为 <code>20 68 65 6c 6c 6f</code>；分别编码则是 <code>[220,15339]</code>，一个空格 Token 加一个 hello Token。这个观察来自真实词表，不代表所有空白符在所有编码器里都能这样合并。</p>
+<h2 id="section-03">3｜反直觉再加一层：数量相同，仍然可能不同</h2>
+<p>cl100k_base 编码 <code>abcde</code> 得到 <code>[13997,451]</code>，对应字节 <code>abc | de</code>。先编码 <code>abcd</code>、再编码 <code>e</code> 得到 <code>[69744,68]</code>，对应 <code>abcd | e</code>。<strong>两边都是 2 Token，但 ID 完全不同。</strong></p>
+<p>因此只比较 <code>len(ids)</code> 无法判定输入相同，也不能判定前缀缓存可复用。gpt2 在同一个例子里是 2 vs 3 Token，说明结果依赖实际编码器，不能把一个例子的数量当成通用规律。</p>
+<p>这也限制了常见的计数办法：把 System Prompt、User Prompt、模板片段分别算 Token 再相加，不一定等于最终输入长度。若实际服务在它们之间插入 Special Token，必须按照那个服务的真实序列结构计算，不能直接套本实验的普通文本拼接。</p>
+<p>模型的 Embedding 查表与后续位置基于 ID 序列进行；不同 ID 即使能显示成相同文本，也不能要求中间隐状态相同。本实验没有推断回答一定改变，更没有证明哪个切法更聪明。</p>
+<h2 id="section-04">4｜完整实验设置：两种编码器、七组切法、85 个切点</h2>
+<p>环境为 macOS、Python 3.12.2、tiktoken 0.12.0。调用 <code>encode_ordinary</code>，因此只测试普通文本，不加入 Chat Template、Special Token 或模型端预处理。</p>
+<p>七组定点实验包括：<code>hel | lo</code>、空格 <code>| hello</code>、<code>abcd | e</code>、<code>hello | 空格world</code>、<code>antidis | establishmentarianism</code>、<code>你 | 好</code>、<code>We say hel | lo</code>。每组都检查两种 Token 路径解码出的字节与原输入一致。</p>
+<p>另取九个固定字符串：hello、空格hello、abcde、antidisestablishmentarianism、你好世界、café、12 个 a、The quick brown fox.、1234567890。按 Python 字符串的 <strong>Unicode Code Point</strong> 枚举所有非空二段切点，合计每个编码器 85 个。</p>
+<p>这不是字节随机切分，也不是按 Grapheme Cluster 切分；固定小语料用于找现象和反例，不用于估计真实用户文本的发生概率。结果保存编码词表 rank 与正则表达式的 SHA-256，帮助确认复现配置。</p>
+<h2 id="section-05">5｜切点扫描：有些串很敏感，有些完全不变</h2>
+<svg role="img" aria-label="图2：九个固定字符串中，分段后改变Token ID序列的切点数" style="display:block;width:680px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:24px auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="648.625pt" height="421.158688pt" viewBox="0 0 648.625 421.158688" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:description>Plot measured token IDs and codepoint split census from results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="split_census_figure_1">
+  <g id="split_census_patch_1">
+   <path d="M 0 421.158688
+L 648.625 421.158688
+L 648.625 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="split_census_axes_1">
+   <g id="split_census_patch_2">
+    <path d="M 139.225 378.95775
+L 641.425 378.95775
+L 641.425 24.14175
+L 139.225 24.14175
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="split_census_matplotlib.axis_1">
+    <g id="split_census_xtick_1">
+     <g id="split_census_line2d_1">
+      <path d="M 139.225 378.95775
+L 139.225 24.14175
+" clip-path="url(#split_census_pfbed87787f)" style="fill: none; stroke: #e4e9ef; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="split_census_line2d_2">
+      <defs>
+       <path id="split_census_mb81518952e" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#split_census_mb81518952e" x="139.225" y="378.95775" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_1">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle" x="139.225" y="395.074938" transform="rotate(-0 139.225 395.074938)">0</text>
+     </g>
+    </g>
+    <g id="split_census_xtick_2">
+     <g id="split_census_line2d_3">
+      <path d="M 228.903571 378.95775
+L 228.903571 24.14175
+" clip-path="url(#split_census_pfbed87787f)" style="fill: none; stroke: #e4e9ef; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="split_census_line2d_4">
+      <g>
+       <use xlink:href="#split_census_mb81518952e" x="228.903571" y="378.95775" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_2">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle" x="228.903571" y="395.074938" transform="rotate(-0 228.903571 395.074938)">5</text>
+     </g>
+    </g>
+    <g id="split_census_xtick_3">
+     <g id="split_census_line2d_5">
+      <path d="M 318.582143 378.95775
+L 318.582143 24.14175
+" clip-path="url(#split_census_pfbed87787f)" style="fill: none; stroke: #e4e9ef; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="split_census_line2d_6">
+      <g>
+       <use xlink:href="#split_census_mb81518952e" x="318.582143" y="378.95775" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_3">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle" x="318.582143" y="395.074938" transform="rotate(-0 318.582143 395.074938)">10</text>
+     </g>
+    </g>
+    <g id="split_census_xtick_4">
+     <g id="split_census_line2d_7">
+      <path d="M 408.260714 378.95775
+L 408.260714 24.14175
+" clip-path="url(#split_census_pfbed87787f)" style="fill: none; stroke: #e4e9ef; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="split_census_line2d_8">
+      <g>
+       <use xlink:href="#split_census_mb81518952e" x="408.260714" y="378.95775" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_4">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle" x="408.260714" y="395.074938" transform="rotate(-0 408.260714 395.074938)">15</text>
+     </g>
+    </g>
+    <g id="split_census_xtick_5">
+     <g id="split_census_line2d_9">
+      <path d="M 497.939286 378.95775
+L 497.939286 24.14175
+" clip-path="url(#split_census_pfbed87787f)" style="fill: none; stroke: #e4e9ef; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="split_census_line2d_10">
+      <g>
+       <use xlink:href="#split_census_mb81518952e" x="497.939286" y="378.95775" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_5">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle" x="497.939286" y="395.074938" transform="rotate(-0 497.939286 395.074938)">20</text>
+     </g>
+    </g>
+    <g id="split_census_xtick_6">
+     <g id="split_census_line2d_11">
+      <path d="M 587.617857 378.95775
+L 587.617857 24.14175
+" clip-path="url(#split_census_pfbed87787f)" style="fill: none; stroke: #e4e9ef; stroke-width: 0.8; stroke-linecap: square"/>
+     </g>
+     <g id="split_census_line2d_12">
+      <g>
+       <use xlink:href="#split_census_mb81518952e" x="587.617857" y="378.95775" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_6">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle" x="587.617857" y="395.074938" transform="rotate(-0 587.617857 395.074938)">25</text>
+     </g>
+    </g>
+    <g id="split_census_text_7">
+     <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle" x="390.325" y="411.075875" transform="rotate(-0 390.325 411.075875)">Split points with changed token IDs</text>
+    </g>
+   </g>
+   <g id="split_census_matplotlib.axis_2">
+    <g id="split_census_ytick_1">
+     <g id="split_census_line2d_13">
+      <defs>
+       <path id="split_census_m632b9a3d0b" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#split_census_m632b9a3d0b" x="139.225" y="52.904589" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_8">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end" x="132.225" y="57.463651" transform="rotate(-0 132.225 57.463651)">hello</text>
+     </g>
+    </g>
+    <g id="split_census_ytick_2">
+     <g id="split_census_line2d_14">
+      <g>
+       <use xlink:href="#split_census_m632b9a3d0b" x="139.225" y="90.065879" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_9">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end" x="132.225" y="94.624942" transform="rotate(-0 132.225 94.624942)">[space]hello</text>
+     </g>
+    </g>
+    <g id="split_census_ytick_3">
+     <g id="split_census_line2d_15">
+      <g>
+       <use xlink:href="#split_census_m632b9a3d0b" x="139.225" y="127.227169" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_10">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end" x="132.225" y="131.786232" transform="rotate(-0 132.225 131.786232)">abcde</text>
+     </g>
+    </g>
+    <g id="split_census_ytick_4">
+     <g id="split_census_line2d_16">
+      <g>
+       <use xlink:href="#split_census_m632b9a3d0b" x="139.225" y="164.38846" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_11">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end" x="132.225" y="168.947522" transform="rotate(-0 132.225 168.947522)">antidis...arianism</text>
+     </g>
+    </g>
+    <g id="split_census_ytick_5">
+     <g id="split_census_line2d_17">
+      <g>
+       <use xlink:href="#split_census_m632b9a3d0b" x="139.225" y="201.54975" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_12">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end" x="132.225" y="206.108813" transform="rotate(-0 132.225 206.108813)">Chinese: 4 chars</text>
+     </g>
+    </g>
+    <g id="split_census_ytick_6">
+     <g id="split_census_line2d_18">
+      <g>
+       <use xlink:href="#split_census_m632b9a3d0b" x="139.225" y="238.71104" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_13">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end" x="132.225" y="243.510103" transform="rotate(-0 132.225 243.510103)">café (NFC)</text>
+     </g>
+    </g>
+    <g id="split_census_ytick_7">
+     <g id="split_census_line2d_19">
+      <g>
+       <use xlink:href="#split_census_m632b9a3d0b" x="139.225" y="275.872331" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_14">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end" x="132.225" y="280.430924" transform="rotate(-0 132.225 280.430924)">a × 12</text>
+     </g>
+    </g>
+    <g id="split_census_ytick_8">
+     <g id="split_census_line2d_20">
+      <g>
+       <use xlink:href="#split_census_m632b9a3d0b" x="139.225" y="313.033621" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_15">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end" x="132.225" y="317.592683" transform="rotate(-0 132.225 317.592683)">The quick brown fox.</text>
+     </g>
+    </g>
+    <g id="split_census_ytick_9">
+     <g id="split_census_line2d_21">
+      <g>
+       <use xlink:href="#split_census_m632b9a3d0b" x="139.225" y="350.194911" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="split_census_text_16">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end" x="132.225" y="354.753505" transform="rotate(-0 132.225 354.753505)">1234567890</text>
+     </g>
+    </g>
+   </g>
+   <g id="split_census_patch_3">
+    <path d="M 139.225 40.26975
+L 210.967857 40.26975
+L 210.967857 52.161363
+L 139.225 52.161363
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #286aab"/>
+   </g>
+   <g id="split_census_patch_4">
+    <path d="M 139.225 77.43104
+L 228.903571 77.43104
+L 228.903571 89.322653
+L 139.225 89.322653
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #286aab"/>
+   </g>
+   <g id="split_census_patch_5">
+    <path d="M 139.225 114.592331
+L 193.032143 114.592331
+L 193.032143 126.483944
+L 139.225 126.483944
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #286aab"/>
+   </g>
+   <g id="split_census_patch_6">
+    <path d="M 139.225 151.753621
+L 551.746429 151.753621
+L 551.746429 163.645234
+L 139.225 163.645234
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #286aab"/>
+   </g>
+   <g id="split_census_patch_7">
+    <path d="M 139.225 188.914911
+L 139.225 188.914911
+L 139.225 200.806524
+L 139.225 200.806524
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #286aab"/>
+   </g>
+   <g id="split_census_patch_8">
+    <path d="M 139.225 226.076202
+L 157.160714 226.076202
+L 157.160714 237.967815
+L 139.225 237.967815
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #286aab"/>
+   </g>
+   <g id="split_census_patch_9">
+    <path d="M 139.225 263.237492
+L 300.646429 263.237492
+L 300.646429 275.129105
+L 139.225 275.129105
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #286aab"/>
+   </g>
+   <g id="split_census_patch_10">
+    <path d="M 139.225 300.398782
+L 408.260714 300.398782
+L 408.260714 312.290395
+L 139.225 312.290395
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #286aab"/>
+   </g>
+   <g id="split_census_patch_11">
+    <path d="M 139.225 337.560073
+L 246.839286 337.560073
+L 246.839286 349.451685
+L 139.225 349.451685
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #286aab"/>
+   </g>
+   <g id="split_census_patch_12">
+    <path d="M 139.225 53.647815
+L 210.967857 53.647815
+L 210.967857 65.539427
+L 139.225 65.539427
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #d17b28"/>
+   </g>
+   <g id="split_census_patch_13">
+    <path d="M 139.225 90.809105
+L 228.903571 90.809105
+L 228.903571 102.700718
+L 139.225 102.700718
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #d17b28"/>
+   </g>
+   <g id="split_census_patch_14">
+    <path d="M 139.225 127.970395
+L 193.032143 127.970395
+L 193.032143 139.862008
+L 139.225 139.862008
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #d17b28"/>
+   </g>
+   <g id="split_census_patch_15">
+    <path d="M 139.225 165.131685
+L 533.810714 165.131685
+L 533.810714 177.023298
+L 139.225 177.023298
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #d17b28"/>
+   </g>
+   <g id="split_census_patch_16">
+    <path d="M 139.225 202.292976
+L 139.225 202.292976
+L 139.225 214.184589
+L 139.225 214.184589
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #d17b28"/>
+   </g>
+   <g id="split_census_patch_17">
+    <path d="M 139.225 239.454266
+L 175.096429 239.454266
+L 175.096429 251.345879
+L 139.225 251.345879
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #d17b28"/>
+   </g>
+   <g id="split_census_patch_18">
+    <path d="M 139.225 276.615556
+L 318.582143 276.615556
+L 318.582143 288.507169
+L 139.225 288.507169
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #d17b28"/>
+   </g>
+   <g id="split_census_patch_19">
+    <path d="M 139.225 313.776847
+L 408.260714 313.776847
+L 408.260714 325.66846
+L 139.225 325.66846
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #d17b28"/>
+   </g>
+   <g id="split_census_patch_20">
+    <path d="M 139.225 350.938137
+L 246.839286 350.938137
+L 246.839286 362.82975
+L 139.225 362.82975
+z
+" clip-path="url(#split_census_pfbed87787f)" style="fill: #d17b28"/>
+   </g>
+   <g id="split_census_patch_21">
+    <path d="M 139.225 378.95775
+L 139.225 24.14175
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="split_census_patch_22">
+    <path d="M 139.225 378.95775
+L 641.425 378.95775
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="split_census_text_17">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #286aab" x="217.245357" y="49.072978" transform="rotate(-0 217.245357 49.072978)">4/4</text>
+   </g>
+   <g id="split_census_text_18">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #286aab" x="235.181071" y="86.234269" transform="rotate(-0 235.181071 86.234269)">5/5</text>
+   </g>
+   <g id="split_census_text_19">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #286aab" x="199.309643" y="123.395559" transform="rotate(-0 199.309643 123.395559)">3/4</text>
+   </g>
+   <g id="split_census_text_20">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #286aab" x="558.023929" y="160.556849" transform="rotate(-0 558.023929 160.556849)">23/27</text>
+   </g>
+   <g id="split_census_text_21">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #286aab" x="145.5025" y="197.71814" transform="rotate(-0 145.5025 197.71814)">0/3</text>
+   </g>
+   <g id="split_census_text_22">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #286aab" x="163.438214" y="234.87943" transform="rotate(-0 163.438214 234.87943)">1/3</text>
+   </g>
+   <g id="split_census_text_23">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #286aab" x="306.923929" y="272.04072" transform="rotate(-0 306.923929 272.04072)">9/11</text>
+   </g>
+   <g id="split_census_text_24">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #286aab" x="414.538214" y="309.202011" transform="rotate(-0 414.538214 309.202011)">15/19</text>
+   </g>
+   <g id="split_census_text_25">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #286aab" x="253.116786" y="346.363301" transform="rotate(-0 253.116786 346.363301)">6/9</text>
+   </g>
+   <g id="split_census_text_26">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d17b28" x="217.245357" y="62.451043" transform="rotate(-0 217.245357 62.451043)">4/4</text>
+   </g>
+   <g id="split_census_text_27">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d17b28" x="235.181071" y="99.612333" transform="rotate(-0 235.181071 99.612333)">5/5</text>
+   </g>
+   <g id="split_census_text_28">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d17b28" x="199.309643" y="136.773623" transform="rotate(-0 199.309643 136.773623)">3/4</text>
+   </g>
+   <g id="split_census_text_29">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d17b28" x="540.088214" y="173.934914" transform="rotate(-0 540.088214 173.934914)">22/27</text>
+   </g>
+   <g id="split_census_text_30">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d17b28" x="145.5025" y="211.096204" transform="rotate(-0 145.5025 211.096204)">0/3</text>
+   </g>
+   <g id="split_census_text_31">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d17b28" x="181.373929" y="248.257494" transform="rotate(-0 181.373929 248.257494)">2/3</text>
+   </g>
+   <g id="split_census_text_32">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d17b28" x="324.859643" y="285.418785" transform="rotate(-0 324.859643 285.418785)">10/11</text>
+   </g>
+   <g id="split_census_text_33">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d17b28" x="414.538214" y="322.580075" transform="rotate(-0 414.538214 322.580075)">15/19</text>
+   </g>
+   <g id="split_census_text_34">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d17b28" x="253.116786" y="359.741365" transform="rotate(-0 253.116786 359.741365)">6/9</text>
+   </g>
+   <g id="split_census_text_35">
+    <text style="font-weight: 700; font-size: 14.4px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="390.325" y="18.14175" transform="rotate(-0 390.325 18.14175)">All nonempty codepoint splits in 9 fixed strings</text>
+   </g>
+   <g id="split_census_legend_1">
+    <g id="split_census_patch_23">
+     <path d="M 522.6325 347.274
+L 546.6325 347.274
+L 546.6325 338.874
+L 522.6325 338.874
+z
+" style="fill: #286aab"/>
+    </g>
+    <g id="split_census_text_36">
+     <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="556.2325" y="347.274" transform="rotate(-0 556.2325 347.274)">gpt2</text>
+    </g>
+    <g id="split_census_patch_24">
+     <path d="M 522.6325 365.274938
+L 546.6325 365.274938
+L 546.6325 356.874938
+L 522.6325 356.874938
+z
+" style="fill: #d17b28"/>
+    </g>
+    <g id="split_census_text_37">
+     <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="556.2325" y="365.274938" transform="rotate(-0 556.2325 365.274938)">cl100k_base</text>
+    </g>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="split_census_pfbed87787f">
+   <rect x="139.225" y="24.14175" width="502.2" height="354.816"/>
+  </clipPath>
+ </defs>
+</svg>
+<p><em>真实扫描结果。标签为“改变 ID 的切点数 / 该字符串全部切点数”，按 Unicode Code Point 切分。蓝色 gpt2、橙色 cl100k_base。长词有更多切点，柱长不能直接当成发生概率。中文案例使用原始的你好世界，图中英文仅作短标签。</em> <a href="assets/tokenizer-boundaries/split-census.svg">Open full-size chart ↗</a></p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>输入</th>
+<th style="text-align: right;">总切点</th>
+<th style="text-align: right;">gpt2 改变 ID</th>
+<th style="text-align: right;">cl100k_base 改变 ID</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hello</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">4</td>
+</tr>
+<tr>
+<td>空格hello</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">5</td>
+</tr>
+<tr>
+<td>abcde</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>antidisestablishmentarianism</td>
+<td style="text-align: right;">27</td>
+<td style="text-align: right;">23</td>
+<td style="text-align: right;">22</td>
+</tr>
+<tr>
+<td>你好世界</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>café</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr>
+<td>aaaaaaaaaaaa</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>The quick brown fox.</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">15</td>
+</tr>
+<tr>
+<td>1234567890</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td><strong>固定语料合计</strong></td>
+<td style="text-align: right;"><strong>85</strong></td>
+<td style="text-align: right;"><strong>66</strong></td>
+<td style="text-align: right;"><strong>67</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>其中“数量相同但 ID 改变”的切点，gpt2 有 <strong>5</strong> 个，cl100k_base 有 <strong>11</strong> 个。特别是 cl100k_base 的数字串，6 个改变 ID 的切点全部保持数量相同。这使只测 Token 数的检查很容易漏掉真实输入变化。</p>
+<p>本次所有切点的分段 Token 数相对整体增加量都不为负，但不能据此宣布任意 BPE 编码器、任意字符串都满足同一数量不等式。本文验证的是列出的词表和语料。</p>
+<h2 id="section-06">6｜明确的反例：分段不一定改变编码</h2>
+<p><code>hello | 空格world</code> 在两种编码器中都与整体 <code>hello world</code> 相同。cl100k_base 两条路径均为 <code>[15339,1917]</code>，gpt2 均为 <code>[31373,995]</code>。</p>
+<p><code>antidis | establishmentarianism</code> 这个特定切点也稳定，尽管同一个长词的其他很多切点会改变编码。<code>你 | 好</code> 在这两个编码器中同样稳定。</p>
+<p>这些反例说明，正确判断单位是<strong>编码器＋完整输入＋具体切点</strong>。不能用“英文词内部一定改变”“中文一定不变”或“正好落在某个 Token 后就一定安全”替代实际检查：添加后续文本可能重新改变此前末尾的分段与合并。</p>
+<h2 id="section-07">7｜前缀 KV Cache：文字前缀不是可复用 Token 前缀</h2>
+<p>假设此前只收到 <code>We say hel</code>，其 cl100k_base 编码为 <code>[1687,2019,11591]</code>。随后补上 <code>lo</code>，完整文本 <code>We say hello</code> 的编码变为 <code>[1687,2019,24748]</code>。字符前缀全部仍在，但旧的第三个 Token 已被替换。</p>
+<svg role="img" aria-label="图3：We say hel追加lo后，只能保留两个相同前缀Token" style="display:block;width:680px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:24px auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="460.8pt" height="269.424pt" viewBox="0 0 460.8 269.424" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:description>Plot measured token IDs and codepoint split census from results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="prefix_tail_figure_1">
+  <g id="prefix_tail_patch_1">
+   <path d="M 0 269.424
+L 460.8 269.424
+L 460.8 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="prefix_tail_axes_1">
+   <g id="prefix_tail_patch_2">
+    <path d="M 15.26747 101.6748
+L 144.346988 101.6748
+Q 145.960482 101.6748 145.960482 99.936
+L 145.960482 60.5232
+Q 145.960482 58.7844 144.346988 58.7844
+L 15.26747 58.7844
+Q 13.653976 58.7844 13.653976 60.5232
+L 13.653976 99.936
+Q 13.653976 101.6748 15.26747 101.6748
+z
+" clip-path="url(#prefix_tail_pb09fcf8a35)" style="fill: #35836a; opacity: 0.12"/>
+   </g>
+   <g id="prefix_tail_patch_3">
+    <path d="M 157.792771 101.6748
+L 286.872289 101.6748
+Q 288.485783 101.6748 288.485783 99.936
+L 288.485783 60.5232
+Q 288.485783 58.7844 286.872289 58.7844
+L 157.792771 58.7844
+Q 156.179277 58.7844 156.179277 60.5232
+L 156.179277 99.936
+Q 156.179277 101.6748 157.792771 101.6748
+z
+" clip-path="url(#prefix_tail_pb09fcf8a35)" style="fill: #35836a; opacity: 0.12"/>
+   </g>
+   <g id="prefix_tail_patch_4">
+    <path d="M 300.318072 101.6748
+L 429.39759 101.6748
+Q 431.011084 101.6748 431.011084 99.936
+L 431.011084 60.5232
+Q 431.011084 58.7844 429.39759 58.7844
+L 300.318072 58.7844
+Q 298.704578 58.7844 298.704578 60.5232
+L 298.704578 99.936
+Q 298.704578 101.6748 300.318072 101.6748
+z
+" clip-path="url(#prefix_tail_pb09fcf8a35)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="prefix_tail_patch_5">
+    <path d="M 15.26747 165.4308
+L 144.346988 165.4308
+Q 145.960482 165.4308 145.960482 163.692
+L 145.960482 124.2792
+Q 145.960482 122.5404 144.346988 122.5404
+L 15.26747 122.5404
+Q 13.653976 122.5404 13.653976 124.2792
+L 13.653976 163.692
+Q 13.653976 165.4308 15.26747 165.4308
+z
+" clip-path="url(#prefix_tail_pb09fcf8a35)" style="fill: #35836a; opacity: 0.12"/>
+   </g>
+   <g id="prefix_tail_patch_6">
+    <path d="M 157.792771 165.4308
+L 286.872289 165.4308
+Q 288.485783 165.4308 288.485783 163.692
+L 288.485783 124.2792
+Q 288.485783 122.5404 286.872289 122.5404
+L 157.792771 122.5404
+Q 156.179277 122.5404 156.179277 124.2792
+L 156.179277 163.692
+Q 156.179277 165.4308 157.792771 165.4308
+z
+" clip-path="url(#prefix_tail_pb09fcf8a35)" style="fill: #35836a; opacity: 0.12"/>
+   </g>
+   <g id="prefix_tail_patch_7">
+    <path d="M 300.318072 165.4308
+L 429.39759 165.4308
+Q 431.011084 165.4308 431.011084 163.692
+L 431.011084 124.2792
+Q 431.011084 122.5404 429.39759 122.5404
+L 300.318072 122.5404
+Q 298.704578 122.5404 298.704578 124.2792
+L 298.704578 163.692
+Q 298.704578 165.4308 300.318072 165.4308
+z
+" clip-path="url(#prefix_tail_pb09fcf8a35)" style="fill: #d17b28; opacity: 0.12"/>
+   </g>
+   <g id="prefix_tail_patch_8">
+    <path d="M 15.26747 229.1868
+L 144.346988 229.1868
+Q 145.960482 229.1868 145.960482 227.448
+L 145.960482 188.0352
+Q 145.960482 186.2964 144.346988 186.2964
+L 15.26747 186.2964
+Q 13.653976 186.2964 13.653976 188.0352
+L 13.653976 227.448
+Q 13.653976 229.1868 15.26747 229.1868
+z
+" clip-path="url(#prefix_tail_pb09fcf8a35)" style="fill: #35836a; opacity: 0.12"/>
+   </g>
+   <g id="prefix_tail_patch_9">
+    <path d="M 157.792771 229.1868
+L 286.872289 229.1868
+Q 288.485783 229.1868 288.485783 227.448
+L 288.485783 188.0352
+Q 288.485783 186.2964 286.872289 186.2964
+L 157.792771 186.2964
+Q 156.179277 186.2964 156.179277 188.0352
+L 156.179277 227.448
+Q 156.179277 229.1868 157.792771 229.1868
+z
+" clip-path="url(#prefix_tail_pb09fcf8a35)" style="fill: #35836a; opacity: 0.12"/>
+   </g>
+   <g id="prefix_tail_text_1">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="21.69" transform="rotate(-0 7.2 21.69)">Appending 'lo' changes the old tail token</text>
+   </g>
+   <g id="prefix_tail_text_2">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="47.772" transform="rotate(-0 7.2 47.772)">Old text: We say hel</text>
+   </g>
+   <g id="prefix_tail_text_3">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="79.807229" y="74.4336" transform="rotate(-0 79.807229 74.4336)">We</text>
+   </g>
+   <g id="prefix_tail_text_4">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #35836a" x="79.807229" y="90.6624" transform="rotate(-0 79.807229 90.6624)">1687</text>
+   </g>
+   <g id="prefix_tail_text_5">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="222.33253" y="74.4336" transform="rotate(-0 222.33253 74.4336)">[space]say</text>
+   </g>
+   <g id="prefix_tail_text_6">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #35836a" x="222.33253" y="90.6624" transform="rotate(-0 222.33253 90.6624)">2019</text>
+   </g>
+   <g id="prefix_tail_text_7">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="364.857831" y="74.4336" transform="rotate(-0 364.857831 74.4336)">[space]hel</text>
+   </g>
+   <g id="prefix_tail_text_8">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="364.857831" y="90.6624" transform="rotate(-0 364.857831 90.6624)">11591</text>
+   </g>
+   <g id="prefix_tail_text_9">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="111.528" transform="rotate(-0 7.2 111.528)">Full text: We say hello</text>
+   </g>
+   <g id="prefix_tail_text_10">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="79.807229" y="138.1896" transform="rotate(-0 79.807229 138.1896)">We</text>
+   </g>
+   <g id="prefix_tail_text_11">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #35836a" x="79.807229" y="154.4184" transform="rotate(-0 79.807229 154.4184)">1687</text>
+   </g>
+   <g id="prefix_tail_text_12">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="222.33253" y="138.1896" transform="rotate(-0 222.33253 138.1896)">[space]say</text>
+   </g>
+   <g id="prefix_tail_text_13">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #35836a" x="222.33253" y="154.4184" transform="rotate(-0 222.33253 154.4184)">2019</text>
+   </g>
+   <g id="prefix_tail_text_14">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="364.857831" y="138.1896" transform="rotate(-0 364.857831 138.1896)">[space]hello</text>
+   </g>
+   <g id="prefix_tail_text_15">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #d17b28" x="364.857831" y="154.4184" transform="rotate(-0 364.857831 154.4184)">24748</text>
+   </g>
+   <g id="prefix_tail_text_16">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #263346" x="7.2" y="175.284" transform="rotate(-0 7.2 175.284)">IDs shared at the start</text>
+   </g>
+   <g id="prefix_tail_text_17">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="79.807229" y="201.9456" transform="rotate(-0 79.807229 201.9456)">We</text>
+   </g>
+   <g id="prefix_tail_text_18">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #35836a" x="79.807229" y="218.1744" transform="rotate(-0 79.807229 218.1744)">1687</text>
+   </g>
+   <g id="prefix_tail_text_19">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #263346" x="222.33253" y="201.9456" transform="rotate(-0 222.33253 201.9456)">[space]say</text>
+   </g>
+   <g id="prefix_tail_text_20">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #35836a" x="222.33253" y="218.1744" transform="rotate(-0 222.33253 218.1744)">2019</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="prefix_tail_pb09fcf8a35">
+   <rect x="7.2" y="7.2" width="446.4" height="255.024"/>
+  </clipPath>
+ </defs>
+</svg>
+<p><em>真实 cl100k_base ID。绿色标示相同的前两个 Token；橙色标示需要重新编码的末尾。可复用前缀为 2 Token，旧第三个 Token 的 KV 不能按整段编码目标直接沿用。</em> <a href="assets/tokenizer-boundaries/prefix-tail.svg">Open full-size chart ↗</a></p>
+<p>若使用同一个因果模型、相同位置与缓存配置，理论上可重用新旧 ID 的最长共同前缀：</p>
+<div class="formula" role="math">r = LCP(E(x), E(x+y))<br/>本例：r = LCP([1687,2019,11591], [1687,2019,24748]) = 2</div>
+<p>Token 前缀相同是必要条件；实际还要保证模型权重、位置编码、Adapter、多模态输入和 KV 格式等状态相容。按块缓存的服务也可能要求完整缓存块，因此理论的 2 Token 不保证产生 2 Token 的实际命中。</p>
+<p>如果为了保留旧缓存而直接拼 <code>[1687,2019,11591] + [385]</code>，解码仍是同样文字，但你已经改成另一条 ID 序列，不再是“整段重编码”的输入。</p>
+<p>这里与 <a href="../foundations/chunked-prefill.html">Chunked Prefill</a> 的区别很重要：Chunked Prefill 通常接收<strong>已经确定的 Token ID</strong>，切的是模型计算轮次；本实验切的是 <strong>Tokenizer 的文本输入</strong>。前者保留同一 Token 序列，后者可能改变序列。</p>
+<h2 id="section-08">8｜流式输入怎样处理：末尾未必已经稳定</h2>
+<p>网络分包、文件读取分块或 UI 逐段输入是传输边界，不能自动当成模型 Token 边界。需要一次性等价的编码结果时，最稳妥的参照是拼好最终文本，调用目标编码器与模板再编码。</p>
+<p>长流式输入若不能保留全量重编码，就需要维护可确认的稳定前缀和待处理尾部。tiktoken 0.12.0 提供 <code>encode_with_unstable</code>，返回稳定 Token 与可能补全序列，源码明确将其标为不稳定 API。[3] 它提示了这种问题应在 Tokenizer 层处理，但不是本文已经验证的通用流式编码组件。</p>
+<p>不要自行规定“只重编码最后一个字符”或“留固定 3 个 Token 就够”：正则分段与合并规则决定末尾如何变化。本文没有证明一个适用于所有文本和编码器的固定尾窗长度。</p>
+<p>训练语料预处理也需要相同的边界约定。按文档插入 Special Token 是明确定义的序列设计；因读取 Buffer 大小变化而意外改变 Token 序列，则会让数据复现依赖 IO 分块。二者应分别记录。</p>
+<h2 id="section-09">9｜另一个坑：逐 Token 解码可能打碎一个中文字</h2>
+<p>gpt2 编码 <code>你好</code> 为 <code>[19526,254,25001,121]</code>，每个 Token 的原始字节依次是 <code>e4 bd</code>、<code>a0</code>、<code>e5 a5</code>、<code>bd</code>。其中的单个 Token 不一定是合法、完整的 UTF-8 字符。[2][3]</p>
+<p>若对每个 ID 单独调用默认 <code>decode</code>，再拼字符，结果是 <code>����</code>；先拼原始 Token 字节，再统一解码，得到正确的 <code>你好</code>。cl100k_base 在这个具体例子中 <code>[57668,53901]</code> 各自包含完整汉字，逐个解码没有问题。</p>
+<pre><code class="language-python">raw = b"".join(enc.decode_single_token_bytes(i) for i in ids)
+text = raw.decode("utf-8")  # 本实验完整原文的字节序列是合法 UTF-8
+</code></pre>
+<p>所以生成时的逐 Token 显示需要有状态的增量 UTF-8 解码，或暂存未完成字节。不要用每 Token 的替换字符结果判断模型“输出了乱码”；也不要以为任意单 Token 的字节都能独立变成字符。</p>
+<h2 id="section-10">10｜“看起来一样”还可能是 Unicode 的另一个问题</h2>
+<p>主实验始终比较完全相同的字节。下面另换一个问题：<code>café</code> 可以使用 <code>U+00E9</code> 的 é，也可以使用 <code>U+0065 U+0301</code> 的 e 加组合重音。这两串 Code Point 和 UTF-8 字节不同，视觉上通常相似。</p>
+<div aria-label="Scrollable data table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>编码器</th>
+<th>NFC café</th>
+<th>NFD cafe＋组合重音</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>gpt2</td>
+<td>[66,1878,2634]，3 Token</td>
+<td>[66,8635,136,223]，4 Token</td>
+</tr>
+<tr>
+<td>cl100k_base</td>
+<td>[936,59958]，2 Token</td>
+<td>[936,1897,54939]，3 Token</td>
+</tr>
+</tbody>
+</table></div>
+<p>Python <code>unicodedata.normalize("NFC", nfd)</code> 在本例中还原为前者，两种编码器归一化后的 ID 因而一致。GPT-2 官方输入流程不自动加上这一步；是否归一化应是输入管线的显式约定。[2][4]</p>
+<p>这不是鼓励盲目改写所有输入。代码、精确文本匹配与已有缓存需要统一原始字节约定；规范化也应与模型训练、服务预处理一致。不要把“同一字节串因切点不同而换 Token”和“不同字节串因 Unicode 表示不同而换 Token”混成一个机制。</p>
+<h2 id="section-11">11｜自己复现与总结：检查 ID，而不只看文字和数量</h2>
+<p>下载 <a href="assets/tokenizer-boundaries/experiment.py">experiment.py</a>、<a href="assets/tokenizer-boundaries/results.json">完整 results.json</a> 与 <a href="assets/tokenizer-boundaries/render_figures.py">绘图脚本</a>。首次取得编码词表需要联网；后续可用 tiktoken 的本地缓存。无需模型权重。</p>
+<pre><code class="language-bash">python3 -m pip install tiktoken==0.12.0
+python3 experiment.py
+</code></pre>
+<p>一个最小玩具复现：</p>
+<pre><code class="language-python">import tiktoken
+enc = tiktoken.get_encoding("cl100k_base")
+x, y = "abcd", "e"
+a = enc.encode_ordinary(x + y)
+b = enc.encode_ordinary(x) + enc.encode_ordinary(y)
+assert len(a) == len(b) == 2
+assert a != b
+assert enc.decode_bytes(a) == enc.decode_bytes(b) == b"abcde"
+print(a, b)  # [13997, 451] [69744, 68]
+</code></pre>
+<p><strong>真正值得保留的直觉：</strong> 字符串、UTF-8 字节与 Token ID 是三个不同层次。同字节保证能还原同文本，同数量只说明长度相同；只有相同 ID 前缀加相容的模型状态，才支持对应 KV 复用。</p>
+<p>做输入或缓存排查时，保存目标编码器与版本、最终模板、原始字节、完整 ID 与最长共同前缀。然后再去看模型计算和服务时延。这个小实验不会替你预测回答，但能排除一个很隐蔽的“其实输入变了”。</p>
+<h2 id="section-12">来源</h2>
+<ol>
+<li><a href="https://aclanthology.org/P16-1162/">Sennrich / Haddow / Birch，ACL 2016 原论文</a>、<a href="https://arxiv.org/html/1508.07909v5">原文 HTML §3.2</a>：字符 BPE、合并次序与词内边界，作为子词编码历史背景。</li>
+<li><a href="https://github.com/openai/gpt-2/blob/master/src/encoder.py">OpenAI GPT-2 原始 encoder.py</a>：可逆字节映射、正则预分段、rank-based BPE 与 encode/decode。</li>
+<li><a href="https://github.com/openai/tiktoken/blob/0.12.0/tiktoken/core.py">tiktoken 0.12.0 core.py</a>、<a href="https://github.com/openai/tiktoken/blob/0.12.0/tiktoken_ext/openai_public.py">编码定义 openai_public.py</a>：encode_ordinary、decode_bytes、decode_single_token_bytes、encode_with_unstable 与实际编码配置。</li>
+<li><a href="https://docs.python.org/3.12/library/unicodedata.html#unicodedata.normalize">Python Unicode 数据库与 normalize 文档</a>：本例由标准库验证 NFC / NFD；本节不扩展为所有输入的规范化建议。</li>
+<li><a href="assets/tokenizer-boundaries/results.json">本文完整实测数据</a>、<a href="assets/tokenizer-boundaries/experiment.py">实验源代码</a>：全部图、ID、切点统计、Unicode 结果与编码配置指纹。小语料测量不代表自然语言分布，也未运行 LLM。</li>
+</ol></article></main>
+<footer class="site-footer"><span>© 2026 Howie Yin</span><div class="footer-links"><a href="./">Back to archive ←</a><a href="../">Home ←</a></div></footer>
+</div></body></html>

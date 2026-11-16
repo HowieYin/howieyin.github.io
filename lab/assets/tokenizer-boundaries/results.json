@@ -1,0 +1,714 @@
+{
+  "environment": {
+    "python": "3.12.2",
+    "tiktoken": "0.12.0",
+    "platform": "Darwin"
+  },
+  "results": [
+    {
+      "encoding": "gpt2",
+      "vocabulary_rank_sha256": "22fbd7c00a2dd5e0d05b456d1ed6e48dd78b102b48661d47a0970dd56ea37790",
+      "regex_sha256": "bf51d578af57187876ec1c8a34fb0ee2fb3025c50ce663ac154b633ae39de092",
+      "cases": [
+        {
+          "name": "inside_word",
+          "left": "hel",
+          "right": "lo",
+          "text": "hello",
+          "whole_ids": [
+            31373
+          ],
+          "separate_ids": [
+            2978,
+            5439
+          ],
+          "whole_count": 1,
+          "separate_count": 2,
+          "same_ids": false,
+          "cached_prefix_ids": [
+            2978
+          ],
+          "reusable_prefix_tokens": 0,
+          "whole_token_hex": [
+            "68656c6c6f"
+          ],
+          "separate_token_hex": [
+            "68656c",
+            "6c6f"
+          ]
+        },
+        {
+          "name": "space_word",
+          "left": " ",
+          "right": "hello",
+          "text": " hello",
+          "whole_ids": [
+            23748
+          ],
+          "separate_ids": [
+            220,
+            31373
+          ],
+          "whole_count": 1,
+          "separate_count": 2,
+          "same_ids": false,
+          "cached_prefix_ids": [
+            220
+          ],
+          "reusable_prefix_tokens": 0,
+          "whole_token_hex": [
+            "2068656c6c6f"
+          ],
+          "separate_token_hex": [
+            "20",
+            "68656c6c6f"
+          ]
+        },
+        {
+          "name": "same_count",
+          "left": "abcd",
+          "right": "e",
+          "text": "abcde",
+          "whole_ids": [
+            39305,
+            2934
+          ],
+          "separate_ids": [
+            397,
+            10210,
+            68
+          ],
+          "whole_count": 2,
+          "separate_count": 3,
+          "same_ids": false,
+          "cached_prefix_ids": [
+            397,
+            10210
+          ],
+          "reusable_prefix_tokens": 0,
+          "whole_token_hex": [
+            "616263",
+            "6465"
+          ],
+          "separate_token_hex": [
+            "6162",
+            "6364",
+            "65"
+          ]
+        },
+        {
+          "name": "stable_word_boundary",
+          "left": "hello",
+          "right": " world",
+          "text": "hello world",
+          "whole_ids": [
+            31373,
+            995
+          ],
+          "separate_ids": [
+            31373,
+            995
+          ],
+          "whole_count": 2,
+          "separate_count": 2,
+          "same_ids": true,
+          "cached_prefix_ids": [
+            31373
+          ],
+          "reusable_prefix_tokens": 1,
+          "whole_token_hex": [
+            "68656c6c6f",
+            "20776f726c64"
+          ],
+          "separate_token_hex": [
+            "68656c6c6f",
+            "20776f726c64"
+          ]
+        },
+        {
+          "name": "long_word_boundary",
+          "left": "antidis",
+          "right": "establishmentarianism",
+          "text": "antidisestablishmentarianism",
+          "whole_ids": [
+            415,
+            29207,
+            44390,
+            3699,
+            1042
+          ],
+          "separate_ids": [
+            415,
+            29207,
+            44390,
+            3699,
+            1042
+          ],
+          "whole_count": 5,
+          "separate_count": 5,
+          "same_ids": true,
+          "cached_prefix_ids": [
+            415,
+            29207
+          ],
+          "reusable_prefix_tokens": 2,
+          "whole_token_hex": [
+            "616e74",
+            "69646973",
+            "65737461626c6973686d656e74",
+            "617269616e",
+            "69736d"
+          ],
+          "separate_token_hex": [
+            "616e74",
+            "69646973",
+            "65737461626c6973686d656e74",
+            "617269616e",
+            "69736d"
+          ]
+        },
+        {
+          "name": "chinese_control",
+          "left": "你",
+          "right": "好",
+          "text": "你好",
+          "whole_ids": [
+            19526,
+            254,
+            25001,
+            121
+          ],
+          "separate_ids": [
+            19526,
+            254,
+            25001,
+            121
+          ],
+          "whole_count": 4,
+          "separate_count": 4,
+          "same_ids": true,
+          "cached_prefix_ids": [
+            19526,
+            254
+          ],
+          "reusable_prefix_tokens": 2,
+          "whole_token_hex": [
+            "e4bd",
+            "a0",
+            "e5a5",
+            "bd"
+          ],
+          "separate_token_hex": [
+            "e4bd",
+            "a0",
+            "e5a5",
+            "bd"
+          ]
+        },
+        {
+          "name": "prefix_tail",
+          "left": "We say hel",
+          "right": "lo",
+          "text": "We say hello",
+          "whole_ids": [
+            1135,
+            910,
+            23748
+          ],
+          "separate_ids": [
+            1135,
+            910,
+            932,
+            5439
+          ],
+          "whole_count": 3,
+          "separate_count": 4,
+          "same_ids": false,
+          "cached_prefix_ids": [
+            1135,
+            910,
+            932
+          ],
+          "reusable_prefix_tokens": 2,
+          "whole_token_hex": [
+            "5765",
+            "20736179",
+            "2068656c6c6f"
+          ],
+          "separate_token_hex": [
+            "5765",
+            "20736179",
+            "2068656c",
+            "6c6f"
+          ]
+        }
+      ],
+      "split_census": [
+        {
+          "text": "hello",
+          "split_points": 4,
+          "changed_ids": 4,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 1,
+          "max_token_delta": 1
+        },
+        {
+          "text": " hello",
+          "split_points": 5,
+          "changed_ids": 5,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 1,
+          "max_token_delta": 1
+        },
+        {
+          "text": "abcde",
+          "split_points": 4,
+          "changed_ids": 3,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 0,
+          "max_token_delta": 1
+        },
+        {
+          "text": "antidisestablishmentarianism",
+          "split_points": 27,
+          "changed_ids": 23,
+          "same_count_changed_ids": 2,
+          "min_token_delta": 0,
+          "max_token_delta": 4
+        },
+        {
+          "text": "你好世界",
+          "split_points": 3,
+          "changed_ids": 0,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 0,
+          "max_token_delta": 0
+        },
+        {
+          "text": "café",
+          "split_points": 3,
+          "changed_ids": 1,
+          "same_count_changed_ids": 1,
+          "min_token_delta": 0,
+          "max_token_delta": 0
+        },
+        {
+          "text": "aaaaaaaaaaaa",
+          "split_points": 11,
+          "changed_ids": 9,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 0,
+          "max_token_delta": 1
+        },
+        {
+          "text": "The quick brown fox.",
+          "split_points": 19,
+          "changed_ids": 15,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 0,
+          "max_token_delta": 2
+        },
+        {
+          "text": "1234567890",
+          "split_points": 9,
+          "changed_ids": 6,
+          "same_count_changed_ids": 2,
+          "min_token_delta": 0,
+          "max_token_delta": 1
+        }
+      ],
+      "unicode": {
+        "nfc": "café",
+        "nfd": "café",
+        "nfc_codepoints": [
+          "U+0063",
+          "U+0061",
+          "U+0066",
+          "U+00E9"
+        ],
+        "nfd_codepoints": [
+          "U+0063",
+          "U+0061",
+          "U+0066",
+          "U+0065",
+          "U+0301"
+        ],
+        "nfc_ids": [
+          66,
+          1878,
+          2634
+        ],
+        "nfd_ids": [
+          66,
+          8635,
+          136,
+          223
+        ],
+        "normalized_equal": true
+      },
+      "byte_decode": {
+        "text": "你好",
+        "ids": [
+          19526,
+          254,
+          25001,
+          121
+        ],
+        "token_hex": [
+          "e4bd",
+          "a0",
+          "e5a5",
+          "bd"
+        ],
+        "decoded_individually": "����",
+        "decoded_together": "你好"
+      }
+    },
+    {
+      "encoding": "cl100k_base",
+      "vocabulary_rank_sha256": "2f42d9ac99cced2beb3c9c7fede745880915fa54be5739f990c19656a4e7fcba",
+      "regex_sha256": "f021c3d976978e62ee64cdad150cc3405c2e3d6e3b40407850bb9e8d9eb65899",
+      "cases": [
+        {
+          "name": "inside_word",
+          "left": "hel",
+          "right": "lo",
+          "text": "hello",
+          "whole_ids": [
+            15339
+          ],
+          "separate_ids": [
+            50222,
+            385
+          ],
+          "whole_count": 1,
+          "separate_count": 2,
+          "same_ids": false,
+          "cached_prefix_ids": [
+            50222
+          ],
+          "reusable_prefix_tokens": 0,
+          "whole_token_hex": [
+            "68656c6c6f"
+          ],
+          "separate_token_hex": [
+            "68656c",
+            "6c6f"
+          ]
+        },
+        {
+          "name": "space_word",
+          "left": " ",
+          "right": "hello",
+          "text": " hello",
+          "whole_ids": [
+            24748
+          ],
+          "separate_ids": [
+            220,
+            15339
+          ],
+          "whole_count": 1,
+          "separate_count": 2,
+          "same_ids": false,
+          "cached_prefix_ids": [
+            220
+          ],
+          "reusable_prefix_tokens": 0,
+          "whole_token_hex": [
+            "2068656c6c6f"
+          ],
+          "separate_token_hex": [
+            "20",
+            "68656c6c6f"
+          ]
+        },
+        {
+          "name": "same_count",
+          "left": "abcd",
+          "right": "e",
+          "text": "abcde",
+          "whole_ids": [
+            13997,
+            451
+          ],
+          "separate_ids": [
+            69744,
+            68
+          ],
+          "whole_count": 2,
+          "separate_count": 2,
+          "same_ids": false,
+          "cached_prefix_ids": [
+            69744
+          ],
+          "reusable_prefix_tokens": 0,
+          "whole_token_hex": [
+            "616263",
+            "6465"
+          ],
+          "separate_token_hex": [
+            "61626364",
+            "65"
+          ]
+        },
+        {
+          "name": "stable_word_boundary",
+          "left": "hello",
+          "right": " world",
+          "text": "hello world",
+          "whole_ids": [
+            15339,
+            1917
+          ],
+          "separate_ids": [
+            15339,
+            1917
+          ],
+          "whole_count": 2,
+          "separate_count": 2,
+          "same_ids": true,
+          "cached_prefix_ids": [
+            15339
+          ],
+          "reusable_prefix_tokens": 1,
+          "whole_token_hex": [
+            "68656c6c6f",
+            "20776f726c64"
+          ],
+          "separate_token_hex": [
+            "68656c6c6f",
+            "20776f726c64"
+          ]
+        },
+        {
+          "name": "long_word_boundary",
+          "left": "antidis",
+          "right": "establishmentarianism",
+          "text": "antidisestablishmentarianism",
+          "whole_ids": [
+            519,
+            85342,
+            34500,
+            479,
+            8997,
+            2191
+          ],
+          "separate_ids": [
+            519,
+            85342,
+            34500,
+            479,
+            8997,
+            2191
+          ],
+          "whole_count": 6,
+          "separate_count": 6,
+          "same_ids": true,
+          "cached_prefix_ids": [
+            519,
+            85342
+          ],
+          "reusable_prefix_tokens": 2,
+          "whole_token_hex": [
+            "616e74",
+            "69646973",
+            "65737461626c697368",
+            "6d656e74",
+            "617269616e",
+            "69736d"
+          ],
+          "separate_token_hex": [
+            "616e74",
+            "69646973",
+            "65737461626c697368",
+            "6d656e74",
+            "617269616e",
+            "69736d"
+          ]
+        },
+        {
+          "name": "chinese_control",
+          "left": "你",
+          "right": "好",
+          "text": "你好",
+          "whole_ids": [
+            57668,
+            53901
+          ],
+          "separate_ids": [
+            57668,
+            53901
+          ],
+          "whole_count": 2,
+          "separate_count": 2,
+          "same_ids": true,
+          "cached_prefix_ids": [
+            57668
+          ],
+          "reusable_prefix_tokens": 1,
+          "whole_token_hex": [
+            "e4bda0",
+            "e5a5bd"
+          ],
+          "separate_token_hex": [
+            "e4bda0",
+            "e5a5bd"
+          ]
+        },
+        {
+          "name": "prefix_tail",
+          "left": "We say hel",
+          "right": "lo",
+          "text": "We say hello",
+          "whole_ids": [
+            1687,
+            2019,
+            24748
+          ],
+          "separate_ids": [
+            1687,
+            2019,
+            11591,
+            385
+          ],
+          "whole_count": 3,
+          "separate_count": 4,
+          "same_ids": false,
+          "cached_prefix_ids": [
+            1687,
+            2019,
+            11591
+          ],
+          "reusable_prefix_tokens": 2,
+          "whole_token_hex": [
+            "5765",
+            "20736179",
+            "2068656c6c6f"
+          ],
+          "separate_token_hex": [
+            "5765",
+            "20736179",
+            "2068656c",
+            "6c6f"
+          ]
+        }
+      ],
+      "split_census": [
+        {
+          "text": "hello",
+          "split_points": 4,
+          "changed_ids": 4,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 1,
+          "max_token_delta": 2
+        },
+        {
+          "text": " hello",
+          "split_points": 5,
+          "changed_ids": 5,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 1,
+          "max_token_delta": 2
+        },
+        {
+          "text": "abcde",
+          "split_points": 4,
+          "changed_ids": 3,
+          "same_count_changed_ids": 1,
+          "min_token_delta": 0,
+          "max_token_delta": 1
+        },
+        {
+          "text": "antidisestablishmentarianism",
+          "split_points": 27,
+          "changed_ids": 22,
+          "same_count_changed_ids": 2,
+          "min_token_delta": 0,
+          "max_token_delta": 3
+        },
+        {
+          "text": "你好世界",
+          "split_points": 3,
+          "changed_ids": 0,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 0,
+          "max_token_delta": 0
+        },
+        {
+          "text": "café",
+          "split_points": 3,
+          "changed_ids": 2,
+          "same_count_changed_ids": 1,
+          "min_token_delta": 0,
+          "max_token_delta": 1
+        },
+        {
+          "text": "aaaaaaaaaaaa",
+          "split_points": 11,
+          "changed_ids": 10,
+          "same_count_changed_ids": 1,
+          "min_token_delta": 0,
+          "max_token_delta": 2
+        },
+        {
+          "text": "The quick brown fox.",
+          "split_points": 19,
+          "changed_ids": 15,
+          "same_count_changed_ids": 0,
+          "min_token_delta": 0,
+          "max_token_delta": 2
+        },
+        {
+          "text": "1234567890",
+          "split_points": 9,
+          "changed_ids": 6,
+          "same_count_changed_ids": 6,
+          "min_token_delta": 0,
+          "max_token_delta": 0
+        }
+      ],
+      "unicode": {
+        "nfc": "café",
+        "nfd": "café",
+        "nfc_codepoints": [
+          "U+0063",
+          "U+0061",
+          "U+0066",
+          "U+00E9"
+        ],
+        "nfd_codepoints": [
+          "U+0063",
+          "U+0061",
+          "U+0066",
+          "U+0065",
+          "U+0301"
+        ],
+        "nfc_ids": [
+          936,
+          59958
+        ],
+        "nfd_ids": [
+          936,
+          1897,
+          54939
+        ],
+        "normalized_equal": true
+      },
+      "byte_decode": {
+        "text": "你好",
+        "ids": [
+          57668,
+          53901
+        ],
+        "token_hex": [
+          "e4bda0",
+          "e5a5bd"
+        ],
+        "decoded_individually": "你好",
+        "decoded_together": "你好"
+      }
+    }
+  ],
+  "scope": "Ordinary text tokenization only; no chat template, special tokens or LLM inference"
+}
