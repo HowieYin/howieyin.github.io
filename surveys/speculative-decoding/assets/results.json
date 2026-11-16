@@ -1,0 +1,666 @@
+{
+  "identity": "this-run exact rational CPU teaching experiment; no GPU/phone/model benchmark",
+  "python": "3.12.2",
+  "platform": "macOS-27.2.1-arm64-arm-64bit",
+  "script_sha256": "6a0c38aba27110f4a13c2dd9cfbc3ae5445dd90804428e2e43f959a0cee0a9ef",
+  "vocabulary": [
+    "A",
+    "B",
+    "C"
+  ],
+  "length": 4,
+  "sequence_count": 81,
+  "simplex_denominator": 5,
+  "exhaustive_one_step_pairs": 441,
+  "boundary_cases": "q=0, p=0, p=q and disjoint-support cases included",
+  "initial_p": [
+    "1/2",
+    "3/10",
+    "1/5"
+  ],
+  "initial_q": [
+    "1/5",
+    "1/2",
+    "3/10"
+  ],
+  "accepted_mass": [
+    "1/5",
+    "3/10",
+    "1/5"
+  ],
+  "rejection_probability": "3/10",
+  "correct_output": [
+    "1/2",
+    "3/10",
+    "1/5"
+  ],
+  "wrong_resample_target_output": [
+    "7/20",
+    "39/100",
+    "13/50"
+  ],
+  "wrong_one_step_tv": "3/20",
+  "markov_tv": {
+    "correct": "0",
+    "wrong_resample_target": "18271857/100000000",
+    "wrong_stale_history": "1687/5000"
+  },
+  "correct_tv_by_draft_length": {
+    "1": "0",
+    "2": "0",
+    "3": "0"
+  },
+  "target_transition_probabilities": {
+    "None": [
+      "1/2",
+      "3/10",
+      "1/5"
+    ],
+    "A": [
+      "1/10",
+      "7/10",
+      "1/5"
+    ],
+    "B": [
+      "3/5",
+      "1/10",
+      "3/10"
+    ],
+    "C": [
+      "1/5",
+      "1/5",
+      "3/5"
+    ]
+  },
+  "draft_transition_probabilities": {
+    "None": [
+      "1/5",
+      "1/2",
+      "3/10"
+    ],
+    "A": [
+      "2/5",
+      "2/5",
+      "1/5"
+    ],
+    "B": [
+      "3/10",
+      "2/5",
+      "3/10"
+    ],
+    "C": [
+      "2/5",
+      "3/10",
+      "3/10"
+    ]
+  },
+  "sequence_probabilities": [
+    {
+      "tokens": "AAAA",
+      "target": "1/2000",
+      "correct": "1/2000",
+      "wrong_resample_target": "12919/20000000",
+      "wrong_stale_history": "13/10000"
+    },
+    {
+      "tokens": "AAAB",
+      "target": "7/2000",
+      "correct": "7/2000",
+      "wrong_resample_target": "67543/20000000",
+      "wrong_stale_history": "91/10000"
+    },
+    {
+      "tokens": "AAAC",
+      "target": "1/1000",
+      "correct": "1/1000",
+      "wrong_resample_target": "12919/10000000",
+      "wrong_stale_history": "13/5000"
+    },
+    {
+      "tokens": "AABA",
+      "target": "21/1000",
+      "correct": "21/1000",
+      "wrong_resample_target": "18633/1250000",
+      "wrong_stale_history": "253/5000"
+    },
+    {
+      "tokens": "AABB",
+      "target": "7/2000",
+      "correct": "7/2000",
+      "wrong_resample_target": "73243/20000000",
+      "wrong_stale_history": "139/10000"
+    },
+    {
+      "tokens": "AABC",
+      "target": "21/2000",
+      "correct": "21/2000",
+      "wrong_resample_target": "219729/20000000",
+      "wrong_stale_history": "53/2000"
+    },
+    {
+      "tokens": "AACA",
+      "target": "1/500",
+      "correct": "1/500",
+      "wrong_resample_target": "12919/5000000",
+      "wrong_stale_history": "3/625"
+    },
+    {
+      "tokens": "AACB",
+      "target": "1/500",
+      "correct": "1/500",
+      "wrong_resample_target": "12919/5000000",
+      "wrong_stale_history": "9/1250"
+    },
+    {
+      "tokens": "AACC",
+      "target": "3/500",
+      "correct": "3/500",
+      "wrong_resample_target": "1707/312500",
+      "wrong_stale_history": "7/500"
+    },
+    {
+      "tokens": "ABAA",
+      "target": "21/1000",
+      "correct": "21/1000",
+      "wrong_resample_target": "8769/625000",
+      "wrong_stale_history": "237/10000"
+    },
+    {
+      "tokens": "ABAB",
+      "target": "147/1000",
+      "correct": "147/1000",
+      "wrong_resample_target": "43743/625000",
+      "wrong_stale_history": "69/1250"
+    },
+    {
+      "tokens": "ABAC",
+      "target": "21/500",
+      "correct": "21/500",
+      "wrong_resample_target": "8769/312500",
+      "wrong_stale_history": "231/10000"
+    },
+    {
+      "tokens": "ABBA",
+      "target": "21/1000",
+      "correct": "21/1000",
+      "wrong_resample_target": "16113/1250000",
+      "wrong_stale_history": "297/5000"
+    },
+    {
+      "tokens": "ABBB",
+      "target": "7/2000",
+      "correct": "7/2000",
+      "wrong_resample_target": "62323/20000000",
+      "wrong_stale_history": "99/10000"
+    },
+    {
+      "tokens": "ABBC",
+      "target": "21/2000",
+      "correct": "21/2000",
+      "wrong_resample_target": "186969/20000000",
+      "wrong_stale_history": "297/10000"
+    },
+    {
+      "tokens": "ABCA",
+      "target": "21/1000",
+      "correct": "21/1000",
+      "wrong_resample_target": "186969/10000000",
+      "wrong_stale_history": "123/5000"
+    },
+    {
+      "tokens": "ABCB",
+      "target": "21/1000",
+      "correct": "21/1000",
+      "wrong_resample_target": "186969/10000000",
+      "wrong_stale_history": "111/10000"
+    },
+    {
+      "tokens": "ABCC",
+      "target": "63/1000",
+      "correct": "63/1000",
+      "wrong_resample_target": "48339/1250000",
+      "wrong_stale_history": "333/10000"
+    },
+    {
+      "tokens": "ACAA",
+      "target": "1/500",
+      "correct": "1/500",
+      "wrong_resample_target": "12919/5000000",
+      "wrong_stale_history": "7/5000"
+    },
+    {
+      "tokens": "ACAB",
+      "target": "7/500",
+      "correct": "7/500",
+      "wrong_resample_target": "67543/5000000",
+      "wrong_stale_history": "49/5000"
+    },
+    {
+      "tokens": "ACAC",
+      "target": "1/250",
+      "correct": "1/250",
+      "wrong_resample_target": "12919/2500000",
+      "wrong_stale_history": "7/2500"
+    },
+    {
+      "tokens": "ACBA",
+      "target": "3/250",
+      "correct": "3/250",
+      "wrong_resample_target": "1707/156250",
+      "wrong_stale_history": "3/100"
+    },
+    {
+      "tokens": "ACBB",
+      "target": "1/500",
+      "correct": "1/500",
+      "wrong_resample_target": "12919/5000000",
+      "wrong_stale_history": "1/200"
+    },
+    {
+      "tokens": "ACBC",
+      "target": "3/500",
+      "correct": "3/500",
+      "wrong_resample_target": "38757/5000000",
+      "wrong_stale_history": "3/200"
+    },
+    {
+      "tokens": "ACCA",
+      "target": "3/250",
+      "correct": "3/250",
+      "wrong_resample_target": "15081/1250000",
+      "wrong_stale_history": "9/1250"
+    },
+    {
+      "tokens": "ACCB",
+      "target": "3/250",
+      "correct": "3/250",
+      "wrong_resample_target": "15081/1250000",
+      "wrong_stale_history": "9/1250"
+    },
+    {
+      "tokens": "ACCC",
+      "target": "9/250",
+      "correct": "9/250",
+      "wrong_resample_target": "15219/625000",
+      "wrong_stale_history": "27/1250"
+    },
+    {
+      "tokens": "BAAA",
+      "target": "9/5000",
+      "correct": "9/5000",
+      "wrong_resample_target": "17073/6250000",
+      "wrong_stale_history": "3/2000"
+    },
+    {
+      "tokens": "BAAB",
+      "target": "63/5000",
+      "correct": "63/5000",
+      "wrong_resample_target": "42003/3125000",
+      "wrong_stale_history": "21/2000"
+    },
+    {
+      "tokens": "BAAC",
+      "target": "9/2500",
+      "correct": "9/2500",
+      "wrong_resample_target": "17073/3125000",
+      "wrong_stale_history": "3/1000"
+    },
+    {
+      "tokens": "BABA",
+      "target": "189/2500",
+      "correct": "189/2500",
+      "wrong_resample_target": "23436/390625",
+      "wrong_stale_history": "51/1000"
+    },
+    {
+      "tokens": "BABB",
+      "target": "63/5000",
+      "correct": "63/5000",
+      "wrong_resample_target": "389349/25000000",
+      "wrong_stale_history": "249/10000"
+    },
+    {
+      "tokens": "BABC",
+      "target": "189/5000",
+      "correct": "189/5000",
+      "wrong_resample_target": "1168047/25000000",
+      "wrong_stale_history": "291/10000"
+    },
+    {
+      "tokens": "BACA",
+      "target": "9/1250",
+      "correct": "9/1250",
+      "wrong_resample_target": "17073/1562500",
+      "wrong_stale_history": "3/625"
+    },
+    {
+      "tokens": "BACB",
+      "target": "9/1250",
+      "correct": "9/1250",
+      "wrong_resample_target": "17073/1562500",
+      "wrong_stale_history": "3/250"
+    },
+    {
+      "tokens": "BACC",
+      "target": "27/1250",
+      "correct": "27/1250",
+      "wrong_resample_target": "66933/3125000",
+      "wrong_stale_history": "33/2500"
+    },
+    {
+      "tokens": "BBAA",
+      "target": "9/5000",
+      "correct": "9/5000",
+      "wrong_resample_target": "88767/25000000",
+      "wrong_stale_history": "27/5000"
+    },
+    {
+      "tokens": "BBAB",
+      "target": "63/5000",
+      "correct": "63/5000",
+      "wrong_resample_target": "432099/25000000",
+      "wrong_stale_history": "189/5000"
+    },
+    {
+      "tokens": "BBAC",
+      "target": "9/2500",
+      "correct": "9/2500",
+      "wrong_resample_target": "88767/12500000",
+      "wrong_stale_history": "27/2500"
+    },
+    {
+      "tokens": "BBBA",
+      "target": "9/5000",
+      "correct": "9/5000",
+      "wrong_resample_target": "4437/1562500",
+      "wrong_stale_history": "27/5000"
+    },
+    {
+      "tokens": "BBBB",
+      "target": "3/10000",
+      "correct": "3/10000",
+      "wrong_resample_target": "71283/100000000",
+      "wrong_stale_history": "9/10000"
+    },
+    {
+      "tokens": "BBBC",
+      "target": "9/10000",
+      "correct": "9/10000",
+      "wrong_resample_target": "213849/100000000",
+      "wrong_stale_history": "27/10000"
+    },
+    {
+      "tokens": "BBCA",
+      "target": "9/5000",
+      "correct": "9/5000",
+      "wrong_resample_target": "213849/50000000",
+      "wrong_stale_history": "27/5000"
+    },
+    {
+      "tokens": "BBCB",
+      "target": "9/5000",
+      "correct": "9/5000",
+      "wrong_resample_target": "213849/50000000",
+      "wrong_stale_history": "27/5000"
+    },
+    {
+      "tokens": "BBCC",
+      "target": "27/5000",
+      "correct": "27/5000",
+      "wrong_resample_target": "13311/1562500",
+      "wrong_stale_history": "81/5000"
+    },
+    {
+      "tokens": "BCAA",
+      "target": "9/5000",
+      "correct": "9/5000",
+      "wrong_resample_target": "213849/50000000",
+      "wrong_stale_history": "3/2500"
+    },
+    {
+      "tokens": "BCAB",
+      "target": "63/5000",
+      "correct": "63/5000",
+      "wrong_resample_target": "1065753/50000000",
+      "wrong_stale_history": "21/2500"
+    },
+    {
+      "tokens": "BCAC",
+      "target": "9/2500",
+      "correct": "9/2500",
+      "wrong_resample_target": "213849/25000000",
+      "wrong_stale_history": "3/1250"
+    },
+    {
+      "tokens": "BCBA",
+      "target": "27/2500",
+      "correct": "27/2500",
+      "wrong_resample_target": "13311/781250",
+      "wrong_stale_history": "9/1250"
+    },
+    {
+      "tokens": "BCBB",
+      "target": "9/5000",
+      "correct": "9/5000",
+      "wrong_resample_target": "213849/50000000",
+      "wrong_stale_history": "3/2500"
+    },
+    {
+      "tokens": "BCBC",
+      "target": "27/5000",
+      "correct": "27/5000",
+      "wrong_resample_target": "641547/50000000",
+      "wrong_stale_history": "9/2500"
+    },
+    {
+      "tokens": "BCCA",
+      "target": "27/2500",
+      "correct": "27/2500",
+      "wrong_resample_target": "266301/12500000",
+      "wrong_stale_history": "9/1250"
+    },
+    {
+      "tokens": "BCCB",
+      "target": "27/2500",
+      "correct": "27/2500",
+      "wrong_resample_target": "266301/12500000",
+      "wrong_stale_history": "9/1250"
+    },
+    {
+      "tokens": "BCCC",
+      "target": "81/2500",
+      "correct": "81/2500",
+      "wrong_resample_target": "257499/6250000",
+      "wrong_stale_history": "27/1250"
+    },
+    {
+      "tokens": "CAAA",
+      "target": "1/2500",
+      "correct": "1/2500",
+      "wrong_resample_target": "23761/25000000",
+      "wrong_stale_history": "1/1000"
+    },
+    {
+      "tokens": "CAAB",
+      "target": "7/2500",
+      "correct": "7/2500",
+      "wrong_resample_target": "118417/25000000",
+      "wrong_stale_history": "7/1000"
+    },
+    {
+      "tokens": "CAAC",
+      "target": "1/1250",
+      "correct": "1/1250",
+      "wrong_resample_target": "23761/12500000",
+      "wrong_stale_history": "1/500"
+    },
+    {
+      "tokens": "CABA",
+      "target": "21/1250",
+      "correct": "21/1250",
+      "wrong_resample_target": "34527/1562500",
+      "wrong_stale_history": "19/500"
+    },
+    {
+      "tokens": "CABB",
+      "target": "7/2500",
+      "correct": "7/2500",
+      "wrong_resample_target": "142117/25000000",
+      "wrong_stale_history": "59/5000"
+    },
+    {
+      "tokens": "CABC",
+      "target": "21/2500",
+      "correct": "21/2500",
+      "wrong_resample_target": "426351/25000000",
+      "wrong_stale_history": "101/5000"
+    },
+    {
+      "tokens": "CACA",
+      "target": "1/625",
+      "correct": "1/625",
+      "wrong_resample_target": "23761/6250000",
+      "wrong_stale_history": "9/2500"
+    },
+    {
+      "tokens": "CACB",
+      "target": "1/625",
+      "correct": "1/625",
+      "wrong_resample_target": "23761/6250000",
+      "wrong_stale_history": "3/500"
+    },
+    {
+      "tokens": "CACC",
+      "target": "3/625",
+      "correct": "3/625",
+      "wrong_resample_target": "2958/390625",
+      "wrong_stale_history": "13/1250"
+    },
+    {
+      "tokens": "CBAA",
+      "target": "3/1250",
+      "correct": "3/1250",
+      "wrong_resample_target": "29589/6250000",
+      "wrong_stale_history": "9/2500"
+    },
+    {
+      "tokens": "CBAB",
+      "target": "21/1250",
+      "correct": "21/1250",
+      "wrong_resample_target": "144033/6250000",
+      "wrong_stale_history": "63/2500"
+    },
+    {
+      "tokens": "CBAC",
+      "target": "3/625",
+      "correct": "3/625",
+      "wrong_resample_target": "29589/3125000",
+      "wrong_stale_history": "9/1250"
+    },
+    {
+      "tokens": "CBBA",
+      "target": "3/1250",
+      "correct": "3/1250",
+      "wrong_resample_target": "1479/390625",
+      "wrong_stale_history": "9/2500"
+    },
+    {
+      "tokens": "CBBB",
+      "target": "1/2500",
+      "correct": "1/2500",
+      "wrong_resample_target": "23761/25000000",
+      "wrong_stale_history": "3/5000"
+    },
+    {
+      "tokens": "CBBC",
+      "target": "3/2500",
+      "correct": "3/2500",
+      "wrong_resample_target": "71283/25000000",
+      "wrong_stale_history": "9/5000"
+    },
+    {
+      "tokens": "CBCA",
+      "target": "3/1250",
+      "correct": "3/1250",
+      "wrong_resample_target": "71283/12500000",
+      "wrong_stale_history": "9/2500"
+    },
+    {
+      "tokens": "CBCB",
+      "target": "3/1250",
+      "correct": "3/1250",
+      "wrong_resample_target": "71283/12500000",
+      "wrong_stale_history": "9/2500"
+    },
+    {
+      "tokens": "CBCC",
+      "target": "9/1250",
+      "correct": "9/1250",
+      "wrong_resample_target": "4437/390625",
+      "wrong_stale_history": "27/2500"
+    },
+    {
+      "tokens": "CCAA",
+      "target": "3/1250",
+      "correct": "3/1250",
+      "wrong_resample_target": "5691/1562500",
+      "wrong_stale_history": "1/1250"
+    },
+    {
+      "tokens": "CCAB",
+      "target": "21/1250",
+      "correct": "21/1250",
+      "wrong_resample_target": "14001/781250",
+      "wrong_stale_history": "7/1250"
+    },
+    {
+      "tokens": "CCAC",
+      "target": "3/625",
+      "correct": "3/625",
+      "wrong_resample_target": "5691/781250",
+      "wrong_stale_history": "1/625"
+    },
+    {
+      "tokens": "CCBA",
+      "target": "9/625",
+      "correct": "9/625",
+      "wrong_resample_target": "22311/1562500",
+      "wrong_stale_history": "3/625"
+    },
+    {
+      "tokens": "CCBB",
+      "target": "3/1250",
+      "correct": "3/1250",
+      "wrong_resample_target": "5691/1562500",
+      "wrong_stale_history": "1/1250"
+    },
+    {
+      "tokens": "CCBC",
+      "target": "9/1250",
+      "correct": "9/1250",
+      "wrong_resample_target": "17073/1562500",
+      "wrong_stale_history": "3/1250"
+    },
+    {
+      "tokens": "CCCA",
+      "target": "9/625",
+      "correct": "9/625",
+      "wrong_resample_target": "107019/6250000",
+      "wrong_stale_history": "3/625"
+    },
+    {
+      "tokens": "CCCB",
+      "target": "9/625",
+      "correct": "9/625",
+      "wrong_resample_target": "107019/6250000",
+      "wrong_stale_history": "3/625"
+    },
+    {
+      "tokens": "CCCC",
+      "target": "27/625",
+      "correct": "27/625",
+      "wrong_resample_target": "102681/3125000",
+      "wrong_stale_history": "9/625"
+    }
+  ]
+}

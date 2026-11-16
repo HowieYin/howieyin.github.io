@@ -139,6 +139,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "LLM 投机解码：从概率纠错到推理系统协同",
+          "path": "surveys/speculative-decoding/index.html",
+          "date": "2026-11-16",
+          "description": "Exact rejection sampling, tree verification, feature and block drafting, from classic speculative decoding to EAGLE-4 and ForeSpark. 16 papers, 66 original figures, measured-code protocols and a reproducible probability experiment.",
+          "topic": "LLM inference & speculative decoding"
+        },
+        {
           "title": "ViT token 压缩：从删掉背景到保留任务信息",
           "path": "surveys/vit-token-compression/index.html",
           "date": "2026-11-16",
