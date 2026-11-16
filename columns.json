@@ -139,6 +139,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "ViT token 压缩：从删掉背景到保留任务信息",
+          "path": "surveys/vit-token-compression/index.html",
+          "date": "2026-11-16",
+          "description": "Pruning, merging, learned resampling and adaptive depth, from visual encoders to dense tasks and VLM interfaces. 24 papers, 73 original figures, fixed implementations and a reproducible attention experiment.",
+          "topic": "Visual tokens & efficient inference"
+        },
+        {
           "title": "MoE 模型：从条件计算到系统协同",
           "path": "surveys/moe-models/index.html",
           "date": "2026-11-16",

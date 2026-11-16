@@ -1,0 +1,1443 @@
+# ViT token 压缩：从删掉背景到保留任务信息
+
+一张图需要多少个 token，才足以完成任务？答案取决于你想知道“有没有狗”，还是要读清狗旁边的街牌、数出两位重叠的行人，并画出它们的边界。ViT token 压缩研究的是：在视觉 Transformer 的计算链中，让较少的向量承担后续计算，同时尽量保留任务所需的信息。它节省的是序列计算，通常并不缩小模型权重。
+
+本文覆盖 **2020 年至调研截止日 2026 年 11 月 16 日**可核验的代表工作：视觉编码器内的剪枝、合并、学习式重采样与自适应深度，以及密集预测和视觉语言模型的接口。24 篇原论文、73 张关键原文截图和两张长表局部构成主要证据；正文中的大型模型精度和 GPU 速度均为**论文报告**。第十节提供本次实际执行的 CPU 教学实验，验证注意力语义，不作为模型性能复现。
+
+## 01 · 技术发展总览：三条并行路线，两次任务边界扩展
+
+<figure id="diagram-timeline"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 638" role="img" aria-labelledby="svg-22941250-title svg-22941250-desc">
+<title id="svg-22941250-title">ViT token 压缩技术发展总览</title><desc id="svg-22941250-desc">三条并行路线：选择与深度、聚合与重采样、任务系统约束。五阶段从ViT到2026前沿，并标出训练、空间、评测与算子瓶颈。</desc>
+<defs><marker id="svg-22941250-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-22941250-arrow)}</style>
+<text x="24" y="34" font-size="22" font-weight="600">ViT token 压缩：减少计算 → 保留信息 → 匹配任务与系统</text><text x="160" y="65" class="small" fill="#7dc6b2">选择 / 深度</text><text x="402" y="65" class="small" fill="#7dc6b2">聚合 / 重采样</text><text x="644" y="65" class="small" fill="#7dc6b2">任务与系统约束</text><text x="24" y="112" class="year">2020</text><rect x="144" y="82" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="144" y="94" width="3" height="63" fill="#7dc6b2"/><text x="162" y="112" class="label" font-weight="600">序列成为对象</text><text x="162" y="138" class="small muted">ViT：patch → token</text><text x="162" y="161" class="small muted">分辨率增长增加序列</text><rect x="394" y="82" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="394" y="94" width="3" height="63" fill="#a7b5ee"/><text x="412" y="112" class="label" font-weight="600">固定网格</text><text x="412" y="138" class="small muted">全部位置逐层计算</text><text x="412" y="161" class="small muted">分类与空间任务不同</text><rect x="644" y="82" width="232" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="644" y="94" width="3" height="63" fill="#e6bf88"/><text x="662" y="112" class="label" font-weight="600">初始边界</text><text x="662" y="138" class="small muted">预训练决定表示</text><text x="662" y="161" class="small muted">权重大小不随行数缩小</text><path d="M375 125H390" class="line"/><path d="M625 125H640" class="line"/><path d="M258 170V183" class="line"/><path d="M508 170V183" class="line"/><path d="M760 170V183" class="line"/><text x="24" y="217" class="year">2021–22</text><rect x="144" y="187" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="144" y="199" width="3" height="63" fill="#7dc6b2"/><text x="162" y="217" class="label" font-weight="600">学习计算分配</text><text x="162" y="243" class="small muted">DynamicViT / A-ViT</text><text x="162" y="266" class="small muted">Evo-ViT 留慢回路</text><rect x="394" y="187" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="394" y="199" width="3" height="63" fill="#a7b5ee"/><text x="412" y="217" class="label" font-weight="600">学习摘要与采样</text><text x="412" y="243" class="small muted">TokenLearner / ATS</text><text x="412" y="266" class="small muted">EViT 保存低分摘要</text><rect x="644" y="187" width="232" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="644" y="199" width="3" height="63" fill="#e6bf88"/><text x="662" y="217" class="label" font-weight="600">新问题：不可逆损失</text><text x="662" y="243" class="small muted">训练预算 / 动态长度</text><text x="662" y="266" class="small muted">小字与实例容易丢失</text><path d="M375 230H390" class="line"/><path d="M625 230H640" class="line"/><path d="M258 275V288" class="line"/><path d="M508 275V288" class="line"/><path d="M760 275V288" class="line"/><text x="24" y="322" class="year">2022–24</text><rect x="144" y="292" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="144" y="304" width="3" height="63" fill="#7dc6b2"/><text x="162" y="322" class="label" font-weight="600">可插入的相似合并</text><text x="162" y="348" class="small muted">ToMe：二部 soft matching</text><text x="162" y="371" class="small muted">size 记录聚合质量</text><rect x="394" y="292" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="394" y="304" width="3" height="63" fill="#a7b5ee"/><text x="412" y="322" class="label" font-weight="600">何时合、保护谁</text><text x="412" y="348" class="small muted">ToFu / DSM / DiffRate</text><text x="412" y="371" class="small muted">PiToMe 保护独特行</text><rect x="644" y="292" width="232" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="644" y="304" width="3" height="63" fill="#e6bf88"/><text x="662" y="322" class="label" font-weight="600">空间接口扩展</text><text x="662" y="348" class="small muted">TCFormer：关系映射</text><text x="662" y="371" class="small muted">Cropr：最后完整交互</text><path d="M375 335H390" class="line"/><path d="M625 335H640" class="line"/><path d="M258 380V393" class="line"/><path d="M508 380V393" class="line"/><path d="M760 380V393" class="line"/><text x="24" y="427" class="year">2023–25</text><rect x="144" y="397" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="144" y="409" width="3" height="63" fill="#7dc6b2"/><text x="162" y="427" class="label" font-weight="600">语言问题参与选择</text><text x="162" y="453" class="small muted">FastV：LLM 早层后剪枝</text><text x="162" y="476" class="small muted">已支付视觉与早层成本</text><rect x="394" y="397" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="394" y="409" width="3" height="63" fill="#a7b5ee"/><text x="412" y="427" class="label" font-weight="600">短视觉语言接口</text><text x="412" y="453" class="small muted">BLIP-2：训练 query 桥</text><text x="412" y="476" class="small muted">VisionZip：保留 + 摘要</text><rect x="644" y="397" width="232" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="644" y="409" width="3" height="63" fill="#e6bf88"/><text x="662" y="427" class="label" font-weight="600">评测纠偏</text><text x="662" y="453" class="small muted">Compact 插件失配</text><text x="662" y="476" class="small muted">VTC / UniPrune 任务差异</text><path d="M375 440H390" class="line"/><path d="M625 440H640" class="line"/><path d="M258 485V498" class="line"/><path d="M508 485V498" class="line"/><path d="M760 485V498" class="line"/><text x="24" y="532" class="year">2026</text><rect x="144" y="502" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="144" y="514" width="3" height="63" fill="#7dc6b2"/><text x="162" y="532" class="label" font-weight="600">重要性 × 相似性</text><text x="162" y="558" class="small muted">AdaMerge / RAPID</text><text x="162" y="581" class="small muted">SWAM：学习非对称权重</text><rect x="394" y="502" width="230" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="394" y="514" width="3" height="63" fill="#a7b5ee"/><text x="412" y="532" class="label" font-weight="600">算子组织</text><text x="412" y="558" class="small muted">MaMe：矩阵式合并</text><text x="412" y="581" class="small muted">MaRe：近似形状恢复</text><rect x="644" y="502" width="232" height="87" rx="8" fill="#182230" stroke="#344355"/><rect x="644" y="514" width="3" height="63" fill="#e6bf88"/><text x="662" y="532" class="label" font-weight="600">当前边界</text><text x="662" y="558" class="small muted">精度—预算—吞吐冲突</text><text x="662" y="581" class="small muted">无跨任务统一赢家</text><path d="M375 545H390" class="line"/><path d="M625 545H640" class="line"/><text x="24" y="617" class="small muted">并行路线持续存在；箭头是问题与改进衔接，非完全替代。截止 2026-11-16。</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+总览沿上到下的时间方向阅读，横向区分“删除”“聚合”和“计算组织”。箭头表示问题与改进的衔接，不表示后来的方法完全取代了前者。2021 年开始，一条路线学习哪些 patch 可以停止计算；另一条路线学习少量摘要向量。2022 年，ToMe 把相似性合并变成可插入已有 ViT 的轻量操作；此后研究转向何时合并、如何保护独特信息，以及怎么让算子开销低于节省。
+
+两次边界扩展改变了评价标准。密集预测需要把压缩表示重新对应到像素位置；视觉语言模型还要回答“压缩发生在视觉编码器里，还是进入语言模型之后”。2025—2026 年的评测工作进一步指出：任务平均分可能掩盖文字、计数和复杂场景的损失。2026 年前沿同时探索重要性、相似性和矩阵算子，但尚没有跨所有模型、任务、预算与硬件的统一赢家。
+
+这是从“少算一些背景”到“控制信息损失与系统成本”的变化。分辨率增长带来的 token 增长属于量变；能保持空间对应、适配语言问题或改变实际算子组织，才是在接口和计算范式上的实质变化。准确率提高几个百分点本身不足以证明范式发生质变。
+
+本文按原始论文建立机制与结果，再用官方项目的固定 commit 检查实现。选题覆盖会改变上述主线的代表分支和反例，不追求论文数量穷尽。视频、扩散生成与层级窗口式骨干只作为迁移边界，不做完整综述；修改 patch 大小、量化权重、蒸馏模型也不等同于本文讨论的推理序列压缩。文末集中给出原始版本、首次公开日期及完整网址，避免把更新日期当作提出日期。
+
+## 02 · 任务、张量与成本：为什么少一些 token 有用
+
+### 从街景到序列：ViT 建立了压缩对象
+
+贯穿全文的街景包括一只大狗、天空背景、小街牌和两位重叠的行人。输入是 RGB 图像，输出随任务变化：分类输出类别概率；检测输出类别与框；分割输出每个像素的类别；OCR 输出文字与位置；视觉问答输出语言答案。监督可以分别是类别标签、框、像素掩码、转录或问答对。压缩模块不能把这些目标视为同一种“重要性”。
+
+<figure id="fig-vit-f1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 01 · ViT：图像如何变成 token 序列"><img src="assets/vit-f1.png" alt="原图 01 · ViT：图像如何变成 token 序列 — An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale F1" width="1414" height="646" loading="lazy"></button>
+<figcaption><strong>原图 01 · ViT：图像如何变成 token 序列</strong><a href="https://arxiv.org/abs/2010.11929v2" target="_blank" rel="noopener">An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale</a> · F1 · version 2010.11929v2 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Model overview. We split an image into ﬁxed-size patches, linearly embed each of them,
+add position embeddings, and feed the resulting sequence of vectors to a standard Transformer
+encoder. In order to perform classiﬁcation, we use the standard approach of adding an extra learnable
+“classiﬁcation token” to the sequence. The illustration of the Transformer encoder was inspired by
+Vaswani et al. (2017).</div><a class="source-url" href="https://arxiv.org/abs/2010.11929v2">https://arxiv.org/abs/2010.11929v2</a></details></figcaption></figure>
+
+ViT 原图从左下的 patch 序列进入线性投影，加上位置嵌入，再经过右侧重复的 Transformer encoder。<a href="#source-P01">[P01]</a> 彩色块表示不同图像 patch；额外的 classification token，简称 CLS，是可学习的汇总位置，不是某一块图像。每层先做多头自注意力，再做逐 token 的多层感知机 MLP，并通过残差路径更新向量。分类头只读取最终 CLS。
+
+沿街景的数据流，原始街牌可能落入几个 patch，文字信息逐层与其它向量交换。token 已经混合上下文后，“删除一个 token”便不等于只擦掉它原来的那块像素；同样，保留下来的 token 也未必保留所有原始细节。图中的位置编码解释了为什么随意重排或合并位置会改变模型行为。此原图定义压缩对象，没有声称背景必然冗余。
+
+<figure id="fig-vit-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 02 · ViT 的预训练规模与迁移表现"><img src="assets/vit-f3.png" alt="原图 02 · ViT 的预训练规模与迁移表现 — An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale F3" width="704" height="498" loading="lazy"></button>
+<figcaption><strong>原图 02 · ViT 的预训练规模与迁移表现</strong><a href="https://arxiv.org/abs/2010.11929v2" target="_blank" rel="noopener">An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale</a> · F3 · version 2010.11929v2 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3:
+Transfer to ImageNet.
+While
+large ViT models perform worse than BiT
+ResNets (shaded area) when pre-trained on
+small datasets, they shine when pre-trained on
+larger datasets. Similarly, larger ViT variants
+overtake smaller ones as the dataset grows.</div><a class="source-url" href="https://arxiv.org/abs/2010.11929v2">https://arxiv.org/abs/2010.11929v2</a></details></figcaption></figure>
+
+图三横轴是预训练数据规模，纵轴是迁移到 ImageNet 的准确率，曲线区分不同 ViT 规模，阴影表示对照卷积模型的结果范围。随着预训练规模增大，大 ViT 的相对表现改善；小数据端并不占优。它回答的是表示学习如何随数据增长，不是 token 压缩的收益。后文许多方法使用 DeiT 或 MAE 等不同检查点，不能拿这里的私有大规模预训练结果充当共同基线。对狗和街牌的保留能力既受压缩策略影响，也受原有视觉表征影响。
+
+设图像高宽为 $H,W$，patch 边长为 $P$，隐藏宽度为 $d$，则在整除且单尺度输入的教学设定下：
+
+$$
+N_{\mathrm{patch}}=\frac{HW}{P^2},\qquad
+X\in\mathbb{R}^{B\times N\times d},\qquad
+N=N_{\mathrm{patch}}+1.
+$$
+
+$B$ 是 batch 中的图像数；$N$ 包括一个 CLS，$d$ 是每个 token 的特征维数。224×224 图像、16×16 patch 对应 196 个图像 token，加 CLS 为 197；384×384 则为 576 加一。这里的 token 是向量行，不是字词，也不是参数。多尺度裁图、动态分辨率和无 CLS 模型需要另算实际长度。
+
+### 四种操作究竟改变了什么
+
+<figure id="diagram-mechanisms"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 546" role="img" aria-labelledby="svg-dd34afcf-title svg-dd34afcf-desc">
+<title id="svg-dd34afcf-title">四种token压缩机制</title><desc id="svg-dd34afcf-desc">剪枝保留子集，合并聚合原行，重采样生成新摘要，自适应深度改变每行层数。</desc>
+<defs><marker id="svg-dd34afcf-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-dd34afcf-arrow)}</style>
+<text x="24" y="36" font-size="22" font-weight="600">同样更短，输出身份却不同</text><rect x="24" y="74" width="170" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="86" width="3" height="66" fill="#7dc6b2"/><text x="42" y="104" class="label" font-weight="600">原序列</text><text x="42" y="130" class="small muted">狗 / 天空 / 街牌</text><text x="42" y="153" class="small muted">两位行人</text><rect x="250" y="74" width="230" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="250" y="86" width="3" height="66" fill="#7dc6b2"/><text x="268" y="104" class="label" font-weight="600">剪枝</text><text x="268" y="130" class="small muted">原行子集：狗 / 街牌保留</text><text x="268" y="153" class="small muted">低分行退出，通常不再回来</text><rect x="536" y="74" width="340" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="536" y="86" width="3" height="66" fill="#7dc6b2"/><text x="554" y="104" class="label" font-weight="600">必须问的接口</text><text x="554" y="130" class="small muted">哪些行永久消失？</text><text x="554" y="153" class="small muted">位置、质量、个体差异是否保留？</text><path d="M195 119H246" class="line"/><path d="M481 119H532" class="line"/><rect x="24" y="186" width="170" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="198" width="3" height="66" fill="#7dc6b2"/><text x="42" y="216" class="label" font-weight="600">原序列</text><text x="42" y="242" class="small muted">狗 / 天空 / 街牌</text><text x="42" y="265" class="small muted">两位行人</text><rect x="250" y="186" width="230" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="250" y="198" width="3" height="66" fill="#7dc6b2"/><text x="268" y="216" class="label" font-weight="600">合并</text><text x="268" y="242" class="small muted">相似行 → 带 size 的摘要</text><text x="268" y="265" class="small muted">平均保宏观信息，差异会丢</text><rect x="536" y="186" width="340" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="536" y="198" width="3" height="66" fill="#7dc6b2"/><text x="554" y="216" class="label" font-weight="600">必须问的接口</text><text x="554" y="242" class="small muted">是否真的 gather 少行？</text><text x="554" y="265" class="small muted">恢复布局不等于找回信息</text><path d="M195 231H246" class="line"/><path d="M481 231H532" class="line"/><rect x="24" y="298" width="170" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="310" width="3" height="66" fill="#7dc6b2"/><text x="42" y="328" class="label" font-weight="600">原序列</text><text x="42" y="354" class="small muted">狗 / 天空 / 街牌</text><text x="42" y="377" class="small muted">两位行人</text><rect x="250" y="298" width="230" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="250" y="310" width="3" height="66" fill="#7dc6b2"/><text x="268" y="328" class="label" font-weight="600">重采样</text><text x="268" y="354" class="small muted">学习 mask → 新的摘要行</text><text x="268" y="377" class="small muted">区域可重叠，不是 Top-K</text><rect x="536" y="298" width="340" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="536" y="310" width="3" height="66" fill="#7dc6b2"/><text x="554" y="328" class="label" font-weight="600">必须问的接口</text><text x="554" y="354" class="small muted">是否真的 gather 少行？</text><text x="554" y="377" class="small muted">位置、质量、个体差异是否保留？</text><path d="M195 343H246" class="line"/><path d="M481 343H532" class="line"/><rect x="24" y="410" width="170" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="422" width="3" height="66" fill="#7dc6b2"/><text x="42" y="440" class="label" font-weight="600">原序列</text><text x="42" y="466" class="small muted">狗 / 天空 / 街牌</text><text x="42" y="489" class="small muted">两位行人</text><rect x="250" y="410" width="230" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="250" y="422" width="3" height="66" fill="#7dc6b2"/><text x="268" y="440" class="label" font-weight="600">自适应深度</text><text x="268" y="466" class="small muted">天空浅停，复杂行深走</text><text x="268" y="489" class="small muted">改变每行经过的层数</text><rect x="536" y="410" width="340" height="90" rx="8" fill="#182230" stroke="#344355"/><rect x="536" y="422" width="3" height="66" fill="#7dc6b2"/><text x="554" y="440" class="label" font-weight="600">必须问的接口</text><text x="554" y="466" class="small muted">是否真的 gather 少行？</text><text x="554" y="489" class="small muted">恢复布局不等于找回信息</text><path d="M195 455H246" class="line"/><path d="M481 455H532" class="line"/></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+原创机制图把同一组街景 patch 变成四种输出。剪枝保留原行的子集；合并把相近行聚为带权摘要；重采样生成新的向量，可以同时覆盖多个区域；自适应深度让不同 token 经过不同层数。保留数量相同，不代表信息和空间接口相同。
+
+剪枝通常无法让已丢弃的行重新参与后续计算。合并可以保留群体平均信息，但平均会抹平差异。重采样的软掩码允许区域重叠，却不保证摘要能还原空间细节。早停则改变 token 的计算深度，而不是只改变全图统一长度。后文的恢复模块一般恢复**输出形状或位置对应**，并非无损找回原表示。
+
+### 别只盯着注意力的平方项
+
+以下是本文推导的标准 Transformer block 乘加量模型。假设宽度 $d$ 不变，MLP 扩展倍率 $m=4$，忽略偏置、归一化、激活、softmax、匹配和数据搬运：
+
+$$
+C_{\mathrm{MAC}}(N,d)
+=4Nd^2+2N^2d+2mNd^2
+=12Nd^2+2N^2d.
+$$
+
+$C_{\mathrm{MAC}}$ 的单位是乘加次数；第一项对应 Q、K、V 和输出投影，第二项对应注意力分数与加权输出，第三项是 MLP 的两次投影。一次乘加按两个 FLOPs 计数时需乘二；论文的 GFLOPs、GMACs 口径未必一致。因此不能直接把本文的 MAC 数与每篇论文的 GFLOPs 混排。
+
+当 $N=197,d=768$ 时，平方项仅约占这套模型的 4.10%；$N=577$ 时约占 11.13%。减少序列同时节省 MLP 与投影，不能只用“注意力是平方复杂度”解释全部收益。如果 ToMe 在本层注意力之后才合并，本层已经付出注意力成本，只从本层 MLP 和后续层开始节省。
+
+<figure id="diagram-ledger"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 458" role="img" aria-labelledby="svg-968e068e-title svg-968e068e-desc">
+<title id="svg-968e068e-title">token压缩的成本账</title><desc id="svg-968e068e-desc">投影MLP及注意力成本和压缩恢复额外操作分开记账，必须测per-op和整链。</desc>
+<defs><marker id="svg-968e068e-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-968e068e-arrow)}</style>
+<text x="24" y="36" font-size="22" font-weight="600">算得更少，必须覆盖新增操作的成本</text><rect x="24" y="78" width="405" height="140" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="90" width="3" height="116" fill="#7dc6b2"/><text x="42" y="108" class="label" font-weight="600">原 block：N 行</text><text x="42" y="134" class="small muted">QKV + 输出投影：4Nd²</text><text x="42" y="157" class="small muted">注意力：2N²d；MLP：8Nd²</text><text x="42" y="180" class="small muted">d=768、N=197：平方项仅约4.10%</text><rect x="470" y="78" width="406" height="140" rx="8" fill="#182230" stroke="#344355"/><rect x="470" y="90" width="3" height="116" fill="#7dc6b2"/><text x="488" y="108" class="label" font-weight="600">压缩后：N′ 行</text><text x="488" y="134" class="small muted">投影 / MLP / 注意力一起减少</text><text x="488" y="157" class="small muted">插入注意力之后：本层注意力不省</text><text x="488" y="180" class="small muted">有 CLS、保护行和恢复层时须另计</text><rect x="24" y="254" width="405" height="136" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="266" width="3" height="112" fill="#e6bf88"/><text x="42" y="284" class="label" font-weight="600">新增成本</text><text x="42" y="310" class="small muted">affinity / 排序 / gather / scatter</text><text x="42" y="333" class="small muted">size / 空间映射 / 临时矩阵</text><text x="42" y="356" class="small muted">恢复的完整 block、缓存与同步</text><rect x="470" y="254" width="406" height="136" rx="8" fill="#182230" stroke="#344355"/><rect x="470" y="266" width="3" height="112" fill="#a7b5ee"/><text x="488" y="284" class="label" font-weight="600">最终检验</text><text x="488" y="310" class="small muted">真实行数 + per-op + 整条链</text><text x="488" y="333" class="small muted">CPU / GPU / HTP 分别验证</text><text x="488" y="356" class="small muted">FLOPs 不等于延迟、峰值内存或功耗</text><path d="M430 148H466" class="line"/><path d="M226 220V250" class="line"/><path d="M674 220V250" class="line"/><text x="24" y="430" class="small muted">MAC 记账模型省略归一化、softmax、搬运和匹配；这些省略不能带入实测结论。</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+成本图分别记下“压缩之前”“压缩之后”和“额外操作”。相同 token 预算若分布在不同层，省下的计算不同；压缩器本身的相似度、排序、索引收集 gather、聚合和恢复都要计入。遮住注意力矩阵的一些位置，若仍执行同形状 dense 矩阵乘法，也可能没有实际省算。
+
+可把链路总耗时写成一个记账等式，而不是预言速度的模型：
+
+$$
+T_{\mathrm{total}}=
+T_{\mathrm{before}}+T_{\mathrm{compress}}
++T_{\mathrm{after}}+T_{\mathrm{restore}}+T_{\mathrm{other}}.
+$$
+
+各项都是同一计时边界内的时间；$T_{\mathrm{other}}$ 包括预处理、投影、传输、调度和下游任务。总收益要超过压缩、恢复和新形状引起的额外成本。本文后面会给出 FLOPs 下降、吞吐反而下降的原论文反例。
+
+## 03 · 2021—2022：学习删除、生成摘要与保留回路
+
+### DynamicViT：身份动态，数量可以固定
+
+旧瓶颈是每一层都处理全部图像行。DynamicViT 在若干层之间插入轻量预测器，利用局部 token 特征和全局特征预测保留概率；分类损失、蒸馏约束和预算约束共同训练这个决策。<a href="#source-P02">[P02]</a>
+
+<figure id="fig-dynamicvit-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 03 · DynamicViT 的层间预测器与逐级稀疏化"><img src="assets/dynamicvit-f2.png" alt="原图 03 · DynamicViT 的层间预测器与逐级稀疏化 — DynamicViT: Efficient Vision Transformers with Dynamic Token Sparsification F2" width="1414" height="648" loading="lazy"></button>
+<figcaption><strong>原图 03 · DynamicViT 的层间预测器与逐级稀疏化</strong><a href="https://arxiv.org/abs/2106.02034v2" target="_blank" rel="noopener">DynamicViT: Efficient Vision Transformers with Dynamic Token Sparsification</a> · F2 · version 2106.02034v2 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: The overall framework of the proposed approach. The proposed prediction module is
+inserted between the transformer blocks to selectively prune less informative token conditioned on
+features produced by the previous layer. By doing so, less tokens are processed in the followed layers.</div><a class="source-url" href="https://arxiv.org/abs/2106.02034v2">https://arxiv.org/abs/2106.02034v2</a></details></figcaption></figure>
+
+图二的主干箭头穿过多级 Transformer 和 prediction module。预测器把每行的局部表示与全局汇总拼起来，再输出保留决定；不同图像可以留下不同位置。上一阶段的决定与下一阶段相乘，因此已删除的行不会回来。CLS 被保留。街景中的天空行可能逐级退出，狗的轮廓仍被处理，但小街牌若早期被误判，其后没有补救路径。
+
+训练时，attention masking 使被丢行不参与有效交互，同时保留可训练张量形状；推理时才真正收集剩余行。这个训练／推理差别是图中“稀疏化”转成实际速度的关键，而不是仅仅把某些权重设为零。
+
+对初始图像 token 数 $N_0$、每阶段保留比例 $\rho$，论文推理预算可写为：
+
+$$
+N_s=\left\lfloor \rho^sN_0\right\rfloor,\qquad 0<\rho\leq1.
+$$
+
+$s$ 是压缩阶段编号，$N_s$ 不包括另行保护的 CLS。$\rho=0.7$、$N_0=196$ 时，三个阶段约保留 137、96、67 行。**位置身份随输入变化，但数量可以按阶段固定**；这有利于 batch 形状一致。“Dynamic”不必等于每张图长度都不同。
+
+<figure id="fig-dynamicvit-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 04 · DynamicViT 的准确率、计算与实际吞吐"><img src="assets/dynamicvit-t1.png" alt="原图 04 · DynamicViT 的准确率、计算与实际吞吐 — DynamicViT: Efficient Vision Transformers with Dynamic Token Sparsification T1" width="1414" height="679" loading="lazy"></button>
+<figcaption><strong>原图 04 · DynamicViT 的准确率、计算与实际吞吐</strong><a href="https://arxiv.org/abs/2106.02034v2" target="_blank" rel="noopener">DynamicViT: Efficient Vision Transformers with Dynamic Token Sparsification</a> · T1 · version 2106.02034v2 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Main results on ImageNet. We apply our method on three representative vision transformers: DeiT-S, LV-ViT-S and LV-ViT-M. DeiT-S [25] is a widely used vision transformer with the simple architecture. LV-ViT-S and LV-ViT-M [16] are the state-of-the-art vision transformers. We report the top-1 classification accuracy, theoretical complexity in FLOPs and throughput for different ratio ρ. The throughput is measured on a single NVIDIA RTX 3090 GPU with batch size fixed to 32.</div><a class="source-url" href="https://arxiv.org/abs/2106.02034v2">https://arxiv.org/abs/2106.02034v2</a></details></figcaption></figure>
+
+表一按模型与保留比例列出 top-1、计算量、吞吐等指标。DeiT-S 的同表基线为 79.8%、4.6G、1337.7 img/s，三阶段 $\rho=0.7$ 为 79.3%、2.9G、2062.1 img/s：下降 0.5 个百分点，吞吐约 1.54 倍。吞吐条件是 RTX 3090、batch 32，微调 30 epochs；计时精度未在该匹配条件中明确，不能补成 FP16。
+
+横向比较应选同模型行；大模型与小模型的绝对速度不能证明剪枝比例的作用。它支持“学会选择后，在此配置有速度收益”，不支持训练免费，也不支持街牌 OCR 的损失只有 0.5 个百分点。
+
+### TokenLearner：生成少量摘要，而非选出少量原 patch
+
+TokenLearner 从中间空间特征中学习若干 attention mask，生成 8 或 16 个新 token。<a href="#source-P03">[P03]</a> 它解决的是固定 patch 网格不够高效，而不是在已有网格上学习一个 Top-K 列表。
+
+<figure id="fig-tokenlearner-f1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 05 · TokenLearner：空间掩码如何生成摘要"><img src="assets/tokenlearner-f1.png" alt="原图 05 · TokenLearner：空间掩码如何生成摘要 — TokenLearner: What Can 8 Learned Tokens Do for Images and Videos? F1" width="886" height="575" loading="lazy"></button>
+<figcaption><strong>原图 05 · TokenLearner：空间掩码如何生成摘要</strong><a href="https://arxiv.org/abs/2106.11297v4" target="_blank" rel="noopener">TokenLearner: What Can 8 Learned Tokens Do for Images and Videos?</a> · F1 · version 2106.11297v4 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 1: Visual illustration of the TokenLearner module,
+applied to a single image. TokenLearner learns to spatially
+attend over a subset of tensor pixels (i.e., from intermediate
+spatial representations), and generates a set of token vectors
+adaptive to the input.</div><a class="source-url" href="https://arxiv.org/abs/2106.11297v4">https://arxiv.org/abs/2106.11297v4</a></details></figcaption></figure>
+
+图一从下方空间输入生成多个注意力图，分别给每个位置赋权，再向上池化成不同的学习 token。彩色热图表示不同 mask，三个顶端方块是摘要，不是被直接选出的原 patch。多个 mask 可以覆盖同一只狗，一个摘要也可关联狗与背景；区域覆盖重叠不等于输出行完全相同。这张图只展示 TokenLearner，空间恢复由下一张 TokenFuser 原图解释。
+
+用论文描述的空间平均池化写法，单张图的第 $s$ 个摘要为：
+
+$$
+z_s=\frac{1}{HW}\sum_{h=1}^{H}\sum_{w=1}^{W}
+\alpha_s(X)_{hw}X_{hw},\qquad s=1,\ldots,S.
+$$
+
+此处 $H,W$ 是中间特征网格尺寸，$X_{hw}$ 是 $d$ 维向量，$\alpha_s$ 是第 $s$ 个学习式空间掩码，$S$ 是输出 token 数。分母是全网格大小，不是掩码权重之和；不要把这条论文公式无条件改成归一化加权均值。Scenic 当前核验版本默认 sum pooling，另有 mean 选项和空间 softmax 的 V11 变体，十节会解释这些版本差异。
+
+<figure id="fig-tokenlearner-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 补图 A · TokenFuser：摘要如何映回空间网格"><img src="assets/tokenlearner-f2.png" alt="补图 A · TokenFuser：摘要如何映回空间网格 — TokenLearner: What Can 8 Learned Tokens Do for Images and Videos? F2" width="903" height="441" loading="lazy"></button>
+<figcaption><strong>补图 A · TokenFuser：摘要如何映回空间网格</strong><a href="https://arxiv.org/abs/2106.11297v4" target="_blank" rel="noopener">TokenLearner: What Can 8 Learned Tokens Do for Images and Videos?</a> · F2 · version 2106.11297v4 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 2: Visual illustration of the TokenFuser module, applied to each image frame individually.</div><a class="source-url" href="https://arxiv.org/abs/2106.11297v4">https://arxiv.org/abs/2106.11297v4</a></details></figcaption></figure>
+
+图二上方 $S\times C$ 的 Transformer 输出，与左侧从原网格特征学习的 $HW\times S$ 权重矩阵相乘，得到 $HW\times C$ 表示，再加原特征残差。这里 $C$ 对应特征通道，$S$ 是学习 token 数，$HW$ 是空间位置数；图省略 token 维度线性变换等实现细节。一个空间位置可以接收多个摘要的贡献，而不是把八枚 token 随意 reshape 成整图。它恢复空间形状与可预测接口，不是 TokenLearner 的无损逆运算；街牌被平均掉的字符差异不能仅凭这个图证明恢复。
+
+<figure id="fig-tokenlearner-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 06 · TokenLearner 的两种网络接入方式"><img src="assets/tokenlearner-f3.png" alt="原图 06 · TokenLearner 的两种网络接入方式 — TokenLearner: What Can 8 Learned Tokens Do for Images and Videos? F3" width="907" height="881" loading="lazy"></button>
+<figcaption><strong>原图 06 · TokenLearner 的两种网络接入方式</strong><a href="https://arxiv.org/abs/2106.11297v4" target="_blank" rel="noopener">TokenLearner: What Can 8 Learned Tokens Do for Images and Videos?</a> · F3 · version 2106.11297v4 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 3: Our models following the ViT architecture. (a) with
+TokenLearner and (b) with both TokenLearner and Token-
+Fuser.</div><a class="source-url" href="https://arxiv.org/abs/2106.11297v4">https://arxiv.org/abs/2106.11297v4</a></details></figcaption></figure>
+
+图三的 (a) 在前半段完整 ViT 后插入 TokenLearner，后续 Transformer 只处理少量摘要；(b) 加上 TokenFuser，将摘要处理结果重新送回空间网格，允许交替使用压缩表示与完整布局。箭头追踪的是序列长度与空间接口的变化，不能认作目标检测框或激活热图。对街景，(a) 适合最终只需类别的汇总，(b) 为后续空间操作提供布局；后者增加恢复计算，也不能保证两位行人的个体信息被找回。
+
+<figure id="fig-tokenlearner-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 07 · TokenLearner：减少序列也可换来更深网络"><img src="assets/tokenlearner-t1.png" alt="原图 07 · TokenLearner：减少序列也可换来更深网络 — TokenLearner: What Can 8 Learned Tokens Do for Images and Videos? T1" width="917" height="599" loading="lazy"></button>
+<figcaption><strong>原图 07 · TokenLearner：减少序列也可换来更深网络</strong><a href="https://arxiv.org/abs/2106.11297v4" target="_blank" rel="noopener">TokenLearner: What Can 8 Learned Tokens Do for Images and Videos?</a> · T1 · version 2106.11297v4 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">TABLE 1: ImageNet ﬁne-tuning Top1 accuracies and FLOPS.
+The numbers in the parenthesis are the number of trans-
+former layers. 16-TokenLearner is with 16 tokens instead of
+8.
+
+
+       Method               GFLOPS   Accuracy
+
+        ViT S/32                       3.4         77.87
+        ViT B/32                     19.8        80.69
+        ViT B/16                     55.6        84.73
+
+        TokenLearner S/32            1.9         76.13
+        TokenLearner B/16           28.7        83.65
+
+        TokenLearner S/32 (22)       3.3         79.42
+        TokenLearner B/32 (20)      11.5        82.74
+        TokenLearner B/16 (21)      47.1        85.21
+         16-TokenLearner B/16 (21)   47.7        85.45</div><a class="source-url" href="https://arxiv.org/abs/2106.11297v4">https://arxiv.org/abs/2106.11297v4</a></details></figcaption></figure>
+
+表一的列是 GFLOPs 与 ImageNet 微调 top-1，括号标注层数。ViT-B/16 为 55.6G、84.73%；基础 TokenLearner-B/16 为 28.7G、83.65%。增加到 21 层后，8-token 版本为 47.1G、85.21%，16-token 为 47.7G、85.45%。这展示两种用途：直接减少后半段计算，或把预算投入更多层。
+
+这些是 JFT-300M 预训练、384 分辨率相关实验，不能与 ImageNet-only、224 分辨率的 DynamicViT 表做速度或准确率排名。表内也不是“8 token 足以替代一切视觉表示”：前半段网络仍先处理较完整的输入。
+
+<figure id="fig-tokenlearner-f4">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 08 · 插入位置消融：越早压缩并非越好"><img src="assets/tokenlearner-f4.png" alt="原图 08 · 插入位置消融：越早压缩并非越好 — TokenLearner: What Can 8 Learned Tokens Do for Images and Videos? F4" width="1834" height="586" loading="lazy"></button>
+<figcaption><strong>原图 08 · 插入位置消融：越早压缩并非越好</strong><a href="https://arxiv.org/abs/2106.11297v4" target="_blank" rel="noopener">TokenLearner: What Can 8 Learned Tokens Do for Images and Videos?</a> · F4 · version 2106.11297v4 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 4: ImageNet 5-shot accuracy (left) and FLOPS (right) per different TokenLearner location within the model. ‘0’ means
+that the TokenLearner is at the very beginning of the model (before any transformer), ‘0.5’ means the middle of the model,
+and ‘Base’ means that there is no token learning.</div><a class="source-url" href="https://arxiv.org/abs/2106.11297v4">https://arxiv.org/abs/2106.11297v4</a></details></figcaption></figure>
+
+图四沿网络插入位置比较计算量和少样本表现，回答“先理解多久再摘要”。早插入省下更多后续计算，却可能降低 five-shot 准确率；较后的摘要已经拥有更成熟的特征。街牌的笔画在早期还未形成稳定语义，过早聚合可能把区分字符的信息平均掉。这里的消融支持位置与信息成熟度有关，不证明所有任务的最佳插入点都是中间层。
+
+### Evo-ViT：让暂时不重要的位置还有回来的机会
+
+永久删除带来不可逆误判。Evo-ViT 使用 slow-fast token evolution：当前重要 token 经完整 block 快速更新，不重要的位置以低成本更新并保留空间身份。<a href="#source-P04">[P04]</a>
+
+<figure id="fig-evovit-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 09 · Evo-ViT：全局 class attention 与 slow-fast 双路径"><img src="assets/evovit-f3.png" alt="原图 09 · Evo-ViT：全局 class attention 与 slow-fast 双路径 — Evo-ViT: Slow-Fast Token Evolution for Dynamic Vision Transformer F3" width="1806" height="781" loading="lazy"></button>
+<figcaption><strong>原图 09 · Evo-ViT：全局 class attention 与 slow-fast 双路径</strong><a href="https://arxiv.org/abs/2108.01390v2" target="_blank" rel="noopener">Evo-ViT: Slow-Fast Token Evolution for Dynamic Vision Transformer</a> · F3 · version 2108.01390v2 · PDF p.4 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: The overall diagram of the proposed slow-fast token evolution (Evo-ViT) method.</div><a class="source-url" href="https://arxiv.org/abs/2108.01390v2">https://arxiv.org/abs/2108.01390v2</a></details></figcaption></figure>
+
+图三的整体流程用 attention 形成重要性排序，通过跨层全局／历史更新使决策更稳定，实验动量 $\alpha=0.5$。重要行走完整计算路径；占位行聚成代表，代表更新再作为残差广播回各占位行。每个占位行原有的个体表示和空间身份仍在，因此能重新被选为重要；天空与街牌即使暂时 slow，也没有永久变成同一行。
+
+图中分类汇总与选择信号不能混淆：最终分类采用平均池化，CLS 用于训练辅助与选择。所保留的是低成本回路，并未免费对全部行运行完整注意力和 MLP。对街牌而言，这是保留后续补救机会，不能保证 slow 阶段已经精确更新字形。
+
+<figure id="fig-evovit-f4">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 10 · Evo-ViT 的浅层剪枝困难：层间与层内证据"><img src="assets/evovit-f4.png" alt="原图 10 · Evo-ViT 的浅层剪枝困难：层间与层内证据 — Evo-ViT: Slow-Fast Token Evolution for Dynamic Vision Transformer F4" width="868" height="396" loading="lazy"></button>
+<figcaption><strong>原图 10 · Evo-ViT 的浅层剪枝困难：层间与层内证据</strong><a href="https://arxiv.org/abs/2108.01390v2" target="_blank" rel="noopener">Evo-ViT: Slow-Fast Token Evolution for Dynamic Vision Transformer</a> · F4 · version 2108.01390v2 · PDF p.4 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4: Two folds that illustrate the difﬁculty of pruning
+the shallow layers. (a) Inter-layer fold: the CKA similarity
+with the ﬁnal CLS token of token features in each layer. (b)
+Intra-layer fold: the correlation coefﬁcient of the token fea-
+tures in each layer.</div><a class="source-url" href="https://arxiv.org/abs/2108.01390v2">https://arxiv.org/abs/2108.01390v2</a></details></figcaption></figure>
+
+图四 (a) 用 CKA 相似度比较各层 token 特征与最终 CLS，(b) 用相关系数比较各层内部 token。横轴是网络深度，纵轴分别是两种相似度，量纲不可互换。浅层尚未对齐最终分类语义，层内结构也与后层不同，支持“早期低重要性判断可能不可靠”的动机。相关性不是 token 可以无损交换的证明，这张消融也不是 slow-fast 数据流图；机制必须沿前图九阅读。
+
+<figure id="fig-evovit-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 11 · Evo-ViT 的训练与速度条件"><img src="assets/evovit-t1.png" alt="原图 11 · Evo-ViT 的训练与速度条件 — Evo-ViT: Slow-Fast Token Evolution for Dynamic Vision Transformer T1" width="872" height="781" loading="lazy"></button>
+<figcaption><strong>原图 11 · Evo-ViT 的训练与速度条件</strong><a href="https://arxiv.org/abs/2108.01390v2" target="_blank" rel="noopener">Evo-ViT: Slow-Fast Token Evolution for Dynamic Vision Transformer</a> · T1 · version 2108.01390v2 · PDF p.6 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Comparison with existing token pruning methods
+on DeiT.</div><a class="source-url" href="https://arxiv.org/abs/2108.01390v2">https://arxiv.org/abs/2108.01390v2</a></details></figcaption></figure>
+
+表一 DeiT-S 基线 79.8%、940 img/s；Evo-ViT 为 79.4%、1510 img/s，约 1.61 倍。实验使用 V100、batch 256，模型训练 300 epochs，从第 5 层开始选择，保留比例 0.5。计时精度未明确。看这张表要同时记住 slow 分支的额外操作与重新训练条件，不能把其速度差解释为任意预训练模型即插即用。
+
+### A-ViT：不同 token 可以有不同计算深度
+
+A-ViT 为每行设置逐层的 halting probability，用一个嵌入通道产生停止分数，避免额外大预测器。<a href="#source-P05">[P05]</a> 分类训练还配合停止分布约束，使计算量与能力共同学习。
+
+<figure id="fig-avit-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 12 · A-ViT：累计停止概率而非统一层数"><img src="assets/avit-f2.png" alt="原图 12 · A-ViT：累计停止概率而非统一层数 — A-ViT: Adaptive Tokens for Efficient Vision Transformer F2" width="1835" height="622" loading="lazy"></button>
+<figcaption><strong>原图 12 · A-ViT：累计停止概率而非统一层数</strong><a href="https://arxiv.org/abs/2112.07658v2" target="_blank" rel="noopener">A-ViT: Adaptive Tokens for Efficient Vision Transformer</a> · F2 · version 2112.07658v2 · PDF p.4 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2. An example of A-ViT: In the visualization, we omit (i) other patch tokens, (ii) the attention between the class and patch token and
+(iii) residual connections for simplicity. The first element of every token is reserved for halting score calculation, adding no computation
+overhead. We denote the class token with a subscript c as it has a special treatment. Each token indexed by k has a separate Nk accumulator
+and stop at different depths. Unlike standard ACT, the mean-field formulation is applied only to the classification token, while other tokens
+contribute to the class token via attention. This allows adaptive token calculation without the aggregation of image/patch tokens.</div><a class="source-url" href="https://arxiv.org/abs/2112.07658v2">https://arxiv.org/abs/2112.07658v2</a></details></figcaption></figure>
+
+图二展示每个 token 的累计停止信号：达到阈值后退出后续处理。不同 token 的停止层不同。CLS 进行跨深度的 mean-field 汇总；已经停止的普通 patch 并不会都作为额外摘要聚到 CLS。街景中天空可浅停，狗和复杂街牌可深走。图支持的是学习自适应计算深度，不是从注意力图中直接找“无用像素”。
+
+教学上可把停止层描述为：
+
+$$
+L_i=\min\left\{l:\sum_{t=1}^{l}h_i^t\geq1-\varepsilon\right\}.
+$$
+
+$h_i^t$ 是 token $i$ 在第 $t$ 层的停止贡献，$\varepsilon$ 是接近一的容差，$L_i$ 受最大网络层数约束。论文还有余量和训练正则处理；这条简式只说明累计阈值直觉。它不同于每层独立 Top-K，复杂行可以在多层连续消耗预算。
+
+<figure id="fig-avit-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 13 · A-ViT 的 token 深度热图"><img src="assets/avit-f3.png" alt="原图 13 · A-ViT 的 token 深度热图 — A-ViT: Adaptive Tokens for Efficient Vision Transformer F3" width="1835" height="1336" loading="lazy"></button>
+<figcaption><strong>原图 13 · A-ViT 的 token 深度热图</strong><a href="https://arxiv.org/abs/2112.07658v2" target="_blank" rel="noopener">A-ViT: Adaptive Tokens for Efficient Vision Transformer</a> · F3 · version 2112.07658v2 · PDF p.6 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. Original image (left) and the dynamic token depth (right) of A-ViT-T on the ImageNet-1K validation set. Distribution of token
+computation highly aligns with visual features. Tokens associated with informative regions are adaptively processed deeper, robust to
+repeating objects with complex backgrounds. Best viewed in color.</div><a class="source-url" href="https://arxiv.org/abs/2112.07658v2">https://arxiv.org/abs/2112.07658v2</a></details></figcaption></figure>
+
+图三用深浅／颜色显示原图各位置经过的层数，较复杂对象区域通常更深。它把计算分配映射回空间，方便发现模型关注什么。热图显示的是自适应深度，不是概率校准后的解释，也不证明所有边缘或小字都被保护。读者应对照原图的对象、背景与层数色标，而非把颜色当成预测正确性的证据。
+
+<figure id="fig-avit-t3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 14 · A-ViT 的精度、GFLOPs 与吞吐"><img src="assets/avit-t3.png" alt="原图 14 · A-ViT 的精度、GFLOPs 与吞吐 — A-ViT: Adaptive Tokens for Efficient Vision Transformer T3" width="925" height="468" loading="lazy"></button>
+<figcaption><strong>原图 14 · A-ViT 的精度、GFLOPs 与吞吐</strong><a href="https://arxiv.org/abs/2112.07658v2" target="_blank" rel="noopener">A-ViT: Adaptive Tokens for Efficient Vision Transformer</a> · T3 · version 2112.07658v2 · PDF p.8 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3. Throughput improvement enabled via adaptive tokens.
+Models with + distil. is augmented with distillation token.</div><a class="source-url" href="https://arxiv.org/abs/2112.07658v2">https://arxiv.org/abs/2112.07658v2</a></details></figcaption></figure>
+
+表三 tiny 配置从 71.3%、1.2G、2.1K img/s 变为 71.0%、0.8G、3.4K img/s。附录计时写设备为“NVIDIA TITAN RTX 2080”，这个名称本身含混；本文保留原称，不猜测真实型号。条件包括 CUDA 10.2、batch 64、100 次预热和 1000 次前向的中位数，计时精度未给出。增加额外两层预测头仅提高约 0.06 个百分点却降低 12.6% 吞吐的消融，说明决策器本身也会吞掉收益。
+
+### ATS：按重要性分布采样，实际数量随内容变化
+
+ATS 不学习新的参数预测器，而是用 CLS 注意力和 value 范数形成显著性分布，通过逆累积分布函数采样。<a href="#source-P06">[P06]</a> 它既不同于固定 Top-K，也不同于合并相似行。
+
+<figure id="fig-ats-f1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 15 · ATS：显著性、累积分布与采样"><img src="assets/ats-f1.png" alt="原图 15 · ATS：显著性、累积分布与采样 — Adaptive Token Sampling For Efficient Vision Transformers F1" width="1240" height="714" loading="lazy"></button>
+<figcaption><strong>原图 15 · ATS：显著性、累积分布与采样</strong><a href="https://arxiv.org/abs/2111.15667v3" target="_blank" rel="noopener">Adaptive Token Sampling For Efficient Vision Transformers</a> · F1 · version 2111.15667v3 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 1. The Adaptive Token Sampler (ATS) can be integrated into the self-attention layer of any transformer block of a vision transformer model (left). The ATS module takes at each stage a set of input tokens I. The first token is considered as the classification token in each block of the vision transformer. The attention matrix A is then calculated by the dot product of the queries Q and keys K, scaled by √d. We use the attention weights A1,2, …, A1,N+1 of the classification token as significance scores S ∈ R^N for pruning the attention matrix A. To reflect the effect of values V on the output tokens O, we multiply the A1,j by the magnitude of the corresponding value Vj. We select the significant tokens using inverse transform sampling over the cumulative distribution function of the scores S. Having selected the significant tokens, we then sample the corresponding attention weights (rows of the attention matrix A) to get As. Finally, we softly downsample the input tokens I to output tokens O using the dot product of As and V.</div><a class="source-url" href="https://arxiv.org/abs/2111.15667v3">https://arxiv.org/abs/2111.15667v3</a></details></figcaption></figure>
+
+图一先从注意力和值向量计算权重，再在累计概率轴上放置有序采样点，映射回 token 索引。一个高权重区域可能被多个点命中；重复索引去重后，实际输出数量小于或等于预算。随后抽取对应注意力矩阵行，乘完整 value 得到选中行的更新输出，并收集相应残差行。它属于逆 CDF 的分层采样，不应称为随机 Monte Carlo，也不是把命中的向量取均值。
+
+以单头形式简写其重要性直觉：
+
+$$
+s_j=\frac{a_{\mathrm{CLS},j}\lVert v_j\rVert_2}
+{\sum_k a_{\mathrm{CLS},k}\lVert v_k\rVert_2}.
+$$
+
+$a_{\mathrm{CLS},j}$ 是 CLS 对行 $j$ 的注意力，$v_j$ 是该行 value 向量，分母归一化到概率分布，多头计算按论文方式组合。权重需要非负且总和非零；这条简式省略多头细节。注意力高但 value 很小的行，对输出贡献未必大；范数修正反映这一点。街牌如果注意力低，仍可能因 value 贡献被保留，但并无必保保证。
+
+<figure id="fig-ats-f3f4">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 16 · ATS：分数设计与精度—计算曲线"><img src="assets/ats-f3f4.png" alt="原图 16 · ATS：分数设计与精度—计算曲线 — Adaptive Token Sampling For Efficient Vision Transformers F3F4" width="1201" height="345" loading="lazy"></button>
+<figcaption><strong>原图 16 · ATS：分数设计与精度—计算曲线</strong><a href="https://arxiv.org/abs/2111.15667v3" target="_blank" rel="noopener">Adaptive Token Sampling For Efficient Vision Transformers</a> · F3F4 · version 2111.15667v3 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 3. Impact of different score as-
+signment methods. To achieve different
+GFLOPs levels, we bound the value of
+K from above such that the average
+GFLOPs of our adaptive models over
+the ImageNet validation set reaches the
+desired level. For more details, please re-
+fer to the supplementary material.
+
+Fig. 4.
+Performance
+comparison
+on
+the ImageNet validation set. Our pro-
+posed adaptive token sampling method
+achieves a state-of-the-art trade-off be-
+tween accuracy and GFLOPs. We can
+reduce the GFLOPs of DeiT-S by 37%
+while almost maintaining the accuracy.</div><a class="source-url" href="https://arxiv.org/abs/2111.15667v3">https://arxiv.org/abs/2111.15667v3</a></details></figcaption></figure>
+
+左图三比较分数分配方式，横轴 GFLOPs、纵轴 ImageNet 验证准确率；右图四对照压缩方法的曲线。预算上界调到**验证集平均**计算量目标，而非每张图完全同长。作者报告 DeiT-S 约减少 37% GFLOPs 并接近原准确率。两图支持 score 与采样设计在此协议下有效，不支持平均 GFLOPs 一定换来等比例批量吞吐。
+
+<figure id="fig-ats-f5">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 17 · ATS：固定 Top-K 与自适应策略消融"><img src="assets/ats-f5.png" alt="原图 17 · ATS：固定 Top-K 与自适应策略消融 — Adaptive Token Sampling For Efficient Vision Transformers F5" width="1215" height="379" loading="lazy"></button>
+<figcaption><strong>原图 17 · ATS：固定 Top-K 与自适应策略消融</strong><a href="https://arxiv.org/abs/2111.15667v3" target="_blank" rel="noopener">Adaptive Token Sampling For Efficient Vision Transformers</a> · F5 · version 2111.15667v3 · PDF p.11 / printed p.11
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 5. For the model with Top-K selection (fixed-rate sampling) (5a), we set K such
+that the model operates at a desired GFLOPs level. In all three plots, we control
+the GFLOPs level of our adaptive models as in Fig. 3. We use DeiT-S [53] for these
+experiments. For more details, please refer to the supplementary material.</div><a class="source-url" href="https://arxiv.org/abs/2111.15667v3">https://arxiv.org/abs/2111.15667v3</a></details></figcaption></figure>
+
+图五三面板比较固定数量选择与不同采样／控制策略，纵轴都是性能，横轴为计算预算。固定 Top-K 的 K 被调到目标成本，自适应方法按前图控制平均成本。因而应在相近横坐标比较曲线，不能拿不同预算端点当纯方法提升。它回答“内容自适应是否优于统一数量”，不是宣称所有长图像都需要更多 token；采样分布仍来自现有模型信号。
+
+<figure id="fig-ats-f6f7">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 18 · ATS：长度直方图与图像复杂度"><img src="assets/ats-f6f7.png" alt="原图 18 · ATS：长度直方图与图像复杂度 — Adaptive Token Sampling For Efficient Vision Transformers F6F7" width="1201" height="435" loading="lazy"></button>
+<figcaption><strong>原图 18 · ATS：长度直方图与图像复杂度</strong><a href="https://arxiv.org/abs/2111.15667v3" target="_blank" rel="noopener">Adaptive Token Sampling For Efficient Vision Transformers</a> · F6F7 · version 2111.15667v3 · PDF p.12 / printed p.12
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 6. Histogram of the number of sam-
+pled tokens at each ATS stage of our
+multi-stage DeiT-S+ATS model on the
+ImageNet validation set. The y-axis cor-
+responds to the number of images and the
+x-axis to the number of sampled tokens.
+
+Fig. 7.
+ATS samples less tokens for
+images with fewer details (top), and a
+higher number of tokens for more de-
+tailed images (bottom). We show the
+token downsampling results after all
+ATS stages. For this experiment, we
+use a multi-stage Deit-S+ATS model.</div><a class="source-url" href="https://arxiv.org/abs/2111.15667v3">https://arxiv.org/abs/2111.15667v3</a></details></figcaption></figure>
+
+图六横轴是采样 token 数，纵轴是图像数量，不同阶段有不同分布；图七上排较简单图像被采样较少，下排细节图像保留较多。两图把内容自适应具体化，也暴露部署问题：同一个 batch 里长度不同，若补齐到最大长度，许多理论收益可能消失。对街景，背景简单不等于文字任务简单，视觉细节数量也不能完全代表任务难度。
+
+### EViT：把被删区域留成一枚摘要
+
+EViT 使用 CLS 注意力保留高分 token，把剩余 token 按注意力加权融合成**一个新的 summary token**。<a href="#source-P07">[P07]</a> 摘要与 CLS 是不同的行；不能把它描述为“所有丢弃行直接合入 CLS”。
+
+<figure id="fig-evit-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 19 · EViT 的动机：直接丢弃会损伤已有模型"><img src="assets/evit-t1.png" alt="原图 19 · EViT 的动机：直接丢弃会损伤已有模型 — Not All Patches are What You Need: Expediting Vision Transformers via Token Reorganizations T1" width="1414" height="123" loading="lazy"></button>
+<figcaption><strong>原图 19 · EViT 的动机：直接丢弃会损伤已有模型</strong><a href="https://arxiv.org/abs/2202.07800v2" target="_blank" rel="noopener">Not All Patches are What You Need: Expediting Vision Transformers via Token Reorganizations</a> · T1 · version 2202.07800v2 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: ImageNet classiﬁcation accuracy of a straightforward inattentive token removal for a trained
+DeiT-S (Touvron et al., 2021a). The inattentive tokens are directly removed based on the attention
+from the class token to other tokens at the 4th, 7th and 10th layers.</div><a class="source-url" href="https://arxiv.org/abs/2202.07800v2">https://arxiv.org/abs/2202.07800v2</a></details></figcaption></figure>
+
+表一先考察原模型直接移除低分 patch。DeiT-S 基线 79.8%，keep 0.7 时为 78.5%，keep 0.5 为 73.8%。这不是正式训练后结果，而是直接插入删除的风险测量。街景天空可能低分，街牌也可能低分；重要性排序并不能把所有损失消除。表的作用是建立融合和适配的必要性，而非否定所有剪枝。
+
+<figure id="fig-evit-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 20 · EViT：保留高分行，融合其余行"><img src="assets/evit-f2.png" alt="原图 20 · EViT：保留高分行，融合其余行 — Not All Patches are What You Need: Expediting Vision Transformers via Token Reorganizations F2" width="1414" height="712" loading="lazy"></button>
+<figcaption><strong>原图 20 · EViT：保留高分行，融合其余行</strong><a href="https://arxiv.org/abs/2202.07800v2" target="_blank" rel="noopener">Not All Patches are What You Need: Expediting Vision Transformers via Token Reorganizations</a> · F2 · version 2202.07800v2 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Token reorganization within a single Transformer encoder. Based on ViT (Dosovitskiy
+et al., 2021), we reorganize tokens in the original Transformer encoder. Speciﬁcally, we calculate
+the attentiveness of the class token with respect to each image token. Then, we use the attentiveness
+value as a criterion to identify the top-k attentive tokens and fuse the inattentive tokens.</div><a class="source-url" href="https://arxiv.org/abs/2202.07800v2">https://arxiv.org/abs/2202.07800v2</a></details></figcaption></figure>
+
+图二中原序列一分为二，高注意力行继续单独存在，低注意力行经过加权融合后成为额外摘要，再与保留行一起进入下一层。图中颜色追踪重组前后的身份。天空与远处背景可能共同进入摘要，宏观上下文仍可被后续层访问；街牌若进入这枚摘要，文字之间的细微差别却可能被平均掉。融合缓解硬删除的信息损失，无法保证小细节完整。
+
+<figure id="fig-evit-t2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 21 · EViT 正式训练：融合的收益与预算边界"><img src="assets/evit-t2.png" alt="原图 21 · EViT 正式训练：融合的收益与预算边界 — Not All Patches are What You Need: Expediting Vision Transformers via Token Reorganizations T2" width="1414" height="532" loading="lazy"></button>
+<figcaption><strong>原图 21 · EViT 正式训练：融合的收益与预算边界</strong><a href="https://arxiv.org/abs/2202.07800v2" target="_blank" rel="noopener">Not All Patches are What You Need: Expediting Vision Transformers via Token Reorganizations</a> · T2 · version 2202.07800v2 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 2: Comparison on the two variants of EViT on DeiT-S (Touvron et al., 2021a). The values of
+the Top-1 and Top-5 accuracy are averaged over three independent trials. The number behind ± is
+the standard deviation of the three trials. The number in blue is the gap of the corresponding value
+w.r.t. the baseline DeiT-S.</div><a class="source-url" href="https://arxiv.org/abs/2202.07800v2">https://arxiv.org/abs/2202.07800v2</a></details></figcaption></figure>
+
+表二从头训练 300 epochs、ImageNet 224、A100、batch 128。基线 79.8%、4.6 GMACs、2923 img/s；fusion keep 0.7 为 79.5±0.0%、3.0 GMACs、4385 img/s，约 1.50 倍；keep 0.5 为 78.5±0.0%、5408 img/s。论文称“test”的 50k 图像对应官方 validation，不能据此误认隐藏测试集。
+
+横向的“融合／不融合”比较解释摘要价值，纵向的保留比例解释压缩代价。正式训练结果不能当作零训练插入的性能保证。这一阶段的共同启示是：选择可以学、深度可以学、摘要也可以学，但训练预算和下游任务仍是结果的一部分。
+
+## 04 · ToMe：训练外的相似性合并，与必须记住的质量权重
+
+前面的学习式策略往往要训练模块或适配主干。ToMe 转向使用已有注意力 key 特征做便宜的相似性匹配，在原 ViT 上直接减少行数。<a href="#source-P09">[P09]</a> “训练免费”指可不更新模型参数使用，不意味着没有任何准确率损失，也不排斥随后微调。
+
+<figure id="fig-tome-f1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 22 · ToMe 的二部软匹配与插入位置"><img src="assets/tome-f1.png" alt="原图 22 · ToMe 的二部软匹配与插入位置 — Token Merging: Your ViT But Faster F1" width="1414" height="450" loading="lazy"></button>
+<figcaption><strong>原图 22 · ToMe 的二部软匹配与插入位置</strong><a href="https://arxiv.org/abs/2210.09461v3" target="_blank" rel="noopener">Token Merging: Your ViT But Faster</a> · F1 · version 2210.09461v3 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Token Merging. (a) With ToMe, similar patches are merged in each transformer block: for
+example, the dog’s fur is merged into a single token. (b) ToMe is simple and can be inserted inside
+the standard transformer block. (c) Our fast merging algorithm, see Appendix D for implementation.</div><a class="source-url" href="https://arxiv.org/abs/2210.09461v3">https://arxiv.org/abs/2210.09461v3</a></details></figcaption></figure>
+
+图一先把 token 交错划成 A、B 两组，用注意力 key 的归一化相似度连接。每个 A 找最相似的 B，再选分数最高的 $r$ 条边进行合并。多个 A 可以流向同一个 B，因此是二部**软匹配**，不是严格一对一的完美匹配。保护的 CLS／distillation token 不应被当普通 patch 合并。
+
+图的 block 插图显示合并在 MHSA 之后、MLP 之前，本层注意力已经付费。街景中多个相似天空行可汇入同一代表，独特街牌如果与背景 key 过近也可能被误合并。相似性不是显式任务重要性，这是后续 PiToMe、AdaMerge 和 RAPID要改进的部分。
+
+反复合并时应携带 size，即一个行代表了多少原 token：
+
+$$
+x'=\frac{s_ax_a+s_bx_b}{s_a+s_b},\qquad
+s'=s_a+s_b.
+$$
+
+$x_a,x_b$ 是同维数特征，$s_a,s_b$ 初始为一，之后是累积质量。若先将 2 和 4 合为 3，再与 8 等权平均，得到 5.5；按 size 2:1 合并才得到原三行均值 4.6667。这是聚合均值的基本一致性，不是语义无损证明。
+
+论文还讨论 proportional attention，用 size 修正一个代表在 softmax 中的总质量：
+
+$$
+A_{ij}=\frac{\exp\!\left(q_i^\top k_j/\sqrt{d_k}+\log s_j\right)}
+{\sum_t\exp\!\left(q_i^\top k_t/\sqrt{d_k}+\log s_t\right)}.
+$$
+
+$q_i,k_j$ 是单头 query/key，$d_k$ 是头维度，$s_j$ 是 key 行代表的数量。加 $\log s_j$ 等价于把指数项乘 $s_j$：三枚完全相同的 key 应有三倍概率质量。只有组内 key 相同、query 固定，并以适当加权 value 表示时，才能得到后文教学实验中的严格等价；真实 ViT 的不同位置、后续 query 和非线性都会破坏这些假设。
+
+<figure id="fig-tome-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 23 · ToMe 消融：size 重要，log-size 并非总是更好"><img src="assets/tome-t1.png" alt="原图 23 · ToMe 消融：size 重要，log-size 并非总是更好 — Token Merging: Your ViT But Faster T1" width="1414" height="907" loading="lazy"></button>
+<figcaption><strong>原图 23 · ToMe 消融：size 重要，log-size 并非总是更好</strong><a href="https://arxiv.org/abs/2210.09461v3" target="_blank" rel="noopener">Token Merging: Your ViT But Faster</a> · T1 · version 2210.09461v3 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Token Merging ablation experiments using ViT-L/16 from MAE (He et al., 2022) on
+ImageNet-1k evaluated off-the-shelf without training, using r = 8. The baseline model without
+ToMe obtains 85.96% acc at 93.3 im/s. For each ablation, we report Top-1 accuracy (acc) and fp32
+model throughput (im/s) on a V100 GPU. Our default settings are marked in purple .</div><a class="source-url" href="https://arxiv.org/abs/2210.09461v3">https://arxiv.org/abs/2210.09461v3</a></details></figcaption></figure>
+
+表一对比只保留一个成员、简单平均、size 加权，以及是否修正 attention。ViT-L MAE、$r=8$ 在 V100 FP32、作者选择的最优 batch 条件下，基线为 85.96%、93.3 img/s，size 合并为 84.25%、182.9 img/s，约 1.96 倍；非 size 平均为 83.57%，只保留一个成员为 81.01%。
+
+同表 proportional attention 对 MAE 从 84.25% 变到 83.84%，对 AugReg 却从 82.15% 提到 83.51%。因此代数上正确的重复 key 质量修正，不意味着所有预训练模型都更准确；其原表示与训练习惯不满足理想重复假设。不能只引用赢的行。
+
+<figure id="fig-tome-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 24 · ToMe 在不同预训练模型上的速度—精度关系"><img src="assets/tome-f3.png" alt="原图 24 · ToMe 在不同预训练模型上的速度—精度关系 — Token Merging: Your ViT But Faster F3" width="1414" height="858" loading="lazy"></button>
+<figcaption><strong>原图 24 · ToMe 在不同预训练模型上的速度—精度关系</strong><a href="https://arxiv.org/abs/2210.09461v3" target="_blank" rel="noopener">Token Merging: Your ViT But Faster</a> · F3 · version 2210.09461v3 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: Model Sweep. We apply ToMe to several state of the art ViT models off-the-shelf, i.e.
+without training, varying r to produce fp32 throughput vs. accuracy curves on ImageNet-1k.
+Immediately, we can see that a constant schedule gives up to 2× the throughput no matter the model.
+And even though we’re compressing 96-98% of the tokens in each, the largest models have barely any
+accuracy drop: while ViT-B, S, and Ti all have around 4-5% accuracy drop at 2× speed, ViT-L only
+suffers a 2% drop on 224px images and a 0.7% drop on 384px images with AugReg. Similarly, with
+SWAG models, ViT-L on 512px images and ViT-H on 518px images both have small 0.3% accuracy
+drop without training. Note this trend is not just because larger models have more tokens, since we
+always reduce the number of tokens by 96-98%. Instead, we think this is because large models are
+deeper and thus allow for more gradual change in features, which lessens the impact of merging.</div><a class="source-url" href="https://arxiv.org/abs/2210.09461v3">https://arxiv.org/abs/2210.09461v3</a></details></figcaption></figure>
+
+图三以吞吐为横轴、ImageNet 准确率为纵轴，展示多个模型与合并预算的轨迹。沿同一轨迹向右，通常意味着更激进压缩、更多损失；跨模型曲线混有原检查点差异。它支持相似性合并具备广泛可用性，不支持每个轻量骨干都稳定。第九节的 compact ViT 评测是这个边界的重要反例。
+
+## 05 · 2023—2024：从“怎么合”到“何时合、谁不能合”
+
+### DiffRate：让每层预算参与优化
+
+统一每层删除相同 $r$ 简单，但不是同预算下最合适的分配。DiffRate 用可微代理优化离散压缩率，联合控制 pruning 和 merging，并以任务损失与计算预算约束搜索层级计划。<a href="#source-P10">[P10]</a>
+
+<figure id="fig-diffrate-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 25 · DiffRate 的可微压缩率代理"><img src="assets/diffrate-f3.png" alt="原图 25 · DiffRate 的可微压缩率代理 — DiffRate : Differentiable Compression Rate for Efficient Vision Transformers F3" width="1817" height="534" loading="lazy"></button>
+<figcaption><strong>原图 25 · DiffRate 的可微压缩率代理</strong><a href="https://arxiv.org/abs/2305.17997v1" target="_blank" rel="noopener">DiffRate : Differentiable Compression Rate for Efficient Vision Transformers</a> · F3 · version 2305.17997v1 · PDF p.4 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: Pipeline of Differentiable Discrete Proxy. (a) Token Sorting: the input N tokens are sorted based on the im-
+portance metric class attention Ac. With pruning rate αp and merging rate αm, we first prune Nαp least important tokens,
+then merge N(αm −αp) unimportant tokens with similar ones among the remaining tokens. (b) Compression Rate Re-
+parameterization: the approach translate compression rate α into the combination with discrete rate C and learnable proba-
+bility ρ. The top part is attention masking [27], which simulates token dropping by mask during training.</div><a class="source-url" href="https://arxiv.org/abs/2305.17997v1">https://arxiv.org/abs/2305.17997v1</a></details></figcaption></figure>
+
+图三展示离散候选压缩率如何通过可微概率／代理表达，使梯度能调整预算选择，随后变成推理时的层级配置。论文中的 DDP 指 differentiable discrete proxy，不是多机训练的 DistributedDataParallel。推理时**每层压缩率固定**，只是匹配身份仍随输入变化；不能称为每张图临时学出的动态预算控制器。
+
+对街景，搜索可能给早层留更多行、后层更少，但这是离线从目标数据与损失中学出的计划。所谓“模型权重不微调”仍要训练 rate 参数；学习预算并不是零数据、零计算。
+
+<figure id="fig-diffrate-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 26 · DiffRate 的主结果与搜索／微调区分"><img src="assets/diffrate-t1.png" alt="原图 26 · DiffRate 的主结果与搜索／微调区分 — DiffRate : Differentiable Compression Rate for Efficient Vision Transformers T1" width="904" height="1645" loading="lazy"></button>
+<figcaption><strong>原图 26 · DiffRate 的主结果与搜索／微调区分</strong><a href="https://arxiv.org/abs/2305.17997v1" target="_blank" rel="noopener">DiffRate : Differentiable Compression Rate for Efficient Vision Transformers</a> · T1 · version 2305.17997v1 · PDF p.6 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Token compression on the off-the-shelf models.
+We directly apply EViT [21], ToMe [1], and the proposed
+DiffRate to off-the-shelf models, i.e. without updating the
+network parameters of pre-trained models.</div><a class="source-url" href="https://arxiv.org/abs/2305.17997v1">https://arxiv.org/abs/2305.17997v1</a></details></figcaption></figure>
+
+表一不带 † 的设置主干固定，预算优化 3 epochs；带 † 的结果另外微调 30 epochs。A100 FP16、batch 1024：DeiT ViT-B 基线 81.83%、17.6G、2130 img/s，压缩为 78.98%、8.7G、4124 img/s。ViT-H 则从 86.88%、167.4G、299 img/s 到 86.40%、93.2G、504 img/s。
+
+表中损失差异说明层级冗余与模型尺度有关，不应把 ViT-H 的 0.48 个百分点损失当作 ViT-B 保证。查读时先分清 † 与非 †，再比较同模型同条件，才能把“预算搜索效果”与“额外适配效果”分开。
+
+### ToFu：早层相似不等于可以取均值
+
+ToFu 观察到网络对 token 插值的响应随深度变化，结合 pruning-like fusion 与较深层的 merging，形成混合计划。<a href="#source-P11">[P11]</a> 它是算法设计与经验观察，不是一个必须共同训练的新预测网络。
+
+<figure id="fig-tofu-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 27 · ToFu 的剪枝式融合与 MLERP"><img src="assets/tofu-f2.png" alt="原图 27 · ToFu 的剪枝式融合与 MLERP — Token Fusion: Bridging the Gap between Token Pruning and Token Merging F2" width="1835" height="728" loading="lazy"></button>
+<figcaption><strong>原图 27 · ToFu 的剪枝式融合与 MLERP</strong><a href="https://arxiv.org/abs/2312.01026v1" target="_blank" rel="noopener">Token Fusion: Bridging the Gap between Token Pruning and Token Merging</a> · F2 · version 2312.01026v1 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2. (Left) Token Fusion integration within a ViT backbone. Each Transformer block incorporates a token reduction operation,
+denoted by R . In this illustration, R is invoked before the MLP. Using Bipartite Soft Matching (BSM), each R identifies r indexes with
+the highest similarity, for example, r =2 in this depiction. Notably, the depth of the layer determines the chosen merging strategy: early
+layers use pruned merging, while later layers transition to average (or MLERP) merging. This dynamic approach accelerates ViT while
+preserving most of the performance of full token inference. (Right) A visualization of different merging approaches for combining two
+features, x_1 and x_2 . All methods can be adapted to merge more than two features.</div><a class="source-url" href="https://arxiv.org/abs/2312.01026v1">https://arxiv.org/abs/2312.01026v1</a></details></figcaption></figure>
+
+图二对比不同融合方式：直接保留代表、普通平均与 magnitude-preserving interpolation，简称 MLERP。平均两个方向不同的向量会缩小范数；MLERP 在融合方向之外保持合适的幅值。对街牌和天空，早层特征若尚不具备可线性混合的语义，强行平均可能影响后续层对结构的响应；保留代表有时更稳，但也会丢掉另一成员的信息。
+
+<figure id="fig-tofu-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 28 · ToFu 的深度与函数插值线性观察"><img src="assets/tofu-f3.png" alt="原图 28 · ToFu 的深度与函数插值线性观察 — Token Fusion: Bridging the Gap between Token Pruning and Token Merging F3" width="872" height="662" loading="lazy"></button>
+<figcaption><strong>原图 28 · ToFu 的深度与函数插值线性观察</strong><a href="https://arxiv.org/abs/2312.01026v1" target="_blank" rel="noopener">Token Fusion: Bridging the Gap between Token Pruning and Token Merging</a> · F3 · version 2312.01026v1 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. A plot of functional linearity as defined in Eq. 8, mea-
+sured using a ViT-S pretrained on ImageNet and evaluated with
+the ImageNet validation set. The interpolation pairs are chosen by
+the BPE algorithm with r =3 . An increasing trend in functional
+linearity is also observed in other sizes of ViT. This trend informs
+our development of a hybrid merging approach in Token Fusion.</div><a class="source-url" href="https://arxiv.org/abs/2312.01026v1">https://arxiv.org/abs/2312.01026v1</a></details></figcaption></figure>
+
+图三比较同一模型在不同深度下对插值输入的函数响应，实线为均值、阴影为标准差，展示较深层通常更接近线性插值。应同时看随深度的趋势及波动，而不是把它认作神经网络严格线性的定理。这个经验结果解释混合策略为什么不必全程同一种合并操作，也不能保证所有骨干都具有相同转折层。
+
+<figure id="fig-tofu-t3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 29 · ToFu：混合策略的阶段切换消融"><img src="assets/tofu-t3.png" alt="原图 29 · ToFu：混合策略的阶段切换消融 — Token Fusion: Bridging the Gap between Token Pruning and Token Merging T3" width="876" height="640" loading="lazy"></button>
+<figcaption><strong>原图 29 · ToFu：混合策略的阶段切换消融</strong><a href="https://arxiv.org/abs/2312.01026v1" target="_blank" rel="noopener">Token Fusion: Bridging the Gap between Token Pruning and Token Merging</a> · T3 · version 2312.01026v1 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3. Ablation study on hybrid merging strategies: pruned
+merging (P) and average merging (A) with the ViT-B model. The
+table evaluates ImageNet Top-1 accuracy across different merge
+configurations. For instance, the configuration PPPPPPAAAAAA
+represents d = 6, where the pruned merging is applied to the first
+6 layers and average merging to the subsequent 6 layers.</div><a class="source-url" href="https://arxiv.org/abs/2312.01026v1">https://arxiv.org/abs/2312.01026v1</a></details></figcaption></figure>
+
+表三用 P 表示 pruned merging、A 表示 average merging，每个字符对应一层，控制早／晚操作排列和数量。前六层 P、后六层 A 为 80.17%，反向同数量 A→P 为 77.85%，支持切换顺序有实质影响。这张表没有独立拆开 MLERP 的贡献，不能把阶段收益全归于范数保持；不同预算也不能任意拼接。本文未确认其官方可运行实现，RAPID 与 PiToMe 项目中的 ToFu 是第三方重实现，不能冒充原作者代码。
+
+### DSM：先获得语义，再从局部走向全局
+
+Delayed Spatial Merging，简称 DSM，首先公开于 2023 年；本文使用 2024 年更新的 v2，而不是把版本日期写成方法起源。<a href="#source-P12">[P12]</a> 它推迟初期合并，接着做局部，再做全局，以降低在表征尚未成熟时跨对象混合的风险。
+
+<figure id="fig-dsm-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 30 · DSM：浅层表示先发散，后期才趋同"><img src="assets/dsm-f2.png" alt="原图 30 · DSM：浅层表示先发散，后期才趋同 — Training-Free Acceleration of ViTs with Delayed Spatial Merging F2" width="858" height="536" loading="lazy"></button>
+<figcaption><strong>原图 30 · DSM：浅层表示先发散，后期才趋同</strong><a href="https://arxiv.org/abs/2303.02331v2" target="_blank" rel="noopener">Training-Free Acceleration of ViTs with Delayed Spatial Merging</a> · F2 · version 2303.02331v2 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2. Illustration of Delayed Convergent Attention. The
+first few attention blocks have decreasing similarity (computed
+with Equation 2 on DeiT-S) and then it increases for the rest of the
+network. It is desirable to merge tokens when they are becoming
+similar (convergent), motivating the delayed merging scheme.</div><a class="source-url" href="https://arxiv.org/abs/2303.02331v2">https://arxiv.org/abs/2303.02331v2</a></details></figcaption></figure>
+
+图二横轴为层深度，纵轴为论文定义的 token 相似度：DeiT-S 最初几个 attention block 的相似度下降，之后才上升。它回答“在表示趋同之前就合并，是否过早”，不是注意力热图或训练收敛曲线。狗的轮廓、街牌字形和天空纹理在早层可能仍在分化；过早按相似性聚合，会把以后本可分开的结构混在一起。此观察支持推迟合并的经验动机，不能反推所有深层 token 都可交换。
+
+<figure id="fig-dsm-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 31 · DSM 的延迟—局部—全局三阶段"><img src="assets/dsm-f3.png" alt="原图 31 · DSM 的延迟—局部—全局三阶段 — Training-Free Acceleration of ViTs with Delayed Spatial Merging F3" width="1814" height="526" loading="lazy"></button>
+<figcaption><strong>原图 31 · DSM 的延迟—局部—全局三阶段</strong><a href="https://arxiv.org/abs/2303.02331v2" target="_blank" rel="noopener">Training-Free Acceleration of ViTs with Delayed Spatial Merging</a> · F3 · version 2303.02331v2 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. Left: The original Token Merging (ToMe) by Bolya et al. is globally applied to all tokens for all L transformer blocks. Right:
+Motivated by the principles of convergent attention and spatial awareness, our proposed Delayed Spatial Merging (DSM) augments ToMe
+by not merging in the initial D blocks, locally merging for T blocks, then globally merging for the rest of the network.</div><a class="source-url" href="https://arxiv.org/abs/2303.02331v2">https://arxiv.org/abs/2303.02331v2</a></details></figcaption></figure>
+
+图三先让 $D$ 个 block 处理完整序列，再执行若干局部空间合并阶段，最后放开全局匹配。局部限制减少跨远处对象的误合并，同时降低候选范围；全局阶段利用后层语义相似性。这里恢复的是更合理的合并时机，不是把空间距离当成充分语义证据。紧邻的两个人仍可能属于不同实例。
+
+<figure id="fig-dsm-f4">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 32 · DSM 的多模型精度—计算曲线"><img src="assets/dsm-f4.png" alt="原图 32 · DSM 的多模型精度—计算曲线 — Training-Free Acceleration of ViTs with Delayed Spatial Merging F4" width="1814" height="718" loading="lazy"></button>
+<figcaption><strong>原图 32 · DSM 的多模型精度—计算曲线</strong><a href="https://arxiv.org/abs/2303.02331v2" target="_blank" rel="noopener">Training-Free Acceleration of ViTs with Delayed Spatial Merging</a> · F4 · version 2303.02331v2 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4. Model Sweep. We apply our inference framework to several state-of-the-art ViT models in a training-free fashion. DSM’s
+hyperparameters are fixed via network architecture, only varying parameter r to produce Top-1 Acc. vs. GFLOP curves on ImageNet-1k.</div><a class="source-url" href="https://arxiv.org/abs/2303.02331v2">https://arxiv.org/abs/2303.02331v2</a></details></figcaption></figure>
+
+图四按模型分面，上排横轴 GFLOPs、下排横轴吞吐，纵轴都是 ImageNet top-1。固定依架构设定的延迟与局部参数，只改变 $r$ 形成曲线，并与全程 ToMe 比较。它是 model sweep，不是逐项拆开延迟与范围的消融。上排相近计算预算处看精度，下排相近吞吐处看精度，两排不能互换。主文吞吐测量用 RTX A6000、batch 32、50 次平均；不同方法的额外操作使计算与吞吐曲线不完全等价。
+
+<figure id="fig-dsm-t2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 33 · DSM 的反例：计算下降，吞吐也下降"><img src="assets/dsm-t2.png" alt="原图 33 · DSM 的反例：计算下降，吞吐也下降 — Training-Free Acceleration of ViTs with Delayed Spatial Merging T2" width="1660" height="405" loading="lazy"></button>
+<figcaption><strong>原图 33 · DSM 的反例：计算下降，吞吐也下降</strong><a href="https://arxiv.org/abs/2303.02331v2" target="_blank" rel="noopener">Training-Free Acceleration of ViTs with Delayed Spatial Merging</a> · T2 · version 2303.02331v2 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 2. Transfer Learning. Fine-tuned ViT-B accelerated with DSM consistently achieves 1.5× speedup across various datasets.</div><a class="source-url" href="https://arxiv.org/abs/2303.02331v2">https://arxiv.org/abs/2303.02331v2</a></details></figcaption></figure>
+
+表二包含多数据集和多个 $r$。Oxford 配置的基线为 17.57G、404.53 img/s、92.12% top-1；$r=4$ 为 16.10G、384.51 img/s：计算下降约 8.37%，吞吐却下降约 4.95%。更激进的 $r=20$ 为 10.16G、612.50 img/s、91.32%。
+
+这张表对系统实践尤为关键。轻度合并省下的矩阵工作不足以覆盖匹配、索引和形状变化开销；较大压缩后才获得净收益。数据是原论文报告，不是本次 HTP 或 GPU 实测，也不能由此断言所有 $r=4$ 都变慢。
+
+### PiToMe：独特 token 比“多数相似者”更值得保护
+
+ToMe 仅按成对相似度挑边，可能伤害独特但重要的行。PiToMe 从 token 相似性图的谱结构出发，用 energy 区分密集相似群体与孤立行，再选择可合并候选。<a href="#source-P13">[P13]</a>
+
+<figure id="fig-pitome-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 34 · PiToMe 的图结构与 energy 引导"><img src="assets/pitome-f2.png" alt="原图 34 · PiToMe 的图结构与 energy 引导 — Accelerating Transformers with Spectrum-Preserving Token Merging F2" width="1414" height="627" loading="lazy"></button>
+<figcaption><strong>原图 34 · PiToMe 的图结构与 energy 引导</strong><a href="https://arxiv.org/abs/2405.16148v2" target="_blank" rel="noopener">Accelerating Transformers with Spectrum-Preserving Token Merging</a> · F2 · version 2405.16148v2 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: a) PITOME can be inserted inside transformer block; b) Energy scores are computed to identify mergeable and protective tokens; c) Our algorithm gradually merges tokens in each block.</div><a class="source-url" href="https://arxiv.org/abs/2405.16148v2">https://arxiv.org/abs/2405.16148v2</a></details></figcaption></figure>
+
+图二 (a) 把 PiToMe 放在注意力之后、MLP 之前；(b) 把 token 看作节点、特征距离看作边权。橙色初始节点经 energy 排序，低 energy 的灰色行被保护，其余行划为两组后匹配，紫色是新合并行；(c) 用逐层猫图展示压缩区域演变。大量相似节点形成冗余簇，孤立节点保留独特信息。energy 高的相似群体更适合合并，低 energy 行被保护。街景中天空通常有许多类似成员，街牌可能是少数独特成员。依据是特征几何结构，不是预先知道“这块包含文字”，猫图也仅是定性示例。
+
+论文的谱保持分析需要其相似性、分组与扰动假设，不能直接推出 OCR 字符、检测召回或医疗判读保证。官方实现的视觉 energy 与论文写法存在细节差异，文本分支还用不同函数；核验代码时要以具体路径为准。
+
+<figure id="fig-pitome-t5">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 35 · PiToMe 在图像分类中的跨模型结果"><img src="assets/pitome-t5.png" alt="原图 35 · PiToMe 在图像分类中的跨模型结果 — Accelerating Transformers with Spectrum-Preserving Token Merging T5" width="560" height="1208" loading="lazy"></button>
+<figcaption><strong>原图 35 · PiToMe 在图像分类中的跨模型结果</strong><a href="https://arxiv.org/abs/2405.16148v2" target="_blank" rel="noopener">Accelerating Transformers with Spectrum-Preserving Token Merging</a> · T5 · version 2405.16148v2 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 5: Image Classification: Performance of PITOME on Imagenet-1k, both off-the-shelf (OTS acc) and after retraining (Trained acc), across ViT backbones. We benchmark with different architectures and merging/pruning methods.</div><a class="source-url" href="https://arxiv.org/abs/2405.16148v2">https://arxiv.org/abs/2405.16148v2</a></details></figcaption></figure>
+
+表五按不同 ViT 骨干比较 OTS accuracy 与重新训练后的 accuracy，列中训练状态不同必须分开，表本身不是吞吐排名。应先锁定同检查点、压缩配置和是否训练，再比较 ToMe、ToFu 与 PiToMe，不能拿某个强基线模型评价另一骨干。它支持保护独特表示在若干分类配置下改善精度，尚不等于谱指标是所有任务最好的重要性代理。下一节要求保护更直接的空间接口。
+
+例如同表 DeiT-S、2.9G，ToMe OTS 77.7%、训练后 79.4%；PiToMe OTS 79.1%、训练后 79.8%；原基线 79.8%、4.6G。这个差距支持 energy 选择的实际价值，但仍有训练状态和压缩协议边界。训练 speed-up 列的勾／叉描述项目能力，不是实测吞吐数值。
+
+## 06 · 密集任务：少量 token 怎样回到框、关键点与像素
+
+分类只需要一个输出向量；分割却要求每个位置有输出。若把两位相邻行人的 token 合在一起，图像类别可能完全正确，但实例分界或手部关键点会出错。密集任务因此不能只把分类压缩器接到骨干上，必须明确空间对应、跨尺度信息和输出恢复。
+
+### TCFormer：内容驱动的非均匀区域，而非固定网格缩小
+
+TCFormer 将 token 聚类为语义相关的非均匀区域，并记录其与空间位置的关联，面向 human-centric visual analysis。<a href="#source-P08">[P08]</a> 本文使用 2022 年原始版本；后续扩展论文不作为另一篇未讲解引用。
+
+<figure id="fig-tcformer-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 36 · TCFormer 的层级聚类与多阶段表示"><img src="assets/tcformer-f2.png" alt="原图 36 · TCFormer 的层级聚类与多阶段表示 — Not All Tokens Are Equal: Human-centric Visual Analysis via Token Clustering Transformer F2" width="1817" height="827" loading="lazy"></button>
+<figcaption><strong>原图 36 · TCFormer 的层级聚类与多阶段表示</strong><a href="https://arxiv.org/abs/2204.08680v1" target="_blank" rel="noopener">Not All Tokens Are Equal: Human-centric Visual Analysis via Token Clustering Transformer</a> · F2 · version 2204.08680v1 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2. Overview of Token Clustering Transformer (TCFormer). Given an input image, feature map is extracted with a single convolution
+layer and pixels in the feature map is regarded as initial vision tokens. These initial vision tokens are processed in a multi-stage manner and
+every stage is composed of multiple stacked transformer blocks. At the end of every stage, vision tokens are merged with a Clustering-based
+Token Merge (CTM) block to generate tokens for the next stage. Finally, all vision tokens are fed into the Multi-stage Token Aggregation
+(MTA) head for predicting heatmaps. In the CTM block, input tokens are first clustered and then merged by weighted averaging. Merged
+tokens and original tokens are then fed into a transformer block for better feature aggregation.</div><a class="source-url" href="https://arxiv.org/abs/2204.08680v1">https://arxiv.org/abs/2204.08680v1</a></details></figcaption></figure>
+
+图二先从图像获取初始 token，再通过 clustering token merge 模块构造不同尺度。与卷积均匀降采样不同，区域边界由内容相似性驱动，可把复杂人体部位留成更细的 token，把简单背景聚成较大区域。论文使用密度峰值式聚类：局部密度与到更高密度点的距离共同决定中心，之后把其它行归到中心并聚合。
+
+聚类得到的是不规则区域，而非完好矩形 patch。街景中一位行人的衣服可形成一个区域，手和脸保留较细单元；这种结构有利于人体任务，但全局相似性仍可能把不同实例的相似部位混合。因此位置关系需要保留到任务头。
+
+<figure id="fig-tcformer-f4">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 37 · TCFormer 的关系映射与多尺度任务头"><img src="assets/tcformer-f4.png" alt="原图 37 · TCFormer 的关系映射与多尺度任务头 — Not All Tokens Are Equal: Human-centric Visual Analysis via Token Clustering Transformer F4" width="889" height="527" loading="lazy"></button>
+<figcaption><strong>原图 37 · TCFormer 的关系映射与多尺度任务头</strong><a href="https://arxiv.org/abs/2204.08680v1" target="_blank" rel="noopener">Not All Tokens Are Equal: Human-centric Visual Analysis via Token Clustering Transformer</a> · F4 · version 2204.08680v1 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4. Multi-stage Token Aggregation (MTA) head. (a) In to-
+ken upsampling process, we use the recorded token relationship to
+copy the merged token features to the corresponding upsampled
+tokens. (b) MTA head starts from the last stage and progressively
+aggregates features by stacked upsampling processes and trans-
+former blocks. The final tokens are in one-to-one correspondence
+with the pixels in feature maps and reshaped to the feature maps
+for further processing.</div><a class="source-url" href="https://arxiv.org/abs/2204.08680v1">https://arxiv.org/abs/2204.08680v1</a></details></figcaption></figure>
+
+图四展示 token relationship 及 multi-scale token aggregation，简称 MTA，如何在不同聚类尺度之间传递、上采样并聚合特征。箭头依据 token 与原空间位置的关系，不是把不规则摘要随意 reshape 成矩形。任务头能读取对应位置和多尺度上下文，输出细粒度人体预测。
+
+这张图解释压缩后恢复密集接口的必要元数据：每个摘要覆盖哪些原位置，跨尺度映射怎样计算。它恢复可用于预测的布局，不表示聚类前各 token 的差异被逆运算找回。其收益还包括重新设计的骨干与头，不能当作任意已有 ViT 的无训练插件。
+
+<figure id="fig-tcformer-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 38 · TCFormer 的 COCO-WholeBody 关键点评测"><img src="assets/tcformer-t1.png" alt="原图 38 · TCFormer 的 COCO-WholeBody 关键点评测 — Not All Tokens Are Equal: Human-centric Visual Analysis via Token Clustering Transformer T1" width="1817" height="711" loading="lazy"></button>
+<figcaption><strong>原图 38 · TCFormer 的 COCO-WholeBody 关键点评测</strong><a href="https://arxiv.org/abs/2204.08680v1" target="_blank" rel="noopener">Not All Tokens Are Equal: Human-centric Visual Analysis via Token Clustering Transformer</a> · T1 · version 2204.08680v1 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1. OKS-based Average Precision (AP) and Average Recall (AR) on the COCO-WholeBody V1.0 dataset. The baseline results are
+from MMPose [9]. ‘*’ indicates multi-scale testing. ZoomNet† is trained with the COCO-WholeBody V0.5 training set.</div><a class="source-url" href="https://arxiv.org/abs/2204.08680v1">https://arxiv.org/abs/2204.08680v1</a></details></figcaption></figure>
+
+表一按人体、脚、脸、手及整体等部位列出 AP／AR，比较不同骨干与设置。关键点 AP 基于 object keypoint similarity，简称 OKS，和检测 AP 的框 IoU 不是同一种匹配尺度。输入分辨率、检测器和任务头影响成绩；小脸与手尤其依赖细节。表支持任务定制聚类在人体分析上的实测结果，不支持“把分类 token 数减半，WholeBody AP 就必然更高”。
+
+### Cropr：独立训练选择器，在最后一层重新接回空间
+
+Cropr 用辅助监督训练轻量选择模块，并通过停止梯度避免主干被辅助头扰动。<a href="#source-P14">[P14]</a> 对密集任务使用 last-layer fusion，简称 LLF，把先前保存的被剪特征重新接入最后一个完整 block，维持后端接口。
+
+<figure id="fig-cropr-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 39 · Cropr 的查询评分、辅助头与停止梯度"><img src="assets/cropr-f2.png" alt="原图 39 · Cropr 的查询评分、辅助头与停止梯度 — Token Cropr: Faster ViTs for Quite a Few Tasks F2" width="847" height="657" loading="lazy"></button>
+<figcaption><strong>原图 39 · Cropr 的查询评分、辅助头与停止梯度</strong><a href="https://arxiv.org/abs/2412.00965v1" target="_blank" rel="noopener">Token Cropr: Faster ViTs for Quite a Few Tasks</a> · F2 · version 2412.00965v1 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2. Cropr module during training. The router scores and sep-
+arates salient keep tokens from uninformative tokens to be pruned.
+The scorer’s attention matrix, A, is reused in the aggregator whose
+output is used to make intermediate predictions. Gradient flow in-
+dicated as a dotted red line feeds back into the scorer and queries.</div><a class="source-url" href="https://arxiv.org/abs/2412.00965v1">https://arxiv.org/abs/2412.00965v1</a></details></figcaption></figure>
+
+图二的 query 与 token 交互产生重要性和聚合表示，辅助 head 提供训练信号。stop-gradient 让选择器学习，却不把辅助梯度反传进视觉编码器。推理时辅助头和聚合路径可以移除，只需评分并保留指定 token。街牌是否保留取决于对应任务的训练信号，而非固定 CLS 偏好；这是跨任务适配的来源之一。
+
+<figure id="fig-cropr-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 40 · Cropr 的推理简化与评分器吞吐"><img src="assets/cropr-f3.png" alt="原图 40 · Cropr 的推理简化与评分器吞吐 — Token Cropr: Faster ViTs for Quite a Few Tasks F3" width="851" height="557" loading="lazy"></button>
+<figcaption><strong>原图 40 · Cropr 的推理简化与评分器吞吐</strong><a href="https://arxiv.org/abs/2412.00965v1" target="_blank" rel="noopener">Token Cropr: Faster ViTs for Quite a Few Tasks</a> · F3 · version 2412.00965v1 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. Cropr module during inference. (a) The aggregation
+function and the auxiliary head are removed. All queries are ag-
+gregated into a single query. (b) These optimizations speed up
+Cropr, with throughput comparable to that of a random selector.
+Results are shown for semantic segmentation.</div><a class="source-url" href="https://arxiv.org/abs/2412.00965v1">https://arxiv.org/abs/2412.00965v1</a></details></figcaption></figure>
+
+图三 (a) 移除辅助 head 与 aggregation，并把多个 query 聚成一个 query 来评分；(b) 的纵轴是吞吐，比较 no pruning、random pruning、默认 Cropr 与优化 Cropr，约为64、132、89、129 img/s。优化的关键是多个 query 可以代数上先求和再乘 key；这是论文的优化路径，不是核验代码默认已融合的保证。此图没有展示 LLF，不能把右侧柱状图当空间恢复流程。
+
+LLF 在最后一个完整 block **之前**接回全部已剪特征，然后输出完整空间表示。最后一层仍支付完整长度的计算，剪枝收益来自此前多层。下一张恢复消融直接检验最终交互是否必要。
+
+保存的街牌特征可能已落后于仍在更新的狗特征，最终完整注意力可以重新交互，却不保证弥补所有缺失层。核验代码先拼接保留／保存特征及对齐的 RoPE 位置，在最终 block 后再按索引恢复原物理顺序；语义位置身份与张量行顺序必须分开理解。
+
+<figure id="fig-cropr-t5">
+<button class="paper-image" type="button" aria-label="Zoom: 补图 B · Cropr 的空间恢复消融：concat 与最终交互"><img src="assets/cropr-t5.png" alt="补图 B · Cropr 的空间恢复消融：concat 与最终交互 — Token Cropr: Faster ViTs for Quite a Few Tasks T5" width="889" height="494" loading="lazy"></button>
+<figcaption><strong>补图 B · Cropr 的空间恢复消融：concat 与最终交互</strong><a href="https://arxiv.org/abs/2412.00965v1" target="_blank" rel="noopener">Token Cropr: Faster ViTs for Quite a Few Tasks</a> · T5 · version 2412.00965v1 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 5. Token fusion ablation on ADE20k. Median mIoU across 5 seeds. LLF performs best, without additional parameters.</div><a class="source-url" href="https://arxiv.org/abs/2412.00965v1">https://arxiv.org/abs/2412.00965v1</a></details></figcaption></figure>
+
+表五在 ADE20K 上比较恢复方式，列为参数量、GFLOPs与五种子 median mIoU。单纯 Token Concat 为304M、172G、51.8；LLF 为304M、183G、56.6；未剪基线304M、311G、56.7。相同参数量下，最终完整 block 的交互比仅拼回旧特征更有效，额外11G换来4.8个百分点中位mIoU。这直接支持 stale 特征需要同步的机制，不证明每类每像素均恢复，也不支持无恢复成本的说法。
+
+<figure id="fig-cropr-f5">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 41 · Cropr 的 ADE20K 精度—效率与随机种子结果"><img src="assets/cropr-f5.png" alt="原图 41 · Cropr 的 ADE20K 精度—效率与随机种子结果 — Token Cropr: Faster ViTs for Quite a Few Tasks F5" width="861" height="537" loading="lazy"></button>
+<figcaption><strong>原图 41 · Cropr 的 ADE20K 精度—效率与随机种子结果</strong><a href="https://arxiv.org/abs/2412.00965v1" target="_blank" rel="noopener">Token Cropr: Faster ViTs for Quite a Few Tasks</a> · F5 · version 2412.00965v1 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 5. Semantic segmentation results on ADE20k. Cropr per-
+forms comparable to the unpruned baseline, while achieving a 2×
+speedup, marked using the dashed vertical line. 5 seeds / method.</div><a class="source-url" href="https://arxiv.org/abs/2412.00965v1">https://arxiv.org/abs/2412.00965v1</a></details></figcaption></figure>
+
+图五对照不同压缩预算的分割性能和效率，并呈现五个随机种子的分布。作者概括的代表设置中，中位 mIoU 损失约 0.1 个百分点、FLOPs 减少约 41%、速度约 2 倍。看图需要区分中位数与单次最好结果，保持同数据集、同模型比较。它证明 LLF 在这些分割配置下能缓解接口损失，不保证每个小物体或边界误差同样小。
+
+<figure id="fig-cropr-t3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 42 · Cropr：编码器加速与整条检测链加速"><img src="assets/cropr-t3.png" alt="原图 42 · Cropr：编码器加速与整条检测链加速 — Token Cropr: Faster ViTs for Quite a Few Tasks T3" width="849" height="418" loading="lazy"></button>
+<figcaption><strong>原图 42 · Cropr：编码器加速与整条检测链加速</strong><a href="https://arxiv.org/abs/2412.00965v1" target="_blank" rel="noopener">Token Cropr: Faster ViTs for Quite a Few Tasks</a> · T3 · version 2412.00965v1 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3. Object detection and instance segmentation results on
+COCO val, showing throughput of the encoder and overall model.</div><a class="source-url" href="https://arxiv.org/abs/2412.00965v1">https://arxiv.org/abs/2412.00965v1</a></details></figcaption></figure>
+
+表三在 COCO、1536 输入、EVA02-L 编码器、Cascade Mask R-CNN、Objects365 初始化配置下，对比精度和成本。作者报告编码器约 2.4 倍速度，整模型约 1.9 倍，GFLOPs 从 2790 降为 1273。后端检测头、恢复与其它固定成本让整链收益小于编码器收益。
+
+这说明“业务头不改”与“没有其它成本”是两回事。街景的框和掩码必须用相应 AP、尤其 small-object 指标验证；本文没有执行该检测模型，不能据原表宣称新的部署平台已恢复同等预测。
+
+## 07 · 2026 前沿：重要性、相似性与真实算子的联合设计
+
+这一节的工作首次公开于 2026 年；发表状态按固定原文和可核验记录描述。MaMe 为 CVPR Findings 扩展相关稿件，RAPID 原文带 KDD ’26 标记；AdaMerge 固定版本是投稿预印本，不能写成已确认 NeurIPS 接收。SWAM 于 11 月 13 日公开，距截止日很近，其证据目前限于原稿。它们代表方向，不构成统一 SOTA 排名。
+
+### MaMe / MaRe：把合并组织成矩阵运算
+
+排序、索引、scatter reduce 对 GPU 或其它加速器的成本可能很高。MaMe 尝试用矩阵式软关联替代常见离散合并操作，MaRe 则提供形状恢复。<a href="#source-P21">[P21]</a>
+
+<figure id="fig-mame-a1">
+<button class="paper-image" type="button" aria-label="Zoom: 原文 43 · MaMe Algorithm 1：矩阵式多目标聚合"><img src="assets/mame-a1.png" alt="原文 43 · MaMe Algorithm 1：矩阵式多目标聚合 — MaMe &amp; MaRe: Matrix-Based Token Merging and Restoration for Efficient Visual Perception and Synthesis A1" width="896" height="1967" loading="lazy"></button>
+<figcaption><strong>原文 43 · MaMe Algorithm 1：矩阵式多目标聚合</strong><a href="https://arxiv.org/abs/2604.13432v1" target="_blank" rel="noopener">MaMe &amp; MaRe: Matrix-Based Token Merging and Restoration for Efficient Visual Perception and Synthesis</a> · A1 · version 2604.13432v1 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Algorithm 1 Matrix-Based Token Merging
+Require: Input tokens X ∈RL×d, similarity threshold τ
+Ensure: Reduced and fused token sequence X′ ∈RL′×d
+ 1: Note: Xspec refers to any special tokens (e.g., class tokens) that are
+    preserved without modification.
+ 2: function MAME(X, τ)
+ 3:     Partition X into destination tokens Xdst ∈RM×d and source
+    tokens Xsrc ∈RN×d
+ 4:    Step 1. Compute Similarity Matrix
+ 5:      Initialize similarity matrix S ∈RM×N
+ 6:     for i = 0 →M −1 do
+ 7:        for j = 0 →N −1 do
+                                       xdsti  ·xsrcj
+ 8:          S ij ←  ∥xdsti  ∥·∥xsrcj  ∥
+ 9:       end for
+10:    end for
+11:        ˜S ←ReLU(S −τ)
+12:    Step 2. Compute Fusion Weights
+13:      Initialize W, ˜W, WF ∈RM×N (all zeros initially)
+14:     for j = 0 →N −1 do
+15:        for i = 0 →M −1 do
+16:            Wij ←˜S ij/(PM−1i=0   ˜S ij + ϵ)
+17:       end for
+18:     C j ←PM−1i=0  I(Wij &gt; 0)
+19:        ζ j ←(PM−1i=0 Wij)/(C j + ϵ)
+20:        for i = 0 →M −1 do
+21:               ˜Wij ←ReLU(Wij −ζ j)
+22:       end for
+23:      Mask ←PM−1i=0  ˜Wij
+24:        for i = 0 →M −1 do
+25:        WFij ←Wij/(Mask j + ϵ)
+26:       end for
+27:    end for
+28:    Step 3. Compute Preserved and Fusion Tokens
+29:      Initialize Xpres ←∅
+30:      Initialize fused destination tokens X′dst ∈RM×d
+31:     for j = 0 →N −1 do
+32:           if Maskj = 0 then
+33:         Add xsrcj  to Xpres
+34:       end if
+35:    end for
+36:     for i = 0 →M −1 do
+37:          x′dst,i ←Xdsti + PN−1j=0 WFijxsrcj
+38:           x′′dst,i = x′dst,i/(1 + PNj=1 WFij)
+39:    end for
+40:    Step 4. Assemble the Final Tokens
+41:     X′ ←concat(Xspec, X′′dst, Xpres) ▷Concatenate the special, fused
+    destination, and preserved tokens
+42:    return X′
+43: end function</div><a class="source-url" href="https://arxiv.org/abs/2604.13432v1">https://arxiv.org/abs/2604.13432v1</a></details></figcaption></figure>
+
+原稿没有完整总体架构图，因此这里截取最能说明机制的原文算法，满足原文无对应架构插图的情况。算法把 token 分成源与目标，计算阈值化的非负关联，再归一化；一个源可以给多个目标贡献，而非只流向单个最近邻。矩阵乘法执行加权聚合，同时处理源中需保留的成分。
+
+读算法应跟踪关联矩阵的维度、归一化方向和源／目标输出，而不是只看“无排序”口号。多目标关联能更平滑，但会传播混合信息；街牌仍可能被分散进多个背景摘要。MaRe 用映射恢复输出布局，是近似恢复而非数学逆。本文没有核验到已发布实现，只按 Algorithm 1 和消融解释操作。
+
+<figure id="fig-mame-f1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 44 · MaMe 的 token 区域可视化"><img src="assets/mame-f1.png" alt="原图 44 · MaMe 的 token 区域可视化 — MaMe &amp; MaRe: Matrix-Based Token Merging and Restoration for Efficient Visual Perception and Synthesis F1" width="1838" height="903" loading="lazy"></button>
+<figcaption><strong>原图 44 · MaMe 的 token 区域可视化</strong><a href="https://arxiv.org/abs/2604.13432v1" target="_blank" rel="noopener">MaMe &amp; MaRe: Matrix-Based Token Merging and Restoration for Efficient Visual Perception and Synthesis</a> · F1 · version 2604.13432v1 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: The visualization illustrates the progression of token count reduction in the first 8 blocks of the AugReg ViT-B/16 with MaMe. Each color square
+represents a distinct type of token. More results are in the supplementary material.</div><a class="source-url" href="https://arxiv.org/abs/2604.13432v1">https://arxiv.org/abs/2604.13432v1</a></details></figcaption></figure>
+
+图一把合并后的 token 覆盖映回原图，比较不同合并法如何组织区域。颜色标识代表或聚类身份，不能读成分割真值。较平滑、较连贯的视觉区域提供定性直觉，却没有直接证明文字与实例边界保持；必须结合任务表。它展示多目标关联与硬匹配的不同表征组织。
+
+<figure id="fig-mame-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 45 · MaMe 的 ImageNet 精度—吞吐取舍"><img src="assets/mame-t1.png" alt="原图 45 · MaMe 的 ImageNet 精度—吞吐取舍 — MaMe &amp; MaRe: Matrix-Based Token Merging and Restoration for Efficient Visual Perception and Synthesis T1" width="900" height="1365" loading="lazy"></button>
+<figcaption><strong>原图 45 · MaMe 的 ImageNet 精度—吞吐取舍</strong><a href="https://arxiv.org/abs/2604.13432v1" target="_blank" rel="noopener">MaMe &amp; MaRe: Matrix-Based Token Merging and Restoration for Efficient Visual Perception and Synthesis</a> · T1 · version 2604.13432v1 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1:
+The Results of Token compression on the off-the-shelf models.
+Throughput is measured on an A100 GPU with a batchsize of 1024 using FP16
+precision.</div><a class="source-url" href="https://arxiv.org/abs/2604.13432v1">https://arxiv.org/abs/2604.13432v1</a></details></figcaption></figure>
+
+表一 ImageNet 224、A100 FP16、batch 1024。DeiT-B 基线 81.83%、17.6G、2130 img/s，MaMe 为 79.80%、8.7G、4117 img/s，约 1.93 倍，损失 2.03 个百分点；MAE-B 基线 83.72%、2130 img/s，MaMe 为 79.83%、5418 img/s，约 2.54 倍，损失 3.89 个百分点。
+
+同一方法因预训练检查点而有不同损失；不能只用最大加速比代表全部配置。另一个 SigLIP2-B、512 输入、RTX 3090 FP32 条件中，78.37%、43.90 img/s 到 78.02%、56.15 img/s，约 1.28 倍，也说明大 batch 半精度结果不能直接外推 batch 1 部署。
+
+<figure id="fig-mame-f4">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 46 · MaMe 的特征、距离、分组与权重消融"><img src="assets/mame-f4.png" alt="原图 46 · MaMe 的特征、距离、分组与权重消融 — MaMe &amp; MaRe: Matrix-Based Token Merging and Restoration for Efficient Visual Perception and Synthesis F4" width="1838" height="312" loading="lazy"></button>
+<figcaption><strong>原图 46 · MaMe 的特征、距离、分组与权重消融</strong><a href="https://arxiv.org/abs/2604.13432v1" target="_blank" rel="noopener">MaMe &amp; MaRe: Matrix-Based Token Merging and Restoration for Efficient Visual Perception and Synthesis</a> · F4 · version 2604.13432v1 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4: Ablation experiments using AugReg ViT-B/16. Our default settings are marked in Gray. We report Top-1 accuracy (acc) and model inference throughput
+(im/s) with FP32 precision and batchsize 1 on a 3090 GPU. The visualization results of different methods are shown in Figure 5.</div><a class="source-url" href="https://arxiv.org/abs/2604.13432v1">https://arxiv.org/abs/2604.13432v1</a></details></figcaption></figure>
+
+图四有四组小表，比较 feature choice、similarity function、partition style、refine weight，列为top-1和吞吐，默认项用灰底标出；条件为RTX 3090、FP32、batch 1。例如以原特征、key或多头均值作匹配输入，以及不同距离和分组方式，都改变速度／精度。它是矩阵合并内部选择的消融，并非完整的“矩阵乘法对scatter”算子时间分解。只有同输入与预算才能解释这些取舍；不能据GPU图宣布QNN HTP已更快。官方仓库仅有README、图与许可，算法证据与代码可运行性仍有差距。
+
+### AdaMerge：高显著性 token 的作用不是简单“全部保留”
+
+AdaMerge 先在注意力之前计算全特征相似度与 salience，把显著性放入候选组织、融合权重与预算设计。<a href="#source-P22">[P22]</a> 高显著性行可以被优先组织为合并候选，不能把它概括为“所有高分 token 一律禁止合并”。
+
+<figure id="fig-adamerge-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 47 · AdaMerge：前置相似度、显著性与自适应合并"><img src="assets/adamerge-f2.png" alt="原图 47 · AdaMerge：前置相似度、显著性与自适应合并 — AdaMerge: Salience-Aware Adaptive Token Merging for Training-Free Acceleration of Vision Transformers F2" width="1414" height="704" loading="lazy"></button>
+<figcaption><strong>原图 47 · AdaMerge：前置相似度、显著性与自适应合并</strong><a href="https://arxiv.org/abs/2605.27465v1" target="_blank" rel="noopener">AdaMerge: Salience-Aware Adaptive Token Merging for Training-Free Acceleration of Vision Transformers</a> · F2 · version 2605.27465v1 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Top: ADAMERGE is integrated before each Transformer block to reduce the sequence
+length from N to N −rl prior to self-attention. Bottom: Internal pipeline. Salience computation
+and adaptive rl decision run in parallel, followed by salience-proportional aggregation. Layer-wise
+statistics (µl, σl) are precomputed offline and loaded from stats.json.</div><a class="source-url" href="https://arxiv.org/abs/2605.27465v1">https://arxiv.org/abs/2605.27465v1</a></details></figcaption></figure>
+
+图二从 $X$ 构造全量相似矩阵，通过列汇总得到 salience，按此组织两组候选，再结合匹配和显著性加权聚合。高分代表对结果贡献更多，预算受层级统计控制。对街景，多枚狗 token 的显著性高却相似，仍可能合并；街牌的独特性与任务重要性不一定与全局中心性一致。
+
+与 ToMe 复用注意力 key 不同，这条路径要额外计算全量特征 affinity；前置全矩阵也有平方开销。论文所谓 training-free 指模型权重不更新，但使用 1% ImageNet 训练子集进行离线校准，并非零数据适配。
+
+<figure id="fig-adamerge-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 48 · AdaMerge：匹配 FLOPs 后，准确率与速度仍不同"><img src="assets/adamerge-t1.png" alt="原图 48 · AdaMerge：匹配 FLOPs 后，准确率与速度仍不同 — AdaMerge: Salience-Aware Adaptive Token Merging for Training-Free Acceleration of Vision Transformers T1" width="1414" height="1267" loading="lazy"></button>
+<figcaption><strong>原图 48 · AdaMerge：匹配 FLOPs 后，准确率与速度仍不同</strong><a href="https://arxiv.org/abs/2605.27465v1" target="_blank" rel="noopener">AdaMerge: Salience-Aware Adaptive Token Merging for Training-Free Acceleration of Vision Transformers</a> · T1 · version 2605.27465v1 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Comprehensive FLOPs-matched comparison across six tiers. ADAMERGE results are mean
+± std over 5 runs.∗Bold denotes the best accuracy at each tier. For DSM, d denotes delay_layer.
+FLOPs Tier
+Method
+Top-1 Acc
+∆Acc
+FLOPs (G)
+FLOPs ↓
+Speedup</div><a class="source-url" href="https://arxiv.org/abs/2605.27465v1">https://arxiv.org/abs/2605.27465v1</a></details></figcaption></figure>
+
+表一约 13.4G 的 ViT-B/16 配置，AdaMerge 84.13±0.02%、13.42G、1.22 倍吞吐；ToMe 82.46%、13.44G、1.31 倍；PiToMe 83.74%、13.44G、1.23 倍；DSM 80.57%、13.47G、1.28 倍。模型基线为 85.19%，AdaMerge 损失 1.06 个百分点。
+
+在这组 FLOPs 匹配实验中，AdaMerge 的准确率更高，但速度低于 ToMe。原稿没有明确可核对的计时硬件、batch 与精度，本文保留未知字段；这些比值不能移植到确定设备的吞吐表，也不能作为全领域“最快且最准”证明。
+
+<figure id="fig-adamerge-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 49 · AdaMerge：计算轴与吞吐轴给出不同比较"><img src="assets/adamerge-f3.png" alt="原图 49 · AdaMerge：计算轴与吞吐轴给出不同比较 — AdaMerge: Salience-Aware Adaptive Token Merging for Training-Free Acceleration of Vision Transformers F3" width="1414" height="564" loading="lazy"></button>
+<figcaption><strong>原图 49 · AdaMerge：计算轴与吞吐轴给出不同比较</strong><a href="https://arxiv.org/abs/2605.27465v1" target="_blank" rel="noopener">AdaMerge: Salience-Aware Adaptive Token Merging for Training-Free Acceleration of Vision Transformers</a> · F3 · version 2605.27465v1 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: FLOPs–Accuracy and Speedup–Accuracy trade-off curves. Left: ADAMERGE con-
+sistently extends the FLOPs–accuracy Pareto frontier above all baselines. Right: ADAMERGE and
+TOME occupy complementary regions of the speedup–accuracy frontier. ADAMERGE offers higher
+accuracy at any given speedup level; TOME achieves higher speedup at the cost of accuracy.</div><a class="source-url" href="https://arxiv.org/abs/2605.27465v1">https://arxiv.org/abs/2605.27465v1</a></details></figcaption></figure>
+
+图三分别用 FLOPs 和真实吞吐作横轴，纵轴为准确率。一个方法在精度—FLOPs 平面靠前，在精度—吞吐平面不一定领先，因为匹配器开销没有充分反映在骨干 FLOPs 中。读图要在同一坐标平面比较；两张面板正是避免只拿理论计算讲速度的证据。
+
+<figure id="fig-adamerge-t3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 50 · AdaMerge：质量改善与数量改变必须分开"><img src="assets/adamerge-t3.png" alt="原图 50 · AdaMerge：质量改善与数量改变必须分开 — AdaMerge: Salience-Aware Adaptive Token Merging for Training-Free Acceleration of Vision Transformers T3" width="1414" height="571" loading="lazy"></button>
+<figcaption><strong>原图 50 · AdaMerge：质量改善与数量改变必须分开</strong><a href="https://arxiv.org/abs/2605.27465v1" target="_blank" rel="noopener">AdaMerge: Salience-Aware Adaptive Token Merging for Training-Free Acceleration of Vision Transformers</a> · T3 · version 2605.27465v1 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3: Component ablation (rmax=14, TOME r=5, FLOPs ≈15.0G). Bold denotes the best
+accuracy. ‡Adaptive-r variants merge a variable number of tokens; Full ADAMERGE at rmax=24
+is added to match the average merge count of Adaptive r only (≈69 tokens), isolating the effect of
+merging quality from merging quantity.</div><a class="source-url" href="https://arxiv.org/abs/2605.27465v1">https://arxiv.org/abs/2605.27465v1</a></details></figcaption></figure>
+
+表三比较 salience、adaptive rate 与完整方法，带 ‡ 的配置实际合并数量可变。作者另加预算匹配行，使平均合并数约 69，用于分离“合得更好”和“合得更少”。如果不看实际平均数量，单纯增加保留行即可提高精度，不能证明权重设计有效。
+
+正文描述三次统计细化，附录却推荐两次校准 pass，并指出第三次可能过冲、损失约一个百分点。本文采用附录的实际建议并保留这一不一致。部署时应保存校准轮次、子集与层级统计，而非只记录一个“training-free”标签。
+
+### RAPID：早层避冗余，晚层用重要性合并
+
+RAPID 按深度切换策略：早层根据局部／相似冗余和 margin 做剪枝，晚层结合 CLS 重要性与相似性合并。<a href="#source-P23">[P23]</a> 它延续 ToFu 的阶段思路，但以不同评分与信息保留规则组织。
+
+<figure id="fig-rapid-f1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 51 · RAPID 的层级切换与双重依据"><img src="assets/rapid-f1.png" alt="原图 51 · RAPID 的层级切换与双重依据 — RAPID: Layer-Wise Redundancy-Aware Pruning and Importance-Driven Token Merging for Efficient ViT F1" width="1807" height="1190" loading="lazy"></button>
+<figcaption><strong>原图 51 · RAPID 的层级切换与双重依据</strong><a href="https://arxiv.org/abs/2606.08156v1" target="_blank" rel="noopener">RAPID: Layer-Wise Redundancy-Aware Pruning and Importance-Driven Token Merging for Efficient ViT</a> · F1 · version 2606.08156v1 · PDF p.3 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Overall architecture of the proposed algorithm. At each stage, the tokens are first divided into two groups. Then, in
+the early layers, token reduction is performed by ranking tokens using a redundancy-similarity aware metric, while in the late
+layers, token reduction is performed using an importance-similarity aware metric. Num. indicates the number of destination
+tokens whose similarity exceeds the threshold, and the equations shown represent the metrics used for ranking.</div><a class="source-url" href="https://arxiv.org/abs/2606.08156v1">https://arxiv.org/abs/2606.08156v1</a></details></figcaption></figure>
+
+图一前半段根据冗余计数／间隔判断可去掉的行，后半段根据重要性挑选并融合候选。图中的切换点是算法配置，不是所有网络共享的天然语义边界。街景的重复天空可早减，后层把多个狗行合并时保留更重要的代表；小字是否得到保护仍依赖原特征和注意力。
+
+<figure id="fig-rapid-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 52 · RAPID：同预算改善与极端压缩失败"><img src="assets/rapid-t1.png" alt="原图 52 · RAPID：同预算改善与极端压缩失败 — RAPID: Layer-Wise Redundancy-Aware Pruning and Importance-Driven Token Merging for Efficient ViT T1" width="1807" height="889" loading="lazy"></button>
+<figcaption><strong>原图 52 · RAPID：同预算改善与极端压缩失败</strong><a href="https://arxiv.org/abs/2606.08156v1" target="_blank" rel="noopener">RAPID: Layer-Wise Redundancy-Aware Pruning and Importance-Driven Token Merging for Efficient ViT</a> · T1 · version 2606.08156v1 · PDF p.5 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Comparison of Accuracy and Throughput on ImageNet-1K across various backbones and reduction rates (𝑟) using
+plug-and-play token reduction modules. For ViT-L, token reduction is applied only to the first 12 layers using the same
+layer-wise schedule as ViT-B and DeiT-B.</div><a class="source-url" href="https://arxiv.org/abs/2606.08156v1">https://arxiv.org/abs/2606.08156v1</a></details></figcaption></figure>
+
+表一 ViT-B、224、$r=20$：基线 85.11%、1661 img/s；RAPID 77.54%、3930 img/s；ToMe 73.25%、3987 img/s；ToFu 75.26%、4038 img/s。RAPID 在此预算下精度更好，吞吐稍低。条件为 RTX 4090、batch 64，计时精度未明确；ToFu 是作者的第三方实现。
+
+同表 ViT-L 只压缩 24 层中的前 12 层，极端 $r=17$ 时准确率仍跌到 7.15%，基线 85.85%。这个失败必须与收益一起读：阶段策略也不能对所有尺度和激进预算保持稳健。压缩率、插入层和主干兼容性都可能决定灾难性退化。
+
+<figure id="fig-rapid-t3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 53 · RAPID 的阶段切换消融"><img src="assets/rapid-t3.png" alt="原图 53 · RAPID 的阶段切换消融 — RAPID: Layer-Wise Redundancy-Aware Pruning and Importance-Driven Token Merging for Efficient ViT T3" width="879" height="753" loading="lazy"></button>
+<figcaption><strong>原图 53 · RAPID 的阶段切换消融</strong><a href="https://arxiv.org/abs/2606.08156v1" target="_blank" rel="noopener">RAPID: Layer-Wise Redundancy-Aware Pruning and Importance-Driven Token Merging for Efficient ViT</a> · T3 · version 2606.08156v1 · PDF p.6 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3: Performance comparison under different merge con-
+figurations on ViT-B with 𝑟= 20. Red. denotes redundancy
+aware pruning strategy, and Imp. denotes importance aware
+merging strategy.</div><a class="source-url" href="https://arxiv.org/abs/2606.08156v1">https://arxiv.org/abs/2606.08156v1</a></details></figcaption></figure>
+
+表三控制由早期剪枝切到后期合并的层数，原设置中第 4 层后的切换表现最好。比较的是同骨干同预算下的切换位置，不是跨网络普适定理。切换过早会把尚未成熟的表示融合，过晚则持续丢弃本可被摘要保存的信息。官方仓库当前只有 README 与许可，论文结果尚不能作为本次代码复现。
+
+### SWAM：学习非对称的合并重要性
+
+SWAM，saliency-weighted asymmetric merging，在多个层学习显著性，使重要成员对融合贡献更多。<a href="#source-P24">[P24]</a> 它是可训练策略，而非零训练 ToMe 替换。
+
+<figure id="fig-swam-f1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 54 · SWAM 的显著性预测与非对称融合"><img src="assets/swam-f1.png" alt="原图 54 · SWAM 的显著性预测与非对称融合 — SWAM: Saliency-Weighted Asymmetric Merging for Efficient Vision Transformers F1" width="1831" height="802" loading="lazy"></button>
+<figcaption><strong>原图 54 · SWAM 的显著性预测与非对称融合</strong><a href="https://arxiv.org/abs/2611.18057v1" target="_blank" rel="noopener">SWAM: Saliency-Weighted Asymmetric Merging for Efficient Vision Transformers</a> · F1 · version 2611.18057v1 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 1. SWAM pipeline. Top: DeiT-Small backbone with three SWAM reduction stages inserted after blocks 4, 7, and 10. Patch-token counts decrease from
+196 to 100 (conservative, C) or 70 (aggressive, A) while the CLS token is retained throughout all reduction stages. Bottom: Detail of a single stage. The saliency
+head predicts per-token importance scores that feed into multiplicative max-saliency pair scoring (Eq. 6) and asymmetric saliency-weighted merging (Eq. 9).</div><a class="source-url" href="https://arxiv.org/abs/2611.18057v1">https://arxiv.org/abs/2611.18057v1</a></details></figcaption></figure>
+
+图一在第 4、7、10 个 block 后插入模块，三个约 74k 参数的 MLP 总计约 222k。pair 排序用显著性惩罚降低包含重要成员的高风险合并倾向，融合时又通过指数权重让更重要的行贡献更多。第一阶段用 attention rollout 的 KL 目标，后续阶段通过分类／蒸馏梯度学习。
+
+它把“是否该合”和“合后谁占主要份额”拆成两个决定。对狗和街牌，一枚包含字符的行即使与背景相近，也可能得到更高贡献，但训练标签不含字符监督时仍缺保证。预测器、训练目标和新增参数都是获得收益的成本。
+
+<figure id="fig-swam-tiii">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 55 · SWAM：子集结果与随机种子边界"><img src="assets/swam-tiii.png" alt="原图 55 · SWAM：子集结果与随机种子边界 — SWAM: Saliency-Weighted Asymmetric Merging for Efficient Vision Transformers TIII" width="900" height="403" loading="lazy"></button>
+<figcaption><strong>原图 55 · SWAM：子集结果与随机种子边界</strong><a href="https://arxiv.org/abs/2611.18057v1" target="_blank" rel="noopener">SWAM: Saliency-Weighted Asymmetric Merging for Efficient Vision Transformers</a> · TIII · version 2611.18057v1 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">TABLE III
+ AGGREGATED PAIRED ACCURACY DIFFERENCES (MEAN AND SAMPLE
+        STANDARD DEVIATION IN PERCENTAGE POINTS).
+
+
+Dataset         Schedule     Mean ∆   SD    Seeds       Range
+
+CIFAR-100      Conservative   +0.02    0.04     2     [−0.01, +0.04]
+TinyImageNet   Conservative   +0.10    0.01     2     [+0.09, +0.11]
+ImageNet-100   Conservative   +0.26    0.20     2     [+0.12, +0.40]
+
+CIFAR-100      Aggressive     −0.13     –      1        Single seed
+TinyImageNet   Aggressive     −0.13    0.08     2     [−0.18, −0.07]
+ImageNet-100   Aggressive     +0.23    0.16     3     [+0.08, +0.40]</div><a class="source-url" href="https://arxiv.org/abs/2611.18057v1">https://arxiv.org/abs/2611.18057v1</a></details></figcaption></figure>
+
+表三覆盖 CIFAR-100、TinyImageNet、ImageNet-100，均调整为 224 输入。激进配置 ImageNet-100 平均提高 0.23±0.16 个百分点，三个种子；TinyImageNet 下降约 0.13±0.08，两个种子；CIFAR-100 对应单种子下降约 0.13。它们不是完整 ImageNet-1K 排行榜。
+
+SWAM 与基线的训练目标不同，且使用基线 head 初始化，因此不能把提高全部因果归于合并。原文“所有种子都更好”的表述与 CIFAR 的部分行不符，本文按表保留反例。微小增益更需要同目标、同种子、同训练预算的严格控制。
+
+<figure id="fig-swam-tv">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 56 · SWAM：batch 延迟与吞吐是同一账的两面"><img src="assets/swam-tv.png" alt="原图 56 · SWAM：batch 延迟与吞吐是同一账的两面 — SWAM: Saliency-Weighted Asymmetric Merging for Efficient Vision Transformers TV" width="900" height="291" loading="lazy"></button>
+<figcaption><strong>原图 56 · SWAM：batch 延迟与吞吐是同一账的两面</strong><a href="https://arxiv.org/abs/2611.18057v1" target="_blank" rel="noopener">SWAM: Saliency-Weighted Asymmetric Merging for Efficient Vision Transformers</a> · TV · version 2611.18057v1 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">TABLE V
+       INFERENCE EFFICIENCY (SINGLE GPU, BATCH 128).
+
+
+Config.        Throughput   Latency   FLOPs    Mem.    Speedup
+
+Baseline       282 img/s    454 ms    4.25 G   3128 MB   1.00×
+Conservative    380 img/s    336 ms    3.08 G   2926 MB   1.35×
+Aggressive     412 img/s    311 ms    2.82 G   2925 MB   1.46×</div><a class="source-url" href="https://arxiv.org/abs/2611.18057v1">https://arxiv.org/abs/2611.18057v1</a></details></figcaption></figure>
+
+表五单 T4、batch 128，基线 282 img/s、454 ms、4.25G；保守为 380 img/s、336 ms、3.08G；激进为 412 img/s、311 ms、2.82G。454 ms 是一次 batch 的延迟，因为 128÷0.454 约为 282，并不是单张请求的延迟。训练使用双 T4、AMP FP16，但不能自动把训练精度补成未明确的计时精度。
+
+吞吐、batch 耗时与显存共同展示这组配置的效率改善。它支持特定 GPU 上的系统收益；不能把 1.46 倍吞吐或约 2925 MB 的记录当成 batch 1 HTP 的延迟、物理峰值内存或 OCR 可用性保证。
+
+## 08 · 视觉语言接口：省的是哪一段计算
+
+视觉语言模型通常先用视觉编码器产生行，再通过 projector 或 query bridge 送入语言 Transformer，最后执行 prefill 与逐 token decode。某方法降低 LLM 视觉前缀长度，可能完全没有减少视觉编码器计算。
+
+<figure id="diagram-locations"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 456" role="img" aria-labelledby="svg-d3c56bfc-title svg-d3c56bfc-desc">
+<title id="svg-d3c56bfc-title">VLM视觉token压缩位置</title><desc id="svg-d3c56bfc-desc">编码器内部、视觉语言接口、LLM早层之后三类位置分别承担不同计算与信息损失。</desc>
+<defs><marker id="svg-d3c56bfc-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-d3c56bfc-arrow)}</style>
+<text x="24" y="36" font-size="22" font-weight="600">VLM 压缩位置：越靠后，已支付的计算越多</text><rect x="24" y="94" width="156" height="96" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="106" width="3" height="72" fill="#7dc6b2"/><text x="42" y="124" class="label" font-weight="600">图像</text><text x="42" y="150" class="small muted">分辨率 / 裁图</text><path d="M181 141H194" class="line"/><rect x="198" y="94" width="156" height="96" rx="8" fill="#182230" stroke="#344355"/><rect x="198" y="106" width="3" height="72" fill="#7dc6b2"/><text x="216" y="124" class="label" font-weight="600">视觉编码器</text><text x="216" y="150" class="small muted">ViT block</text><path d="M355 141H368" class="line"/><rect x="372" y="94" width="156" height="96" rx="8" fill="#182230" stroke="#344355"/><rect x="372" y="106" width="3" height="72" fill="#7dc6b2"/><text x="390" y="124" class="label" font-weight="600">视觉桥</text><text x="390" y="150" class="small muted">projector / queries</text><path d="M529 141H542" class="line"/><rect x="546" y="94" width="156" height="96" rx="8" fill="#182230" stroke="#344355"/><rect x="546" y="106" width="3" height="72" fill="#7dc6b2"/><text x="564" y="124" class="label" font-weight="600">LLM prefill</text><text x="564" y="150" class="small muted">完整前缀多层</text><path d="M703 141H716" class="line"/><rect x="720" y="94" width="156" height="96" rx="8" fill="#182230" stroke="#344355"/><rect x="720" y="106" width="3" height="72" fill="#7dc6b2"/><text x="738" y="124" class="label" font-weight="600">LLM decode</text><text x="738" y="150" class="small muted">逐 token + KV</text><rect x="24" y="245" width="265" height="132" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="257" width="3" height="108" fill="#7dc6b2"/><text x="42" y="275" class="label" font-weight="600">① 编码器内部</text><text x="42" y="301" class="small muted">ToMe / DynamicViT / Cropr</text><text x="42" y="324" class="small muted">后续视觉 block 也可能省</text><text x="42" y="347" class="small muted">空间与任务信息尚未成熟</text><rect x="317" y="245" width="265" height="132" rx="8" fill="#182230" stroke="#344355"/><rect x="317" y="257" width="3" height="108" fill="#a7b5ee"/><text x="335" y="275" class="label" font-weight="600">② 视觉 → 语言接口</text><text x="335" y="301" class="small muted">BLIP-2 / VisionZip</text><text x="335" y="324" class="small muted">缩短语言前缀</text><text x="335" y="347" class="small muted">视觉编码器完整成本仍在</text><rect x="611" y="245" width="265" height="132" rx="8" fill="#182230" stroke="#344355"/><rect x="611" y="257" width="3" height="108" fill="#e6bf88"/><text x="629" y="275" class="label" font-weight="600">③ LLM 早层之后</text><text x="629" y="301" class="small muted">FastV</text><text x="629" y="324" class="small muted">先建立跨模态交互</text><text x="629" y="347" class="small muted">早层成本、KV兼容须核</text><path d="M277 192L156 241" class="line"/><path d="M450 192V241" class="line"/><path d="M623 192L744 241" class="line"/><text x="24" y="429" class="small muted">TTFT 从何时开始计？包含视觉、预处理与采样吗？prefill 时间与总请求时间需分开。</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+原创链路图标出三种位置：编码器内部压缩；编码器之后、语言模型之前压缩；语言模型早层之后压缩。越靠后，已经支付的计算越多；越靠前，越缺少语言问题提供的任务信息。图中 prefill 一次处理前缀，decode 逐步生成输出，二者成本与缓存行为不同。
+
+### BLIP-2：32 个学习 query 是训练出来的桥
+
+BLIP-2 并非现成 ViT 内部压缩器，而是用 Q-Former 从冻结图像编码器提取少量可供语言模型使用的视觉表示。<a href="#source-P15">[P15]</a> 纳入它是为了说明学习式重采样在 VLM 接口的作用。
+
+<figure id="fig-blip2-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 57 · BLIP-2 第一阶段：query 如何读冻结图像特征"><img src="assets/blip2-f2.png" alt="原图 57 · BLIP-2 第一阶段：query 如何读冻结图像特征 — BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models F2" width="1817" height="364" loading="lazy"></button>
+<figcaption><strong>原图 57 · BLIP-2 第一阶段：query 如何读冻结图像特征</strong><a href="https://arxiv.org/abs/2301.12597v3" target="_blank" rel="noopener">BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models</a> · F2 · version 2301.12597v3 · PDF p.3 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2. (Left) Model architecture of Q-Former and BLIP-2’s first-stage vision-language representation learning objectives. We jointly
+optimize three objectives which enforce the queries (a set of learnable embeddings) to extract visual representation most relevant to the
+text. (Right) The self-attention masking strategy for each objective to control query-text interaction.</div><a class="source-url" href="https://arxiv.org/abs/2301.12597v3">https://arxiv.org/abs/2301.12597v3</a></details></figcaption></figure>
+
+图二的 32 个学习 query 经 self-attention 和 cross-attention 与图像特征交互，并配合图文对比、图文匹配、图像条件文本生成目标。不同目标用不同 attention mask 控制 query 与文本之间的信息访问。冻结图像编码器不代表整个桥无需训练；Q-Former 正是在图文任务中学会抽取表示。
+
+街景全图仍先被视觉编码器完整处理，32 query 再把它变成短接口。它可以表达“狗在行人旁”，却不保证把街牌逐字保存。少 query 是任务相关表示瓶颈，与把 576 个 patch 按相似度取均值不同。
+
+<figure id="fig-blip2-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 58 · BLIP-2 第二阶段：视觉摘要成为语言前缀"><img src="assets/blip2-f3.png" alt="原图 58 · BLIP-2 第二阶段：视觉摘要成为语言前缀 — BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models F3" width="1817" height="463" loading="lazy"></button>
+<figcaption><strong>原图 58 · BLIP-2 第二阶段：视觉摘要成为语言前缀</strong><a href="https://arxiv.org/abs/2301.12597v3" target="_blank" rel="noopener">BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models</a> · F3 · version 2301.12597v3 · PDF p.4 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. BLIP-2’s second-stage vision-to-language generative pre-training, which bootstraps from frozen large language models (LLMs).
+(Top) Bootstrapping a decoder-based LLM (e.g. OPT). (Bottom) Bootstrapping an encoder-decoder-based LLM (e.g. FlanT5). The
+fully-connected layer adapts from the output dimension of the Q-Former to the input dimension of the chosen LLM.</div><a class="source-url" href="https://arxiv.org/abs/2301.12597v3">https://arxiv.org/abs/2301.12597v3</a></details></figcaption></figure>
+
+图三将 query 输出投影到冻结 LLM 的嵌入维度，并分别展示 decoder-only 与 encoder-decoder 的输入组织。语言生成监督学习桥接图像与词序列。最终送入语言模型的是少量视觉向量，完整视觉编码器成本仍在。
+
+这张图不能据“冻结 LLM”推导整个方法 training-free，也不能把训练后的 32 query 与无适配把所有 patch 裁到 32 的效果混同。它的能力来自预训练模型与两阶段桥接学习的共同作用。
+
+### FastV：在 LLM 早层之后剪掉视觉前缀
+
+FastV 观察语言模型层间的视觉注意力分布，保留早期交互，再在若干层后削减视觉行。<a href="#source-P16">[P16]</a> 这属于 LLM 内视觉 token 剪枝，不能写成“ViT 编码器少跑了一半”。
+
+<figure id="fig-fastv-f5">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 59 · FastV 的 LLM 层间压缩位置"><img src="assets/fastv-f5.png" alt="原图 59 · FastV 的 LLM 层间压缩位置 — An Image is Worth 1/2 Tokens After Layer 2: Plug-and-Play Inference Acceleration for Large Vision-Language Models F5" width="1414" height="799" loading="lazy"></button>
+<figcaption><strong>原图 59 · FastV 的 LLM 层间压缩位置</strong><a href="https://arxiv.org/abs/2403.06764v3" target="_blank" rel="noopener">An Image is Worth 1/2 Tokens After Layer 2: Plug-and-Play Inference Acceleration for Large Vision-Language Models</a> · F5 · version 2403.06764v3 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 5: Illustration of FastV. For image or video input (multiple image frames), they are
+first transformed to visual tokens with a pretrained image encoder like CLIP-VIT and then
+processed by the LLM decoder. FastV dynamically prunes R% image tokens after layer K
+in the forward process of input tokens. We can tell from the output that FastV does not
+influence the correctness while reducing significant FLOPs. The correct facts in the outputs
+are marked green. The first three outputs are completely identical.
+
+Figure 5 illustrates the general idea of FastV. The key is the image token re-rank and filtering
+module. It consists of one ranking function fϕ and two parameters: filtering layer K and
+filtering ratio R%. At layer K of the LVLM, the ranking function f takes a sequence of input</div><a class="source-url" href="https://arxiv.org/abs/2403.06764v3">https://arxiv.org/abs/2403.06764v3</a></details></figcaption></figure>
+
+图五完整视觉前缀先通过前几个语言层，随后按注意力评分保留部分视觉行，文本行继续保留。早层已经建立一些跨模态交互，后层用短序列减少计算。街牌是否保留既受图像表征影响，也受问题 token 的注意力影响；提问“街牌写什么”与“狗是什么颜色”可能需要不同位置。
+
+原文描述对 query 汇总的注意力，核验的 legacy Llama 实现却用最后 query、平均多头，并对 batch 索引使用 `[0]`。这不是可以忽略的细节：选出的 token 身份可能不同。其它仓库分支未逐一验证，不能由这一文件断言整个项目全部如此。
+
+<figure id="fig-fastv-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 60 · FastV 的精度与理论 FLOPs 表"><img src="assets/fastv-t1.png" alt="原图 60 · FastV 的精度与理论 FLOPs 表 — An Image is Worth 1/2 Tokens After Layer 2: Plug-and-Play Inference Acceleration for Large Vision-Language Models T1" width="1414" height="865" loading="lazy"></button>
+<figcaption><strong>原图 60 · FastV 的精度与理论 FLOPs 表</strong><a href="https://arxiv.org/abs/2403.06764v3" target="_blank" rel="noopener">An Image is Worth 1/2 Tokens After Layer 2: Plug-and-Play Inference Acceleration for Large Vision-Language Models</a> · T1 · version 2403.06764v3 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Performance/Computation Balance of FastV under different configurations (K for
+filtering layer, R for filtering ratio). Highest score for each model is in red while the second
+highest is in blue.</div><a class="source-url" href="https://arxiv.org/abs/2403.06764v3">https://arxiv.org/abs/2403.06764v3</a></details></figcaption></figure>
+
+表一比较不同保留比例、插入层与多个 VLM 的任务成绩和理论计算节省。读表应看同模型、相同评测配置，降低更多 FLOPs 并不保证任务成绩维持。这里的 FLOPs reduction 不是实测 TTFT，更不是总请求加速。
+
+已核验文件的真正 gather 分支 `FASTV_INPLACE` 明确写“KV-Cache not supported”；另一个分支使用 mask 而不缩短 hidden states。因此实现真实减少行、支持缓存生成、兼容 batch 和保持位置编号，是四个需要分别验证的事实。本文没有宣称该分支已完成端到端生成复现。
+
+### VisionZip：重要行与背景摘要一起进入语言模型
+
+VisionZip 在完整视觉编码器之后保留 dominant tokens，再用剩余行生成 contextual tokens，构成较短的视觉前缀。<a href="#source-P17">[P17]</a> 它兼顾显著对象与整体上下文，位置在 LLM 之前。
+
+<figure id="fig-visionzip-f3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 61 · VisionZip 的 dominant 与 contextual 两部分"><img src="assets/visionzip-f3.png" alt="原图 61 · VisionZip 的 dominant 与 contextual 两部分 — VisionZip: Longer is Better but Not Necessary in Vision Language Models F3" width="1820" height="504" loading="lazy"></button>
+<figcaption><strong>原图 61 · VisionZip 的 dominant 与 contextual 两部分</strong><a href="https://arxiv.org/abs/2412.04467v2" target="_blank" rel="noopener">VisionZip: Longer is Better but Not Necessary in Vision Language Models</a> · F3 · version 2412.04467v2 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. Framework of VisionZip. VisionZip selects dominant tokens that aggregate substantial information based on visual token
+attention scores. Remaining tokens are merged based on semantic similarity to produce contextual tokens.
+VisionZip is a training-free
+method significantly reduces the number of image tokens, accelerating inference while maintaining performance. With efficient fine-tuning
+of the projector, even better results can be achieved with minimal performance loss compared to using the full token.</div><a class="source-url" href="https://arxiv.org/abs/2412.04467v2">https://arxiv.org/abs/2412.04467v2</a></details></figcaption></figure>
+
+图三先按视觉注意力挑高分行，再对其余语义相似行聚合。dominant 部分保留对象细节，contextual 部分摘要背景，随后一起投影进语言模型。天空并非全部硬删除，狗也不必与背景平均成一行；街牌如果既不显著又缺少独特聚类，文字仍会丢失。
+
+图示是基于经验集中现象的设计。原文用 softmax 解释“越高越指数增长”的因果表述并不严谨：单个概率的导数 $a(1-a)$ 在接近一时反而减小。本文只采纳其观测到的注意力集中及算法，不把该解释当作集中形成原因的证明。
+
+<figure id="fig-visionzip-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 62 · VisionZip：平均保留率不能遮住任务损失"><img src="assets/visionzip-t1.png" alt="原图 62 · VisionZip：平均保留率不能遮住任务损失 — VisionZip: Longer is Better but Not Necessary in Vision Language Models T1" width="1754" height="1643" loading="lazy"></button>
+<figcaption><strong>原图 62 · VisionZip：平均保留率不能遮住任务损失</strong><a href="https://arxiv.org/abs/2412.04467v2" target="_blank" rel="noopener">VisionZip: Longer is Better but Not Necessary in Vision Language Models</a> · T1 · version 2412.04467v2 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1. Performance of VisionZip on LLaVA 1.5. The vanilla number of visual tokens is 576. The first line of each method shows
+the raw benchmark accuracy, and the second line is the proportion relative to the upper limit. The last column is the average value.
+VisionZip‡ indicates that fine-tuning the multimodal projector with 1/10 LLaVA-1.5 datasets, which takes 30 minutes for 8A800 GPU.</div><a class="source-url" href="https://arxiv.org/abs/2412.04467v2">https://arxiv.org/abs/2412.04467v2</a></details></figcaption></figure>
+
+表一 LLaVA-1.5 7B 原为 576 个视觉 token，压到 64 时，平均归一化性能保留率为 94.0%。但原分数中，POPE 85.9→77.0，GQA 61.9→55.1，TextVQA 58.2→55.5。分别下降 8.9、6.8、2.7 个百分点，不能仅用 94% 概括“几乎不损失”。
+
+表内 ‡ 另外训练 projector，必须与无 projector 微调的行分开。不同任务分值归一化后平均，是便于摘要的指标；它不等于任意单任务 accuracy，也不是各任务原始正确数合并后的准确率。
+
+<figure id="fig-visionzip-t4">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 63 · VisionZip：prefill 与总耗时不同的加速幅度"><img src="assets/visionzip-t4.png" alt="原图 63 · VisionZip：prefill 与总耗时不同的加速幅度 — VisionZip: Longer is Better but Not Necessary in Vision Language Models T4" width="854" height="550" loading="lazy"></button>
+<figcaption><strong>原图 63 · VisionZip：prefill 与总耗时不同的加速幅度</strong><a href="https://arxiv.org/abs/2412.04467v2" target="_blank" rel="noopener">VisionZip: Longer is Better but Not Necessary in Vision Language Models</a> · T4 · version 2412.04467v2 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 4. Efficiency analysis of VisionZip on LLaVA-NeXT 7B. The detailed metrics include practical total time for one A800 GPU on POPE, Prefilling time(latency). ∆denotes the reduction ratio.</div><a class="source-url" href="https://arxiv.org/abs/2412.04467v2">https://arxiv.org/abs/2412.04467v2</a></details></figcaption></figure>
+
+表四 LLaVA-NeXT 7B、A800 80GB、POPE，视觉 token 2880→160；整套评测总耗时 2293→756 秒，约 3.03 倍；作者定义的 prefilling／first-token time 为 218→27.8 ms，约 7.84 倍。batch 和计时精度没有完整披露，不能补造。
+
+视觉编码器、生成与其它成本限制总加速，因此 prefill 的大比例改善没有等比例作用到整链。附录 TextVQA 的首 token 基线为不同的 54.2 ms，不能与此表 218 ms 混合计算。比较 TTFT 必须说明是否从用户请求开始、是否包括视觉编码器、预处理、缓存和采样；本表只能支持作者给定的计时定义。
+
+## 09 · Benchmark 与反证：成绩保持，可能只是题目太容易
+
+### 指标必须对应任务和分母
+
+| 数据／协议 | 版本、规模与划分 | 指标与方向 | 能覆盖什么、遗漏什么 |
+| --- | --- | --- | --- |
+| ImageNet ILSVRC2012 <a href="#source-D01">[D01]</a> | 1000 类，约 1.28M train、50k validation；本文分类表主要用 validation | top-1 / top-5，% 越高越好；resize、crop 与模型预训练需一致 | 主要测图像分类，不能代表文字、实例边界；高分也可能掩盖类别和小目标差异 |
+| SceneParse150 / ADE20K <a href="#source-D02">[D02]</a> | 150 个评分类，约 20k train、2k validation、3k test；ignore 类不入分母 | mIoU，% 越高越好；需记录输入、滑窗／多尺度和 head | 语义空间预测；均值可能掩盖稀有类、小区域和边界 |
+| COCO <a href="#source-D03">[D03]</a> | 2017 常用约 118k train、5k val；Cropr 的设置另有 Objects365 初始化 | box/mask AP，IoU 0.50:0.05:0.95 平均，% 越高越好；small/medium/large 分开 | 定位与实例分割，类别、阈值、max detections、分辨率会改变结果 |
+| COCO-WholeBody v1.0 <a href="#source-D05">[D05]</a> | 在 COCO 上扩展人体共 133 个关键点，含身体、脚、脸和双手；按官方 train/val 标注 | 基于 OKS 的 AP/AR，越高越好；检测框与人体 crop 是评测链的一部分 | 细粒度人体，不是字符识别；手脸小结构容易被压缩损坏 |
+| GQA <a href="#source-D04">[D04]</a> | 场景图驱动约 113k 图像、22M 问题；balanced 子集及 train/val/test/test-dev 必须区分 | 答案 accuracy，% 越高越好，题型子集另报 | 关系、属性、推理；不能把 full 与 balanced 或筛选 hard set 混用 |
+| POPE <a href="#source-D06">[D06]</a> | 原始对象存在性 yes/no，COCO 通常 500 图、每图 6 问，random/popular/adversarial 各 3000 问；后续数据扩展另标 | Accuracy、Precision、Recall、F1 与 yes ratio；% 越高通常越好，yes ratio 仅描述偏向 | 对象幻觉与误报；不全面代表视觉问答或文字质量 |
+| OCRBench 原版 <a href="#source-D07">[D07]</a> | 1000 个评测问答，覆盖文字识别、文本 VQA、文档、信息抽取和手写数学；v2 是不同集合 | 原版常报告总正确数 / 1000 或相应百分数；匹配与归一化遵循脚本 | 压缩细节敏感；不得把 1000 分制、百分比及 v2 混排 |
+| VTC-Bench <a href="#source-P19">[P19]</a> | 从原任务中筛选原模型答对的样本，再依据降采样是否答对分 A/B；依赖 filter model | 条件子集 accuracy 与保留程度；同时应报告覆盖率和原全量成绩 | 放大视觉细节丢失，但构造改变分母，不能称原任务全球排名 |
+| UniPruneBench <a href="#source-P20">[P20]</a> | 10 数据集、6 能力维度、5 模型跨 3 家族；采用 VLMEvalKit 与文中子集配置 | 各数据集原指标、时间与压缩成本，不能跨任务随意平均原分 | 跨任务与实现成本，仍受模型、问题格式和输入分辨率限制 |
+
+以上数据集来源与版本在文末可点击。评测数据不是训练标定数据；1% ImageNet 的离线校准不能冒充“从未访问训练集”。预训练污染、重复样本、任务饱和和 validation 上选择预算，都可能使报告过于乐观。本文没有进行去污染审计，因此不把高分解释为未知数据上的可靠泛化。
+
+对 POPE 这类二分类，正类为“图中确有被问对象”。TP 是存在且答 yes，FP 是不存在却答 yes，TN 是不存在且答 no，FN 是存在却答 no：
+
+$$
+\mathrm{Accuracy}=\frac{TP+TN}{TP+FP+TN+FN},\quad
+\mathrm{Precision}=\frac{TP}{TP+FP},\quad
+\mathrm{Recall}=\frac{TP}{TP+FN},\quad
+F_1=\frac{2TP}{2TP+FP+FN}.
+$$
+
+四个计数都以同一评测集为分母基础；零分母按官方实现处理。压缩让模型总答 no，可能减少 FP，却增加 FN，因此只报 Precision 容易误导。图像多类 top-1 不需要机械套这组二分类公式。
+
+分割中，对类别 $c$ 的交集与并集为：
+
+$$
+\mathrm{IoU}_c=\frac{TP_c}{TP_c+FP_c+FN_c},\qquad
+\mathrm{mIoU}=\frac{1}{C}\sum_{c=1}^{C}\mathrm{IoU}_c.
+$$
+
+这里计数单位是有效像素，$C$ 是参与评分的类别数，忽略标签排除在外。一个小街牌类别的 IoU 下降可被其它类别掩盖。检测 AP 则来自置信度排序后的 precision–recall 曲线，并对 IoU 阈值和类别平均；它不是单一阈值 F1，关键点 AP 又使用 OKS。
+
+### Compact ViT 反例：即插即用不保证兼容
+
+<figure id="fig-compact-tii">
+<button class="paper-image" type="button" aria-label="Zoom: 原文 64 · Compact ViT 比较：直接插件与重新训练"><img src="assets/compact-tii.png" alt="原文 64 · Compact ViT 比较：直接插件与重新训练 — Token Compression Meets Compact Vision Transformers: A Survey and Comparative Evaluation for Edge AI TII" width="903" height="463" loading="lazy"></button>
+<figcaption><strong>原文 64 · Compact ViT 比较：直接插件与重新训练</strong><a href="https://arxiv.org/abs/2507.09702v1" target="_blank" rel="noopener">Token Compression Meets Compact Vision Transformers: A Survey and Comparative Evaluation for Edge AI</a> · TII · version 2507.09702v1 · PDF p.4 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">TABLE II
+TOP-1 ACCURACY COMPARISON OF TOKEN COMPRESSION METHODS ON
+   AUTOFORMER-S IN OFF-THE-SHELF AND RETRAINED SETTINGS
+   (ACC1(OTS) VS. ACC1(RE-TRAIN)), WITH INFERENCE EFFICIENCY
+       MEASURED BY GFLOPS AND THROUGHPUT (IMG/S).
+
+    Method      Acc1(ots) ↑    Acc1(re-train) ↑   GFLOPs ↓   img/s ↓
+ AutoFormer-S      81.66           81.66           4.92       988
+    ToMe          29.45           79.22           3.27       1550
+   PiToMe         30.10           78.74           3.27       1435
+     ToFu          30.69           78.17           3.27       1507
+     Cropr                -             69.47           4.26       1131
+    DiffRate               -             77.47           3.27       1557
+   DTEM                -             42.63           3.27       1620</div><a class="source-url" href="https://arxiv.org/abs/2507.09702v1">https://arxiv.org/abs/2507.09702v1</a></details></figcaption></figure>
+
+这篇比较评测没有技术插图，原文主要证据是表格，因此展示 Table II 和 III，并用本文机制图辅助。<a href="#source-P18">[P18]</a> Table II 区分 off-the-shelf，简称 OTS，与 re-training。AutoFormer-S 基线 81.66%，ToMe OTS 跌到 29.45%，重新训练后为 79.22%；PiToMe OTS 30.10%，ToFu OTS 30.69%。这与大标准 ViT 中“温和损失”的常见印象明显不同。
+
+极端下降可能涉及位置、序列布局、检查点与接口适配，作者也提出对齐解释；本文没有独立复现其根因，不能断言 compact 模型天然不支持压缩。结论应是**插件兼容性必须验证**，不能把现有大模型证据作为任何骨干的合同。
+
+<figure id="fig-compact-tiii">
+<button class="paper-image" type="button" aria-label="Zoom: 原文 65 · Compact ViT 的预算与精度结果"><img src="assets/compact-tiii.png" alt="原文 65 · Compact ViT 的预算与精度结果 — Token Compression Meets Compact Vision Transformers: A Survey and Comparative Evaluation for Edge AI TIII" width="903" height="428" loading="lazy"></button>
+<figcaption><strong>原文 65 · Compact ViT 的预算与精度结果</strong><a href="https://arxiv.org/abs/2507.09702v1" target="_blank" rel="noopener">Token Compression Meets Compact Vision Transformers: A Survey and Comparative Evaluation for Edge AI</a> · TIII · version 2507.09702v1 · PDF p.4 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">TABLE III
+ABLATION EXPERIMENTS FOR OFF-THE-SHELF SETTING WITH DIFFERENT
+COMPRESSION RATIOS ON AUTOFORMER-S. TOP-1 ACCURACY IS USED AS
+                     EVALUATION METRIC.
+
+         #pruned tokens   ToMe   ToFu   PiToMe  GLOPS
+              0          81.66   81.66    81.66      4.92
+              3          30.60   30.72    29.88      4.36
+              6          29.50   30.03    29.78      3.81
+              9          29.45   30.69    30.10      3.27
+              12         28.80   30.77    29.71      2.75
+              15         27.42   31.54    29.68      2.24
+              18         22.03   31.99    29.48      1.87</div><a class="source-url" href="https://arxiv.org/abs/2507.09702v1">https://arxiv.org/abs/2507.09702v1</a></details></figcaption></figure>
+
+Table III 进一步比较 $r$、GFLOPs 与 OTS 精度，轻度 $r=3$ 的 ToMe 仍可能为约 30.60%，提示性能跌落并非简单随压缩程度平滑下降。前一张 Table II 的重训练配置为 3.27G、1550 img/s，对照 4.92G、988 img/s；Table III 没有吞吐列。Table II 表头 img/s 的下降箭头是排版错误，吞吐实际越高越好。
+
+论文标题提到 edge AI，但这些数据是 GPU 实验，不是移动 NPU、HTP 或端上功耗实测。查看代码兼容、实际张量形状和预处理是首要排查方向；“accuracy 高低”与“端上部署成功”是不同结果。
+
+### VTC-Bench：让视觉细节成为分组变量
+
+<figure id="fig-vtcbench-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 66 · VTC-Bench 的动机：压缩算法与降采样对照"><img src="assets/vtcbench-t1.png" alt="原图 66 · VTC-Bench 的动机：压缩算法与降采样对照 — Are We Using the Right Benchmark: An Evaluation Framework for Visual Token Compression Methods T1" width="1646" height="1285" loading="lazy"></button>
+<figcaption><strong>原图 66 · VTC-Bench 的动机：压缩算法与降采样对照</strong><a href="https://arxiv.org/abs/2510.07143v3" target="_blank" rel="noopener">Are We Using the Right Benchmark: An Evaluation Framework for Visual Token Compression Methods</a> · T1 · version 2510.07143v3 · PDF p.3 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Comparison of Advanced Token Compression Methods and Downsampling on Qwen2-VL-7B. APRR
+refers to the average performance retention ratio, which is the average value of the retention ratio compared to the
+vanilla performance, across the eight benchmarks. The right side of each cell shows the relative change percentage
+compared to the performance of the downsampling method.</div><a class="source-url" href="https://arxiv.org/abs/2510.07143v3">https://arxiv.org/abs/2510.07143v3</a></details></figcaption></figure>
+
+表一在 Qwen2-VL-7B 上比较先进 token 压缩与直接图像降采样，按任务列原分和相对降采样的变化，APRR 是八个任务相对 vanilla 的性能保留比例均值。它回答“普通整集成绩能否区分高级压缩与简单降采样”，不是评测框架属性对照表，也不是某算法快多少。某些整体成绩很接近，促使作者构建细节敏感子集；相对变化、原 accuracy 和归一化保留比例不能混为一列。<a href="#source-P19">[P19]</a>
+
+<figure id="fig-vtcbench-f2">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 67 · VTC-Bench 的 A/B 构造与筛选偏差"><img src="assets/vtcbench-f2.png" alt="原图 67 · VTC-Bench 的 A/B 构造与筛选偏差 — Are We Using the Right Benchmark: An Evaluation Framework for Visual Token Compression Methods F2" width="1646" height="826" loading="lazy"></button>
+<figcaption><strong>原图 67 · VTC-Bench 的 A/B 构造与筛选偏差</strong><a href="https://arxiv.org/abs/2510.07143v3" target="_blank" rel="noopener">Are We Using the Right Benchmark: An Evaluation Framework for Visual Token Compression Methods</a> · F2 · version 2510.07143v3 · PDF p.6 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: The VTC-Bench is a simple but effective framework that can transform any existing benchmarks to a
+subset that can fairly evaluate VTC (Visual Token Compression) methods. The samples that are answered correctly
+by the original Qwen2-VL model without downsampling form the input samples. More details in Section 4.1.</div><a class="source-url" href="https://arxiv.org/abs/2510.07143v3">https://arxiv.org/abs/2510.07143v3</a></details></figcaption></figure>
+
+图二先保留 vanilla filter model 在原图上答对的题，再降采样图像：降采样答错进入 difficult A，仍答对进入 simple B。因此降采样模型在 A 上 0%、B 上 100% 是**构造结果**，不是独立验证的模型能力。
+
+街景中“有狗吗”可能进入 B，“街牌写什么”更易进入 A。压缩方法在两组间的差异能暴露细节依赖，但 filter model 的能力决定哪些题先被保留；换 filter model 会改变人群。使用时应同时报告原全量、被筛覆盖率、A/B 样本数、filter model 和预处理。
+
+<figure id="fig-vtcbench-t3">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 68 · VTC-Bench：困难组和简单组的差距"><img src="assets/vtcbench-t3.png" alt="原图 68 · VTC-Bench：困难组和简单组的差距 — Are We Using the Right Benchmark: An Evaluation Framework for Visual Token Compression Methods T3" width="1646" height="1103" loading="lazy"></button>
+<figcaption><strong>原图 68 · VTC-Bench：困难组和简单组的差距</strong><a href="https://arxiv.org/abs/2510.07143v3" target="_blank" rel="noopener">Are We Using the Right Benchmark: An Evaluation Framework for Visual Token Compression Methods</a> · T3 · version 2510.07143v3 · PDF p.7 / printed p.not printed on this page
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3: VTC-Bench results on Qwen2-VL-7B. Take Qwen2-VL-7B as the data filter model.</div><a class="source-url" href="https://arxiv.org/abs/2510.07143v3">https://arxiv.org/abs/2510.07143v3</a></details></figcaption></figure>
+
+表三使用 Qwen2-VL-7B 作为 filter／评测配置，按保留比例及任务子集比较方法。论文在 GQA 75% 压缩下，B 组方法均至少 87.6%，A 组最好 VisionZip 为 59.3%；其它表中的 DART OCRBench 40.2、VisionZip ChartQA 51.2 也属于条件子集成绩。
+
+这些数字说明总体均值可以低估损失；它们不能与原 GQA、OCRBench、ChartQA 的全量排行比较。A 更难不是新增任务，也不意味着实际请求全是 A。困难集与真实频率评测应共同使用。
+
+### UniPruneBench：同一方法在不同任务和模型上未必同样好
+
+<figure id="fig-uniprunebench-f1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 69 · UniPruneBench 的任务、模型与能力维度"><img src="assets/uniprunebench-f1.png" alt="原图 69 · UniPruneBench 的任务、模型与能力维度 — Can Visual Input Be Compressed? A Visual Token Compression Benchmark for Large Multimodal Models F1" width="1414" height="513" loading="lazy"></button>
+<figcaption><strong>原图 69 · UniPruneBench 的任务、模型与能力维度</strong><a href="https://arxiv.org/abs/2511.02650v2" target="_blank" rel="noopener">Can Visual Input Be Compressed? A Visual Token Compression Benchmark for Large Multimodal Models</a> · F1 · version 2511.02650v2 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Overview of UniPruneBench, along with experimental results for representative pruning
+methods across various data scenarios.</div><a class="source-url" href="https://arxiv.org/abs/2511.02650v2">https://arxiv.org/abs/2511.02650v2</a></details></figcaption></figure>
+
+图一按多种数据情境展开代表方法的成绩，框架覆盖六类能力与十个数据集。它把识别、关系、文字、科学／数学推理等不同要求分开，而不是只看总体分数。跨模型包含 LLaVA、Qwen2.5-VL、InternVL3 等家族；视觉编码器、裁图方式、语言模型和位置机制都不同。<a href="#source-P20">[P20]</a>
+
+评测包括 MME、MMBench、MathVista、Math-Vision、SEED-Bench-2-Plus、OCRBench、MIA-Bench、ScienceQA、POPE、HallusionBench；采用论文的划分／子集与 VLMEvalKit 协议。六个维度是综合、数学、OCR、指令遵循、多学科知识、幻觉。LLaVA 的表一仅呈现其中可评测的一组列，不应把全框架十个数据集当成每个模型都完成的十项全量评测。实现还固定 LLM 内压缩层、动态像素范围等参数，因此不属于只比较一段无关模型的独立函数。
+
+<figure id="fig-uniprunebench-t1">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 70 · UniPruneBench：LLaVA-7B 的任务差异"><img src="assets/uniprunebench-t1.png" alt="原图 70 · UniPruneBench：LLaVA-7B 的任务差异 — Can Visual Input Be Compressed? A Visual Token Compression Benchmark for Large Multimodal Models T1" width="1414" height="2076" loading="lazy"></button>
+<figcaption><strong>原图 70 · UniPruneBench：LLaVA-7B 的任务差异</strong><a href="https://arxiv.org/abs/2511.02650v2" target="_blank" rel="noopener">Can Visual Input Be Compressed? A Visual Token Compression Benchmark for Large Multimodal Models</a> · T1 · version 2511.02650v2 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Performance comparison across different methods and benchmarks on LLaVA-v1.5-7B.</div><a class="source-url" href="https://arxiv.org/abs/2511.02650v2">https://arxiv.org/abs/2511.02650v2</a></details><details class="detail-panels"><summary>Readable table panels</summary><p>原表较密。下面分别展示完整列名／基线和128-token方法组，按相同列顺序对照；其余预算见上方完整原图。</p><p>表一局部：完整列名与576-token基线 · PDF p.5 / printed p.5 · version 2511.02650v2</p><button class="detail-image" type="button" aria-label="Zoom: 表一局部：完整列名与576-token基线"><img src="assets/uniprunebench-t1-header.png" alt="表一局部：完整列名与576-token基线" width="1445" height="235" loading="lazy"></button><p>表一局部：平均保留128-token的完整方法组 · PDF p.5 / printed p.5 · version 2511.02650v2</p><button class="detail-image" type="button" aria-label="Zoom: 表一局部：平均保留128-token的完整方法组"><img src="assets/uniprunebench-t1-128.png" alt="表一局部：平均保留128-token的完整方法组" width="1445" height="865" loading="lazy"></button></details></figcaption></figure>
+
+表一把 LLaVA-7B 在 MME、MMBench 中英文、SEED、OCRBench、ScienceQA、POPE 上的报告分值与方法并列，按平均保留 192、128、64 行分组。逐列看排名会变化；即使表内把成绩换成可平均的刻度，任务与分母仍不同，平均分不能代替各列。
+
+例如保留 128 行时，DivPrune 的 POPE 为 86.4，对照 80.1；但 MMBench 中文为 9.0，对照 43.5。这种分化比一列“平均 48.3”更值得关注。只有同一任务列内的数值可直接作同协议比较，不能从对象幻觉改善推导中文综合能力保持。组合压缩方法还可能重复删除同一信息，收益并非简单相加。
+
+所有速度测试采用 A100 40GB、batch 1、三次运行，Python 3.12、PyTorch 2.5.1、Transformers 4.54.0、CUDA 12.4；计时精度未完整披露。环境信息让比较更可复核，但不能消除不同模型本身的结构差异。
+
+<figure id="fig-uniprunebench-t4">
+<button class="paper-image" type="button" aria-label="Zoom: 原图 71 · UniPruneBench：方法时间、prefill 与整套评测时间"><img src="assets/uniprunebench-t4.png" alt="原图 71 · UniPruneBench：方法时间、prefill 与整套评测时间 — Can Visual Input Be Compressed? A Visual Token Compression Benchmark for Large Multimodal Models T4" width="1414" height="445" loading="lazy"></button>
+<figcaption><strong>原图 71 · UniPruneBench：方法时间、prefill 与整套评测时间</strong><a href="https://arxiv.org/abs/2511.02650v2" target="_blank" rel="noopener">Can Visual Input Be Compressed? A Visual Token Compression Benchmark for Large Multimodal Models</a> · T4 · version 2511.02650v2 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 4: The running time comparison of different methods on InternVL3-8B</div><a class="source-url" href="https://arxiv.org/abs/2511.02650v2">https://arxiv.org/abs/2511.02650v2</a></details></figcaption></figure>
+
+表四的 InternVL3-8B 原总时间 761 秒、prefill 320 秒；FastV 497／212 秒，压缩方法时间 0.33 秒；random 491／201，GPrune 454／167，DivPrune 469／185。这里秒是 benchmark 累计值，不是单请求 TTFT；方法时间按表的秒单位读取，不能把正文“GPU milliseconds”措辞覆盖表单位。
+
+原始数值比部分彩色相对百分比更可信，因为原稿部分比例有算术不一致。我们按原数重算，而不照抄着色说明。随机方法在耗时上有竞争力也不意味着质量足够；应把同一行的任务指标和时间一起判断。总体上，这两篇基准把“代表任务均值”推进到“细节敏感性与系统链路”，但仍没有确认全领域当前第一。
+
+## 10 · 本次实测与官方实现：把代数、代码和模型成绩分开
+
+### CPU 教学实验：size 能修正概率质量，不能修复一般信息损失
+
+本次在 macOS arm64、Python 3.12.2、CPU 双精度浮点实际执行了五项断言，脚本和完整输入／结果可下载：[实验脚本](assets/attention_semantics.py)、[原始结果 JSON](assets/results.json)。没有运行 ViT 模型、GPU/NPU 测速或 ImageNet 推理，因此本节不报告精度、TTFT、TPOT 或硬件加速。
+
+实验固定三个二维 query，四个 key，其中前三个完全相同，value 可不同。将前三个 key 合为 size=3 的一个代表、value 取平均。固定 query 时，原组对 softmax 分母的贡献为：
+
+$$
+\sum_{j\in G}e^{q^\top k/\sqrt{d_k}}
+=|G|e^{q^\top k/\sqrt{d_k}}
+=e^{q^\top k/\sqrt{d_k}+\log|G|}.
+$$
+
+$G$ 是 key 完全相同的组，$|G|$ 是成员数，$q$ 和头维度 $d_k$ 固定。原分子中的 value 同样可用组内均值表示，因此此单一 attention 操作输出严格一致到浮点误差。前述 ToMe log-size 修正正是在保持这类质量，而不是宣称所有图像行都相同。
+
+| 实验条件 | 最大输出绝对误差 | 可以支持的结论 |
+| --- | --- | --- |
+| key 完全相同、加 log-size | 2.22×10⁻¹⁶ | 理想假设下单 attention 输出等价到浮点误差 |
+| key 完全相同、不加 log-size | 0.532813 | 不带数量会改变该组总注意力质量 |
+| 组内 key 扰动 0.1 | 0.021581 | size 并不消除 key 差异造成的误差 |
+| 扰动 0.5 / 1.0 / 2.0 | 0.103140 / 0.193635 / 0.338704 | 此构造中误差随扰动上升；不是所有输入的单调定理 |
+| 分层合并数值 2、4、8 | 等权 5.5；size 加权 4.666667 | 反复聚合应追踪原成员数 |
+
+扰动量是本实验二维 key 的绝对坐标变化，误差是三个 query、两个输出维度中的最大绝对差，不是百分比准确率。没有位置编码更新、layer norm、MLP、训练或下游任务；真实模型还会改变 query、分组与多层表征，因此不应由这里的近零误差宣称 ToMe 无损。读者可运行 `python3 attention_semantics.py` 复核，源码 SHA-256 与输入都在 JSON 中。
+
+### 16 个官方项目：14 个有源代码，2 个尚未发布实现
+
+项目与版本冻结于 2026-11-16，文末提供完整 commit 和入口。下表短 hash 只是便于阅读，链接固定到实际核验文件；“有源代码”不等于本次训练／评测复现成功。
+
+| 项目 / 证据 | 固定 commit | 核验入口与重要边界 |
+| --- | --- | --- |
+| ATS <a href="#source-C01">[C01]</a> | 9271257a | `libs/models/transformers/ats_block.py`；采样、去重与真实行收集，批量补齐需要另核 |
+| A-ViT <a href="#source-C02">[C02]</a> | 120c9cb9 | `timm/models/act_vision_transformer.py`；累计 halting、余量与有效 token mask |
+| BLIP-2 / LAVIS <a href="#source-C03">[C03]</a> | 05cb670f | `lavis/models/blip2_models/blip2_qformer.py`；学习 query、冻结编码器，仓库已归档 |
+| Cropr <a href="#source-C04">[C04]</a> | fa259e90 | `segm/cropr.py`、`segm/segmenter.py`；辅助训练 detach、最终完整 block 与位置对齐 |
+| DiffRate <a href="#source-C05">[C05]</a> | 91ae3e37 | `DiffRate/ddp.py`、`DiffRate/patch/deit.py`；可微 rate 搜索，推理层级预算 |
+| DynamicViT <a href="#source-C06">[C06]</a> | 1322e626 | `models/dyvit.py`；训练 mask 与推理 gather 分支 |
+| EViT <a href="#source-C07">[C07]</a> | 5ca95a7c | `evit.py`；CLS attention 选择及额外 summary 行 |
+| FastV <a href="#source-C08">[C08]</a> | d1659729 | legacy `modeling_llama.py`；真 gather 分支声明不支持 KV-cache，另分支仅 mask |
+| MaMe <a href="#source-C09">[C09]</a> | a5c07de4 | README／图／许可；没有发布可运行算法源码 |
+| PiToMe <a href="#source-C10">[C10]</a> | 550b5dee | `algo/pitome/merge.py`；视觉与文本 energy 分支不同，内含第三方 ToFu |
+| RAPID <a href="#source-C11">[C11]</a> | b3bbf693 | README／许可；没有发布可运行算法源码 |
+| TCFormer <a href="#source-C12">[C12]</a> | 1ea72a87 | `tcformer_module/tcformer_utils.py`；聚类与空间映射，项目还包含后续扩展 |
+| TokenLearner / Scenic <a href="#source-C13">[C13]</a> | 77d19427 | `scenic/projects/token_learner/model.py`；JAX/Flax，含训练配置与测试，并非 PyTorch 插件 |
+| ToMe <a href="#source-C14">[C14]</a> | af95e4b1 | `tome/merge.py`、`tome/patch/timm.py`；soft matching、size 与 MHSA 后插入；仓库已归档 |
+| VisionZip <a href="#source-C15">[C15]</a> | 8f86b55c | `visionzip/clip_encoder.py`、`visionzip/utils.py`；dominant/contextual 选择，仓库组织名发生重定向 |
+| VTC-Bench <a href="#source-C16">[C16]</a> | 983e443e | 官方评测项目与配置，hard/simple 筛选必须记录 filter model |
+
+ToFu、DSM、AdaMerge、SWAM 的官方可运行代码本次未确认；Evo-ViT 未纳入这组固定源码核验。不能根据论文里的项目预告、相似仓库名或 stars 数补写“复现通过”。依赖与训练配置要按对应 commit 的 README 和环境文件安装；timm／Transformers patch 不保证兼容最新版，已归档项目尤其需要冻结版本。模型检查点、预训练数据访问与任务 head 也属于复现环境，不能只下载合并函数。
+
+三处实现差异值得具体记住。首先，Scenic TokenLearner 主版本使用卷积、sigmoid mask，默认 sum pooling，原稿是 spatial average；V11 则使用 MLP、空间 softmax 与 einsum。NHWC 特征、掩码归一化及聚合幅值与 PyTorch 常见输入 NCHW、token BND 都不能静默互换。其次，PiToMe 视觉实现用 `elu(sim-margin).mean`，含对角线，和原文 energy 表述并非逐项相同；文本分支还有 Gaussian 变体。最后，Cropr 的位置编号随被剪行一起保存，在最后完整 block 内按位置身份交互、之后才恢复原物理顺序；把 concat 行号当空间位置会出错。
+
+FastV 更直接揭示“论文机制”和“部署功能”间的距离。对应文件约 729—763 行的 gather 真减少 hidden-state 行数，却声明 KV-cache unsupported；注意力分数最后 query 与原文 query 平均也不同。一个部署复现应明确选择哪一分支，并主动检查 batch>1、缓存长度、position IDs、attention mask 和首 token／后续 token，不能仅看到预测正常就宣称整个链路正确。
+
+## 11 · 条件化比较与工程选择：怎样得到可信收益
+
+### 代表结果，不做伪统一排行榜
+
+| 原论文组 / 配置 | 同组基线 → 代表结果 | 可支持的结论 | 关键条件／限制 |
+| --- | --- | --- | --- |
+| DynamicViT、DeiT-S | 79.8→79.3%；1337.7→2062.1 img/s | 学习选择后约 1.54×吞吐 | RTX3090、batch32、30 epochs 微调；精度口径未明 |
+| EViT、DeiT-S | 79.8→79.5%；2923→4385 img/s | summary 融合与适配有效 | A100、batch128、300 epochs；224 |
+| ToMe、ViT-L MAE | 85.96→84.25%；93.3→182.9 img/s | 无权重适配可获得约 1.96×吞吐 | V100 FP32、最优 batch；$r=8$，非所有模型均如此 |
+| DSM、Oxford、$r=4$ | 17.57→16.10G；404.53→384.51 img/s | FLOPs 少但吞吐下降 | RTX A6000、batch32、50 次平均；额外操作不能忽略 |
+| MaMe、DeiT-B | 81.83→79.80%；2130→4117 img/s | 矩阵式合并的特定取舍 | A100 FP16、batch1024；官方实现未发布 |
+| AdaMerge 对 ToMe | 84.13 vs 82.46%；1.22× vs 1.31× | FLOPs 匹配，精度与速度方向不同 | 约 13.4G；硬件、batch、精度未明确，不作设备外推 |
+| RAPID、ViT-B、$r=20$ | 85.11→77.54%；1661→3930 img/s | 极激进预算依然有较大精度损失 | RTX4090、batch64；ViT-L 有灾难性失败 |
+| SWAM、子集模型 | 282→412 img/s；454→311 ms/batch | 该 batch 下吞吐提高约 1.46× | T4、batch128；子集任务与训练目标不同 |
+| Cropr、COCO 整链 | 编码器约2.4×、整模型约1.9× | 固定下游成本限制总收益 | EVA02-L、1536、Cascade Mask R-CNN |
+| VisionZip、POPE评测 | prefill218→27.8ms；总2293→756s | LLM前缀短，prefill与总收益不同 | LLaVA-NeXT7B、A80080GB；作者计时边界 |
+
+“截至 2026-11-16 的可核验前沿”在本文指上述固定版本、可定位表格和实现状态，**没有确认全领域统一第一**。AdaMerge 在其匹配 FLOPs 的分类表更保精度，MaMe 关注算子组织，Cropr 解决密集接口，VisionZip 减少语言前缀；不同问题无法用一列数字决定冠军。可靠 SOTA 声明应限定模型、任务、预算、数据与计时条件，并有可比结果。
+
+### 选择路线时，先写清业务不能丢的信息
+
+| 场景／瓶颈 | 候选机制 | 为什么可能适合 | 必须验证的剩余问题 |
+| --- | --- | --- | --- |
+| 图像分类、重复背景多 | ToMe、PiToMe、训练式选择 | 缩短投影／MLP，允许语义摘要 | 检查点兼容、低预算精度、稀有类别 |
+| 小字、计数、细粒度关系 | 更保守预算、独特性保护、任务条件选择 | 降低跨字符／实例混合风险 | OCR正确数、计数误差、hard set与原分布 |
+| 像素／关键点密集输出 | TCFormer映射、Cropr LLF | 保留空间接口或最终完整交互 | small AP、边界、stale特征、恢复成本 |
+| 大分辨率VLM、LLM前缀昂贵 | VisionZip或学习query桥 | 减少prefill与后续KV长度 | 完整视觉成本、文字细节、每任务保留率 |
+| 语言问题能指导选择 | LLM内压缩、问题条件评分 | 先进行跨模态交互再减少行 | 已支付早层成本、缓存／位置／batch功能 |
+| 算子开销成为瓶颈 | 矩阵合并、固定预算、融合kernel | 避免过多排序／搬运、稳定形状 | 实际per-op时间、额外affinity成本和平台支持 |
+
+这张表是基于前述机制的工程推断，不是新实测。若业务仅分类，大量天空可以合并；若 OCR，则“字符形状必须保留”优先于图像全局相似度。模型给出“有狗”的正确答案不意味着同一压缩预算能读出街牌，更不意味着两位行人不会被数成一位。
+
+### CPU、GPU 与 HTP 上的收益需要分别建立
+
+固定行数有利于预分配、batch 与静态图；ATS 式变长可以按图复杂度省算，却需 length bucketing、padding、动态形状或专用算子才能兑现。静态 NPU 编译图若仅接收补齐张量，动态身份并不会自动减少物理计算。融合矩阵可能适合加速器，也可能付出额外平方 affinity 与工作区；本文没有 QNN HTP 数据，不能选择性把 GPU 结果当端上证明。
+
+一次可信的本地测量应固定同检查点、数据划分、预处理、精度与 batch；同时输出未压缩基线和压缩的能力指标、真实行数、逐层成本、压缩器成本和整链时间。先明确 cold-start 是否计入；热运行做足预热和同步，报告次数、median、p90/p95 或波动，而非只报最快一次。记录库、驱动、attention kernel、动态图编译、设备频率与功耗边界，以免把其它变化当成合并收益。
+
+VLM 还应分别测用户请求到首个输出 token 的 TTFT、首 token 后的 TPOT、视觉编码、projector、LLM prefill 与 decode；输入图像数、分辨率、文本长度、输出长度、采样和缓存策略必须一致。剔除视觉编码的“prefill time”不能直接叫用户可感知 TTFT。若压缩只减少 prefill，decode 是否改善取决于实际 KV 长度与实现。
+
+内存也需分账：模型权重通常不变，激活、注意力工作区与 KV 可能减少，匹配矩阵和恢复缓存则增加。端上 CPU RSS / VmHWM 与 HTP 的 ION／dma-buf 不是同一口径；可结合 `dmabuf_dump` 与 VmHWM 观察物理峰值，且注明采样边界。静态模型文件大小下降与运行物理内存下降不是同一现象。
+
+最后需要做功能闭环：相同图像和问题，压缩前后比较输出文字、坐标、框、掩码及异常恢复；缓存开启／关闭、batch变化和极长输入也要验证。压缩器的独立单步数值正确，只能排除局部问题，不能代替端到端任务和调用链验证。
+
+## 12 · 未解问题、可验证趋势与学习路径
+
+### 瓶颈如何演变
+
+最早的瓶颈是所有位置重复执行同样的 block，学习剪枝和深度控制让预算非均匀分配；新问题是误判后信息不可逆。EViT 保存低分摘要，Evo-ViT 保留慢回路，但细节仍可能损失。ToMe 去掉额外学习器，代价是相似性不等于任务相关性；ToFu、DSM 和 PiToMe 用深度、空间与独特性缓解。密集输出又要求空间接口，TCFormer与Cropr把映射、恢复成本重新纳入。VLM让前缀昂贵和问题依赖同时出现，FastV与VisionZip选择不同压缩位置。
+
+2026 年的方法把重要性和真实算子拉进同一个设计空间，仍存在质量、预算与速度之间的冲突。DSM 的吞吐反例、AdaMerge 的更保精度但更慢、RAPID 的极端失败和 compact 插件失配，都是这条发展链的限制条件，不能只把演进写成持续进步。
+
+### 未来方向：预测必须对应验证方法
+
+**任务条件的安全预算。** 已有证据是 VTC-Bench 的 hard/simple 差距、VisionZip 的任务保留率差异。值得研究按问题、局部文字／小目标信号调整预算，同时保留最低空间覆盖。困难是错误的前置信号恰好会漏掉重要区域。验证应同时报告原分布、困难子集、最差任务和预算分布；不能只在平均分相同后宣布等价。这里是研究方向，不是已证明能保证安全的机制。
+
+**可恢复的多尺度摘要。** TCFormer 维护关系映射，Cropr 保存被剪特征并最终交互，说明空间可追溯性有价值。未来可以比较更多层的轻量回路与较晚恢复，但需要量化 stale 特征损失、边界误差和缓存成本。恢复形状不是恢复信息，应采用字符、实例或像素级变化测量，而非仅展示漂亮区域图。
+
+**与实际 kernel 联合设计。** MaMe 的矩阵式组织和 DSM 低压缩变慢提示，排序、索引、scatter、额外 affinity 的成本需要单独测量。可能的方向包括固定层级预算、矩阵融合、局部匹配和按长度批处理。核心困难是平台各自的内核、对齐与静态图限制。验证要覆盖 batch1、大batch、多个分辨率，并交付 per-op 和整链数据，而不是只有 FLOPs；现有机制与总吞吐表不能替代完整算子测量。
+
+**兼容性与校准可复现。** compact 评测和实际代码差异显示，接口错误可远大于算法预期损失。应标准化 CLS、RoPE、token size、映射、KV-cache 与 mask 的契约；离线校准公开子集、轮次及统计。最有价值的基准可能是同骨干、同目标、同预算、不同实现之间的功能和数值核对，包含负例，而不是更多不可比较的排行榜。
+
+**把质量曲线扩展到尾部与物理资源。** 平均 top-1 或任务归一化分数不能描述少数灾难错误，吞吐也不描述交互尾延迟和功耗。可记录罕见类别、small AP、字符错率、失败样本及p95延迟，配合峰值工作区、KV与dma-buf。现有论文对此覆盖有限，本文不提供未经测量的功耗或端侧收益预测。
+
+### 读者可以带走什么
+
+从一张街景开始，先问输出需要哪些信息，再问压缩在哪一层、删的是行还是仅遮 mask、有没有保存 size 和空间身份，最后看真实计时边界。低注意力不等于无用，相似不等于可互换，恢复形状不等于无损。训练免费还可能包含 rate 搜索或校准，而冻结骨干也可能有训练中的桥。
+
+入门顺序可以是 ViT 原图 → DynamicViT／EViT 的选择与摘要 → ToMe 的 soft matching 和 size → DSM／ToFu／PiToMe 的反例与修正。做密集任务继续看 TCFormer／Cropr；做 VLM 先辨 BLIP-2、FastV、VisionZip 的位置，再读 VTC-Bench 与 UniPruneBench。2026 方法适合在这些机制之后看，避免把新缩写当成新的统一答案。
+
+进一步理解条件计算，可以阅读本站 [MoE 综述](../moe-models/)：MoE 主要稀疏执行参数专家，本文主要减少序列行；两者都要求分开计算、内存与总延迟。各篇论文的最关键原图、结果与限制已在正文展开，文末链接承载原文和版本追溯。
+
+## 13 · 集中参考来源与固定版本
+
+以下论文均已在正文配原文截图和机制／证据解读。首次公开日期与本次使用版本分别列出；正式发表信息未确认者不补造。官方项目提供完整固定 commit 与所核验文件，数据来源列明原文／文档版本。网页资料访问截止日为 2026-11-16，原论文 PDF 与图像的 SHA-256、页码和裁剪框保存在本篇调研档案。
+
+<div class="source-entry" id="source-P01"><h3>P01 · An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale</h3><p>Original paper · version / revision: <code>2010.11929v2</code> · first public 2020/10/22 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2010.11929v2" target="_blank" rel="noopener">https://arxiv.org/abs/2010.11929v2</a></div>
+<div class="source-entry" id="source-P02"><h3>P02 · DynamicViT: Efficient Vision Transformers with Dynamic Token Sparsification</h3><p>Original paper · version / revision: <code>2106.02034v2</code> · first public 2021/06/03 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2106.02034v2" target="_blank" rel="noopener">https://arxiv.org/abs/2106.02034v2</a></div>
+<div class="source-entry" id="source-P03"><h3>P03 · TokenLearner: What Can 8 Learned Tokens Do for Images and Videos?</h3><p>Original paper · version / revision: <code>2106.11297v4</code> · first public 2021/06/21 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2106.11297v4" target="_blank" rel="noopener">https://arxiv.org/abs/2106.11297v4</a></div>
+<div class="source-entry" id="source-P04"><h3>P04 · Evo-ViT: Slow-Fast Token Evolution for Dynamic Vision Transformer</h3><p>Original paper · version / revision: <code>2108.01390v2</code> · first public 2021/08/03 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2108.01390v2" target="_blank" rel="noopener">https://arxiv.org/abs/2108.01390v2</a></div>
+<div class="source-entry" id="source-P05"><h3>P05 · A-ViT: Adaptive Tokens for Efficient Vision Transformer</h3><p>Original paper · version / revision: <code>2112.07658v2</code> · first public 2021/12/14 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2112.07658v2" target="_blank" rel="noopener">https://arxiv.org/abs/2112.07658v2</a></div>
+<div class="source-entry" id="source-P06"><h3>P06 · Adaptive Token Sampling For Efficient Vision Transformers</h3><p>Original paper · version / revision: <code>2111.15667v3</code> · first public 2021/11/30 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2111.15667v3" target="_blank" rel="noopener">https://arxiv.org/abs/2111.15667v3</a></div>
+<div class="source-entry" id="source-P07"><h3>P07 · Not All Patches are What You Need: Expediting Vision Transformers via Token Reorganizations</h3><p>Original paper · version / revision: <code>2202.07800v2</code> · first public 2022/02/16 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2202.07800v2" target="_blank" rel="noopener">https://arxiv.org/abs/2202.07800v2</a></div>
+<div class="source-entry" id="source-P08"><h3>P08 · Not All Tokens Are Equal: Human-centric Visual Analysis via Token Clustering Transformer</h3><p>Original paper · version / revision: <code>2204.08680v1</code> · first public 2022/04/19 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2204.08680v1" target="_blank" rel="noopener">https://arxiv.org/abs/2204.08680v1</a></div>
+<div class="source-entry" id="source-P09"><h3>P09 · Token Merging: Your ViT But Faster</h3><p>Original paper · version / revision: <code>2210.09461v3</code> · first public 2022/10/17 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2210.09461v3" target="_blank" rel="noopener">https://arxiv.org/abs/2210.09461v3</a></div>
+<div class="source-entry" id="source-P10"><h3>P10 · DiffRate : Differentiable Compression Rate for Efficient Vision Transformers</h3><p>Original paper · version / revision: <code>2305.17997v1</code> · first public 2023/05/29 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2305.17997v1" target="_blank" rel="noopener">https://arxiv.org/abs/2305.17997v1</a></div>
+<div class="source-entry" id="source-P11"><h3>P11 · Token Fusion: Bridging the Gap between Token Pruning and Token Merging</h3><p>Original paper · version / revision: <code>2312.01026v1</code> · first public 2023/12/02 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2312.01026v1" target="_blank" rel="noopener">https://arxiv.org/abs/2312.01026v1</a></div>
+<div class="source-entry" id="source-P12"><h3>P12 · Training-Free Acceleration of ViTs with Delayed Spatial Merging</h3><p>Original paper · version / revision: <code>2303.02331v2</code> · first public 2023/03/04 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2303.02331v2" target="_blank" rel="noopener">https://arxiv.org/abs/2303.02331v2</a></div>
+<div class="source-entry" id="source-P13"><h3>P13 · Accelerating Transformers with Spectrum-Preserving Token Merging</h3><p>Original paper · version / revision: <code>2405.16148v2</code> · first public 2024/05/25 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2405.16148v2" target="_blank" rel="noopener">https://arxiv.org/abs/2405.16148v2</a></div>
+<div class="source-entry" id="source-P14"><h3>P14 · Token Cropr: Faster ViTs for Quite a Few Tasks</h3><p>Original paper · version / revision: <code>2412.00965v1</code> · first public 2024/12/01 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2412.00965v1" target="_blank" rel="noopener">https://arxiv.org/abs/2412.00965v1</a></div>
+<div class="source-entry" id="source-P15"><h3>P15 · BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models</h3><p>Original paper · version / revision: <code>2301.12597v3</code> · first public 2023/01/30 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2301.12597v3" target="_blank" rel="noopener">https://arxiv.org/abs/2301.12597v3</a></div>
+<div class="source-entry" id="source-P16"><h3>P16 · An Image is Worth 1/2 Tokens After Layer 2: Plug-and-Play Inference Acceleration for Large Vision-Language Models</h3><p>Original paper · version / revision: <code>2403.06764v3</code> · first public 2024/03/11 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2403.06764v3" target="_blank" rel="noopener">https://arxiv.org/abs/2403.06764v3</a></div>
+<div class="source-entry" id="source-P17"><h3>P17 · VisionZip: Longer is Better but Not Necessary in Vision Language Models</h3><p>Original paper · version / revision: <code>2412.04467v2</code> · first public 2024/12/05 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2412.04467v2" target="_blank" rel="noopener">https://arxiv.org/abs/2412.04467v2</a></div>
+<div class="source-entry" id="source-P18"><h3>P18 · Token Compression Meets Compact Vision Transformers: A Survey and Comparative Evaluation for Edge AI</h3><p>Original paper · version / revision: <code>2507.09702v1</code> · first public 2025/07/13 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2507.09702v1" target="_blank" rel="noopener">https://arxiv.org/abs/2507.09702v1</a></div>
+<div class="source-entry" id="source-P19"><h3>P19 · Are We Using the Right Benchmark: An Evaluation Framework for Visual Token Compression Methods</h3><p>Original paper · version / revision: <code>2510.07143v3</code> · first public 2025/10/08 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2510.07143v3" target="_blank" rel="noopener">https://arxiv.org/abs/2510.07143v3</a></div>
+<div class="source-entry" id="source-P20"><h3>P20 · Can Visual Input Be Compressed? A Visual Token Compression Benchmark for Large Multimodal Models</h3><p>Original paper · version / revision: <code>2511.02650v2</code> · first public 2025/11/04 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2511.02650v2" target="_blank" rel="noopener">https://arxiv.org/abs/2511.02650v2</a></div>
+<div class="source-entry" id="source-P21"><h3>P21 · MaMe &amp; MaRe: Matrix-Based Token Merging and Restoration for Efficient Visual Perception and Synthesis</h3><p>Original paper · version / revision: <code>2604.13432v1</code> · first public 2026/04/15 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2604.13432v1" target="_blank" rel="noopener">https://arxiv.org/abs/2604.13432v1</a></div>
+<div class="source-entry" id="source-P22"><h3>P22 · AdaMerge: Salience-Aware Adaptive Token Merging for Training-Free Acceleration of Vision Transformers</h3><p>Original paper · version / revision: <code>2605.27465v1</code> · first public 2026/05/26 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2605.27465v1" target="_blank" rel="noopener">https://arxiv.org/abs/2605.27465v1</a></div>
+<div class="source-entry" id="source-P23"><h3>P23 · RAPID: Layer-Wise Redundancy-Aware Pruning and Importance-Driven Token Merging for Efficient ViT</h3><p>Original paper · version / revision: <code>2606.08156v1</code> · first public 2026/06/06 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2606.08156v1" target="_blank" rel="noopener">https://arxiv.org/abs/2606.08156v1</a></div>
+<div class="source-entry" id="source-P24"><h3>P24 · SWAM: Saliency-Weighted Asymmetric Merging for Efficient Vision Transformers</h3><p>Original paper · version / revision: <code>2611.18057v1</code> · first public 2026/11/13 · accessed 2026-11-16</p><a class="source-url" href="https://arxiv.org/abs/2611.18057v1" target="_blank" rel="noopener">https://arxiv.org/abs/2611.18057v1</a></div>
+<div class="source-entry" id="source-C01"><h3>C01 · adaptivetokensampling/ATS</h3><p>Official project · version / revision: <code>9271257adc7ea9695c2ccd75e25e3a86432fd65a</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/adaptivetokensampling/ATS" target="_blank" rel="noopener">https://github.com/adaptivetokensampling/ATS</a><p>Verified source: <a class="source-url" href="https://github.com/adaptivetokensampling/ATS/blob/9271257adc7ea9695c2ccd75e25e3a86432fd65a/libs/models/transformers/vit.py">https://github.com/adaptivetokensampling/ATS/blob/9271257adc7ea9695c2ccd75e25e3a86432fd65a/libs/models/transformers/vit.py</a></p><p>Verified source: <a class="source-url" href="https://github.com/adaptivetokensampling/ATS/blob/9271257adc7ea9695c2ccd75e25e3a86432fd65a/libs/models/transformers/ats_block.py">https://github.com/adaptivetokensampling/ATS/blob/9271257adc7ea9695c2ccd75e25e3a86432fd65a/libs/models/transformers/ats_block.py</a></p></div>
+<div class="source-entry" id="source-C02"><h3>C02 · NVlabs/A-ViT</h3><p>Official project · version / revision: <code>120c9cb90acf86828f1c61dd42c08722aa7173c7</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/NVlabs/A-ViT" target="_blank" rel="noopener">https://github.com/NVlabs/A-ViT</a><p>Verified source: <a class="source-url" href="https://github.com/NVlabs/A-ViT/blob/120c9cb90acf86828f1c61dd42c08722aa7173c7/timm/models/act_vision_transformer.py">https://github.com/NVlabs/A-ViT/blob/120c9cb90acf86828f1c61dd42c08722aa7173c7/timm/models/act_vision_transformer.py</a></p></div>
+<div class="source-entry" id="source-C03"><h3>C03 · salesforce/LAVIS</h3><p>Official project · version / revision: <code>05cb670f47296522e24e7727e366b4a997d28582</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/salesforce/LAVIS" target="_blank" rel="noopener">https://github.com/salesforce/LAVIS</a><p>Verified source: <a class="source-url" href="https://github.com/salesforce/LAVIS/blob/05cb670f47296522e24e7727e366b4a997d28582/lavis/models/blip2_models/blip2_qformer.py">https://github.com/salesforce/LAVIS/blob/05cb670f47296522e24e7727e366b4a997d28582/lavis/models/blip2_models/blip2_qformer.py</a></p></div>
+<div class="source-entry" id="source-C04"><h3>C04 · benbergner/cropr</h3><p>Official project · version / revision: <code>fa259e9030f5fddf4721ac75cdd18561524de6f9</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/benbergner/cropr" target="_blank" rel="noopener">https://github.com/benbergner/cropr</a><p>Verified source: <a class="source-url" href="https://github.com/benbergner/cropr/blob/fa259e9030f5fddf4721ac75cdd18561524de6f9/segm/cropr.py">https://github.com/benbergner/cropr/blob/fa259e9030f5fddf4721ac75cdd18561524de6f9/segm/cropr.py</a></p><p>Verified source: <a class="source-url" href="https://github.com/benbergner/cropr/blob/fa259e9030f5fddf4721ac75cdd18561524de6f9/segm/segmenter.py">https://github.com/benbergner/cropr/blob/fa259e9030f5fddf4721ac75cdd18561524de6f9/segm/segmenter.py</a></p><p>Verified source: <a class="source-url" href="https://github.com/benbergner/cropr/blob/fa259e9030f5fddf4721ac75cdd18561524de6f9/cls/vision_transformer.py">https://github.com/benbergner/cropr/blob/fa259e9030f5fddf4721ac75cdd18561524de6f9/cls/vision_transformer.py</a></p></div>
+<div class="source-entry" id="source-C05"><h3>C05 · OpenGVLab/DiffRate</h3><p>Official project · version / revision: <code>91ae3e376e9c3f9f1e69f580fd902b61de5dfe0e</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/OpenGVLab/DiffRate" target="_blank" rel="noopener">https://github.com/OpenGVLab/DiffRate</a><p>Verified source: <a class="source-url" href="https://github.com/OpenGVLab/DiffRate/blob/91ae3e376e9c3f9f1e69f580fd902b61de5dfe0e/DiffRate/ddp.py">https://github.com/OpenGVLab/DiffRate/blob/91ae3e376e9c3f9f1e69f580fd902b61de5dfe0e/DiffRate/ddp.py</a></p><p>Verified source: <a class="source-url" href="https://github.com/OpenGVLab/DiffRate/blob/91ae3e376e9c3f9f1e69f580fd902b61de5dfe0e/DiffRate/patch/deit.py">https://github.com/OpenGVLab/DiffRate/blob/91ae3e376e9c3f9f1e69f580fd902b61de5dfe0e/DiffRate/patch/deit.py</a></p></div>
+<div class="source-entry" id="source-C06"><h3>C06 · raoyongming/DynamicViT</h3><p>Official project · version / revision: <code>1322e626d1e9eca18cc150569908fb4af29e15f7</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/raoyongming/DynamicViT" target="_blank" rel="noopener">https://github.com/raoyongming/DynamicViT</a><p>Verified source: <a class="source-url" href="https://github.com/raoyongming/DynamicViT/blob/1322e626d1e9eca18cc150569908fb4af29e15f7/models/dyvit.py">https://github.com/raoyongming/DynamicViT/blob/1322e626d1e9eca18cc150569908fb4af29e15f7/models/dyvit.py</a></p></div>
+<div class="source-entry" id="source-C07"><h3>C07 · youweiliang/evit</h3><p>Official project · version / revision: <code>5ca95a7cf4a8637193284895c5bc0dd9dc365982</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/youweiliang/evit" target="_blank" rel="noopener">https://github.com/youweiliang/evit</a><p>Verified source: <a class="source-url" href="https://github.com/youweiliang/evit/blob/5ca95a7cf4a8637193284895c5bc0dd9dc365982/evit.py">https://github.com/youweiliang/evit/blob/5ca95a7cf4a8637193284895c5bc0dd9dc365982/evit.py</a></p></div>
+<div class="source-entry" id="source-C08"><h3>C08 · pkunlp-icler/FastV</h3><p>Official project · version / revision: <code>d1659729b5bf1be225e99ee15783deeea80f63b1</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/pkunlp-icler/FastV" target="_blank" rel="noopener">https://github.com/pkunlp-icler/FastV</a><p>Verified source: <a class="source-url" href="https://github.com/pkunlp-icler/FastV/blob/d1659729b5bf1be225e99ee15783deeea80f63b1/src/transformers/src/transformers/models/llama/modeling_llama.py">https://github.com/pkunlp-icler/FastV/blob/d1659729b5bf1be225e99ee15783deeea80f63b1/src/transformers/src/transformers/models/llama/modeling_llama.py</a></p></div>
+<div class="source-entry" id="source-C09"><h3>C09 · cominder/mame</h3><p>Official project · version / revision: <code>a5c07de4231ea9e2b4c2fc23f7283ba988da5db1</code> · announced project; no runnable algorithm source at frozen commit · accessed 2026-11-16</p><a class="source-url" href="https://github.com/Cominder/mame" target="_blank" rel="noopener">https://github.com/Cominder/mame</a></div>
+<div class="source-entry" id="source-C10"><h3>C10 · hchautran/PiToMe</h3><p>Official project · version / revision: <code>550b5deed94aadfeac28bfbe381d87e672044a40</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/hchautran/PiToMe" target="_blank" rel="noopener">https://github.com/hchautran/PiToMe</a><p>Verified source: <a class="source-url" href="https://github.com/hchautran/PiToMe/blob/550b5deed94aadfeac28bfbe381d87e672044a40/algo/pitome/merge.py">https://github.com/hchautran/PiToMe/blob/550b5deed94aadfeac28bfbe381d87e672044a40/algo/pitome/merge.py</a></p></div>
+<div class="source-entry" id="source-C11"><h3>C11 · labhai/RAPID</h3><p>Official project · version / revision: <code>b3bbf693ac6662448833906bc428378191276f3c</code> · announced project; no runnable algorithm source at frozen commit · accessed 2026-11-16</p><a class="source-url" href="https://github.com/labhai/RAPID" target="_blank" rel="noopener">https://github.com/labhai/RAPID</a></div>
+<div class="source-entry" id="source-C12"><h3>C12 · zengwang430521/TCFormer</h3><p>Official project · version / revision: <code>1ea72a871b0932b51cf22334113a53c6a10d1f1a</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/zengwang430521/TCFormer" target="_blank" rel="noopener">https://github.com/zengwang430521/TCFormer</a><p>Verified source: <a class="source-url" href="https://github.com/zengwang430521/TCFormer/blob/1ea72a871b0932b51cf22334113a53c6a10d1f1a/tcformer_module/tcformer_utils.py">https://github.com/zengwang430521/TCFormer/blob/1ea72a871b0932b51cf22334113a53c6a10d1f1a/tcformer_module/tcformer_utils.py</a></p></div>
+<div class="source-entry" id="source-C13"><h3>C13 · google-research/scenic</h3><p>Official project · version / revision: <code>77d19427a71d9fb8318b656d9710d4dfd7af0ba7</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/google-research/scenic" target="_blank" rel="noopener">https://github.com/google-research/scenic</a><p>Verified source: <a class="source-url" href="https://github.com/google-research/scenic/blob/77d19427a71d9fb8318b656d9710d4dfd7af0ba7/scenic/projects/token_learner/model.py">https://github.com/google-research/scenic/blob/77d19427a71d9fb8318b656d9710d4dfd7af0ba7/scenic/projects/token_learner/model.py</a></p><p>Verified source: <a class="source-url" href="https://github.com/google-research/scenic/blob/77d19427a71d9fb8318b656d9710d4dfd7af0ba7/scenic/projects/token_learner/configs/im1k_token_learner_config.py">https://github.com/google-research/scenic/blob/77d19427a71d9fb8318b656d9710d4dfd7af0ba7/scenic/projects/token_learner/configs/im1k_token_learner_config.py</a></p></div>
+<div class="source-entry" id="source-C14"><h3>C14 · facebookresearch/ToMe</h3><p>Official project · version / revision: <code>af95e4b1befa172dadccd8c81e223b10090f9579</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/facebookresearch/ToMe" target="_blank" rel="noopener">https://github.com/facebookresearch/ToMe</a><p>Verified source: <a class="source-url" href="https://github.com/facebookresearch/ToMe/blob/af95e4b1befa172dadccd8c81e223b10090f9579/tome/merge.py">https://github.com/facebookresearch/ToMe/blob/af95e4b1befa172dadccd8c81e223b10090f9579/tome/merge.py</a></p><p>Verified source: <a class="source-url" href="https://github.com/facebookresearch/ToMe/blob/af95e4b1befa172dadccd8c81e223b10090f9579/tome/patch/timm.py">https://github.com/facebookresearch/ToMe/blob/af95e4b1befa172dadccd8c81e223b10090f9579/tome/patch/timm.py</a></p></div>
+<div class="source-entry" id="source-C15"><h3>C15 · dvlab-research/VisionZip</h3><p>Official project · version / revision: <code>8f86b55c6f000eb033e6912538af2dd7dcb30502</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/JIA-Lab-research/VisionZip" target="_blank" rel="noopener">https://github.com/JIA-Lab-research/VisionZip</a><p>Verified source: <a class="source-url" href="https://github.com/dvlab-research/VisionZip/blob/8f86b55c6f000eb033e6912538af2dd7dcb30502/visionzip/clip_encoder.py">https://github.com/dvlab-research/VisionZip/blob/8f86b55c6f000eb033e6912538af2dd7dcb30502/visionzip/clip_encoder.py</a></p><p>Verified source: <a class="source-url" href="https://github.com/dvlab-research/VisionZip/blob/8f86b55c6f000eb033e6912538af2dd7dcb30502/visionzip/utils.py">https://github.com/dvlab-research/VisionZip/blob/8f86b55c6f000eb033e6912538af2dd7dcb30502/visionzip/utils.py</a></p></div>
+<div class="source-entry" id="source-C16"><h3>C16 · Chenfei-Liao/VTC-Bench</h3><p>Official project · version / revision: <code>983e443ebb41fac8db19829499fe388c87885b58</code> · algorithm source available; not reproduced here · accessed 2026-11-16</p><a class="source-url" href="https://github.com/Chenfei-Liao/VTC-Bench" target="_blank" rel="noopener">https://github.com/Chenfei-Liao/VTC-Bench</a></div>
+<div class="source-entry" id="source-D01"><h3>D01 · ImageNet ILSVRC2012 classification split and protocol</h3><p>Official dataset / benchmark documentation · version / revision: <code>verified web excerpt 2026-11-16</code> · accessed 2026-11-16</p><a class="source-url" href="https://www.image-net.org/challenges/LSVRC/2012/" target="_blank" rel="noopener">https://www.image-net.org/challenges/LSVRC/2012/</a></div>
+<div class="source-entry" id="source-D02"><h3>D02 · MIT SceneParse150 benchmark derived from ADE20K</h3><p>Official dataset / benchmark documentation · version / revision: <code>verified web excerpt 2026-11-16</code> · accessed 2026-11-16</p><a class="source-url" href="https://sceneparsing.csail.mit.edu/" target="_blank" rel="noopener">https://sceneparsing.csail.mit.edu/</a></div>
+<div class="source-entry" id="source-D03"><h3>D03 · COCO detection evaluation protocol</h3><p>Official dataset / benchmark documentation · version / revision: <code>verified web excerpt 2026-11-16</code> · accessed 2026-11-16</p><a class="source-url" href="https://cocodataset.org/#detection-eval" target="_blank" rel="noopener">https://cocodataset.org/#detection-eval</a></div>
+<div class="source-entry" id="source-D04"><h3>D04 · GQA official dataset description</h3><p>Official dataset / benchmark documentation · version / revision: <code>verified web excerpt 2026-11-16</code> · accessed 2026-11-16</p><a class="source-url" href="https://cs.stanford.edu/people/dorarad/gqa/about.html" target="_blank" rel="noopener">https://cs.stanford.edu/people/dorarad/gqa/about.html</a></div>
+<div class="source-entry" id="source-D05"><h3>D05 · COCO-WholeBody v1.0 annotation documentation</h3><p>Official dataset / benchmark documentation · version / revision: <code>76f3b6331b6e15553fbee05951dbf49f1fad029c</code> · accessed 2026-11-16</p><a class="source-url" href="https://github.com/jin-s13/COCO-WholeBody/blob/76f3b6331b6e15553fbee05951dbf49f1fad029c/README.md" target="_blank" rel="noopener">https://github.com/jin-s13/COCO-WholeBody/blob/76f3b6331b6e15553fbee05951dbf49f1fad029c/README.md</a></div>
+<div class="source-entry" id="source-D06"><h3>D06 · POPE official data and evaluation documentation</h3><p>Official dataset / benchmark documentation · version / revision: <code>08d957b917e5a378a2f99d35b6293c536a66298b</code> · accessed 2026-11-16</p><a class="source-url" href="https://github.com/RUCAIBox/POPE/blob/08d957b917e5a378a2f99d35b6293c536a66298b/README.md" target="_blank" rel="noopener">https://github.com/RUCAIBox/POPE/blob/08d957b917e5a378a2f99d35b6293c536a66298b/README.md</a></div>
+<div class="source-entry" id="source-D07"><h3>D07 · OCRBench original1000QA and v2 distinction</h3><p>Official dataset / benchmark documentation · version / revision: <code>d1901a9500c7232040b5b5806df77a15312a3509</code> · accessed 2026-11-16</p><a class="source-url" href="https://github.com/Yuliang-Liu/MultimodalOCR/blob/d1901a9500c7232040b5b5806df77a15312a3509/OCRBench/README.md" target="_blank" rel="noopener">https://github.com/Yuliang-Liu/MultimodalOCR/blob/d1901a9500c7232040b5b5806df77a15312a3509/OCRBench/README.md</a></div>
