@@ -1,0 +1,46 @@
+{
+  "identity": "actual CPU teaching run; Python float64; no latency claims",
+  "seed": 20261116,
+  "tokens": 8,
+  "experts": 4,
+  "top_k": 2,
+  "dimensions": {
+    "d": 6,
+    "expert_hidden": 4
+  },
+  "expert_token_counts": [
+    8,
+    4,
+    2,
+    2
+  ],
+  "assignments": 16,
+  "capacity_at_cf1": 4,
+  "dropped_assignments": [
+    [
+      4,
+      0
+    ],
+    [
+      5,
+      0
+    ],
+    [
+      6,
+      0
+    ],
+    [
+      7,
+      0
+    ]
+  ],
+  "grouped_vs_dense_masked_max_abs_error": 0.0,
+  "dropped_vs_reference_max_abs_error": 0.6758321310672526,
+  "uniform_max_load_padded_rows": 32,
+  "per_expert_block2_padded_rows": 16,
+  "expert_combinations_8choose2": 28,
+  "expert_combinations_16choose4": 1820,
+  "freetoken_example_q_m4_bp1_bh4": 1.0,
+  "freetoken_server5090_q_m4": 2.7270375161707636,
+  "freetoken_desktop5090_q_m4": 3.643122676579926
+}

@@ -20,12 +20,23 @@ and bodies may use the language appropriate to their content.
   Do not automatically count news coverage or knowledge articles as completed
   paper readings. Each reading should have its own page and archive entry.
 - **AI Surveys** (`surveys/`): personal explorations of technical fields and
-  research directions, comparing approaches, tracing their evolution and
-  identifying open questions.
+  research directions, explaining the task and background, connecting classic
+  and frontier papers, tracing technical evolution and bottlenecks, comparing
+  experiments, code projects, datasets and benchmarks, and identifying open
+  questions. Write for technical readers outside the specialty, with a field
+  overview at the beginning, verified original-paper figures and detailed
+  explanations for every cited paper, and LaTeX formulas explained in plain
+  language. Complete repeated content and visual reviews until the survey
+  meets grade A before publication.
 
 Each column has a homepage section and a standalone archive page. The homepage
 shows up to three recent articles per column and a Visit link to the full archive.
-AI Surveys is empty until the first real survey is published.
+AI Surveys entries are registered in `columns.json`, alongside the other columns.
+
+The local AI insight workspace's `AI_SURVEYS_TASK.md` is the complete survey
+workflow and quality rubric. Survey pages use the shared site styling and
+desktop sidebar / mobile contents navigation; save the final Markdown and
+evidence/review records under the workspace's `research/surveys/<slug>/`.
 
 ## Editing
 

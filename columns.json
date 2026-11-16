@@ -137,7 +137,15 @@
       "archiveLabel": "All surveys",
       "emptyText": "No surveys yet.",
       "readLabel": "Read the survey",
-      "articles": []
+      "articles": [
+        {
+          "title": "MoE 模型：从条件计算到系统协同",
+          "path": "surveys/moe-models/index.html",
+          "date": "2026-11-16",
+          "description": "From adaptive experts to sparse LLMs, latent routing and edge serving. A source-backed survey with 24 papers, 65 original figures, equations and a reproducible routing experiment.",
+          "topic": "Sparse models & conditional computation"
+        }
+      ]
     }
   ]
 }
