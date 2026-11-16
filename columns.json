@@ -139,6 +139,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "MoE 专家预取：提前知道谁会被激活，为什么仍可能等权重",
+          "path": "surveys/moe-expert-prefetch/index.html",
+          "date": "2026-11-16",
+          "description": "Expert prediction, prefetch timing, CPU fallback, graph slots and SSD routing. 23 papers, 111 original figures and tables, five diagrams, frozen implementation evidence and an actual CPU correctness experiment.",
+          "topic": "MoE inference & expert prefetching"
+        },
+        {
           "title": "Attention：从可学习对齐到长上下文计算系统",
           "path": "surveys/attention-evolution/index.html",
           "date": "2026-11-16",

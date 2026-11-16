@@ -1,0 +1,188 @@
+{
+  "identity": "actual CPU numerical toy and logical scheduling tests; synthetic weights and inputs",
+  "seed": 20261116,
+  "environment": {
+    "python": "3.12.2",
+    "numpy": "2.5.5",
+    "platform": "macOS-27.2.1-arm64-arm-64bit"
+  },
+  "configuration": {
+    "layers": 3,
+    "experts": 64,
+    "top_k": 2,
+    "inputs": 128,
+    "hidden": 16,
+    "ffn": 32,
+    "dtype": "float64",
+    "cache_slots_per_layer": 8,
+    "autoregressive": false
+  },
+  "results": [
+    {
+      "wrong_set_fraction": 0,
+      "metrics": {
+        "TP": 768,
+        "FP": 0,
+        "TN": 23808,
+        "FN": 0,
+        "Accuracy": 1.0,
+        "Precision": 1.0,
+        "Recall": 1.0,
+        "F1": 1.0,
+        "exact_set_match": 1.0
+      },
+      "fallback_max_abs_error": 0.0,
+      "approximate_relative_L2": 0.0,
+      "cache_weight_traffic": {
+        "prefetch_copies": 639,
+        "demand_copies": 0,
+        "demand_hits": 768
+      }
+    },
+    {
+      "wrong_set_fraction": 0.25,
+      "metrics": {
+        "TP": 576,
+        "FP": 192,
+        "TN": 23616,
+        "FN": 192,
+        "Accuracy": 0.984375,
+        "Precision": 0.75,
+        "Recall": 0.75,
+        "F1": 0.75,
+        "exact_set_match": 0.75
+      },
+      "fallback_max_abs_error": 0.0,
+      "approximate_relative_L2": 0.25998524177387206,
+      "cache_weight_traffic": {
+        "prefetch_copies": 650,
+        "demand_copies": 170,
+        "demand_hits": 598
+      }
+    },
+    {
+      "wrong_set_fraction": 0.5,
+      "metrics": {
+        "TP": 384,
+        "FP": 384,
+        "TN": 23424,
+        "FN": 384,
+        "Accuracy": 0.96875,
+        "Precision": 0.5,
+        "Recall": 0.5,
+        "F1": 0.5,
+        "exact_set_match": 0.5
+      },
+      "fallback_max_abs_error": 0.0,
+      "approximate_relative_L2": 0.36519182386881416,
+      "cache_weight_traffic": {
+        "prefetch_copies": 655,
+        "demand_copies": 341,
+        "demand_hits": 427
+      }
+    },
+    {
+      "wrong_set_fraction": 0.75,
+      "metrics": {
+        "TP": 192,
+        "FP": 576,
+        "TN": 23232,
+        "FN": 576,
+        "Accuracy": 0.953125,
+        "Precision": 0.25,
+        "Recall": 0.25,
+        "F1": 0.25,
+        "exact_set_match": 0.25
+      },
+      "fallback_max_abs_error": 0.0,
+      "approximate_relative_L2": 0.42511390523436826,
+      "cache_weight_traffic": {
+        "prefetch_copies": 683,
+        "demand_copies": 516,
+        "demand_hits": 252
+      }
+    },
+    {
+      "wrong_set_fraction": 1,
+      "metrics": {
+        "TP": 0,
+        "FP": 768,
+        "TN": 23040,
+        "FN": 768,
+        "Accuracy": 0.9375,
+        "Precision": 0.0,
+        "Recall": 0.0,
+        "F1": 0,
+        "exact_set_match": 0.0
+      },
+      "fallback_max_abs_error": 0.0,
+      "approximate_relative_L2": 0.4867370505800713,
+      "cache_weight_traffic": {
+        "prefetch_copies": 682,
+        "demand_copies": 683,
+        "demand_hits": 85
+      }
+    }
+  ],
+  "always_negative": {
+    "TP": 0,
+    "FP": 0,
+    "TN": 23808,
+    "FN": 768,
+    "Accuracy": 0.96875,
+    "Precision": null,
+    "Recall": 0,
+    "F1": 0
+  },
+  "batch_union_counterexample": {
+    "actual": [
+      [
+        0,
+        1
+      ],
+      [
+        2,
+        3
+      ]
+    ],
+    "predicted": [
+      [
+        2,
+        3
+      ],
+      [
+        0,
+        1
+      ]
+    ],
+    "token_recall": 0,
+    "union_recall": 1
+  },
+  "joint_counterexample": {
+    "correct": 0.8,
+    "timely": 0.8,
+    "joint": 0.6,
+    "marginal_product": 0.6400000000000001
+  },
+  "scheduling": {
+    "unit_job_assumptions": "all releases 0, equal one-unit duration, one channel",
+    "deadline_order": [
+      "C",
+      "A",
+      "B"
+    ],
+    "matroid_weight": 289,
+    "exhaustive_optimum": 289,
+    "FIFO_timely_weight": 199,
+    "inflight_copy_wait_teaching_units": {
+      "whole_9_arrival_at_1": 8,
+      "chunk_3_arrival_at_1": 2
+    },
+    "stale_generation_completion": "ignored; current completion accepted"
+  },
+  "limits": [
+    "No learned predictor, pretrained checkpoint, token perplexity or task accuracy.",
+    "No real DMA, GPU, SSD or timing speedup measurement.",
+    "Float64 same operation order; not a mixed-kernel bitwise-equivalence proof."
+  ]
+}
