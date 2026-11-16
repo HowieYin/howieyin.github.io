@@ -1,0 +1,93 @@
+{
+  "identity": "actually executed deterministic CPU teaching experiment",
+  "environment": {
+    "python": "3.12.2",
+    "numpy": "2.5.5",
+    "platform": "macOS-27.2.1-arm64-arm-64bit"
+  },
+  "seed": 20261116,
+  "dtype": "float64",
+  "geometry": {
+    "tokens": 257,
+    "head_dimension": 32
+  },
+  "online_softmax_max_abs_errors": {
+    "1": 6.661338147750939e-16,
+    "7": 4.996003610813204e-16,
+    "32": 3.885780586188048e-16,
+    "128": 4.440892098500626e-16,
+    "257": 6.661338147750939e-16
+  },
+  "causal_prefix_cache_max_abs_error": 4.996003610813204e-16,
+  "distant_token_mask_counterexample": {
+    "dense": [
+      [
+        0.9862186232608376,
+        0.013781376739162073
+      ]
+    ],
+    "last2_only": [
+      [
+        0.0,
+        1.0
+      ]
+    ],
+    "max_abs_error": 0.986218623260838
+  },
+  "linear_state_collision": {
+    "phi_keys": [
+      [
+        1.0,
+        0.0
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        2.0
+      ]
+    ],
+    "values_a": [
+      1.0,
+      -2.0,
+      1.0
+    ],
+    "values_b": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "S_a": [
+      0.0,
+      0.0
+    ],
+    "S_b": [
+      0.0,
+      0.0
+    ],
+    "z": [
+      3.0,
+      3.0
+    ],
+    "linear_output_a": 0.0,
+    "linear_output_b": 0.0,
+    "softmax_output_a": 0.265814586835607,
+    "softmax_output_b": 0.0
+  },
+  "shared_head_identity_max_abs_error": 0.0,
+  "raw_cache_bytes": {
+    "MHA_32": 17179869184,
+    "GQA_8": 4294967296,
+    "MQA_1": 536870912,
+    "MLA_latent512_rope64": 1207959552
+  },
+  "raw_cache_GiB": {
+    "MHA_32": 16.0,
+    "GQA_8": 4.0,
+    "MQA_1": 0.5,
+    "MLA_latent512_rope64": 1.125
+  },
+  "scope": "No trained checkpoint, corpus task score, wall-clock GPU speed, FP16 validation, or full physical-memory measurement."
+}

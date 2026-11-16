@@ -139,6 +139,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "Attention：从可学习对齐到长上下文计算系统",
+          "path": "surveys/attention-evolution/index.html",
+          "date": "2026-11-16",
+          "description": "From learned alignment and Transformer to linear attention, GQA, MLA, FlashAttention 1–4 and sparse serving. 22 papers, 88 original figures and tables, five diagrams and five reproducible CPU experiments.",
+          "topic": "Attention & long-context systems"
+        },
+        {
           "title": "LLM 投机解码：从概率纠错到推理系统协同",
           "path": "surveys/speculative-decoding/index.html",
           "date": "2026-11-16",
