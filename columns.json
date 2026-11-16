@@ -12,6 +12,14 @@
       "readLabel": "Read the report",
       "articles": [
         {
+          "title": "AI 情报｜2026-11-09 ～ 2026-11-15",
+          "path": "weekly/2026-11-09_2026-11-15.html",
+          "date": "2026-11-15",
+          "periodStart": "2026-11-09",
+          "description": "Fable, Gemini, Qwen, Inkling open weights, H3 Image, Rubin, EPD, NIXL, oMLX and edge inference. Speculation budgets, cache stability and state memory examined through primary sources.",
+          "topic": "Weekly briefing"
+        },
+        {
           "title": "AI 情报｜2026-11-02 ～ 2026-11-08",
           "path": "weekly/2026-11-02_2026-11-08.html",
           "date": "2026-11-08",
