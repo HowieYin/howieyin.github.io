@@ -139,6 +139,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "LLM 的 PTQ 量化：从 INT8 到 2 bit，精度、误差补偿与真实推理",
+          "path": "surveys/llm-ptq/index.html",
+          "date": "2026-11-19",
+          "description": "Outliers, scaling, rotations, low-bit representations, calibration mismatch, KV cache and FP4. 29 papers, 148 original figures and tables, six diagrams, frozen implementations and a real Pythia numerical experiment.",
+          "topic": "LLM inference & post-training quantization"
+        },
+        {
           "title": "MoE 专家预取：提前知道谁会被激活，为什么仍可能等权重",
           "path": "surveys/moe-expert-prefetch/index.html",
           "date": "2026-11-16",
