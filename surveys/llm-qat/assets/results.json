@@ -1,0 +1,80 @@
+{
+  "identity": "Actual Pythia-70M diagnostic; not reproduction of a named paper",
+  "seeds": [
+    20261119,
+    20261120,
+    20261121
+  ],
+  "packing_verified_seeds": [
+    20261120,
+    20261121
+  ],
+  "runs": [
+    {
+      "mode": "FP32 checkpoint",
+      "ppl_by_seed": [
+        82.20114371573091,
+        82.20114371573091,
+        82.20114371573091
+      ],
+      "mean_ppl": 82.20114371573091,
+      "sample_sd_ppl": 0.0,
+      "trainable_parameters": 0
+    },
+    {
+      "mode": "W3 group128 RTN",
+      "ppl_by_seed": [
+        1108.1548482553487,
+        1108.1548482553487,
+        1108.1548482553487
+      ],
+      "mean_ppl": 1108.1548482553487,
+      "sample_sd_ppl": 0.0,
+      "trainable_parameters": 0
+    },
+    {
+      "mode": "float fine-tune then W3 RTN",
+      "ppl_by_seed": [
+        917.8586613945478,
+        729.124199723564,
+        736.8972509310628
+      ],
+      "mean_ppl": 794.6267040163915,
+      "sample_sd_ppl": 106.79275055315034,
+      "trainable_parameters": 18874368
+    },
+    {
+      "mode": "W3 full linear-weight QAT",
+      "ppl_by_seed": [
+        134.60761697160217,
+        124.71884349312047,
+        126.3042698119206
+      ],
+      "mean_ppl": 128.54357675888107,
+      "sample_sd_ppl": 5.311104586544106,
+      "trainable_parameters": 18874368
+    },
+    {
+      "mode": "W3 frozen-code scale adaptation",
+      "ppl_by_seed": [
+        205.55969142223296,
+        205.67389508254138,
+        204.30949309283312
+      ],
+      "mean_ppl": 205.1810265325358,
+      "sample_sd_ppl": 0.7569270251463952,
+      "trainable_parameters": 147456
+    },
+    {
+      "mode": "W3 rank8 merged-weight QAT",
+      "ppl_by_seed": [
+        140.50221461635792,
+        134.87415691004026,
+        151.68986123276704
+      ],
+      "mean_ppl": 142.35541091972175,
+      "sample_sd_ppl": 8.559657140998352,
+      "trainable_parameters": 393216
+    }
+  ]
+}

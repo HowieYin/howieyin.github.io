@@ -139,6 +139,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "LLM 的 QAT 量化：让训练适应低位表示，从替代梯度到真实部署",
+          "path": "surveys/llm-qat/index.html",
+          "date": "2026-11-19",
+          "description": "Surrogate gradients, distillation, efficient training, low-rank merge order, discrete optimization and FP4 deployment. 34 papers, 128 original figures and tables, six diagrams and an actual three-seed training/export experiment.",
+          "topic": "LLM quantization-aware training"
+        },
+        {
           "title": "LLM 的 PTQ 量化：从 INT8 到 2 bit，精度、误差补偿与真实推理",
           "path": "surveys/llm-ptq/index.html",
           "date": "2026-11-19",
