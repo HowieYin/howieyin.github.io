@@ -139,6 +139,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "Over-Encoding 与 Engram：LLM 如何把局部模式交给可扩展记忆",
+          "path": "surveys/over-encoding-engram/index.html",
+          "date": "2026-11-19",
+          "description": "Input expansion, offline phrase networks, conditional memory, collisions, low-bit tables, writing and serving. 27 studies, 127 original figures and tables, eight diagrams, frozen implementations and an actual three-seed training and state-recovery diagnostic.",
+          "topic": "Conditional memory & scalable n-gram embeddings"
+        },
+        {
           "title": "LoRA：从低秩微调到训练动态、量化与多适配器部署",
           "path": "surveys/lora/index.html",
           "date": "2026-11-19",

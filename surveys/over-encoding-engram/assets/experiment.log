@@ -1,0 +1,32 @@
+BASELINE {'nll': 4.409169215782016, 'ppl': 82.20114371573091, 'targets': 4080}
+TRAIN 20261119 input 30 5.539350986480713
+TRAIN 20261119 input 60 4.3254075050354
+TRAIN 20261119 input 90 3.249027729034424
+TRAIN 20261119 input 120 5.766727447509766
+RESULT {'seed': 20261119, 'mode': 'input', 'trainable_parameters': 398208, 'training_wall_seconds': 3.454536250093952, 'nll': 5.7545453838273595, 'ppl': 315.62202802515253, 'targets': 4080}
+TRAIN 20261119 layer-gated 30 5.514318466186523
+TRAIN 20261119 layer-gated 60 4.5909504890441895
+TRAIN 20261119 layer-gated 90 2.9168474674224854
+TRAIN 20261119 layer-gated 120 3.884406566619873
+RESULT {'seed': 20261119, 'mode': 'layer-gated', 'trainable_parameters': 532864, 'training_wall_seconds': 3.731521000037901, 'nll': 4.978992955824908, 'ppl': 145.3279562657322, 'targets': 4080, 'full_model_state_fault': {'fault': 'reset token and convolution history at each13token chunk inside actual model forward', 'fault_nll': 4.746448771158854, 'fault_ppl': 115.1745462501932, 'fault_sample_logits_max_abs': 11.09521484375, 'restored_nll': 4.978992955824908, 'restored_sample_logits_max_abs': 0.0}, 'restoration': {'nll': 4.978992955824908, 'logits_max_abs': 0.0}}
+TRAIN 20261120 input 30 4.5931396484375
+TRAIN 20261120 input 60 3.7442715167999268
+TRAIN 20261120 input 90 3.767969846725464
+TRAIN 20261120 input 120 4.061654090881348
+RESULT {'seed': 20261120, 'mode': 'input', 'trainable_parameters': 398208, 'training_wall_seconds': 3.482005374971777, 'nll': 5.454475612266391, 'ppl': 233.80223589349643, 'targets': 4080}
+TRAIN 20261120 layer-gated 30 4.675683498382568
+TRAIN 20261120 layer-gated 60 3.9157161712646484
+TRAIN 20261120 layer-gated 90 3.246429204940796
+TRAIN 20261120 layer-gated 120 3.6545777320861816
+RESULT {'seed': 20261120, 'mode': 'layer-gated', 'trainable_parameters': 532864, 'training_wall_seconds': 3.6668311250396073, 'nll': 4.77152000876034, 'ppl': 118.09861653238772, 'targets': 4080}
+TRAIN 20261121 input 30 4.700144290924072
+TRAIN 20261121 input 60 4.5357666015625
+TRAIN 20261121 input 90 2.9355878829956055
+TRAIN 20261121 input 120 4.701148986816406
+RESULT {'seed': 20261121, 'mode': 'input', 'trainable_parameters': 398208, 'training_wall_seconds': 3.4801308340393007, 'nll': 5.517361405316521, 'ppl': 248.9772197462132, 'targets': 4080}
+TRAIN 20261121 layer-gated 30 4.815621852874756
+TRAIN 20261121 layer-gated 60 4.675546646118164
+TRAIN 20261121 layer-gated 90 2.836559295654297
+TRAIN 20261121 layer-gated 120 4.539391994476318
+RESULT {'seed': 20261121, 'mode': 'layer-gated', 'trainable_parameters': 532864, 'training_wall_seconds': 3.622696292004548, 'nll': 5.429831740435432, 'ppl': 228.11086036073004, 'targets': 4080}
+COMPLETE {'dtype': 'CPU float64, real block1 input activations', 'chunk_sizes': [37, 29, 1, 53, 7, 129], 'token_history': 2, 'convolution_history': 9, 'correct_max_abs': 5.551115123125783e-16, 'dropped_token_history_max_abs': 1.204313904873099, 'dropped_convolution_history_max_abs': 1.3329649883417587, 'restored_max_abs': 5.551115123125783e-16} {'nll': 4.409169215782016, 'logits_max_abs': 0.0}
