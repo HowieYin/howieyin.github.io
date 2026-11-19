@@ -139,6 +139,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "LoRA：从低秩微调到训练动态、量化与多适配器部署",
+          "path": "surveys/lora/index.html",
+          "date": "2026-11-19",
+          "description": "Rank budgets, scaling, initialization, quantized merge order, composition and multi-adapter serving. 32 papers, 121 original figures and tables, seven diagrams and an actual three-seed training and recovery diagnostic.",
+          "topic": "Low-rank adaptation & efficient fine-tuning"
+        },
+        {
           "title": "LLM 的 QAT 量化：让训练适应低位表示，从替代梯度到真实部署",
           "path": "surveys/llm-qat/index.html",
           "date": "2026-11-19",

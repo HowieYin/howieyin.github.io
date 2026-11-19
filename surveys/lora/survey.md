@@ -1,0 +1,2251 @@
+# LoRA：从低秩微调到训练动态、量化与多适配器部署
+
+LoRA（Low-Rank Adaptation，低秩适配）解决的是一个很具体的问题：已经有一个语言模型，怎样以较少的训练状态和任务专用权重，把它适配到新任务？它冻结原权重，在选定线性层旁增加可训练的矩阵乘积。省下来的主要是可训练参数、梯度、优化器状态和每个任务的增量存储；基座前向、很多反向传播和长序列激活仍然存在。
+
+本文聚焦 LLM 的监督微调、继续训练及相关部署接口，证据截止 **2026-11-19**。从内在维度与原始 LoRA 出发，覆盖秩分配、缩放、优化器、初始化、量化、组合、服务与能力反证。32 篇选定论文的 121 张原图表均来自明确版本 PDF；图外英文说明放在来源详情，中文解读独立展开。小型 Pythia 实验是本次实际运行的诊断，论文大模型结果标为论文报告。
+
+## 1. 技术发展总览：省参数之后，问题分成四条路线
+
+<figure id="diagram-timeline"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 765" role="img" aria-labelledby="svg-1971786e-title svg-1971786e-desc">
+<title id="svg-1971786e-title">LoRA技术发展总览</title><desc id="svg-1971786e-desc">四条问题路线连接低秩增量、预算分配、训练初始化、量化合并、多租户服务和2026能力反证。</desc>
+<defs><marker id="svg-1971786e-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-1971786e-arrow)}</style>
+<text x="24" y="34" font-size="22" font-weight="600">LoRA：省参数之后，预算、训练、表示与系统分别演进</text><text x="126" y="76" class="label">参数化与容量</text><text x="320" y="76" class="label">训练与起点</text><text x="514" y="76" class="label">低位与组合</text><text x="708" y="76" class="label">任务与服务</text><text x="24" y="129" class="year">2020–21</text><text x="24" y="155" class="small muted">动机</text><rect x="126" y="99" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="126" y="111" width="3" height="102" fill="#7dc6b2"/><text x="144" y="129" class="label" font-weight="600">增量低秩</text><text x="144" y="155" class="small muted">内在维度 → LoRA</text><text x="144" y="178" class="small muted">任务权重与状态少</text><path d="M213 229V247" class="line"/><rect x="320" y="99" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="320" y="111" width="3" height="102" fill="#a7b5ee"/><text x="338" y="129" class="label" font-weight="600">零增量起点</text><text x="338" y="155" class="small muted">随机 A / 零 B</text><text x="338" y="178" class="small muted">反向链仍然存在</text><path d="M407 229V247" class="line"/><rect x="514" y="99" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="514" y="111" width="3" height="102" fill="#e6bf88"/><text x="532" y="129" class="label" font-weight="600">线性可合并</text><text x="532" y="155" class="small muted">固定任务可吸收</text><text x="532" y="178" class="small muted">共享基座保留支路</text><path d="M601 229V247" class="line"/><rect x="708" y="99" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="708" y="111" width="3" height="102" fill="#7dc6b2"/><text x="726" y="129" class="label" font-weight="600">已有表示重组</text><text x="726" y="155" class="small muted">GLUE / E2E / 摘要</text><text x="726" y="178" class="small muted">小 rank 非通用定律</text><path d="M795 229V247" class="line"/><text x="24" y="282" class="year">2022–23</text><text x="24" y="308" class="small muted">预算</text><rect x="126" y="252" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="126" y="264" width="3" height="102" fill="#7dc6b2"/><text x="144" y="282" class="label" font-weight="600">预算与周期更新</text><text x="144" y="308" class="small muted">Dy / Ada：方向分配</text><text x="144" y="331" class="small muted">ReLoRA：合并重启</text><path d="M213 382V400" class="line"/><rect x="320" y="252" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="320" y="264" width="3" height="102" fill="#a7b5ee"/><text x="338" y="282" class="label" font-weight="600">缩放 / 激活</text><text x="338" y="308" class="small muted">rsLoRA：大 rank</text><text x="338" y="331" class="small muted">VeRA / LoRA-FA</text><path d="M407 382V400" class="line"/><rect x="514" y="252" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="514" y="264" width="3" height="102" fill="#e6bf88"/><text x="532" y="282" class="label" font-weight="600">低位基座 / 合并</text><text x="532" y="308" class="small muted">QLoRA / LoftQ</text><text x="532" y="331" class="small muted">QA-LoRA / TIES</text><path d="M601 382V400" class="line"/><rect x="708" y="252" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="708" y="264" width="3" height="102" fill="#7dc6b2"/><text x="726" y="282" class="label" font-weight="600">共享多租户</text><text x="726" y="308" class="small muted">S-LoRA / Punica</text><text x="726" y="331" class="small muted">KV 与权重分页</text><path d="M795 382V400" class="line"/><text x="24" y="435" class="year">2024–25</text><text x="24" y="461" class="small muted">取舍</text><rect x="126" y="405" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="126" y="417" width="3" height="102" fill="#7dc6b2"/><text x="144" y="435" class="label" font-weight="600">结构扩展</text><text x="144" y="461" class="small muted">MoRA：共享块高秩</text><text x="144" y="484" class="small muted">结构约束与算子成本</text><path d="M213 535V553" class="line"/><rect x="320" y="405" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="320" y="417" width="3" height="102" fill="#a7b5ee"/><text x="338" y="435" class="label" font-weight="600">起点 / 两侧尺度</text><text x="338" y="461" class="small muted">PiSSA / GA / EVA</text><text x="338" y="484" class="small muted">DoRA / LoRA+</text><path d="M407 535V553" class="line"/><rect x="514" y="405" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="514" y="417" width="3" height="102" fill="#e6bf88"/><text x="532" y="435" class="label" font-weight="600">基座身份改变</text><text x="532" y="461" class="small muted">残差与初始化扣除</text><text x="532" y="484" class="small muted">量化与 merge 不交换</text><path d="M601 535V553" class="line"/><rect x="708" y="405" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="708" y="417" width="3" height="102" fill="#7dc6b2"/><text x="726" y="435" class="label" font-weight="600">获取与保持</text><text x="726" y="461" class="small muted">代码 / 数学 CPT</text><text x="726" y="484" class="small muted">intruder / 连续学习</text><path d="M795 535V553" class="line"/><text x="24" y="588" class="year">2026</text><text x="24" y="614" class="small muted">再检验</text><rect x="126" y="558" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="126" y="570" width="3" height="102" fill="#7dc6b2"/><text x="144" y="588" class="label" font-weight="600">多档与有效秩</text><text x="144" y="614" class="small muted">MatryoshkaLoRA</text><text x="144" y="637" class="small muted">ISO：一步切空间</text><rect x="320" y="558" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="320" y="570" width="3" height="102" fill="#a7b5ee"/><text x="338" y="588" class="label" font-weight="600">公平搜索</text><text x="338" y="614" class="small muted">各方法分别调 LR</text><text x="338" y="637" class="small muted">曲率 / batch 联动</text><rect x="514" y="558" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="514" y="570" width="3" height="102" fill="#e6bf88"/><text x="532" y="588" class="label" font-weight="600">接口一致性</text><text x="532" y="614" class="small muted">rank / alpha / 格式</text><text x="532" y="637" class="small muted">共享函数与 cache</text><rect x="708" y="558" width="174" height="126" rx="8" fill="#182230" stroke="#344355"/><rect x="708" y="570" width="3" height="102" fill="#7dc6b2"/><text x="726" y="588" class="label" font-weight="600">能力边界</text><text x="726" y="614" class="small muted">流程 / 新事实反证</text><text x="726" y="637" class="small muted">当前 vLLM 支持</text><text x="24" y="737" class="small muted">箭头表示问题继承，可组合而非逐代替换；ReLoRA 首公开于2023。证据截止2026-11-19。</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+从左向右读每个阶段，从上向下追踪瓶颈变化。**参数化路线**问“把有限方向放在哪里”：LoRA 让权重增量低秩，DyLoRA/AdaLoRA 分配预算，ReLoRA/MoRA 试图摆脱单次低秩增量的限制，MatryoshkaLoRA 学习可截断前缀。**训练路线**问“同样的参数为何学得不同”：rsLoRA 改缩放，LoRA+ 改 A/B 学习率，DoRA 分离幅度和方向，初始化方法借助权重、激活或梯度，ISO-LoRA 检查一步更新的秩利用率。
+
+**表示与部署路线**问“最终运行的还是同一个函数吗”：QLoRA 冻结低位基座，LoftQ 让初始低秩项补量化误差，QA-LoRA 使更新兼容量化组结构；合并与量化的顺序需要单独验证。**任务与系统路线**问“学到了什么，怎样同时服务很多任务”：学习与遗忘形成取舍，组合可能干扰，多租户系统必须把不同 adapter 的小计算组织成高效批处理。
+
+这些路线可以组合，不是新名字逐年淘汰旧名字。真正的转折包括从单一 rank 到预算分配、从零增量到带信息的函数保持初始化、从浮点旁路到兼容最终量化表示、从逐 adapter 切换到共享基座的异构批处理。单个榜单分数提升不自动构成范式变化。
+
+## 2. 任务与前置知识：从技术工单到下一 token
+
+设一个团队用同一基座做“技术工单摘要”和“代码助手”。摘要任务输入为故障描述、日志和历史处理，输出为症状、根因候选与下一步；代码任务输入为函数说明，输出为代码。训练数据是输入—目标输出对，常用监督微调（Supervised Fine-Tuning，SFT）只对回答 token 计算损失。继续预训练（Continued Pretraining，CPT）通常对领域文本的连续 next-token 预测计分，所需新知识和数据量可能更大。
+
+$$
+\mathcal L_{\mathrm{SFT}}=-\frac{1}{|\mathcal T|}\sum_{t\in\mathcal T}\log p_\theta(y_t\mid x,y_{<t}).
+$$
+
+这是自回归交叉熵的等价写法。$x$ 是输入 token 序列，$y_t$ 是第 $t$ 个目标 token，$\mathcal T$ 是实际计分位置集合，$\theta$ 包含冻结和可训练权重；概率无量纲，使用自然对数时损失单位为 nats/token。回答掩码排除提示词和 padding；把所有 token 都计分会改变训练目标。对一个工单，模型依次预测“症状”“可能原因”等文本，不是直接优化某个二元分类器。
+
+**参数高效微调**（Parameter-Efficient Fine-Tuning，PEFT）是训练少量参数的一类方法，LoRA 是其中一条路线。它与提示学习、增加非线性 adapter、检索增强生成（RAG）不同：LoRA 改变模型权重函数，RAG 在请求时提供外部内容。经常变化、需要可查证出处的知识仍可能适合检索；不能仅因 adapter 文件小就假定权重记忆是最佳存储方式。
+
+Transformer 的注意力中，Q/K/V 分别是查询、键和值投影，O 是注意力输出投影；MLP/FFN 是逐 token 前馈模块。`target_modules` 决定在哪些权重上增加 LoRA。只训练 Q/V 与覆盖注意力和 MLP，得到的容量、激活存储和任务效果都不同。Pythia 把 Q/K/V 合在一个矩阵中，不能把它的模块数量直接与 Llama 的分离投影比较。
+
+### 内在维度提供动机，不等于逐层矩阵秩
+
+<span id="paper-intrinsic"></span>
+
+**内在维度：一个任务所需的自由度，可能远少于基座参数数。** Aghajanyan 等2020年公开的工作 <a href="#source-1">[1]</a> 在预训练参数周围，用随机投影把低维可训练向量映射到整个参数空间。DID 是不带额外层尺度结构的直接方法，SAID 增加结构感知；投影采用高效 Fastfood 变换。它寻找“达到全量微调分数90%所需的维度”d₉₀，不是寻找每个权重矩阵的rank，也不是训练一个LoRA。
+
+<figure id="fig-intrinsic-01">
+<button class="paper-image" type="button" aria-label="Zoom: 随机子空间维度增加，任务效果怎样接近全量微调"><img src="assets/intrinsic-01.png" alt="随机子空间维度增加，任务效果怎样接近全量微调 — Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning Figure 1" width="1206" height="723" loading="lazy"></button>
+<figcaption><strong>随机子空间维度增加，任务效果怎样接近全量微调</strong><a href="https://arxiv.org/abs/2012.13255v1" target="_blank" rel="noopener">Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning</a> · Figure 1 · version 2012.13255v1 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: The following ﬁgures show the evaluation accuracy on two datasets and four models across
+a range of dimensions d for the DID method. The horizontal lines in each ﬁgure represent the 90%
+solution of the respective full model.</div><a class="source-url" href="https://arxiv.org/pdf/2012.13255v1">https://arxiv.org/pdf/2012.13255v1</a></details></figcaption></figure>
+
+**读图。** 上面板是MRPC、下面板是QQP；横轴d按对数刻度增加，纵轴是分类Accuracy，四种颜色对应BERT/RoBERTa的base/large。各色水平线是对应模型全量微调分数的90%，不是90%绝对Accuracy。观察曲线何时越过自己的参考线，才得到该模型任务组合的d₉₀。
+
+**含义与边界。** 相同d下模型表现不同，说明预训练和模型结构会改变可利用的低维解空间。对工单分类，可能只需较少参数方向便能利用已有表示；但随机全局投影并不能推导出“任一层rank8就够”。原实验每个模型任务组合扫描100个d设置并搜索四个LR，低维成功不是无需优化的结论。
+
+<figure id="fig-intrinsic-02">
+<button class="paper-image" type="button" aria-label="Zoom: d₉₀随任务、模型与投影结构改变"><img src="assets/intrinsic-02.png" alt="d₉₀随任务、模型与投影结构改变 — Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning Table 1" width="660" height="273" loading="lazy"></button>
+<figcaption><strong>d₉₀随任务、模型与投影结构改变</strong><a href="https://arxiv.org/abs/2012.13255v1" target="_blank" rel="noopener">Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning</a> · Table 1 · version 2012.13255v1 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Estimated d90 intrinsic dimension for a set
+of sentence prediction tasks and common pre-trained
+models. We present both the SAID and DID methods.</div><a class="source-url" href="https://arxiv.org/pdf/2012.13255v1">https://arxiv.org/pdf/2012.13255v1</a></details></figcaption></figure>
+
+**读表。** 行是四种模型，列按SAID/DID分别列MRPC和QQP所需维度。RoBERTa-large的SAID为207/774、DID为322/774；这些都是达到各自参考阈值的自由度估计，不是原模型剩余参数或压缩大小。MRPC约3,700训练样本、QQP约363k，不能只按参数数比较任务难度。
+
+**结论。** 表中SAID往往以更少维度达到阈值，说明怎样映射低维参数也重要。这为后来低秩微调提供动机，但d₉₀依赖投影、LR、任务与阈值，属于算法条件下的估计。把“207个方向能达到此阈值”推广成“207个数足以掌握任何新知识”，会改变原问题。
+
+
+### 本文怎样选择证据
+
+检索从奠基论文与其方法、引用和官方实现扩展，包含会改变主结论的反证及 2026 可取得原文的代表工作。首次公开时间按 submission history 记录，正式发表和 PDF 更新另列；LoRA 首公开为 2021、ICLR 发表为 2022，LoRA-FA 当前 v3 与 2023 初版有显著变化。rsLoRA 和流程知识论文的页面日期与编号月份并不完全一致，本文保留来源明示时间，不由编号推断日期。
+
+范围不承诺穷尽扩散、视觉、多模态、联邦和全部 PEFT 变体。DoRA 等原文的跨模态实验用于界定外推边界。仅作检索查漏、未引用的候选留在研究档案。全文机制统一采用 $B\in\mathbb R^{m\times r}$、$A\in\mathbb R^{r\times n}$；有些论文交换字母或用行向量输入，图中原字样保持不变，正文说明等价改写。
+
+## 3. 原始 LoRA：增量低秩，基座仍然完整
+
+<figure id="diagram-forward"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 660" role="img" aria-labelledby="svg-ad4140f4-title svg-ad4140f4-desc">
+<title id="svg-ad4140f4-title">LoRA线性层前向与反向</title><desc id="svg-ad4140f4-desc">输入经过完整冻结基座及A/B旁路后相加，反向仍传播；可合并但需要数值一致性验证。</desc>
+<defs><marker id="svg-ad4140f4-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-ad4140f4-arrow)}</style>
+<text x="24" y="36" font-size="22" font-weight="600">一个线性层：冻结大矩阵，训练小旁路，输出相加</text><rect x="24" y="112" width="170" height="120" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="124" width="3" height="96" fill="#7dc6b2"/><text x="42" y="142" class="label" font-weight="600">输入 x</text><text x="42" y="168" class="small muted">n 个特征</text><text x="42" y="191" class="small muted">工单 token 表示</text><rect x="282" y="92" width="300" height="120" rx="8" fill="#182230" stroke="#344355"/><rect x="282" y="104" width="3" height="96" fill="#a7b5ee"/><text x="300" y="122" class="label" font-weight="600">W₀：m × n（冻结）</text><text x="300" y="148" class="small muted">基座前向仍执行</text><text x="300" y="171" class="small muted">梯度仍可传给前层</text><rect x="240" y="302" width="195" height="120" rx="8" fill="#182230" stroke="#344355"/><rect x="240" y="314" width="3" height="96" fill="#7dc6b2"/><text x="258" y="332" class="label" font-weight="600">A：r × n</text><text x="258" y="358" class="small muted">输入 → r 维</text><text x="258" y="381" class="small muted">随机初始化</text><rect x="477" y="302" width="195" height="120" rx="8" fill="#182230" stroke="#344355"/><rect x="477" y="314" width="3" height="96" fill="#e6bf88"/><text x="495" y="332" class="label" font-weight="600">B：m × r</text><text x="495" y="358" class="small muted">r 维 → 输出</text><text x="495" y="381" class="small muted">初始零</text><rect x="714" y="182" width="162" height="150" rx="8" fill="#182230" stroke="#344355"/><rect x="714" y="194" width="3" height="126" fill="#7dc6b2"/><text x="732" y="212" class="label" font-weight="600">相加 → y</text><text x="732" y="238" class="small muted">W₀x + sBAx</text><text x="732" y="261" class="small muted">输出 m 维</text><path d="M197 164H278" class="line"/><path d="M106 235V362H236" class="line"/><path d="M439 362H473" class="line"/><path d="M586 153H795V178" class="line"/><path d="M676 362H795V336" class="line"/><rect x="24" y="486" width="405" height="143" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="498" width="3" height="119" fill="#7dc6b2"/><text x="42" y="516" class="label" font-weight="600">训练：省状态，不是只算旁路</text><text x="42" y="542" class="small muted">B 梯度需 AX；A 梯度常需 x</text><text x="42" y="565" class="small muted">冻结 W₀ 不切断整个反向链</text><text x="42" y="588" class="small muted">r16 / 4096²：参数比例0.78125%</text><rect x="470" y="486" width="406" height="143" rx="8" fill="#182230" stroke="#344355"/><rect x="470" y="498" width="3" height="119" fill="#a7b5ee"/><text x="488" y="516" class="label" font-weight="600">固定任务可合并</text><text x="488" y="542" class="small muted">Wmerged = W₀ + sBA</text><text x="488" y="565" class="small muted">先核对 alpha / rank / dropout</text><text x="488" y="588" class="small muted">有限精度需 logits 与任务复验</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+把一层的输入向量先投到 $r$ 维，再映射回输出维度，并加到基座输出上。图中实线是前向数据流，反向提示指出训练 B 要保留中间特征、训练 A 常要保留原输入；冻结 W₀ 并不让整条反向链消失。工单摘要和代码任务各保存一组 A/B，运行时仍需对应版本的 W₀。
+
+$$
+y=W_0x+sBAx,\qquad s=\frac{\alpha}{r},\qquad
+\operatorname{rank}(BA)\leq r.
+$$
+
+$W_0\in\mathbb R^{m\times n}$ 是冻结基座权重，$x\in\mathbb R^n$，$y\in\mathbb R^m$，$r$ 是名义 rank，$\alpha$ 是适配倍率超参数，$s$ 是无量纲缩放。秩约束只作用于单个线性层的增量 $sBA$；它不要求 $W_0$ 低秩，也不证明整个非线性网络只做 $r$ 维修改。通常没有单独的旁路非线性，因而推理前可以按矩阵代数合并。
+
+$$
+N_{\mathrm{LoRA}}=r(m+n),\qquad N_{\mathrm{full}}=mn,\qquad
+r_{\mathrm{break-even}}=\frac{mn}{m+n}.
+$$
+
+这是单个矩阵、只计 A/B 与原权重的参数记账，未含 bias、norm、embedding、额外向量或优化器。$m,n,r$ 都是维度，$N$ 是标量参数数目。4096×4096、rank16 时，A/B 共 131,072 参数，原矩阵 16,777,216 参数，比值为 0.78125%；rank2048 已与原矩阵参数数相同。只有方阵时盈亏平衡是维度的一半。即使参数数相同，因子化优化轨迹仍不等同于直接更新 W。
+
+<span id="paper-lora"></span>
+
+**LoRA：用可合并的线性低秩支路表示权重更新。** Hu等2021年公开、ICLR2022发表的工作 <a href="#source-2">[2]</a> 冻结W₀，只学习A/B；核心收益是减少梯度、优化器状态和专用任务权重。原文包括RoBERTa、DeBERTa、GPT-2和GPT-3，但并未声称小rank适用于所有任务。下面把机制、速度、质量和rank消融分别读。
+
+<figure id="fig-lora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 冻结基座与可训练低秩旁路"><img src="assets/lora-01.png" alt="冻结基座与可训练低秩旁路 — LoRA: Low-Rank Adaptation of Large Language Models Figure 1" width="360" height="330" loading="lazy"></button>
+<figcaption><strong>冻结基座与可训练低秩旁路</strong><a href="https://arxiv.org/abs/2106.09685v2" target="_blank" rel="noopener">LoRA: Low-Rank Adaptation of Large Language Models</a> · Figure 1 · version 2106.09685v2 · PDF p.1 / printed p.1
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Our reparametriza-
+tion. We only train A and B.</div><a class="source-url" href="https://arxiv.org/pdf/2106.09685v2">https://arxiv.org/pdf/2106.09685v2</a></details></figcaption></figure>
+
+**数据流。** 图左蓝色W是完整冻结基座，输入x一条路径直接乘W，另一条经A压到rank r，再经B回到输出维度，两个输出相加得到h。图中d表示基座向量宽度，r是内部瓶颈；橙色因子是可训练部分。初始化B=0、A随机使支路初始输出为0，基座行为得以保留。
+
+**用例与代价。** 工单任务只保存A/B即可与同一版本基座组合；推理固定任务时可把BA加进W，避免旁路。图没有显示bias、dropout、梯度保存和优化器，不能据此认为整层训练只计算A/B。更换adapter是在更换函数，需要同步请求与缓存身份。
+
+<figure id="fig-lora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 合并后的推理，与串联adapter的延迟不同"><img src="assets/lora-02.png" alt="合并后的推理，与串联adapter的延迟不同 — LoRA: Low-Rank Adaptation of Large Language Models Table 1" width="1197" height="282" loading="lazy"></button>
+<figcaption><strong>合并后的推理，与串联adapter的延迟不同</strong><a href="https://arxiv.org/abs/2106.09685v2" target="_blank" rel="noopener">LoRA: Low-Rank Adaptation of Large Language Models</a> · Table 1 · version 2106.09685v2 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Infernece latency of a single forward pass in GPT-2 medium measured in milliseconds, av-
+eraged over 100 trials. We use an NVIDIA Quadro RTX8000. “|Θ|” denotes the number of trainable
+parameters in adapter layers. AdapterL and AdapterH are two variants of adapter tuning, which we
+describe in Section 5.1. The inference latency introduced by adapter layers can be signiﬁcant in an
+online, short-sequence-length scenario. See the full study in Appendix B.</div><a class="source-url" href="https://arxiv.org/pdf/2106.09685v2">https://arxiv.org/pdf/2106.09685v2</a></details></figcaption></figure>
+
+**读表。** 行列按batch和序列长度列出GPT-2-medium单次forward的毫秒延迟；AdapterL/AdapterH是添加额外网络模块的两种基线，参数预算另外列出。硬件为Quadro RTX8000，100次平均。短序列、在线小batch下，新增串联模块的调用成本占比更明显。
+
+**机制与边界。** LoRA的线性更新可预先合并，所以没有必须保留的新增支路；这与串联非线性adapter不同。表测单forward，不包含服务排队、tokenizer、adapter加载或完整生成，不是TTFT/TPOT表。多任务同时共享W₀时往往保留支路，原表的“零新增延迟”前提需要重新检查。
+
+<figure id="fig-lora-03">
+<button class="paper-image" type="button" aria-label="Zoom: GPT-2的E2E生成：少参数可以达到可比词面指标"><img src="assets/lora-03.png" alt="GPT-2的E2E生成：少参数可以达到可比词面指标 — LoRA: Low-Rank Adaptation of Large Language Models Table 3" width="1197" height="561" loading="lazy"></button>
+<figcaption><strong>GPT-2的E2E生成：少参数可以达到可比词面指标</strong><a href="https://arxiv.org/abs/2106.09685v2" target="_blank" rel="noopener">LoRA: Low-Rank Adaptation of Large Language Models</a> · Table 3 · version 2106.09685v2 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3: GPT-2 medium (M) and large (L) with different adaptation methods on the E2E NLG
+Challenge. For all metrics, higher is better. LoRA outperforms several baselines with comparable
+or fewer trainable parameters. Conﬁdence intervals are shown for experiments we ran. * indicates
+numbers published in prior works.</div><a class="source-url" href="https://arxiv.org/pdf/2106.09685v2">https://arxiv.org/pdf/2106.09685v2</a></details></figcaption></figure>
+
+**读表。** M/L分别是GPT-2-medium/large，参数列是可训练数；BLEU、NIST、METEOR、ROUGE-L和CIDEr均越高越好。M的LoRA为0.35M参数，BLEU70.4±0.1；全量FT为354.92M、BLEU68.2。星号表示引用已有工作数字，误差项按原文是所运行实验的置信区间，不应改称样本标准差。
+
+**结论。** 结构化餐馆属性转文本时，基座已有语言表示，小增量可高效重组它。五个指标给不同词面匹配视角，不能把它们加成“总体智能”。已有基线与本次运行结果混列、超参数与多参考协议也需要保持原条件；这不是对工单事实正确或程序执行能力的验证。
+
+<figure id="fig-lora-04">
+<button class="paper-image" type="button" aria-label="Zoom: GPT-3三类任务，指标和参数预算必须分开"><img src="assets/lora-04.png" alt="GPT-3三类任务，指标和参数预算必须分开 — LoRA: Low-Rank Adaptation of Large Language Models Table 4" width="1197" height="414" loading="lazy"></button>
+<figcaption><strong>GPT-3三类任务，指标和参数预算必须分开</strong><a href="https://arxiv.org/abs/2106.09685v2" target="_blank" rel="noopener">LoRA: Low-Rank Adaptation of Large Language Models</a> · Table 4 · version 2106.09685v2 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 4: Performance of different adaptation methods on GPT-3 175B. We report the logical form
+validation accuracy on WikiSQL, validation accuracy on MultiNLI-matched, and Rouge-1/2/L on
+SAMSum. LoRA performs better than prior approaches, including full ﬁne-tuning. The results
+on WikiSQL have a ﬂuctuation around ±0.5%, MNLI-m around ±0.1%, and SAMSum around
+±0.2/±0.2/±0.1 for the three metrics.</div><a class="source-url" href="https://arxiv.org/pdf/2106.09685v2">https://arxiv.org/pdf/2106.09685v2</a></details></figcaption></figure>
+
+**读表。** WikiSQL列是逻辑形式验证Accuracy，MNLI-m是匹配域验证Accuracy，SAMSum是摘要ROUGE-1/2/L。4.7M LoRA的WikiSQL73.4低于全量73.8，而MNLI91.7高于89.5、SAMSum53.8/29.8/45.9高于52.0/28.0/44.5。不能照caption概括成“每一行每一项都赢全量FT”。
+
+**证据含义。** 37.7M LoRA的WikiSQL74.0接近或超过参考，但其他列并非参数越多越高。不同任务有不同典型波动；表支持有限预算下可比或更好的指定结果，不能证明全量FT理论上不如LoRA。SAMSum与工单摘要都涉及压缩信息，但数据分布和正确性需求仍有区别。
+
+<figure id="fig-lora-05">
+<button class="paper-image" type="button" aria-label="Zoom: 同为18M预算，投影位置比单个rank更重要"><img src="assets/lora-05.png" alt="同为18M预算，投影位置比单个rank更重要 — LoRA: Low-Rank Adaptation of Large Language Models Table 5" width="1164" height="240" loading="lazy"></button>
+<figcaption><strong>同为18M预算，投影位置比单个rank更重要</strong><a href="https://arxiv.org/abs/2106.09685v2" target="_blank" rel="noopener">LoRA: Low-Rank Adaptation of Large Language Models</a> · Table 5 · version 2106.09685v2 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 5: Validation accuracy on WikiSQL and MultiNLI after applying LoRA to different types of
+attention weights in GPT-3, given the same number of trainable parameters. Adapting both Wq and
+Wv gives the best performance overall. We ﬁnd the standard deviation across random seeds to be
+consistent for a given dataset, which we report in the ﬁrst column.</div><a class="source-url" href="https://arxiv.org/pdf/2106.09685v2">https://arxiv.org/pdf/2106.09685v2</a></details></figcaption></figure>
+
+**读表。** 列改变目标权重组合：只Q/K/V/O、QK、QV或全部注意力投影；为保持约18M参数，rank相应为8/4/2。WikiSQL与MNLI两行分别看效果。QV rank4的WikiSQL73.7优于Q rank8的70.4；全注意力rank2的MNLI91.7高于QV91.3。
+
+**机制。** 同预算覆盖更多接口，可以修改查询和信息内容，而不只是把容量集中在一个投影。该消融只在GPT-3注意力权重内比较，未纳入MLP，不能推出QV是所有模型的最佳target。对代码与CPT，后来的MLP/all-linear证据会改变选择。
+
+<figure id="fig-lora-06">
+<button class="paper-image" type="button" aria-label="Zoom: 原始rank消融：rank1有效是任务条件下的观察"><img src="assets/lora-06.png" alt="原始rank消融：rank1有效是任务条件下的观察 — LoRA: Low-Rank Adaptation of Large Language Models Table 6" width="1098" height="312" loading="lazy"></button>
+<figcaption><strong>原始rank消融：rank1有效是任务条件下的观察</strong><a href="https://arxiv.org/abs/2106.09685v2" target="_blank" rel="noopener">LoRA: Low-Rank Adaptation of Large Language Models</a> · Table 6 · version 2106.09685v2 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 6: Validation accuracy on WikiSQL and MultiNLI with different rank r. To our surprise, a
+rank as small as one sufﬁces for adapting both Wq and Wv on these datasets while training Wq alone
+needs a larger r. We conduct a similar experiment on GPT-2 in Section H.2.</div><a class="source-url" href="https://arxiv.org/pdf/2106.09685v2">https://arxiv.org/pdf/2106.09685v2</a></details></figcaption></figure>
+
+**读表。** 列rank1/2/4/8/64，行按目标组合和任务分组；与前表不同，这里改变rank会改变总参数数。QV在WikiSQL上从rank1的73.4到rank64的73.5，没有明显单调收益；只Q在rank1为68.8，说明位置与rank交互。
+
+**边界。** 原文自己提醒小rank不适用于所有任务，例如与预训练差异较大的语言或新知识。表中固定训练设定不排除其他LR和预算下的解。对工单，应该先保持模块和训练条件明确，再做rank扫描，不应先设定“越低越好”或“越高越好”。
+
+<figure id="fig-lora-07">
+<button class="paper-image" type="button" aria-label="Zoom: 子空间相似度：不同rank是否学到共同方向"><img src="assets/lora-07.png" alt="子空间相似度：不同rank是否学到共同方向 — LoRA: Low-Rank Adaptation of Large Language Models Figure 3" width="1197" height="402" loading="lazy"></button>
+<figcaption><strong>子空间相似度：不同rank是否学到共同方向</strong><a href="https://arxiv.org/abs/2106.09685v2" target="_blank" rel="noopener">LoRA: Low-Rank Adaptation of Large Language Models</a> · Figure 3 · version 2106.09685v2 · PDF p.11 / printed p.11
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: Subspace similarity between column vectors of Ar=8 and Ar=64 for both ∆Wq and ∆Wv.
+The third and the fourth ﬁgures zoom in on the lower-left triangle in the ﬁrst two ﬁgures. The top
+directions in r = 8 are included in r = 64, and vice versa.</div><a class="source-url" href="https://arxiv.org/pdf/2106.09685v2">https://arxiv.org/pdf/2106.09685v2</a></details></figcaption></figure>
+
+**读图。** 横纵方向索引对应从不同rank因子中提取的子空间维数，热图颜色表示归一化子空间相似度；Q和V分开，右侧两个面板放大左下区域。比较的是rank8与64所学方向的重叠，不是每个因子元素的相关性，也不是“相似度就是Accuracy”。
+
+**结论。** 较重要的小子空间在两种rank中出现重叠，支持这些设置下新增方向未必带来额外任务收益。颜色深浅和对角结构不能证明所有rank64方向无用；比较依赖SVD/子空间构造与单任务训练。非线性网络的任务容量也不能由一张单层热图直接决定。
+
+<figure id="fig-lora-08">
+<button class="paper-image" type="button" aria-label="Zoom: GPT-2附录反例：验证loss与生成指标的最佳rank不同"><img src="assets/lora-08.png" alt="GPT-2附录反例：验证loss与生成指标的最佳rank不同 — LoRA: Low-Rank Adaptation of Large Language Models Table 18" width="1074" height="456" loading="lazy"></button>
+<figcaption><strong>GPT-2附录反例：验证loss与生成指标的最佳rank不同</strong><a href="https://arxiv.org/abs/2106.09685v2" target="_blank" rel="noopener">LoRA: Low-Rank Adaptation of Large Language Models</a> · Table 18 · version 2106.09685v2 · PDF p.26 / printed p.26
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 18: Validation loss and test set metrics on E2E NLG Challenge achieved by LoRA with
+different rank r using GPT-2 Medium. Unlike on GPT-3 where r = 1 sufﬁces for many tasks, here
+the performance peaks at r = 16 for validation loss and r = 4 for BLEU, suggesting the GPT-2
+Medium has a similar intrinsic rank for adaptation compared to GPT-3 175B. Note that some of our
+hyperparameters are tuned on r = 4, which matches the parameter count of another baseline, and
+thus might not be optimal for other choices of r.</div><a class="source-url" href="https://arxiv.org/pdf/2106.09685v2">https://arxiv.org/pdf/2106.09685v2</a></details></figcaption></figure>
+
+**读表。** GPT-2-medium E2E按rank1到1024排列。val loss从1.23降到约1.16后平台，而BLEU在rank4为70.38，rank16为69.61、rank512为68.78。其他列也没有一致的单调改善；注意METEOR/ROUGE这里用0–1尺度，与主表放大后的显示口径不同。
+
+**为何必要。** 这张附录表防止把前面的GPT-3 rank1结果当作普遍规律。训练拟合、参考词面质量和最佳超参数不是同一目标；原文还说明部分超参数在rank4调过，不一定适合其他rank。正确结论是需要任务验证与公平搜索，不是“高rank容量反而更小”。
+
+
+### 为什么默认只把一边初始化为零
+
+$$
+G=\frac{\partial\mathcal L}{\partial W_{\mathrm{eff}}},\quad
+\frac{\partial\mathcal L}{\partial B}=sGA^\top,\quad
+\frac{\partial\mathcal L}{\partial A}=sB^\top G.
+$$
+
+$W_{\mathrm{eff}}=W_0+sBA$，$G\in\mathbb R^{m\times n}$ 是损失对有效权重的梯度，两个因子梯度分别为 $m\times r$ 和 $r\times n$。公式假设同一个前向及固定 s，是链式法则，不包含 Adam 的预条件。默认随机 A、零 B，使初始函数与基座相同；第一步 A 梯度为零，B 梯度通常非零。若两者都为零，两边的任务梯度也都为零；“让 adapter 初始输出为零”不意味着应该让所有参数为零。
+
+因子参数化还有坐标自由度：对可逆 $R\in\mathbb R^{r\times r}$，$BA=(BR)(R^{-1}A)$。同一增量可以有不同 A/B，这会改变优化器统计，也解释了为什么跨 adapter 平均因子并不天然有明确的函数含义。
+
+## 4. rank 与层间预算：多给方向，还是把方向给对位置
+
+同样 1M 可训练参数可以平均铺到所有层，也可以集中在任务敏感模块。前者简单、规则，后者增加选择与调度成本。工单摘要偏重原有语言能力的重组，代码 CPT 可能要求更多 MLP 和更大的容量；不能把原始 WikiSQL 上 rank1 的成功当作默认推荐。
+
+<span id="paper-dylora"></span>
+
+**DyLoRA：为一组可部署rank训练有序前缀。** 2022年公开的DyLoRA <a href="#source-3">[3]</a> 针对一个普通LoRA训练后难以直接裁小的问题，在每步采样rank b，同一个batch使用对应因子前缀，按该b缩放并计算损失。前缀反复参与不同预算下训练，形成信息优先进入靠前方向的压力；它并没有把普通LoRA的列自动变成奇异值排序。
+
+<figure id="fig-dylora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 按采样rank截取上下投影，训练可用的前缀"><img src="assets/dylora-01.png" alt="按采样rank截取上下投影，训练可用的前缀 — DyLoRA: Parameter Efficient Tuning of Pre-trained Models using Dynamic Search-Free Low-Rank Adaptation Figure 1" width="1386" height="558" loading="lazy"></button>
+<figcaption><strong>按采样rank截取上下投影，训练可用的前缀</strong><a href="https://arxiv.org/abs/2210.07558v2" target="_blank" rel="noopener">DyLoRA: Parameter Efficient Tuning of Pre-trained Models using Dynamic Search-Free Low-Rank Adaptation</a> · Figure 1 · version 2210.07558v2 · PDF p.2 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: DyLoRA: The overall diagram of our proposed method. In each iteration, we sample from a pre-deﬁned
+random distribution which will help us to truncate the up-projection and down-projection matrices in the LoRA
+(Hu et al., 2021a) objective.</div><a class="source-url" href="https://arxiv.org/pdf/2210.07558v2">https://arxiv.org/pdf/2210.07558v2</a></details></figcaption></figure>
+
+**数据流。** 输入走完整冻结W与截断支路；从最大rank因子的对应行/列取前b个，再做压缩—扩展并相加。图右的随机分布决定本步b，整批采用相同b；缩放使用alpha/b。训练中的“Frozen”变体控制只更新新增维度还是此前前缀也参与，不能把整个adapter冻结与该局部规则混淆。
+
+**直觉与限制。** 若服务需rank2/4/8三档，前两方向会在更多预算下被要求产生有效输出。这样部署rank2有训练依据；普通rank8直接截成2没有此依据。采样分布、更新规则与损失权重会改变各rank的关注度，训练一套仍不保证每档都等于独立训练的最优解。
+
+<figure id="fig-dylora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 多rank性能要按“同一训练后截断”协议比较"><img src="assets/dylora-02.png" alt="多rank性能要按“同一训练后截断”协议比较 — DyLoRA: Parameter Efficient Tuning of Pre-trained Models using Dynamic Search-Free Low-Rank Adaptation Table 2" width="1374" height="1248" loading="lazy"></button>
+<figcaption><strong>多rank性能要按“同一训练后截断”协议比较</strong><a href="https://arxiv.org/abs/2210.07558v2" target="_blank" rel="noopener">DyLoRA: Parameter Efficient Tuning of Pre-trained Models using Dynamic Search-Free Low-Rank Adaptation</a> · Table 2 · version 2210.07558v2 · PDF p.6 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 2: In this table, the task is to ﬁnd a low-rank adaptation matrix that works with different ranks at inference
+time given a ﬁxed budget (training time).</div><a class="source-url" href="https://arxiv.org/pdf/2210.07558v2">https://arxiv.org/pdf/2210.07558v2</a></details></figcaption></figure>
+
+**读表。** 每个rank块列LoRA、DyLoRA(Frozen)和DyLoRA，列为GLUE子任务各自的Accuracy/F1/MCC/Pearson及平均。这里的问题是在固定训练时间中获得跨rank可用矩阵；LoRA低rank行体现其比较协议中的截断表现，不应当作“为rank1独立充分调参训练”的普遍基线。
+
+**结论。** 小rank下DyLoRA保持较好表现，rank8处差距缩小，说明训练目标对部署前缀起作用。平均分混合多种指标，RTE等波动也较大；原表底部best(rank)另有选择口径。给工单服务分档时，先检查所有档位的实际任务与缩放，再看平均分。
+
+<figure id="fig-dylora-03">
+<button class="paper-image" type="button" aria-label="Zoom: 采样分布决定哪些rank得到更多训练关注"><img src="assets/dylora-03.png" alt="采样分布决定哪些rank得到更多训练关注 — DyLoRA: Parameter Efficient Tuning of Pre-trained Models using Dynamic Search-Free Low-Rank Adaptation Table 4" width="1374" height="414" loading="lazy"></button>
+<figcaption><strong>采样分布决定哪些rank得到更多训练关注</strong><a href="https://arxiv.org/abs/2210.07558v2" target="_blank" rel="noopener">DyLoRA: Parameter Efficient Tuning of Pre-trained Models using Dynamic Search-Free Low-Rank Adaptation</a> · Table 4 · version 2210.07558v2 · PDF p.7 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 4: Ablation Study - In this experiment, our goal is to demonstrate how the introduced distribution can affect
+the performance of DyLoRA.</div><a class="source-url" href="https://arxiv.org/pdf/2210.07558v2">https://arxiv.org/pdf/2210.07558v2</a></details></figcaption></figure>
+
+**读表。** 消融改变用于选rank的分布，保持方法主框架，再查看各rank/任务表现。分布偏向小rank会让短前缀更常被独立使用；较大rank的独有方向相对少被训练。该因素改变的不是模型最大尺寸，而是每部分获得的监督频率。
+
+**含义。** 一套动态rank模型的目标取决于部署需求。若大量请求只允许小rank，应把这些预算纳入训练分布；若所有请求都用最大rank，动态目标可能没有必要。原结果支持分布影响取舍，不证明某个分布对任意LLM与任务最优，也没有包含生产请求延迟。
+
+
+<span id="paper-adalora"></span>
+
+**AdaLoRA：跨层分配预算，不必每层同rank。** 2023年公开、ICLR2023的AdaLoRA <a href="#source-4">[4]</a> 使用近SVD形式的PΛQ，训练左右方向与对角系数，按总体重要性剪Λ。正交正则鼓励方向可分，保留被屏蔽的方向参数使后续恢复更可行；它不在每次训练步都对所有完整增量重新做昂贵SVD。
+
+<figure id="fig-adalora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 同预算不同模块与层，任务敏感度不同"><img src="assets/adalora-01.png" alt="同预算不同模块与层，任务敏感度不同 — AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning Figure 1" width="903" height="336" loading="lazy"></button>
+<figcaption><strong>同预算不同模块与层，任务敏感度不同</strong><a href="https://arxiv.org/abs/2303.10512v2" target="_blank" rel="noopener">AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning</a> · Figure 1 · version 2303.10512v2 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Given the total trainable parameters as 0.28M, we apply LoRA only to selected weight matrices (left)
+or selected layers (right) of DeBERTaV3-base and compare the fine-tuning performance on MNLI-m. Figure 1a:
+we only fine-tune a selected type of weight matrix of every transformer layer, including query/key/value
+projection (Wq, Wk, Wv), output projection (Wo) in the self-attention, and two weight matrices (Wf1, Wf2) in
+two-layer FFNs. In Figure 1b, we apply LoRA to every weight matrix of the selected layers.</div><a class="source-url" href="https://arxiv.org/pdf/2303.10512v2">https://arxiv.org/pdf/2303.10512v2</a></details></figcaption></figure>
+
+**读图。** 两面板纵轴为MNLI-m效果；左侧横轴按Q/K/V/O/FFN类型，右侧按所选层段。每种配置都约0.28M可训练参数，因此是在比较“预算放在哪”，不是“参数多少”。横轴离散类别不应被看成连续rank变化。
+
+**动机。** 部分模块/层在相同预算下带来更多收益，说明均匀分配可能浪费方向。工单训练中，所有层的适配需求也未必相同；但单次静态选择图不能直接给出最优动态分配。图采用DeBERTaV3-base/MNLI，不宜把其层偏好原封搬到Llama或代码任务。
+
+<figure id="fig-adalora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 重要性、预算日程与奇异方向屏蔽共同运行"><img src="assets/adalora-02.png" alt="重要性、预算日程与奇异方向屏蔽共同运行 — AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning Algorithm 1" width="1197" height="408" loading="lazy"></button>
+<figcaption><strong>重要性、预算日程与奇异方向屏蔽共同运行</strong><a href="https://arxiv.org/abs/2303.10512v2" target="_blank" rel="noopener">AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning</a> · Algorithm 1 · version 2303.10512v2 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Algorithm 1 AdaLoRA</div><a class="source-url" href="https://arxiv.org/pdf/2303.10512v2">https://arxiv.org/pdf/2303.10512v2</a></details></figcaption></figure>
+
+**算法。** 每步先对P、Λ、Q做梯度更新，维护参数×梯度敏感度的指数平滑与波动估计，汇总每个三元组的重要性；按当前总预算b(t)保留全模型top方向，其余Λ置零。方向参数继续保留，正交正则避免简单因子列高度相关。
+
+**边界。** 启始较大预算、逐步缩减和最后固定预算形成训练日程。重要性是局部loss代理而非“知识多少”的测量，仍受batch与标签影响。把图中的mask理解成减少最终有效方向是合理的，但训练期间保留的因子、统计和峰值内存不一定随mask数立即缩小。
+
+<figure id="fig-adalora-03">
+<button class="paper-image" type="button" aria-label="Zoom: GLUE结果：开发集、多任务指标与预算分组"><img src="assets/adalora-03.png" alt="GLUE结果：开发集、多任务指标与预算分组 — AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning Table 1" width="1197" height="549" loading="lazy"></button>
+<figcaption><strong>GLUE结果：开发集、多任务指标与预算分组</strong><a href="https://arxiv.org/abs/2303.10512v2" target="_blank" rel="noopener">AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning</a> · Table 1 · version 2303.10512v2 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Results with DeBERTaV3-base on GLUE development set. The best results on each dataset are shown
+in bold. We report the average correlation for STS-B. Full FT, HAdapter and PAdapter represent full fine-tuning,
+Houlsby adapter, and Pfeiffer adapter respectively. We report mean of 5 runs using different random seeds.</div><a class="source-url" href="https://arxiv.org/pdf/2303.10512v2">https://arxiv.org/pdf/2303.10512v2</a></details></figcaption></figure>
+
+**读表。** 按约1.2M和0.3M预算分组，列包括MNLI-m/mm、CoLA MCC、QQP Accuracy/F1、STS-B相关性等。DeBERTaV3-base、5seed均值；低预算AdaLoRA0.32M的RTE87.36，LoRA0.33M为85.56，相差1.80个百分点，不是相对提升1.8%。
+
+**结论。** 这些设置下，自适应分配在相近预算取得更好或可比开发集表现。不同方法参数数不是逐个完全相同，超参数也经搜索，所有任务平均不是一个统一Accuracy。要迁移到工单摘要，应重新验证生成质量、模块覆盖和调参预算，不能只复制GLUE均分。
+
+<figure id="fig-adalora-04">
+<button class="paper-image" type="button" aria-label="Zoom: 训练后的rank热图：稀缺方向分配到不同位置"><img src="assets/adalora-04.png" alt="训练后的rank热图：稀缺方向分配到不同位置 — AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning Figure 3" width="1065" height="519" loading="lazy"></button>
+<figcaption><strong>训练后的rank热图：稀缺方向分配到不同位置</strong><a href="https://arxiv.org/abs/2303.10512v2" target="_blank" rel="noopener">AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning</a> · Figure 3 · version 2303.10512v2 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: The resulting rank of each incremental matrix when fine-tuning DeBERTaV3-base on
+MNLI with AdaLoRA. Here the x-axis is the layer index and the y-axis represents different types of
+adapted weight matrices.</div><a class="source-url" href="https://arxiv.org/pdf/2303.10512v2">https://arxiv.org/pdf/2303.10512v2</a></details></figcaption></figure>
+
+**读图。** 横轴是层编号，纵轴是不同权重类型；颜色/数字表示最终rank。相同列内不同模块、相同模块跨层的rank可不同。它展示MNLI训练后得到的分配，不是每个权重的原始矩阵rank，更不是整个模型每层都被压成小矩阵。
+
+**用例。** 如果FFN或后层获得较多方向，部署需要为这些模块保存较大的因子；规则形状的batch内核可能需要padding或异构处理。热图证明预算确实被重新分配，不单独证明因果收益；需要与均匀分配及重要性消融一起读。
+
+<figure id="fig-adalora-05">
+<button class="paper-image" type="button" aria-label="Zoom: 消融：SVD式参数化与预算策略各贡献什么"><img src="assets/adalora-05.png" alt="消融：SVD式参数化与预算策略各贡献什么 — AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning Table 5" width="1143" height="294" loading="lazy"></button>
+<figcaption><strong>消融：SVD式参数化与预算策略各贡献什么</strong><a href="https://arxiv.org/abs/2303.10512v2" target="_blank" rel="noopener">AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning</a> · Table 5 · version 2303.10512v2 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 5: We present ablation studies about SVD-based adaptation, orthogonal regularization, and
+budget allocation in this table. For MNLI, we report the average score of m/mm acc.</div><a class="source-url" href="https://arxiv.org/pdf/2303.10512v2">https://arxiv.org/pdf/2303.10512v2</a></details></figcaption></figure>
+
+**读表。** 逐项去掉或替换SVD式适配、正交正则和预算/重要性设计，在MNLI、SST-2比较；MNLI为m/mm平均。不同消融对应不同机制，不应把全部差异归给“自动rank”。
+
+**含义。** 更可分的方向与更可靠的重要性估计有助于避免粗暴删除一组相关因子带来大扰动。某些子任务的差异较小，所以结论是组合设计在报告设置有收益，不能证明每项都普遍必要。消融还没把异构rank部署开销计进目标，质量预算最优不等于服务延迟最优。
+
+
+DyLoRA 主要学习“同一套参数的不同前缀”，AdaLoRA 主要学习“不同层之间怎样分配总体预算”。训练采样前缀、根据重要性动态剪裁与训练后直接做 SVD 截断，是不同操作。把 rank 从64改为8之前，应检查模型是否为截断部署训练过，缩放是否跟着变，截断后各任务是否重新验证。
+
+## 5. 缩放与优化器：rank 不是独立旋钮
+
+<span id="paper-rslora"></span>
+
+**rsLoRA：修正rank增长时的缩放。** 2023年11月明示首次公开的工作 <a href="#source-8">[8]</a> 在一定初始化、输入与梯度尺度条件下分析rank渐近稳定性，提出alpha/√r。关键问题是大rank的额外方向可能因缩放而学不起来，而不是rank本身没有表达能力。论文也明确渐近稳定不决定有限任务分数。
+
+<figure id="fig-rslora-01">
+<button class="paper-image" type="button" aria-label="Zoom: LoRA与rsLoRA：不同rank的训练PPL曲线"><img src="assets/rslora-01.png" alt="LoRA与rsLoRA：不同rank的训练PPL曲线 — A Rank Stabilization Scaling Factor for Fine-Tuning with LoRA Figure 2" width="819" height="630" loading="lazy"></button>
+<figcaption><strong>LoRA与rsLoRA：不同rank的训练PPL曲线</strong><a href="https://arxiv.org/abs/2312.03732v1" target="_blank" rel="noopener">A Rank Stabilization Scaling Factor for Fine-Tuning with LoRA</a> · Figure 2 · version 2312.03732v1 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2. Fine-tuning perplexity for varying rank. We vary ranks r ∈{4, 8, 32, 128, 512, 2048} and compare the fine-tuning
+performance of LoRA and rsLoRA, where higher ranks are plotted using brighter colors. We observe that LoRA models, denoted in the
+copper color gradient, converge to a similar loss irrespective of the rank of the adapter, with some larger ranks even performing slightly
+worse. In contrast, we see that our proposed method rsLoRA, denoted in the blue-to-green color gradient, unlocks improved fine-tuning
+performance with higher ranks.</div><a class="source-url" href="https://arxiv.org/pdf/2312.03732v1">https://arxiv.org/pdf/2312.03732v1</a></details></figcaption></figure>
+
+**读图。** 横轴training steps，纵轴训练PPL；rank4/8/32/128/512/2048用各色深浅表示，普通LoRA铜色组、rsLoRA蓝绿组。Llama2在20k OpenOrca样本上训练，AdamW LR5e-5、常数日程，覆盖注意力和MLP线性层。rsLoRA较大rank在此设置中降低PPL更多。
+
+**边界。** 比较验证了缩放会影响可利用rank；它不是测试集任务能力的统一排名，也没有对每个方法rank做同预算LR搜索。工单要增加rank时可以试该缩放，但alpha的数值口径已变，必须连同LR重新检查。本文固定alpha=rank实测不能对应到这张图的固定缩放实验。
+
+<figure id="fig-rslora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 梯度范数：大rank方向是否得到有效更新"><img src="assets/rslora-02.png" alt="梯度范数：大rank方向是否得到有效更新 — A Rank Stabilization Scaling Factor for Fine-Tuning with LoRA Figure 3" width="873" height="552" loading="lazy"></button>
+<figcaption><strong>梯度范数：大rank方向是否得到有效更新</strong><a href="https://arxiv.org/abs/2312.03732v1" target="_blank" rel="noopener">A Rank Stabilization Scaling Factor for Fine-Tuning with LoRA</a> · Figure 3 · version 2312.03732v1 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. Gradient norm for varying rank. To evaluate learning stability, we vary ranks r ∈{4, 8, 32, 128, 512, 2048} and compare
+the average parameter gradient norm of LoRA and rsLoRA, where higher ranks are line-plotted brighter in color. In the copper color
+gradient, LoRA has collapsing gradients with higher rank. In the blue to green color gradient, rsLoRA has the same gradient norm for
+each rank at the onset of training, while the norms remain approximately within the same order of magnitude throughout training.</div><a class="source-url" href="https://arxiv.org/pdf/2312.03732v1">https://arxiv.org/pdf/2312.03732v1</a></details></figcaption></figure>
+
+**读图。** 横轴仍为训练步，纵轴是平均参数梯度范数，图例rank与上一图对应。普通缩放的大rank初始/训练梯度更弱，rsLoRA的rank组保持更相近数量级。该轴是优化诊断，不是吞吐、精度或有效rank。
+
+**机制。** 调整缩放改变从loss回传到因子的梯度强度，使更多方向有机会参与学习。范数大并不意味着方向对任务正确，过大也可能不稳定；因此要与PPL及下游评测一起看。曲线支持报告条件下的学习动态，不是任意初始化、optimizer和alpha下都保持同一范数的定理。
+
+
+$$
+s_{\mathrm{LoRA}}=\frac{\alpha}{r},\qquad
+s_{\mathrm{rsLoRA}}=\frac{\alpha}{\sqrt r}.
+$$
+
+这是两种 rank 依赖的缩放。$\alpha$ 的数值口径、因子初始化分布、学习率和优化器必须一起给出。固定 $\alpha=16$ 时，从rank16到64，普通 LoRA 的倍率由1降为0.25，rsLoRA 由4降为2；不能在只改一项的实验里把两者说成“同样的更新强度”。本次实测令 $\alpha=r$，倍率始终1，因此不是固定 alpha 的 rsLoRA 复现。渐近稳定性论证也不保证有限模型上的任务分数随 rank 单调上升。
+
+<span id="paper-loraplus"></span>
+
+**LoRA+：让两侧因子使用不同学习率。** 2024年的LoRA+ <a href="#source-9">[9]</a> 从宽度尺度下的特征更新分析出发，设置B的LR为A的λ倍，试图让两边都有效改变函数。其渐近推导依赖初始化和宽度条件，实际λ需要验证。它与LongLoRA中“训练embedding/norm”的LoRA+名称无关。
+
+<figure id="fig-loraplus-01">
+<button class="paper-image" type="button" aria-label="Zoom: 一样的LR与不一样的函数更新尺度"><img src="assets/loraplus-01.png" alt="一样的LR与不一样的函数更新尺度 — LoRA+: Efficient Low Rank Adaptation of Large Models Figure 1" width="714" height="480" loading="lazy"></button>
+<figcaption><strong>一样的LR与不一样的函数更新尺度</strong><a href="https://arxiv.org/abs/2402.12354v2" target="_blank" rel="noopener">LoRA+: Efficient Low Rank Adaptation of Large Models</a> · Figure 1 · version 2402.12354v2 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1. The key difference between standard LoRA and
+LoRA+ is in how learning rates are set (the matrices GA and
+GB are ‘effective’ gradients from AdamW) With standard LoRA,
+the learning rate is the same for A and B, which provably leads
+to suboptimal learning when embedding dimension is large. In
+LoRA+, we set the learning rate of B to be λ× that of A, where
+λ ≫1 is fixed. We later provide guidelines on how to set λ.</div><a class="source-url" href="https://arxiv.org/pdf/2402.12354v2">https://arxiv.org/pdf/2402.12354v2</a></details></figcaption></figure>
+
+**读图。** 两边都保持W₀冻结、A/B可训练；变化在更新箭头标注，普通方法用同η，LoRA+给B用λη。G_A/G_B是AdamW的有效梯度，不是未经optimizer处理的全量W梯度。前向结构和推理rank没有因此改变。
+
+**直觉。** A决定往哪里投影，B决定怎样把投影后的信息加回输出，默认零B使两者早期角色不对称。通过学习率比调整两侧贡献，可能加快训练；但B较大LR不自动意味着更好泛化，λ和整体η仍需搜索，并要明确A/B维度与命名。
+
+<figure id="fig-loraplus-02">
+<button class="paper-image" type="button" aria-label="Zoom: 二维LR扫描，最优点可能远离等LR对角线"><img src="assets/loraplus-02.png" alt="二维LR扫描，最优点可能远离等LR对角线 — LoRA+: Efficient Low Rank Adaptation of Large Models Figure 3" width="1467" height="372" loading="lazy"></button>
+<figcaption><strong>二维LR扫描，最优点可能远离等LR对角线</strong><a href="https://arxiv.org/abs/2402.12354v2" target="_blank" rel="noopener">LoRA+: Efficient Low Rank Adaptation of Large Models</a> · Figure 3 · version 2402.12354v2 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. Test accuracy of Roberta-base finetuning for 3 epochs on MNLI, QQP, QNLI, and 10 epochs on SST2, with sequence length
+T = 128 and half precision (FP16). LoRA hyperparameters are set to α = r = 8. All values are averaged over 3 random seeds
+(we do not show confidence intervals for better visualizations, but fluctuations are of order 0.1%, see Figure 7 for instance). For better
+visualization, when accuracy is lower than a fixed threshold, we set it to threshold. Values shown in red are: 1) the best accuracy (overall)
+and 2) the accuracy for a set of learning rates where ηB and ηA are close in order of magnitude (ηB/ηA ∈[1, 1.25]).</div><a class="source-url" href="https://arxiv.org/pdf/2402.12354v2">https://arxiv.org/pdf/2402.12354v2</a></details></figcaption></figure>
+
+**读图。** 四个热图从左至右是MNLI、QQP、SST-2、QNLI，两轴为A/B的LR，格点颜色/红字对应Accuracy。RoBERTa-base、rank=alpha=8、length128、FP16；MNLI、QQP、QNLI为3epochs，SST-2为10，结果平均3seeds。原文为可视化把低于阈值的数值截到阈值，不能从颜色推断更差格点真实值。
+
+**结论。** 最优区域与等LR附近比较显示两侧LR可以有不同合适尺度。图没有把置信区间画出，不能把很小颜色差异都当作显著。工单可先搜索整体LR和有限的比例集合，完整二维搜索成本也应纳入“效率”。
+
+<figure id="fig-loraplus-03">
+<button class="paper-image" type="button" aria-label="Zoom: MNLI固定LR比：调过基础LR后的比较"><img src="assets/loraplus-03.png" alt="MNLI固定LR比：调过基础LR后的比较 — LoRA+: Efficient Low Rank Adaptation of Large Models Figure 7" width="660" height="342" loading="lazy"></button>
+<figcaption><strong>MNLI固定LR比：调过基础LR后的比较</strong><a href="https://arxiv.org/abs/2402.12354v2" target="_blank" rel="noopener">LoRA+: Efficient Low Rank Adaptation of Large Models</a> · Figure 7 · version 2402.12354v2 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 7. Test accuracy of Roberta-base finetuned on the MNLI
+task in two setups: (LoRA+) ηB = 24ηA and (Standard) ηB =
+ηA. ηA is tuned using a grid search.</div><a class="source-url" href="https://arxiv.org/pdf/2402.12354v2">https://arxiv.org/pdf/2402.12354v2</a></details></figcaption></figure>
+
+**读图。** 横轴训练step，纵轴测试Accuracy；两条曲线分别是η_B=η_A与η_B=24η_A各自网格搜索η_A后的最佳配置。图内“2X SpeedUp”表示达到图示准确率所需训练步数约减半，不是单步算子速度提高两倍。
+
+**边界。** 曲线说明此RoBERTa/MNLI协议下比例24有收益，不是B/A比24的全局推荐。改变模型、rank、训练步数或初始化后应重测；与2026的公平搜索研究一起读，能把“优化几何需要不同LR”与“所有新变体必胜普通LoRA”分开。
+
+
+<span id="paper-lrmatters"></span>
+
+**Learning Rate Matters：给各变体合适LR后，差距可能缩小。** 2026年的研究 <a href="#source-28">[28]</a> 比较四种基座、常识/数学/代码/指令任务，在至多16点LR网格及部分rank/batch组合中复测，alpha=r。它关注公平搜索与曲率，不证明所有LoRA改进无价值。
+
+<figure id="fig-lrmatters-01">
+<button class="paper-image" type="button" aria-label="Zoom: 同一任务十种方法，最佳LR区间明显不同"><img src="assets/lrmatters-01.png" alt="同一任务十种方法，最佳LR区间明显不同 — Learning Rate Matters: Vanilla LoRA May Suffice for LLM Fine-tuning Figure 1" width="1200" height="543" loading="lazy"></button>
+<figcaption><strong>同一任务十种方法，最佳LR区间明显不同</strong><a href="https://arxiv.org/abs/2602.04998v2" target="_blank" rel="noopener">Learning Rate Matters: Vanilla LoRA May Suffice for LLM Fine-tuning</a> · Figure 1 · version 2602.04998v2 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Performance of Qwen3-0.6B fine-tuned on mathematical reasoning tasks under rank 128
+and batch size 64 across learning rates. Different methods reach a similar performance level once the
+learning rate is properly tuned. Each point is averaged over three training runs. We annotate the peak
+accuracy of each method and sort methods by their optimal learning rate ranges. Results for other
+model–task combinations and training setups are reported in Sec. 3.3 and Appendix Sec. A.</div><a class="source-url" href="https://arxiv.org/pdf/2602.04998v2">https://arxiv.org/pdf/2602.04998v2</a></details></figcaption></figure>
+
+**读图。** Qwen3-0.6B、数学、rank128、batch64；横轴是方法，纵轴LR，点的颜色按旁边色条表示Accuracy，每点三次均值。各列标出峰值，集中约49–50%，LoRA49.60、GA49.90，但峰值所在LR相距较大。
+
+**含义。** 只在某个固定LR比较会把优化步长适配误写成方法容量差异。图中的额外基线为本研究对照，不新增本文独立引用。相近峰值不意味着预处理、收敛成本、方差与跨域能力相同；工单应比较同搜索预算和同质量成本。
+
+<figure id="fig-lrmatters-02">
+<button class="paper-image" type="button" aria-label="Zoom: batch改变合适LR，不能固定比例后直接迁移"><img src="assets/lrmatters-02.png" alt="batch改变合适LR，不能固定比例后直接迁移 — Learning Rate Matters: Vanilla LoRA May Suffice for LLM Fine-tuning Table 1" width="1200" height="528" loading="lazy"></button>
+<figcaption><strong>batch改变合适LR，不能固定比例后直接迁移</strong><a href="https://arxiv.org/abs/2602.04998v2" target="_blank" rel="noopener">Learning Rate Matters: Vanilla LoRA May Suffice for LLM Fine-tuning</a> · Table 1 · version 2602.04998v2 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Performance of Gemma-3-1B on mathematical reasoning task across varying batch sizes and
+learning rates (r = 128). Results are reported as mean ± standard deviations over three independent
+runs. Best results are highlighted in bold, and configurations achieving ≥18.5% accuracy (i.e.,
+≈90% of the maximum) are shaded in green (
+). While all methods achieve comparable peak
+accuracies, the optimal learning rates vary depending on both the fine-tuning method and batch size.</div><a class="source-url" href="https://arxiv.org/pdf/2602.04998v2">https://arxiv.org/pdf/2602.04998v2</a></details></figcaption></figure>
+
+**读表。** Gemma3-1B数学/r128，方法×batch16/64/128为行、LR为列，三种子mean±SD。LoRA batch16最佳约2e-4/20.00，batch64约6.3e-4/20.46；绿格是≥18.5的接近最优区，不是显著性检验。
+
+**机制与边界。** batch改变梯度噪声与步数，初始化改变局部尺度，两者共同移动合适区间。某些过大LR使Accuracy近零，不能归因于rank表达不足。对工单重新设置累积/batch后应复查步长，而非照搬其他模型默认值。
+
+<figure id="fig-lrmatters-03">
+<button class="paper-image" type="button" aria-label="Zoom: 先各自调LR，再问增加rank是否有效"><img src="assets/lrmatters-03.png" alt="先各自调LR，再问增加rank是否有效 — Learning Rate Matters: Vanilla LoRA May Suffice for LLM Fine-tuning Figure 4" width="1170" height="405" loading="lazy"></button>
+<figcaption><strong>先各自调LR，再问增加rank是否有效</strong><a href="https://arxiv.org/abs/2602.04998v2" target="_blank" rel="noopener">Learning Rate Matters: Vanilla LoRA May Suffice for LLM Fine-tuning</a> · Figure 4 · version 2602.04998v2 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4: Best achievable performance of LoRA and its advanced variants across adapter ranks on
+Gemma-3-1B (B = 64). With properly tuned learning rates, all methods exhibit similar performance
+improvement trends as the rank increases, though subtle rank-dependent behaviors emerge. Results
+are reported with means and standard deviations over three independent runs. Additional rank-tuning
+results for Llama-2-7B are deferred to Appendix Sec. A.2.</div><a class="source-url" href="https://arxiv.org/pdf/2602.04998v2">https://arxiv.org/pdf/2602.04998v2</a></details></figcaption></figure>
+
+**读图。** Gemma3-1B、batch64，横轴rank4–256，纵轴数学/代码Accuracy，两面板均为各rank调好LR后的结果，误差为三次SD。不同方法呈相近增长趋势，细小局部差异需结合误差读。
+
+**结论。** “高rank无用”在合理调参后可能改变，与本次固定LR的rank64退化形成清楚对照。并非完整扫描所有超参数组合，成本也随rank增加；图不能给出任意工单最优rank或跨任务统一冠军。
+
+<figure id="fig-lrmatters-04">
+<button class="paper-image" type="button" aria-label="Zoom: Hessian曲率诊断解释为什么步长不能统一"><img src="assets/lrmatters-04.png" alt="Hessian曲率诊断解释为什么步长不能统一 — Learning Rate Matters: Vanilla LoRA May Suffice for LLM Fine-tuning Figure 5" width="522" height="390" loading="lazy"></button>
+<figcaption><strong>Hessian曲率诊断解释为什么步长不能统一</strong><a href="https://arxiv.org/abs/2602.04998v2" target="_blank" rel="noopener">Learning Rate Matters: Vanilla LoRA May Suffice for LLM Fine-tuning</a> · Figure 5 · version 2602.04998v2 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 5: Distributions of the ratios of
+the top loss Hessian eigenvalues relative to
+LoRA for Query projection matrices across
+Transformer layers on Qwen3 (r = 128).
+Dashed lines indicate the medians.</div><a class="source-url" href="https://arxiv.org/pdf/2602.04998v2">https://arxiv.org/pdf/2602.04998v2</a></details></figcaption></figure>
+
+**读图。** Query投影跨层的loss Hessian最大特征值，相对LoRA归一化；横轴比值含对数尺度、纵轴密度，虚线中位数。不同初始化的曲率分布有明显尺度差，较陡方向通常需要更谨慎步长。
+
+**边界。** 这是选定因子坐标下局部曲率，非整个训练全局条件数，也不自动决定Adam最佳LR。它提供机制线索，与实际搜索共同支持公平比较；高曲率不直接等于效果差，初始化与optimizer应一起看。
+
+
+训练矩阵乘积时，“一样的学习率”并不等于“一样的函数变化”。LoRA+ 处理两侧因子的尺度问题；2026 的学习率研究进一步提醒，初始化方法也改变损失曲率和最佳步长。严谨比较应同时报告等预算搜索后的效果、达到目标效果的训练成本、初始化预处理成本及方差，而不是只比较一个默认学习率。
+
+## 6. 改参数化与少存激活：DoRA、VeRA、LoRA-FA
+
+<span id="paper-dora"></span>
+
+**DoRA：把权重向量的长度与方向分别训练。** 2024年的DoRA <a href="#source-10">[10]</a> 用低秩因子更新方向，另学幅度向量，试图缓解普通LoRA对两者耦合控制的限制。原图按列向量归一化，PEFT Linear实现按输出行处理，本文使用独立向量表达统一解释。它增加范数计算与幅度参数，整体权重增量不再保证rank≤r。
+
+<figure id="fig-dora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 先分解幅度与方向，再用低秩因子调整方向"><img src="assets/dora-01.png" alt="先分解幅度与方向，再用低秩因子调整方向 — DoRA: Weight-Decomposed Low-Rank Adaptation Figure 1" width="738" height="549" loading="lazy"></button>
+<figcaption><strong>先分解幅度与方向，再用低秩因子调整方向</strong><a href="https://arxiv.org/abs/2402.09353v6" target="_blank" rel="noopener">DoRA: Weight-Decomposed Low-Rank Adaptation</a> · Figure 1 · version 2402.09353v6 · PDF p.1 / printed p.1
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1. An overview of our proposed DoRA, which decomposes
+the pre-trained weight into magnitude and direction components
+for fine-tuning, especially with LoRA to efficiently update the
+direction component. Note that || · ||c denotes the vector-wise
+norm of a matrix across each column vector.</div><a class="source-url" href="https://arxiv.org/pdf/2402.09353v6">https://arxiv.org/pdf/2402.09353v6</a></details></figcaption></figure>
+
+**数据流。** 左侧预训练权重先拆出向量范数与单位方向；Adapt阶段幅度可训练，方向经A/B更新后重新归一化，Merge把两者重新相乘。蓝色为冻结，绿色为可训练；图中“Direction”不是另一个完整可训练矩阵，而是基座方向加低秩项。
+
+**直觉与边界。** 工单任务可以改变某输出特征的强度，同时调整其对输入特征的选择。初始幅度为原范数、低秩增量为零时保持W₀；后续幅度也缩放原方向，因此不能继续套用普通LoRA的总增量秩上界。图未计入训练时范数反向与缓存成本。
+
+<figure id="fig-dora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 幅度—方向散点：优化轨迹不同于参数数目"><img src="assets/dora-02.png" alt="幅度—方向散点：优化轨迹不同于参数数目 — DoRA: Weight-Decomposed Low-Rank Adaptation Figure 2" width="1467" height="336" loading="lazy"></button>
+<figcaption><strong>幅度—方向散点：优化轨迹不同于参数数目</strong><a href="https://arxiv.org/abs/2402.09353v6" target="_blank" rel="noopener">DoRA: Weight-Decomposed Low-Rank Adaptation</a> · Figure 2 · version 2402.09353v6 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2. Magnitude and direction updates of (a) FT, (b) LoRA, and (c) DoRA of the query matrices across different layers and intermediate
+steps. Different markers represent matrices of different training steps and different colors represent the matrices of each layer.</div><a class="source-url" href="https://arxiv.org/pdf/2402.09353v6">https://arxiv.org/pdf/2402.09353v6</a></details></figcaption></figure>
+
+**读图。** 横轴D是方向变化、纵轴M是幅度变化；三个面板分别为全量FT、LoRA、DoRA，颜色对应层，形状对应中间步与最终步。不同面板坐标范围不同，不能只按点云画面大小比较变化量；原文关注两种变化的相关结构。
+
+**含义。** 普通因子更新与幅度分离更新形成不同轨迹，支持“相同rank并非相同优化几何”。它是query矩阵的诊断，不是所有层的质量证明。相关性接近FT也不保证更好的工单摘要，仍要读取下游任务与实现成本。
+
+<figure id="fig-dora-03">
+<button class="paper-image" type="button" aria-label="Zoom: 常识任务结果：同rank、半rank与不同基座分开看"><img src="assets/dora-03.png" alt="常识任务结果：同rank、半rank与不同基座分开看 — DoRA: Weight-Decomposed Low-Rank Adaptation Table 1" width="1467" height="684" loading="lazy"></button>
+<figcaption><strong>常识任务结果：同rank、半rank与不同基座分开看</strong><a href="https://arxiv.org/abs/2402.09353v6" target="_blank" rel="noopener">DoRA: Weight-Decomposed Low-Rank Adaptation</a> · Table 1 · version 2402.09353v6 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1. Accuracy comparison of LLaMA 7B/13B, LLaMA2 7B, and LLaMA3 8B with various PEFT methods on eight commonsense
+reasoning datasets. Results of all the baseline methods on LLaMA 7B/13B are taken from (Hu et al., 2023). Results of LoRA on LLaMA2
+7B and LLaMA3 8B are obtained using the hyperparameters described in (Hu et al., 2023). DoRA†: the adjusted version of DoRA with
+the rank halved.</div><a class="source-url" href="https://arxiv.org/pdf/2402.09353v6">https://arxiv.org/pdf/2402.09353v6</a></details></figcaption></figure>
+
+**读表。** 每个模型块列八个常识任务Accuracy及算术平均，参数列是可训练比例。LLaMA-7B的LoRA为0.83%/74.7，DoRA为0.84%/78.4；DoRA†把方向rank减半，0.43%/77.5。LLaMA2-7B的半rank均分80.5还高于完整rank79.7，说明更大并非每次更好。
+
+**比较边界。** LLaMA1部分基线引用已有工作，LLaMA2/3的LoRA按参考超参数运行；不是所有方法等预算重搜。单项如SIQA也未全部改善。表支持这些常识设置中的收益，不宜按混合模型块排序，更不代表新事实或流程能力。
+
+<figure id="fig-dora-04">
+<button class="paper-image" type="button" aria-label="Zoom: rank扫描：方向参数化改变低预算表现"><img src="assets/dora-04.png" alt="rank扫描：方向参数化改变低预算表现 — DoRA: Weight-Decomposed Low-Rank Adaptation Figure 5" width="684" height="399" loading="lazy"></button>
+<figcaption><strong>rank扫描：方向参数化改变低预算表现</strong><a href="https://arxiv.org/abs/2402.09353v6" target="_blank" rel="noopener">DoRA: Weight-Decomposed Low-Rank Adaptation</a> · Figure 5 · version 2402.09353v6 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 5. Average accuracy of LoRA and DoRA for varying ranks
+for LLaMA-7B on the commonsense reasoning tasks.</div><a class="source-url" href="https://arxiv.org/pdf/2402.09353v6">https://arxiv.org/pdf/2402.09353v6</a></details></figcaption></figure>
+
+**读图。** 横轴rank4/8/16/32/64，纵轴LLaMA-7B八任务平均Accuracy，两条曲线比较LoRA与DoRA。较低rank差距更大，DoRA曲线更早进入较高分区；图内百分比标注须按原文口径读，不直接改写为百分点。
+
+**机制与限制。** 幅度向量提供低秩方向之外的自由度，可能让极小rank也有效调节特征强弱；这不意味着相同rank就是相同参数预算。若工单仅允许很小adapter，可比较同rank和同参数两种预算，另核查LR与训练方差。
+
+<figure id="fig-dora-05">
+<button class="paper-image" type="button" aria-label="Zoom: 省内存版本：detach范数是实际反向修改"><img src="assets/dora-05.png" alt="省内存版本：detach范数是实际反向修改 — DoRA: Weight-Decomposed Low-Rank Adaptation Table 7" width="1467" height="195" loading="lazy"></button>
+<figcaption><strong>省内存版本：detach范数是实际反向修改</strong><a href="https://arxiv.org/abs/2402.09353v6" target="_blank" rel="noopener">DoRA: Weight-Decomposed Low-Rank Adaptation</a> · Table 7 · version 2402.09353v6 · PDF p.14 / printed p.14
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 7. GPU cost and accuracy of DoRA with or without the modification on the commonsense reasoning tasks and image-text
+understanding tasks.</div><a class="source-url" href="https://arxiv.org/pdf/2402.09353v6">https://arxiv.org/pdf/2402.09353v6</a></details></figcaption></figure>
+
+**读表。** 两组分别是LLaMA-7B常识与VL-BART图文任务，对照“w/o modification”和修改版；LLaMA-7B内存37.3→28.2GB、均分78.3→78.1，VL-BART为23.4→20.5GB。batch/累积和可训练参数比例另列，不能把两种模型内存直接比较。
+
+**代价。** 把范数从反向图detach能减少保存和计算，但改变梯度，不能称为精确同一优化算法的免费提速。接近分数仅是报告的任务观察；本文没有复现其GPU峰值，后面的isolated Linear实验测的是另一种固定A机制。
+
+
+$$
+w_j'=m_j\,\frac{v_j+\delta v_j}{\|v_j+\delta v_j\|_2},
+\qquad \Delta V=sBA.
+$$
+
+这是 DoRA 的独立向量等价写法，避免论文列向量与实现输出行的差异。$j$ 标识一个被归一化的权重向量，$v_j$ 是原方向向量，$m_j$ 是可训练幅度，$\delta v_j$ 是低秩方向矩阵的对应向量，范数和幅度具有同一权重单位。初始化 $m_j=\|v_j\|_2$、$\delta v_j=0$ 保持原函数。直觉是分别调“方向”和“长度”；整体 $W'-W_0$ 不一定秩≤r，因为幅度缩放也作用于原权重。
+
+<span id="paper-vera"></span>
+
+**VeRA：共享冻结随机投影，只为任务训练缩放向量。** 2023年公开的VeRA <a href="#source-11">[11]</a> 在LoRA支路中加入两个向量，随机A/B共享且不更新。任务专用存储显著缩小，但投影仍要执行；共享适用于兼容尺寸，较小层可按实现截取。
+
+<figure id="fig-vera-01">
+<button class="paper-image" type="button" aria-label="Zoom: 矩阵冻结并共享，学习哪些投影与输出更重要"><img src="assets/vera-01.png" alt="矩阵冻结并共享，学习哪些投影与输出更重要 — VeRA: Vector-based Random Matrix Adaptation Figure 1" width="1200" height="504" loading="lazy"></button>
+<figcaption><strong>矩阵冻结并共享，学习哪些投影与输出更重要</strong><a href="https://arxiv.org/abs/2310.11454v2" target="_blank" rel="noopener">VeRA: Vector-based Random Matrix Adaptation</a> · Figure 1 · version 2310.11454v2 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Schematic comparison of LoRA (left) and VeRA (right). LoRA updates the weights matrix
+W by training the low-rank matrices A and B, with intermediate rank r. In VeRA these matrices are
+frozen, shared across all layers, and adapted with trainable vectors d and b, substantially reducing
+the number of trainable parameters. In both cases, low-rank matrices and vectors can be merged into
+original weights matrix W, introducing no additional latency.</div><a class="source-url" href="https://arxiv.org/pdf/2310.11454v2">https://arxiv.org/pdf/2310.11454v2</a></details></figcaption></figure>
+
+**数据流。** 左侧LoRA训练两个矩阵；右侧VeRA保留输入→A→d→B→b→相加的路线，d沿rank维缩放，b沿输出维缩放。图用蓝色/橙色区分冻结与可训练，并标明跨层共享。b初始零、d为一，使新增输出初始零。
+
+**用例。** 工单与代码任务只保存各自b/d，相同随机投影由共享来源提供。它降低参数与optimizer状态，却把可表示方向限制在固定投影构成的族内。seed不能独立保证跨平台逐位重现，还需RNG算法、尺寸和精度身份。
+
+<figure id="fig-vera-02">
+<button class="paper-image" type="button" aria-label="Zoom: MT-Bench：百倍少参数与近似分数有明确协议"><img src="assets/vera-02.png" alt="MT-Bench：百倍少参数与近似分数有明确协议 — VeRA: Vector-based Random Matrix Adaptation Table 4" width="588" height="405" loading="lazy"></button>
+<figcaption><strong>MT-Bench：百倍少参数与近似分数有明确协议</strong><a href="https://arxiv.org/abs/2310.11454v2" target="_blank" rel="noopener">VeRA: Vector-based Random Matrix Adaptation</a> · Table 4 · version 2310.11454v2 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 4: Average scores on MT-Bench assigned by GPT-4 to the answers generated by models
+fine-tuned with VeRA and LoRA methods, and the base Llama 13B model. VeRA closely matches
+performance of LoRA on the instruction-following task, with 100x reduction in trainable parameters.</div><a class="source-url" href="https://arxiv.org/pdf/2310.11454v2">https://arxiv.org/pdf/2310.11454v2</a></details></figcaption></figure>
+
+**读表。** 纵向按Llama/Llama2的7B/13B列LoRA、VeRA，可训练参数与GPT-4平均评分分开。Llama13B为250.3M→2.4M，分数5.31→5.22；Llama2-13B则5.77→5.93。表中的基座Llama13B参考2.61不能替代各模型自己的未训练基线。
+
+**边界。** 支持指令回答条件下的参数—效果取舍，不是所有任务精度相同的证明。GPT-4裁判版本与回答协议影响分数，表没有覆盖延迟、激活峰值、知识保持；对工单需另评事实完整性和遗漏率。
+
+<figure id="fig-vera-03">
+<button class="paper-image" type="button" aria-label="Zoom: 共享与独立投影消融，收益不必来自每层新矩阵"><img src="assets/vera-03.png" alt="共享与独立投影消融，收益不必来自每层新矩阵 — VeRA: Vector-based Random Matrix Adaptation Table 7" width="738" height="129" loading="lazy"></button>
+<figcaption><strong>共享与独立投影消融，收益不必来自每层新矩阵</strong><a href="https://arxiv.org/abs/2310.11454v2" target="_blank" rel="noopener">VeRA: Vector-based Random Matrix Adaptation</a> · Table 7 · version 2310.11454v2 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 7: Results for selected GLUE tasks using shared and unique random matrices.</div><a class="source-url" href="https://arxiv.org/pdf/2310.11454v2">https://arxiv.org/pdf/2310.11454v2</a></details></figcaption></figure>
+
+**读表。** Shared/Unique两行比较选定GLUE任务，MRPC/RTE、CoLA、STS-B指标口径不同，误差项保留原表。MRPC90.0±0.9与90.7±0.3，RTE两者84.6；不能把这些相近均值说成逐位相同或已证明统计等价。
+
+**含义。** 共享在这些设置中没有明显破坏效果，支持减少专用存储的设计。任务、层形状和投影初始化仍可能改变结论；它没有回答独立矩阵在复杂代码CPT是否必要，也不能从参数数推算实际吞吐。
+
+
+$$
+\Delta W=\operatorname{diag}(b)B\operatorname{diag}(d)A.
+$$
+
+这是 VeRA 在本文维度下的写法。随机 A/B 冻结且可跨层共享，$b\in\mathbb R^m$ 和 $d\in\mathbb R^r$ 可训练，`diag` 把向量放到对角线上；只计专用向量时每层 $m+r$ 参数。$b=0$ 保持初始函数。共享随机投影仍需在执行时可获得，seed、RNG 算法、尺寸、精度和共享规则必须一致；“无需为每个任务保存随机矩阵”不等于执行时没有矩阵或激活开销。
+
+<span id="paper-lorafa"></span>
+
+**LoRA-FA：固定输入投影减少激活保存，v3另加入Gram修正。** 2023初版到2026 v3 <a href="#source-17">[17]</a> 已有显著变化，本文截图来自v3。固定A使B更新只需要低维AX，省下为A求梯度所需的原输入；v3 optimizer又修正固定子空间内的梯度。本文普通fixed-A实验只验证第一项。
+
+<figure id="fig-lorafa-01">
+<button class="paper-image" type="button" aria-label="Zoom: 固定哪一侧，决定反向需要保留什么"><img src="assets/lorafa-01.png" alt="固定哪一侧，决定反向需要保留什么 — LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning Figure 1" width="1191" height="477" loading="lazy"></button>
+<figcaption><strong>固定哪一侧，决定反向需要保留什么</strong><a href="https://arxiv.org/abs/2308.03303v3" target="_blank" rel="noopener">LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning</a> · Figure 1 · version 2308.03303v3 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: The illustration of (a) full-parameter fine-tuning (Full-FT), (b) LoRA, and (c) LoRA-FA.</div><a class="source-url" href="https://arxiv.org/pdf/2308.03303v3">https://arxiv.org/pdf/2308.03303v3</a></details></figcaption></figure>
+
+**读图。** 三面板依次全量FT、LoRA、固定A的LoRA-FA，冻结与可训练由颜色区分。输入X沿完整W路径和低秩路径流动，FA仍训练输出侧B，也仍需向前层传播输入梯度；并非切断整个模型反向。
+
+**机制。** 对B求梯度使用AX即可，对A求梯度则需要X。若工单序列很长，bs×d通常远大于bs×r，这个保存差异可能比再减一点adapter参数更有价值。具体计算图的loss、attention和checkpointing仍可能支配全模型峰值。
+
+<figure id="fig-lorafa-02">
+<button class="paper-image" type="button" aria-label="Zoom: 单层字节记账：固定B不会得到同样激活收益"><img src="assets/lorafa-02.png" alt="单层字节记账：固定B不会得到同样激活收益 — LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning Table 1" width="666" height="234" loading="lazy"></button>
+<figcaption><strong>单层字节记账：固定B不会得到同样激活收益</strong><a href="https://arxiv.org/abs/2308.03303v3" target="_blank" rel="noopener">LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning</a> · Table 1 · version 2308.03303v3 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Memory complexity comparison among full fine-tune (FT), LoRA, LoRA-FA and LoRA-FB
+for a single linear layer with 16-bit mixed-precision training. # TPs is the number of trainable
+parameters. d, r, b, s are hidden dimension, LoRA rank, batch size, and sequence length, respectively.
+We calculate the weight (W), gradient (G), optimizer (O), activation (A) in the unit of Bytes.</div><a class="source-url" href="https://arxiv.org/pdf/2308.03303v3">https://arxiv.org/pdf/2308.03303v3</a></details></figcaption></figure>
+
+**读表。** 方阵宽度d、rank r、batch b、序列s；W/G/O/A分别权重、梯度、optimizer和激活，单位Bytes，按16-bit混合精度假设。LoRA激活2bsd+2bsr，FA仅2bsr，而固定B的FB仍需2bsd；FA/FB可训练数同为dr。
+
+**边界。** 表把方法额外所需的关键输入激活作解析记账，不是完整Transformer峰值测量；optimizer精度、额外buffer与分布式策略改变数值。它说明“冻结一半参数”不足以解释内存，必须确认冻结的是哪一侧、反向具体保存什么。
+
+<figure id="fig-lorafa-03">
+<button class="paper-image" type="button" aria-label="Zoom: 峰值与MFU：长度和batch条件不同"><img src="assets/lorafa-03.png" alt="峰值与MFU：长度和batch条件不同 — LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning Figure 2" width="1128" height="477" loading="lazy"></button>
+<figcaption><strong>峰值与MFU：长度和batch条件不同</strong><a href="https://arxiv.org/abs/2308.03303v3" target="_blank" rel="noopener">LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning</a> · Figure 2 · version 2308.03303v3 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: (a): Dissecting the runtime memory overhead of different methods in fine-tuning Llama2-
+7B. We use a global batch size of 8, and a maximum sequence length of 1024. The dashed red
+line denotes the 80GB capacity of the NVIDIA A800 GPU. (b): Model FLOPs utilization (MFU)
+of different methods in fine-tuning Llama2-7B. To ensure the successful execution of other PEFT
+methods under most batch size settings, the sequence length is fixed at 512. The ranks for all methods
+in (a) and (b) are fixd to 64.</div><a class="source-url" href="https://arxiv.org/pdf/2308.03303v3">https://arxiv.org/pdf/2308.03303v3</a></details></figcaption></figure>
+
+**读图。** 左面板Llama2-7B、全局batch8、length1024、rank64，按内存组成叠加，虚线A80080GB，FA总量52.2GB。右面板length512，横轴batch、纵轴MFU，并标TFLOPS；两面板不能当作同一长度下的成对质量—速度实验。
+
+**含义。** 在该实现设置中激活成本决定多数方法能否运行，固定A提高可容纳batch并改变利用率。MFU依赖计算量定义，不等于tokens/s或TTFT。把“其他方法OOM”推广为任意checkpointing/量化实现都不可运行，会超出原实验。
+
+<figure id="fig-lorafa-04">
+<button class="paper-image" type="button" aria-label="Zoom: 先修正B梯度，再更新Adam状态"><img src="assets/lorafa-04.png" alt="先修正B梯度，再更新Adam状态 — LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning Algorithm 1" width="1197" height="903" loading="lazy"></button>
+<figcaption><strong>先修正B梯度，再更新Adam状态</strong><a href="https://arxiv.org/abs/2308.03303v3" target="_blank" rel="noopener">LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning</a> · Algorithm 1 · version 2308.03303v3 · PDF p.19 / printed p.19
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Algorithm 1: AdamW with LoRA-FA</div><a class="source-url" href="https://arxiv.org/pdf/2308.03303v3">https://arxiv.org/pdf/2308.03303v3</a></details></figcaption></figure>
+
+**算法。** 初始化随机A、零B，冻结A并预计算Gram逆K；每步获得B梯度，乘K与(r/alpha)²，然后更新一阶/二阶矩、偏差修正、B和weight decay。这个顺序决定optimizer状态看到的是修正后梯度。
+
+**边界。** A须满行秩且数值良态，逆的缓存也有成本。固定A的行空间仍限制所有可表示增量，Gram修正不能凭空加入空间外方向；v3“任意full-rank A表达等价”的无条件说法过强。普通fixed-A+AdamW不包含该算法步骤。
+
+
+固定 A 后，学习到的增量行空间限制在 A 的行空间内。对任意 full-row-rank A，不能仅因它有 r 个独立方向就声称与任意可训练 A 表达能力相同。LoRA-FA v3 的内存机制和 Gram 修正可核验，其更强的等价论断需要额外子空间条件。
+
+$$
+\widetilde g_B=\frac{1}{s^2}\,g_B(AA^\top)^{-1}.
+$$
+
+这是按本文维度改写的 LoRA-FA v3 梯度修正及官方 optimizer 路径。$g_B=sGA^\top$ 是普通 B 梯度，$AA^\top$ 为 $r\times r$ Gram 矩阵，A 固定、满行秩且 $s\neq0$ 时可预计算逆；退化或病态矩阵需数值处理。它让诱导权重方向更接近固定行空间内对全量梯度的投影；先修正梯度再进入 Adam 状态，与普通 fixed-A + AdamW 不同，也不意味着 Adam 后每一步都精确等于全量梯度投影。
+
+## 7. 初始化：权重、输入、梯度提供不同信息
+
+**SVD 与 QR 是两种不同分解。** SVD（奇异值分解）把矩阵拆成左方向、非负奇异值和右方向：大奇异值表示较强的线性伸缩。保留最大的 r 个分量，是该矩阵在 Frobenius 范数下的最佳 rank-r 近似，目标是重建这一个矩阵。QR 把矩阵拆成正交列基 Q 与上三角 R；Q 的列并不是按奇异值排序的方向，也不提供同样的最佳截断保证。它们可以初始化 adapter，但线性重建性质都不自动证明标签任务或泛化最优。
+
+<figure id="diagram-initialization"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 565" role="img" aria-labelledby="svg-c945172a-title svg-c945172a-desc">
+<title id="svg-c945172a-title">LoRA初始化信息与函数保持</title><desc id="svg-c945172a-desc">权重分解、激活与协方差、梯度三种信息源不同，非零因子必须从基座扣除以保持初始函数。</desc>
+<defs><marker id="svg-c945172a-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-c945172a-arrow)}</style>
+<text x="24" y="36" font-size="22" font-weight="600">初始化的信息源不同：基座、输入和目标不能混为一谈</text><rect x="24" y="99" width="264" height="190" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="111" width="3" height="166" fill="#7dc6b2"/><text x="42" y="129" class="label" font-weight="600">权重 W₀</text><text x="42" y="155" class="small muted">PiSSA：SVD 主方向</text><text x="42" y="178" class="small muted">OLoRA：QR 列基</text><text x="42" y="201" class="small muted">无需任务标签</text><text x="42" y="224" class="small muted">已有伸缩 ≠ 最佳任务方向</text><rect x="318" y="99" width="264" height="190" rx="8" fill="#182230" stroke="#344355"/><rect x="318" y="111" width="3" height="166" fill="#a7b5ee"/><text x="336" y="129" class="label" font-weight="600">输入 X / 协方差</text><text x="336" y="155" class="small muted">EVA：激活方差 / 预算</text><text x="336" y="178" class="small muted">CorDA：KPM / IPM</text><text x="336" y="201" class="small muted">数据扫描与统计成本</text><text x="336" y="224" class="small muted">高方差 ≠ 高任务价值</text><rect x="612" y="99" width="264" height="190" rx="8" fill="#182230" stroke="#344355"/><rect x="612" y="111" width="3" height="166" fill="#e6bf88"/><text x="630" y="129" class="label" font-weight="600">损失梯度 G</text><text x="630" y="155" class="small muted">LoRA-GA：G 的 SVD</text><text x="630" y="178" class="small muted">包含目标与监督信息</text><text x="630" y="201" class="small muted">全量梯度获取成本</text><text x="630" y="224" class="small muted">抽样方向 ≠ 全程 FT</text><rect x="24" y="373" width="852" height="154" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="385" width="3" height="130" fill="#a7b5ee"/><text x="42" y="403" class="label" font-weight="600">非零支路还要保持总函数：Wres = W₀ − sBinitAinit</text><text x="42" y="429" class="small muted">前向 Wres + sBA；初始化时相同分量减掉再加回。</text><text x="42" y="452" class="small muted">若共享原 W₀，应导出 s(BA − BinitAinit)，一般 rank 上界2r。</text><text x="42" y="475" class="small muted">有限精度减法、分解和量化需逐级核对，不只检查文件尺寸。</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+总览图按信息来源分组。W₀ 的主方向说明基座如何伸缩输入，X 的主方向说明当前任务实际激活了什么，G 说明损失希望怎样改变权重，协方差说明上下文中的输入关系。它们相关但不相同：日志里高频模板可能占据大方差方向，却未必是罕见故障的判别信息。图底部的减法—加法接口提醒，非零 adapter 初始化还必须保持总函数。
+
+$$
+W_{\mathrm{res}}=W_0-sB_{\mathrm{init}}A_{\mathrm{init}},
+\qquad W_{\mathrm{eff}}=W_{\mathrm{res}}+sBA.
+$$
+
+$A_{\mathrm{init}},B_{\mathrm{init}}$ 为初始因子，$W_{\mathrm{res}}$ 是新的冻结残差基座。只要减法与加法使用相同 s 和矩阵，初始化时数学上仍是 W₀。有限精度分解、减法和量化可能留下误差；把 adapter 放回未经补偿的 W₀ 会重复计算初始分量。为了与原基座共享，可以导出相对原基座的增量 $s(BA-B_{\mathrm{init}}A_{\mathrm{init}})$，一般秩上限为2r，不能忽略代价。
+
+<span id="paper-pissa"></span>
+
+**PiSSA：把基座主要奇异分量作为可训练部分。** 2024年的PiSSA <a href="#source-12">[12]</a> 对W₀做SVD，把前r个奇异值及左右向量组成非零因子，剩余部分冻结。与默认零增量不同，它从基座已有主方向起步；非零分量须从基座扣除，不能与原W₀重复相加。
+
+<figure id="fig-pissa-01">
+<button class="paper-image" type="button" aria-label="Zoom: 主分量可训练、残差冻结，量化对象也改变"><img src="assets/pissa-01.png" alt="主分量可训练、残差冻结，量化对象也改变 — PiSSA: Principal Singular Values and Singular Vectors Adaptation of Large Language Models Figure 1" width="1203" height="516" loading="lazy"></button>
+<figcaption><strong>主分量可训练、残差冻结，量化对象也改变</strong><a href="https://arxiv.org/abs/2404.02948v4" target="_blank" rel="noopener">PiSSA: Principal Singular Values and Singular Vectors Adaptation of Large Language Models</a> · Figure 1 · version 2404.02948v4 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: The comparison among Full Fine-tuning, training with LoRA, and PiSSA. In this visualiza-
+tion, blue modules represent parts of the model whose parameters are frozen during training, while
+orange modules indicate components that require updates. QLoRA quantizes the pretrained matrix in
+LoRA to 4-bit, whereas QPiSSA quantizes the residual matrix in PiSSA.</div><a class="source-url" href="https://arxiv.org/pdf/2404.02948v4">https://arxiv.org/pdf/2404.02948v4</a></details></figcaption></figure>
+
+**数据流。** 全量FT训练W，LoRA冻结W并加入随机/零因子，PiSSA把W拆成主分量支路和余下奇异分量。蓝色冻结、橙色训练，两个路径的和初始化仍为原矩阵。QPiSSA量化的是残差，而QLoRA量化完整基座。
+
+**直觉与成本。** 工单先在已有权重最强伸缩方向上调整，可能比随机方向更快，但最大奇异值不自动等于任务最相关特征。SVD/近似SVD、减法和残差保存有成本；在多任务共享原基座时，要核对导出的相对增量格式。
+
+<figure id="fig-pissa-02">
+<button class="paper-image" type="button" aria-label="Zoom: 训练loss、梯度和GSM8K，三个量一起读"><img src="assets/pissa-02.png" alt="训练loss、梯度和GSM8K，三个量一起读 — PiSSA: Principal Singular Values and Singular Vectors Adaptation of Large Language Models Figure 4" width="1206" height="342" loading="lazy"></button>
+<figcaption><strong>训练loss、梯度和GSM8K，三个量一起读</strong><a href="https://arxiv.org/abs/2404.02948v4" target="_blank" rel="noopener">PiSSA: Principal Singular Values and Singular Vectors Adaptation of Large Language Models</a> · Figure 4 · version 2404.02948v4 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4: The loss, grad norm, and evaluation accuracy over the training steps of LoRA (indicated in
+blue), PiSSA (in orange), and full parameter fine-tuning (in red).</div><a class="source-url" href="https://arxiv.org/pdf/2404.02948v4">https://arxiv.org/pdf/2404.02948v4</a></details></figcaption></figure>
+
+**读图。** 横轴训练steps，三个面板分别loss、梯度范数、GSM8K Accuracy；蓝/橙/红为LoRA/PiSSA/FT，前两面板另放大最初100步。PiSSA较早下降并取得更高测试分，说明初始化改变了训练轨迹。
+
+**限制。** 梯度更强或loss更低不直接保证泛化，图需结合任务Accuracy。有限设定中的收敛优势不排除普通LoRA重调LR后接近；预处理耗时也未包含在训练步横轴里。工单比较应计入一次SVD与完整训练成本。
+
+<figure id="fig-pissa-03">
+<button class="paper-image" type="button" aria-label="Zoom: 量化误差下降比例，不是任务Accuracy提升"><img src="assets/pissa-03.png" alt="量化误差下降比例，不是任务Accuracy提升 — PiSSA: Principal Singular Values and Singular Vectors Adaptation of Large Language Models Table 4" width="1149" height="396" loading="lazy"></button>
+<figcaption><strong>量化误差下降比例，不是任务Accuracy提升</strong><a href="https://arxiv.org/abs/2404.02948v4" target="_blank" rel="noopener">PiSSA: Principal Singular Values and Singular Vectors Adaptation of Large Language Models</a> · Table 4 · version 2404.02948v4 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 4: The quantization error reduction ratio of QLoRA, LoftQ, and PiSSA across different layers.</div><a class="source-url" href="https://arxiv.org/pdf/2404.02948v4">https://arxiv.org/pdf/2404.02948v4</a></details></figcaption></figure>
+
+**读表。** 各模型块按Q/K/V/O/Gate/Up/Down列误差下降比例，QLoRA作为0基线；Llama2-7B rank128的平均LoftQ14.6、PiSSA19.4。Llama3-70B还有rank64/128两档，预算不同不可只比较最后一列。
+
+**含义。** 先把主分量移到高精度支路，让低位残差更容易表示，可降低该重建误差；不同模块幅度不同。误差比并非百分点Accuracy，也没有把所有激活分布加权。任务与最终合并后格式仍需另测，尤其支路不能直接丢弃。
+
+<figure id="fig-pissa-04">
+<button class="paper-image" type="button" aria-label="Zoom: rank同时影响量化重建、训练拟合和两种数学测试"><img src="assets/pissa-04.png" alt="rank同时影响量化重建、训练拟合和两种数学测试 — PiSSA: Principal Singular Values and Singular Vectors Adaptation of Large Language Models Figure 7" width="1182" height="525" loading="lazy"></button>
+<figcaption><strong>rank同时影响量化重建、训练拟合和两种数学测试</strong><a href="https://arxiv.org/abs/2404.02948v4" target="_blank" rel="noopener">PiSSA: Principal Singular Values and Singular Vectors Adaptation of Large Language Models</a> · Figure 7 · version 2404.02948v4 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 7: The comparison among (Q)LoRA, (Q)PiSSA, LoftQ, and full fine-tuning across ranks.</div><a class="source-url" href="https://arxiv.org/pdf/2404.02948v4">https://arxiv.org/pdf/2404.02948v4</a></details></figcaption></figure>
+
+**读图。** 四面板共享rank1–128：量化误差下降、MetaMathQA训练loss、GSM8K、MATH Accuracy；全量FT为参考线。浮点与Q前缀方法分开，不能把QPiSSA与浮点PiSSA差异全部归于初始化。
+
+**结论。** rank增大提供更多可补偿和可训练方向，但任务曲线、重建与loss不完全一致。该图强调不同目标应同时验证，没有证明所有高rank都最优，也没有覆盖公平LR搜索。对工单量化部署，需同时查看保留支路与合并再量化两条路径。
+
+
+<span id="paper-olora"></span>
+
+**OLoRA：用QR构造非零低秩起点。** 2024年的OLoRA <a href="#source-13">[13]</a> 从W的QR分解选取Q的前r列和R的前r行，再扣出相应分量。QR提供正交列基，不是SVD奇异向量；训练之后也没有由普通梯度下降保证它一直正交。
+
+<figure id="fig-olora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 冻结残差与QR支路，共同形成有效权重"><img src="assets/olora-01.png" alt="冻结残差与QR支路，共同形成有效权重 — OLoRA: Orthonormal Low-Rank Adaptation of Large Language Models Figure 1" width="660" height="414" loading="lazy"></button>
+<figcaption><strong>冻结残差与QR支路，共同形成有效权重</strong><a href="https://arxiv.org/abs/2406.01775v2" target="_blank" rel="noopener">OLoRA: Orthonormal Low-Rank Adaptation of Large Language Models</a> · Figure 1 · version 2406.01775v2 · PDF p.2 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 1: Illustration of the OLoRA method.</div><a class="source-url" href="https://arxiv.org/pdf/2406.01775v2">https://arxiv.org/pdf/2406.01775v2</a></details></figcaption></figure>
+
+**数据流。** 输入x经冻结权重和两个因子映射，输出在h相加。图给出结构，核心区别需与算法同读：因子来自基座QR而非一个随机一个零。减去初始支路后再加回，初始总函数才保持不变。
+
+**边界。** 与PiSSA同样有非零初始化及残差身份，但QR选择的列不等于按奇异值排序的最佳rank-r近似。图不能单独证明优良条件数或任务最优；工单可比较预处理时间和同预算训练，而不以“正交”作为效果担保。
+
+<figure id="fig-olora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 算法的缩放不一致，要由实现明确对齐"><img src="assets/olora-02.png" alt="算法的缩放不一致，要由实现明确对齐 — OLoRA: Orthonormal Low-Rank Adaptation of Large Language Models Algorithm 1" width="765" height="1004" loading="lazy"></button>
+<figcaption><strong>算法的缩放不一致，要由实现明确对齐</strong><a href="https://arxiv.org/abs/2406.01775v2" target="_blank" rel="noopener">OLoRA: Orthonormal Low-Rank Adaptation of Large Language Models</a> · Algorithm 1 · version 2406.01775v2 · PDF p.4 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Algorithm 1 Orthonormal Low-Rank Adaptation Algorithm
+(OLoRA)</div><a class="source-url" href="https://arxiv.org/pdf/2406.01775v2">https://arxiv.org/pdf/2406.01775v2</a></details></figcaption></figure>
+
+**算法。** 按层QR，取B=Q前r列、A=R前r行，基座减sBA，再冻结基座并训练因子。原算法后续forward写W+BA，与前面的s不一致；本文核验PEFT `olora_init`与forward以相同scaling执行减法和加法。
+
+**含义。** 不能默默按截图将两个不同函数视为相同。数学函数保持需要倍率一致，量化重打包又可能引入误差。只有初始化Q列正交，A/B更新后需额外约束才会继续保证正交；原文相关用词应按实际代数解释。
+
+<figure id="fig-olora-03">
+<button class="paper-image" type="button" aria-label="Zoom: TinyLlama两档rank的验证loss曲线"><img src="assets/olora-03.png" alt="TinyLlama两档rank的验证loss曲线 — OLoRA: Orthonormal Low-Rank Adaptation of Large Language Models Figure 2" width="1551" height="546" loading="lazy"></button>
+<figcaption><strong>TinyLlama两档rank的验证loss曲线</strong><a href="https://arxiv.org/abs/2406.01775v2" target="_blank" rel="noopener">OLoRA: Orthonormal Low-Rank Adaptation of Large Language Models</a> · Figure 2 · version 2406.01775v2 · PDF p.6 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Fig. 2: Evaluation loss during fine-tuning for Tiny-Llama-1.1B with different ranks. OLoRA demonstrates faster convergence
+compared to standard LoRA.</div><a class="source-url" href="https://arxiv.org/pdf/2406.01775v2">https://arxiv.org/pdf/2406.01775v2</a></details></figcaption></figure>
+
+**读图。** 左右rank32/64，横轴训练进程、纵轴evaluation loss，两种初始化对照。OLoRA在报告曲线中下降更快，表明QR起点在这些设置有优化收益；两面板rank改变也改变训练预算。
+
+**边界。** 这是TinyLlama-1.1B的语言模型loss，不是生产工单质量。若只给一种方法更合适LR，初始化排名可能改变，故要与后面的LR扫描一起读。分解耗时、量化残差误差与多adapter共享成本不在曲线中。
+
+
+<span id="paper-loraga"></span>
+
+**LoRA-GA：利用目标损失梯度选择起始方向。** 2024年的工作 <a href="#source-14">[14]</a> 从采样训练batch取得全量权重梯度，对其SVD，选择左右方向初始化因子，并做基座补偿。信息来自标签和loss，不同于PiSSA的W与EVA的输入X；采样与梯度取得也有实际开销。
+
+<figure id="fig-loraga-01">
+<button class="paper-image" type="button" aria-label="Zoom: 梯度提供任务方向，训练曲线体现起点影响"><img src="assets/loraga-01.png" alt="梯度提供任务方向，训练曲线体现起点影响 — LoRA-GA: Low-Rank Adaptation with Gradient Approximation Figure 1" width="1206" height="555" loading="lazy"></button>
+<figcaption><strong>梯度提供任务方向，训练曲线体现起点影响</strong><a href="https://arxiv.org/abs/2407.05000v2" target="_blank" rel="noopener">LoRA-GA: Low-Rank Adaptation with Gradient Approximation</a> · Figure 1 · version 2407.05000v2 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: (Left) Training loss curves of Llama 2-7B on MetaMathQA to training steps. LoRA-GA
+converges as quickly as full fine-tuning and outperforms LoRA. (Right) Initialization procedures
+used in LoRA and LoRA-GA. The key difference is that LoRA-GA initializes adapters using the
+eigenvectors of the gradient matrix, as opposed to random initialization with a scaling factor.</div><a class="source-url" href="https://arxiv.org/pdf/2407.05000v2">https://arxiv.org/pdf/2407.05000v2</a></details></figcaption></figure>
+
+**读图。** 左侧Llama2-7B/MetaMathQA训练loss随steps，GA接近FT的早期下降；右侧比较默认随机/零初始化与梯度驱动初始化。原图caption的“eigenvectors”在矩形梯度上应按算法SVD左右奇异向量理解。
+
+**机制。** 工单batch提供“loss希望权重怎样动”的信号，比单看高频输入方差多了目标信息，但可能对抽样偏差敏感。一步近似FT的目标不意味着整段训练都与FT相同，也不保证测试最佳，需看后面的任务和成本。
+
+<figure id="fig-loraga-02">
+<button class="paper-image" type="button" aria-label="Zoom: 采样梯度、SVD、分配左右方向、扣除初始支路"><img src="assets/loraga-02.png" alt="采样梯度、SVD、分配左右方向、扣除初始支路 — LoRA-GA: Low-Rank Adaptation with Gradient Approximation Algorithm 1" width="1206" height="578" loading="lazy"></button>
+<figcaption><strong>采样梯度、SVD、分配左右方向、扣除初始支路</strong><a href="https://arxiv.org/abs/2407.05000v2" target="_blank" rel="noopener">LoRA-GA: Low-Rank Adaptation with Gradient Approximation</a> · Algorithm 1 · version 2407.05000v2 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Algorithm 1 LoRA-GA Initialization</div><a class="source-url" href="https://arxiv.org/pdf/2407.05000v2">https://arxiv.org/pdf/2407.05000v2</a></details></figcaption></figure>
+
+**算法。** 前向求loss、逐层求G，SVD后把不同方向片段分给A/B，使用与宽度和gamma有关的尺度，设置alpha/√r并从基座扣除初始乘积；释放逐层梯度减少驻留。两因子方向片段不是同一rank-r SVD重建。
+
+**边界。** 目标是在初始化附近改善诱导更新方向；拿到全量梯度本身仍有反向与存储成本。减法与forward倍率必须一致，采样数据只能来自训练/校准集。本文未用该初始化，不能把普通LoRA实验算作GA复现。
+
+<figure id="fig-loraga-03">
+<button class="paper-image" type="button" aria-label="Zoom: 数学、代码与裁判评分，不能合成同一指标"><img src="assets/loraga-03.png" alt="数学、代码与裁判评分，不能合成同一指标 — LoRA-GA: Low-Rank Adaptation with Gradient Approximation Table 2" width="888" height="471" loading="lazy"></button>
+<figcaption><strong>数学、代码与裁判评分，不能合成同一指标</strong><a href="https://arxiv.org/abs/2407.05000v2" target="_blank" rel="noopener">LoRA-GA: Low-Rank Adaptation with Gradient Approximation</a> · Table 2 · version 2407.05000v2 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 2: Results of fine-tuning Llama 2-7b using Full-FT and various LoRA variants, tested on
+MT-Bench, GSM8K, and Human-eval. LoRA-GA significantly outperforms Vanilla LoRA and
+approaches the performance of Full Finetune. Unless otherwise specified, the LoRA rank is set to 8.</div><a class="source-url" href="https://arxiv.org/pdf/2407.05000v2">https://arxiv.org/pdf/2407.05000v2</a></details></figcaption></figure>
+
+**读表。** 默认rank8，MT-Bench、GSM8K与HumanEval分别列；GA数学53.60±0.30接近FT54.20±0.42，LoRA42.08±0.04；HumanEval GA19.81±1.46，FT19.87±0.57。GA32/128另增加预算。
+
+**结论。** 初始化在这些设置中明显改善部分任务，但DoRA数学53.07也接近，MT-Bench普通LoRA5.61还略高于FT5.56，不能概括每项FT都赢或GA都赢。误差、LR与裁判协议决定比较强度，后续公平搜索论文进一步限制普遍排名。
+
+<figure id="fig-loraga-04">
+<button class="paper-image" type="button" aria-label="Zoom: 初始化也占时间和峰值内存"><img src="assets/loraga-04.png" alt="初始化也占时间和峰值内存 — LoRA-GA: Low-Rank Adaptation with Gradient Approximation Table 5" width="1155" height="147" loading="lazy"></button>
+<figcaption><strong>初始化也占时间和峰值内存</strong><a href="https://arxiv.org/abs/2407.05000v2" target="_blank" rel="noopener">LoRA-GA: Low-Rank Adaptation with Gradient Approximation</a> · Table 5 · version 2407.05000v2 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 5: Memory and Time Costs for Initialization and Fine-Tuning. &quot;Parameters&quot; indicates the
+number of parameters in the model, &quot;Time(LoRA-GA)&quot; represents the time required for initialization,
+&quot;Memory(LoRA-GA)&quot; shows the memory usage during initialization, &quot;LoRA&quot; and &quot;Full-FT&quot; display
+the memory usage during LoRA and full fine-tuning, respectively.</div><a class="source-url" href="https://arxiv.org/pdf/2407.05000v2">https://arxiv.org/pdf/2407.05000v2</a></details></figcaption></figure>
+
+**读表。** T5-base与Llama2-7B分别列初始化时间、初始化内存、LoRA/FT训练内存。7B的GA初始化74.7s/18.77G，LoRA训练23.18G、FT63.92G；2.8s属于220M T5，不能搬给7B。
+
+**用例与限制。** 一次长工单训练可摊薄一分钟初始化，多次小数据迭代则未必。时间是原硬件与实现测量，不是常数复杂度；逐层梯度与释放策略会改变峰值。公平效率比较应把预处理、训练、搜索和最终质量一起报告。
+
+
+<span id="paper-eva"></span>
+
+**EVA：从实际输入激活学投影，再按解释方差分配方向。** 2024年公开的EVA <a href="#source-15">[15]</a> 用增量SVD收集层输入的右奇异向量，初始化A，B仍为零；同时按全局方差贡献分配rank。它无需测试标签，但数据分布仍决定哪些方向被视为重要。
+
+<figure id="fig-eva-01">
+<button class="paper-image" type="button" aria-label="Zoom: 激活扫描、跨层排序与A初始化"><img src="assets/eva-01.png" alt="激活扫描、跨层排序与A初始化 — Parameter Efficient Fine-tuning via Explained Variance Adaptation Figure 1" width="1203" height="495" loading="lazy"></button>
+<figcaption><strong>激活扫描、跨层排序与A初始化</strong><a href="https://arxiv.org/abs/2410.07170v5" target="_blank" rel="noopener">Parameter Efficient Fine-tuning via Explained Variance Adaptation</a> · Figure 1 · version 2410.07170v5 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Left: We perform incremental SVD on activation vectors for the first T minibatches.
+Middle: We globally sort all right-singular vectors according to their explained variance given by
+their respective normalized singular values and only keep the top-k. Right: We allocate the top-k
+vectors as initialization for A and continue the standard LoRA fine-tuning procedure.</div><a class="source-url" href="https://arxiv.org/pdf/2410.07170v5">https://arxiv.org/pdf/2410.07170v5</a></details></figcaption></figure>
+
+**数据流。** 左侧前T个minibatch收集各层激活并做增量SVD；中间按归一化解释方差排序不同层方向并保留总预算top-k；右侧把方向写入A，开始常规LoRA训练。不同层方向不是直接拼成一个全局权重矩阵。
+
+**直觉与边界。** 日志中常出现的模板可能占据大方差方向，使投影保留主要输入能量；罕见故障却未必高方差。SVD能证明该输入重建性质，不能无条件证明梯度最大或泛化最优，后者还依赖上游梯度与标签关系。
+
+<figure id="fig-eva-02">
+<button class="paper-image" type="button" aria-label="Zoom: 参数—效果图：同一模型标记内比较"><img src="assets/eva-02.png" alt="参数—效果图：同一模型标记内比较 — Parameter Efficient Fine-tuning via Explained Variance Adaptation Figure 2" width="1203" height="591" loading="lazy"></button>
+<figcaption><strong>参数—效果图：同一模型标记内比较</strong><a href="https://arxiv.org/abs/2410.07170v5" target="_blank" rel="noopener">Parameter Efficient Fine-tuning via Explained Variance Adaptation</a> · Figure 2 · version 2410.07170v5 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Performance of all methods on eight common sense reasoning tasks (left) and MATH after
+being finetuned on MetaMathQA (right). EVA reduces the number of trainable parameters while
+reaching performance on-par or better.</div><a class="source-url" href="https://arxiv.org/pdf/2410.07170v5">https://arxiv.org/pdf/2410.07170v5</a></details></figcaption></figure>
+
+**读图。** 横轴可训练参数，纵轴performance；左常识、右MetaMathQA训练后的MATH，各方法颜色与基座形状分开，左轴含对数刻度。不同大小模型的点不能仅按横坐标认作同预算同能力的严格比较。
+
+**含义。** rank分配使某些EVA点用更少参数仍得到可比或更好分数，支持预算效率。任务均分及MATH不是同一轴，且未包含扫描成本；原图中的其他基线只是本论文对照，不作为本文额外引用的独立论文。
+
+<figure id="fig-eva-03">
+<button class="paper-image" type="button" aria-label="Zoom: 梯度范数与loss：三种子波动也要保留"><img src="assets/eva-03.png" alt="梯度范数与loss：三种子波动也要保留 — Parameter Efficient Fine-tuning via Explained Variance Adaptation Figure 4" width="1203" height="450" loading="lazy"></button>
+<figcaption><strong>梯度范数与loss：三种子波动也要保留</strong><a href="https://arxiv.org/abs/2410.07170v5" target="_blank" rel="noopener">Parameter Efficient Fine-tuning via Explained Variance Adaptation</a> · Figure 4 · version 2410.07170v5 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4: Gradient norm (left) and training loss (right) for fine-tuning Llama-3.1-8B on the Meta-
+MathQA dataset. We compare EVA to other initialization methods and random initialization (LoRA).
+We show mean and standard deviation across three random seeds.</div><a class="source-url" href="https://arxiv.org/pdf/2410.07170v5">https://arxiv.org/pdf/2410.07170v5</a></details></figcaption></figure>
+
+**读图。** Llama3.1-8B/MetaMathQA；左是按方法分组的梯度范数柱状比较，右是训练loss随steps变化，两处保留三种子均值与SD。左图没有训练时间轴，不能读成梯度随step的曲线；右图体现不同初始化的拟合轨迹。
+
+**限制。** 小梯度不必是坏事，大梯度也不必学得多，需与loss和测试共同读。三种子阴影不是置信区间，训练曲线也排除了初始化处理。工单若数据扫描偏向短模板，曲线稳定不代表长尾故障泛化充分。
+
+<figure id="fig-eva-04">
+<button class="paper-image" type="button" aria-label="Zoom: 扫描成本与batch稳定性，不是数据量无关"><img src="assets/eva-04.png" alt="扫描成本与batch稳定性，不是数据量无关 — Parameter Efficient Fine-tuning via Explained Variance Adaptation Figure 5" width="1161" height="435" loading="lazy"></button>
+<figcaption><strong>扫描成本与batch稳定性，不是数据量无关</strong><a href="https://arxiv.org/abs/2410.07170v5" target="_blank" rel="noopener">Parameter Efficient Fine-tuning via Explained Variance Adaptation</a> · Figure 5 · version 2410.07170v5 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 5: Left: Percentage of training time required for computing data-driven initializations for
+Llama-2-7B on a single A100 GPU on the common sense reasoning tasks. We report the maximum
+batch size and track peak memory usage. Right: Average cosine similarity between components
+after incremental SVD for different batch sizes. The components strongly correlate indicating that
+the SVD computation is mostly invariant to the batch size.</div><a class="source-url" href="https://arxiv.org/pdf/2410.07170v5">https://arxiv.org/pdf/2410.07170v5</a></details></figcaption></figure>
+
+**读图。** 左表Llama2-7B/A100列初始化占训练时间比例和峰值，EVA batch4/8/16为0.2/0.3/0.7%，内存27.51/29.39/32.85GB；右侧组件余弦相似度比较不同batch，方向大体一致。
+
+**边界。** 原结果支持这些batch下增量SVD较稳定与低相对成本，比例依赖总训练时长和停止规则，不能称任何数据量时间恒定。重训很短或数据高度变化时需重新测；方差解释依然不能排除罕见但关键的输入方向。
+
+
+<span id="paper-corda"></span>
+
+**CorDA：用上下文协方差改变分解坐标，并区分获取与保持。** 2024公开、2025更新的CorDA <a href="#source-16">[16]</a> 基于输入协方差做上下文导向分解。KPM选择较小分量训练、冻结主要分量以保持世界知识；IPM根据目标任务上下文训练主要分量。两种模式有不同数据来源与目的。
+
+<figure id="fig-corda-01">
+<button class="paper-image" type="button" aria-label="Zoom: 相同上下文分解，两种选择决定哪些知识可改"><img src="assets/corda-01.png" alt="相同上下文分解，两种选择决定哪些知识可改 — CorDA: Context-Oriented Decomposition Adaptation of Large Language Models for Task-Aware Parameter-Efficient Fine-tuning Figure 1" width="1191" height="774" loading="lazy"></button>
+<figcaption><strong>相同上下文分解，两种选择决定哪些知识可改</strong><a href="https://arxiv.org/abs/2406.05223v3" target="_blank" rel="noopener">CorDA: Context-Oriented Decomposition Adaptation of Large Language Models for Task-Aware Parameter-Efficient Fine-tuning</a> · Figure 1 · version 2406.05223v3 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: An overall illustration of our proposed method. We perform singular value decomposition
+oriented by the covariance matrix to aggregate task context into the principal components (up), which
+are frozen for maintaining world knowledge (down left) or utilized to initialize the learnable adapter
+for better fine-tuning performance (down right). The dark-colored adapter refers to the components
+with the largest r singular values, while the light one is composed of the smallest r components.</div><a class="source-url" href="https://arxiv.org/pdf/2406.05223v3">https://arxiv.org/pdf/2406.05223v3</a></details></figcaption></figure>
+
+**数据流。** 顶部协方差引导SVD，深色对应大奇异值，浅色小奇异值；左下KPM把主要分量冻结、小分量给adapter，右下IPM相反。选定因子与剩余基座相加，初始化总函数保持。
+
+**直觉。** 若工单适配要保持通用问答，先用通用样本识别应尽量保留的方向；若要强化目标任务，改用工单样本选择方向。这只是可验证的设计假设，协方差不是知识标签，保持能力仍需独立测试。
+
+<figure id="fig-corda-02">
+<button class="paper-image" type="button" aria-label="Zoom: 删掉小分量的PPL诊断，测试的是分解质量"><img src="assets/corda-02.png" alt="删掉小分量的PPL诊断，测试的是分解质量 — CorDA: Context-Oriented Decomposition Adaptation of Large Language Models for Task-Aware Parameter-Efficient Fine-tuning Figure 2" width="1203" height="507" loading="lazy"></button>
+<figcaption><strong>删掉小分量的PPL诊断，测试的是分解质量</strong><a href="https://arxiv.org/abs/2406.05223v3" target="_blank" rel="noopener">CorDA: Context-Oriented Decomposition Adaptation of Large Language Models for Task-Aware Parameter-Efficient Fine-tuning</a> · Figure 2 · version 2406.05223v3 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Perplexity (lower is better) on (a) Wikitext-2 and (b) Penn TreeBank (PTB) after decompos-
+ing the LLaMA-2-7B weights and reconstruction discarding the smallest r singular values and their
+singular vectors. We compare our context-oriented decomposition (CO-SVD) with plain SVD and
+ASVD. The perplexity of plain SVD on PTB at r = 1024 is 763.4, which is out of the shown range.</div><a class="source-url" href="https://arxiv.org/pdf/2406.05223v3">https://arxiv.org/pdf/2406.05223v3</a></details></figcaption></figure>
+
+**读图。** 横轴被丢弃的小奇异值方向数，纵轴PPL，左右WikiText2/PTB；比较普通SVD、ASVD与上下文CO-SVD。PTB普通SVD在r1024达763.4、超出纵轴显示范围，不能把截轴理解成不存在该点。
+
+**含义。** 上下文坐标把对当前输入更重要的信息集中到保留部分，支持后续选择小分量训练的动机。但这是分解—重建实验，不是微调后的保持结论，也不能由训练域PPL推出所有世界知识已保留。
+
+<figure id="fig-corda-03">
+<button class="paper-image" type="button" aria-label="Zoom: KPM同时看新任务与NQ保持，预算rank128"><img src="assets/corda-03.png" alt="KPM同时看新任务与NQ保持，预算rank128 — CorDA: Context-Oriented Decomposition Adaptation of Large Language Models for Task-Aware Parameter-Efficient Fine-tuning Table 1" width="1200" height="960" loading="lazy"></button>
+<figcaption><strong>KPM同时看新任务与NQ保持，预算rank128</strong><a href="https://arxiv.org/abs/2406.05223v3" target="_blank" rel="noopener">CorDA: Context-Oriented Decomposition Adaptation of Large Language Models for Task-Aware Parameter-Efficient Fine-tuning</a> · Table 1 · version 2406.05223v3 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: The experimental results of CorDA in the knowledge-preserved adaptation mode and
+comparison with full fine-tuning, LoRA, and PiSSA. LLaMA-2-7B is used to fine-tune on (a) Math,
+(b) Code, and (c) Instruction Following tasks. The rank r of LoRA, PiSSA, and CorDA is 128.
+CorDA is initialized with the NQ open samples to collect the covariance matrices. All methods are
+implemented by us under the same training and evaluation settings. The row of “LLaMA-2-7B”
+shows the world knowledge performance of the original pre-trained model.</div><a class="source-url" href="https://arxiv.org/pdf/2406.05223v3">https://arxiv.org/pdf/2406.05223v3</a></details></figcaption></figure>
+
+**读表。** Llama2-7B、数学/代码/指令三组，LoRA/PiSSA/CorDA rank128；CorDA用NQ-open样本收集协方差。原基座行给世界知识参考，必须同时查看目标任务列和知识列，不能只取最高任务分。
+
+**边界。** 作者按相同训练评测设置实现各方法，增加可比性；不过“保留”取决于NQ分布与选定指标，并不等于所有旧能力无遗忘。工单需要另测原有代码、长文本与事实问答，不能把NQ直接当整体记忆容量。
+
+<figure id="fig-corda-04">
+<button class="paper-image" type="button" aria-label="Zoom: IPM用目标数据预览，与KPM不是同一配置"><img src="assets/corda-04.png" alt="IPM用目标数据预览，与KPM不是同一配置 — CorDA: Context-Oriented Decomposition Adaptation of Large Language Models for Task-Aware Parameter-Efficient Fine-tuning Table 3" width="1200" height="252" loading="lazy"></button>
+<figcaption><strong>IPM用目标数据预览，与KPM不是同一配置</strong><a href="https://arxiv.org/abs/2406.05223v3" target="_blank" rel="noopener">CorDA: Context-Oriented Decomposition Adaptation of Large Language Models for Task-Aware Parameter-Efficient Fine-tuning</a> · Table 3 · version 2406.05223v3 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3: The experimental results of CorDA in the instruction-previewed adaptation mode on Math,
+Code, and Instruction Following tasks using LLaMA-2-7B. CorDA is initialized with samples from
+each of the fine-tuning datasets (MetaMathQA, CodeFeedback, and WizardLM-Evol-Instruct) for the
+three tasks, respectively. The rank r of LoRA, DoRA, PiSSA, and CorDA is 128. All methods are
+implemented by us under the same training and evaluation settings.</div><a class="source-url" href="https://arxiv.org/pdf/2406.05223v3">https://arxiv.org/pdf/2406.05223v3</a></details></figcaption></figure>
+
+**读表。** 仍为7B/rank128，数学、代码、指令分别用MetaMathQA、CodeFeedback、WizardLM-Evol-Instruct收集统计并训练。对照包含LoRA、DoRA、PiSSA；各列保留原任务指标，不把它们平均为一个统一正确率。
+
+**含义。** 目标输入协方差帮助选择可训练主方向，报告设置下改善获取；无法由这一表证明KPM的保持优势也同时成立。更换工单数据模板或数据量会改变初始化，预览成本和无测试泄漏是比较时必须明确的条件。
+
+
+初始化选择不应只按最终单列准确率决定。需要计入分解、数据扫描、全量梯度取得和统计存储成本，确认预处理没有读入测试标签，比较在相同训练预算下是否仍有优势。输入方差最大是可证明的线性代数性质；最佳泛化则依赖标签、上游梯度和分布，不能由一个 SVD 直接推出。
+
+## 8. 超越一次低秩更新：ReLoRA、MoRA 与 LongLoRA
+
+<span id="paper-relora"></span>
+
+**ReLoRA：周期合并和重置，使最终增量不受单周期rank限制。** 2023年的ReLoRA <a href="#source-18">[18]</a> 将低秩更新不断合进基座，重置因子，并处理optimizer状态与LR。它研究从头训练和微调；从头实验包含全量warm start及可训练embedding/norm，不能称全部过程只用LoRA。
+
+<figure id="fig-relora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 合并重置时降LR并快速warmup"><img src="assets/relora-01.png" alt="合并重置时降LR并快速warmup — ReLoRA: High-Rank Training Through Low-Rank Updates Figure 2" width="639" height="411" loading="lazy"></button>
+<figcaption><strong>合并重置时降LR并快速warmup</strong><a href="https://arxiv.org/abs/2307.05695v4" target="_blank" rel="noopener">ReLoRA: High-Rank Training Through Low-Rank Updates</a> · Figure 2 · version 2307.05695v4 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Jagged cosine scheduler used in ReLoRA. As a base for our scheduler we follow a standard
+cosine decay schedule as in Touvron et al. [2023]. On every optimizer reset, we set the learning rate
+to zero and perform a quick (50-100 steps) learning rate warm-up back to the cosine schedule.</div><a class="source-url" href="https://arxiv.org/pdf/2307.05695v4">https://arxiv.org/pdf/2307.05695v4</a></details></figcaption></figure>
+
+**读图。** 横轴step、纵轴LR multiplier；总体余弦下降上叠加多个锯齿。每次重置先将倍率降到零，再经50–100步回到当时的余弦轨迹，避免新因子和旧optimizer统计突变导致训练发散。
+
+**用例与边界。** 工单CPT若分阶段探索新方向，不能只调用merge后原样接着训练；状态和日程属于算法。图的锯齿不是周期重训数据或自动增加rank，也没有证明每次都找到独立方向，需看谱与消融。
+
+<figure id="fig-relora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 多个周期后的增量奇异值分布"><img src="assets/relora-02.png" alt="多个周期后的增量奇异值分布 — ReLoRA: High-Rank Training Through Low-Rank Updates Figure 3" width="1203" height="384" loading="lazy"></button>
+<figcaption><strong>多个周期后的增量奇异值分布</strong><a href="https://arxiv.org/abs/2307.05695v4" target="_blank" rel="noopener">ReLoRA: High-Rank Training Through Low-Rank Updates</a> · Figure 3 · version 2307.05695v4 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: Singular values spectra of the weight difference between ReLoRA and LoRA at 5,000
+iterations (warm start) and 20,000 iterations. ReLoRA exhibits a closer resemblance to full-rank
+training than to LoRA, indicating its effectiveness in approximating full-rank behavior. 350M models.</div><a class="source-url" href="https://arxiv.org/pdf/2307.05695v4">https://arxiv.org/pdf/2307.05695v4</a></details></figcaption></figure>
+
+**读图。** 350M模型，比较5,000步warm-start权重与20,000步权重之差；Q/K/V/Down各面板，横轴奇异值、纵轴频率，LoRA/ReLoRA/全量为三种分布。LoRA更集中于零附近，ReLoRA接近全量的非零谱分布。
+
+**含义。** 支持多次低秩相加确实探索了更多方向，不只是代数上允许高rank。相近谱不等于相同矩阵或任务函数，且比较已经扣除warm-start，不是最初随机基座。最后一组小因子不包含此前合并的全部改动。
+
+<figure id="fig-relora-03">
+<button class="paper-image" type="button" aria-label="Zoom: 1.3B规模PPL：更接近全量，但仍有差距"><img src="assets/relora-03.png" alt="1.3B规模PPL：更接近全量，但仍有差距 — ReLoRA: High-Rank Training Through Low-Rank Updates Table 4" width="999" height="267" loading="lazy"></button>
+<figcaption><strong>1.3B规模PPL：更接近全量，但仍有差距</strong><a href="https://arxiv.org/abs/2307.05695v4" target="_blank" rel="noopener">ReLoRA: High-Rank Training Through Low-Rank Updates</a> · Table 4 · version 2307.05695v4 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 4: Results at 1.3B scale. Number of trainable parameters for each model in (brackets).</div><a class="source-url" href="https://arxiv.org/pdf/2307.05695v4">https://arxiv.org/pdf/2307.05695v4</a></details></figcaption></figure>
+
+**读表。** 15k/20k/30k训练步对应11.8/15.7/23.1B tokens，PPL越低越好；括号给不同模型的可训练预算。30k全量16.83、LoRA+warm start18.23、ReLoRA17.27；Control是小总模型的全量训练，不是同一1.3B基座的小adapter。
+
+**边界。** 表支持低状态训练接近全量，并未完全追平；ReLoRA仍有warm-start成本。列间增加训练token，不能当作相同数据下单一rank消融。对工单，应比较相同数据与同质量成本，另外保存改变后的基座。
+
+<figure id="fig-relora-04">
+<button class="paper-image" type="button" aria-label="Zoom: 消融揭示“merge并重置”为什么不够"><img src="assets/relora-04.png" alt="消融揭示“merge并重置”为什么不够 — ReLoRA: High-Rank Training Through Low-Rank Updates Table 6" width="996" height="372" loading="lazy"></button>
+<figcaption><strong>消融揭示“merge并重置”为什么不够</strong><a href="https://arxiv.org/abs/2307.05695v4" target="_blank" rel="noopener">ReLoRA: High-Rank Training Through Low-Rank Updates</a> · Table 6 · version 2307.05695v4 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 6: Ablation studies of ReLoRA (130M models). Restarts and warm starts are essential for good
+performance. Restarts and optimizer resets without a jagged schedule causes the model to diverge.</div><a class="source-url" href="https://arxiv.org/pdf/2307.05695v4">https://arxiv.org/pdf/2307.05695v4</a></details></figcaption></figure>
+
+**读表。** 130M逐项开启restart、optimizer reset、jagged schedule、warm start；仅restart几乎无改善，restart+reset但无日程发散。全部开启PPL25.04，regular training23.65；只warm start后LoRA25.46。
+
+**机制。** 方向重启需要优化统计与步长同步，全量初始阶段贡献也很大。不能把全部收益归于rank相加，或把warm start删掉仍声称同一复现。训练稳定和保持功能是完整验收，发散项是公开失败证据。
+
+
+$$
+W_K=W_0+\sum_{k=1}^{K}s_k B_kA_k,\qquad
+\operatorname{rank}(W_K-W_0)\leq
+\min\!\left(m,n,\sum_{k=1}^{K}r_k\right).
+$$
+
+这是多次合并的代数上界。$K$ 为周期数，每周期 rank 为 $r_k$、倍率为 $s_k$。若方向重复，实际 rank 远低于总和；上界不证明 optimizer 会探索新子空间。ReLoRA 在周期间处理因子重置、优化器状态和 warmup，且从头预训练实验有全量 warm start。最终基座发生改变，不能再把最后一小组 A/B 当作相对最初 W₀ 的完整任务增量。
+
+<span id="paper-mora"></span>
+
+**MoRA：少参数也可以形成高秩但有结构约束的更新。** 2024年的MoRA <a href="#source-19">[19]</a> 用可训练小方阵M和固定输入/输出映射替代两因子，改变参数—rank关系。单次汇聚路径与重复分块映射的秩上界不同；共享块可使总增量高秩，却不等于任意稠密矩阵。
+
+<figure id="fig-mora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 相同参数预算，不同可表示矩阵族"><img src="assets/mora-01.png" alt="相同参数预算，不同可表示矩阵族 — MoRA: High-Rank Updating for Parameter-Efficient Fine-Tuning Figure 1" width="669" height="528" loading="lazy"></button>
+<figcaption><strong>相同参数预算，不同可表示矩阵族</strong><a href="https://arxiv.org/abs/2405.12130v1" target="_blank" rel="noopener">MoRA: High-Rank Updating for Parameter-Efficient Fine-Tuning</a> · Figure 1 · version 2405.12130v1 · PDF p.1 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: An overview of our method compared to
+LoRA under same number of trainable parameters. W
+is the frozen weight from model. A and B are trainable
+low-rank matrices in LoRA. M is the trainable matrix in
+our method. Gray parts are non-parameter operators to
+reducing the input dimension and increasing the output
+dimension. r represents the rank in two methods.</div><a class="source-url" href="https://arxiv.org/pdf/2405.12130v1">https://arxiv.org/pdf/2405.12130v1</a></details></figcaption></figure>
+
+**读图。** LoRA经A/B的窄瓶颈，MoRA用灰色无参数降维/扩维操作与一个可训练方阵。示意的r8与r256表示不同参数化下的rank，不应把它们认作同名配置的相同参数数；固定映射也可能有在线算子成本。
+
+**直觉。** 对代码CPT需修改许多独立方向时，把少量参数在不同输入分块重复使用可产生更高总rank，但这些块共享相同M，表达受结构限制。若仅用一次汇聚→M→扩展，秩仍受M尺寸限制；不能把所有MoRA形式混为一个上界。
+
+<figure id="fig-mora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 随机UUID配对记忆，排除已有语义线索"><img src="assets/mora-02.png" alt="随机UUID配对记忆，排除已有语义线索 — MoRA: High-Rank Updating for Parameter-Efficient Fine-Tuning Figure 2" width="675" height="507" loading="lazy"></button>
+<figcaption><strong>随机UUID配对记忆，排除已有语义线索</strong><a href="https://arxiv.org/abs/2405.12130v1" target="_blank" rel="noopener">MoRA: High-Rank Updating for Parameter-Efficient Fine-Tuning</a> · Figure 2 · version 2405.12130v1 · PDF p.3 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Performance of memorizing UUID pairs
+through fine-tuning with FFT and LoRA.</div><a class="source-url" href="https://arxiv.org/pdf/2405.12130v1">https://arxiv.org/pdf/2405.12130v1</a></details></figcaption></figure>
+
+**读图。** 图比较FFT与不同LoRA rank对UUID关联的训练/评测表现；随机标识对比普通语言任务更少可利用的预训练语义。观察更多rank能否降低拟合差距，是测试新增关联容量的一种压力场景。
+
+**边界。** 随机映射不等于真实工单知识，其样本规模、训练步与LR决定能找到的解。该失败动机不能证明所有低秩更新都不能记忆，也不能仅凭训练loss差排除优化不足；后续必须看真实领域任务和参数控制。
+
+<figure id="fig-mora-03">
+<button class="paper-image" type="button" aria-label="Zoom: 指令、数学与CPT，MoRA的收益随任务改变"><img src="assets/mora-03.png" alt="指令、数学与CPT，MoRA的收益随任务改变 — MoRA: High-Rank Updating for Parameter-Efficient Fine-Tuning Table 1" width="1377" height="693" loading="lazy"></button>
+<figcaption><strong>指令、数学与CPT，MoRA的收益随任务改变</strong><a href="https://arxiv.org/abs/2405.12130v1" target="_blank" rel="noopener">MoRA: High-Rank Updating for Parameter-Efficient Fine-Tuning</a> · Table 1 · version 2405.12130v1 · PDF p.6 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Performance of FFT, LoRA, LoRA variants and our method on instruction tuning, mathematical reasoning
+and continual pretraining tasks.</div><a class="source-url" href="https://arxiv.org/pdf/2405.12130v1">https://arxiv.org/pdf/2405.12130v1</a></details></figcaption></figure>
+
+**读表。** rank栏按LoRA预算口径分r8/r256组，指令MMLU 0/5-shot、数学GSM8K/MATH、CPT BioMed/Finance分别列。低预算MoRA Finance67.1高于LoRA64.0，MATH15.4与15.1接近；高预算MoRA Finance68.7仍低于FFT69.6。
+
+**结论。** 更高秩结构在领域获取上有优势，但并非所有指标获胜：高预算MATH MoRA19.2低于LoRA19.9。缺项不补零，不同数据组不混成总体Accuracy；对工单CPT，这张表是验证结构容量的线索而非默认推荐。
+
+<figure id="fig-mora-04">
+<button class="paper-image" type="button" aria-label="Zoom: 从头预训练与周期合并，区别容量和日程"><img src="assets/mora-04.png" alt="从头预训练与周期合并，区别容量和日程 — MoRA: High-Rank Updating for Parameter-Efficient Fine-Tuning Figure 4" width="1374" height="561" loading="lazy"></button>
+<figcaption><strong>从头预训练与周期合并，区别容量和日程</strong><a href="https://arxiv.org/abs/2405.12130v1" target="_blank" rel="noopener">MoRA: High-Rank Updating for Parameter-Efficient Fine-Tuning</a> · Figure 4 · version 2405.12130v1 · PDF p.7 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4: Pretraining loss with LoRA and MoRA on 250M and 1B models from scratch. Both LoRA and MoRA
+use same amount of trainable parameters with r = 128. ReMoRA and ReLoRA refer to merge MoRA or LoRA
+back to the model during training to increase the rank of ∆W.</div><a class="source-url" href="https://arxiv.org/pdf/2405.12130v1">https://arxiv.org/pdf/2405.12130v1</a></details></figcaption></figure>
+
+**读图。** 左250M、右原图标1.3B，横轴训练进程、纵轴预训练loss；LoRA与MoRA使用同预算r128，ReMoRA/ReLoRA表示周期合并。caption概述写“1B”，本文保持面板实际模型标签并指出这一口径差异。
+
+**含义。** 单次结构与多次合并共同影响拟合，MoRA路径报告较好loss，但不等于下游指标或真实速度。固定映射和合并会改变基座，不能只交付最后一个M；从头学习也不同于已充分预训练基座的SFT。
+
+
+参数高效不必等于矩阵增量低秩。MoRA 以共享的小方阵和固定输入/输出映射形成更高秩、但有结构约束的更新；不同映射带来不同 rank 上限与算子成本。用“有多少个可训练数”替代“能表达怎样的线性映射”，会遗漏这个区别。
+
+<span id="paper-longlora"></span>
+
+**LongLoRA：长上下文训练靠注意力与可训练模块共同改动。** 2023年的LongLoRA <a href="#source-20">[20]</a> 训练时使用S²-Attn减少连接计算，同时让embedding/norm可训练，推理恢复full attention。本文区分其“LoRA+”配置与2024的学习率LoRA+论文。
+
+<figure id="fig-longlora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 稀疏训练与完整推理、LoRA与额外模块分开"><img src="assets/longlora-01.png" alt="稀疏训练与完整推理、LoRA与额外模块分开 — LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models Figure 2" width="1230" height="405" loading="lazy"></button>
+<figcaption><strong>稀疏训练与完整推理、LoRA与额外模块分开</strong><a href="https://arxiv.org/abs/2309.12307v3" target="_blank" rel="noopener">LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models</a> · Figure 2 · version 2309.12307v3 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Overview of LongLoRA. We introduce Shifted Sparse Attention (S2-Attn) during fine-
+tuning. The trained model retains original standard self-attention at inference time. In addition to
+training LoRA weights in linear layers, LongLoRA further makes embedding and normalization
+layers trainable. This extension is pivotal for context extension, and only introduces a minimal
+number of additional trainable parameters.</div><a class="source-url" href="https://arxiv.org/pdf/2309.12307v3">https://arxiv.org/pdf/2309.12307v3</a></details></figcaption></figure>
+
+**读图。** 左两种分组注意力图覆盖各半heads，其中一半shift建立组间联系；右Transformer框中LoRA、embedding与norm可训练，主线性权重冻结。火焰/雪花区分训练状态，不表示推理时去掉冻结模块。
+
+**用例。** 长工单合并许多日志段时，训练局部连接降低成本，embedding/norm帮助适应位置与长输入分布。推理仍需完整attention与KV资源，训练节省不能直接写成同倍推理加速；长度扩展也必须配合位置编码配置。
+
+<figure id="fig-longlora-02">
+<button class="paper-image" type="button" aria-label="Zoom: split、shift、group：跨组信息怎样流动"><img src="assets/longlora-02.png" alt="split、shift、group：跨组信息怎样流动 — LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models Figure 3" width="1206" height="312" loading="lazy"></button>
+<figcaption><strong>split、shift、group：跨组信息怎样流动</strong><a href="https://arxiv.org/abs/2309.12307v3" target="_blank" rel="noopener">LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models</a> · Figure 3 · version 2309.12307v3 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: Illustration of S2-Attn. It involves three steps. First, it splits features along the head
+dimension into two chunks. Second, tokens in one of the chunks are shifted by half of the group size.
+Third, we split tokens into groups and reshape them into batch dimensions. Attention only computes
+in each group in ours while the information flows between groups via shifting. Potential information
+leakage might be introduced by shifting, while this is easy to prevent via a small modification on the
+attention mask. We ablate this in the variant 2 in Section B.3 in the appendix.</div><a class="source-url" href="https://arxiv.org/pdf/2309.12307v3">https://arxiv.org/pdf/2309.12307v3</a></details></figcaption></figure>
+
+**步骤。** 先按heads拆两半；第二半token平移半个group；各自按局部组重排到batch，在组内做attention后恢复。图的8个token与head行是教学尺寸，两个pattern合起来让原来的组边界可以传递信息。
+
+**边界。** 循环shift可能把末尾token移到开头，若不调整causal mask会泄漏未来信息。工单训练loss变好不能排除泄漏，必须核对mask和恢复顺序。训练稀疏图与推理全图不同，需独立评长程检索与跨段推理。
+
+<figure id="fig-longlora-03">
+<button class="paper-image" type="button" aria-label="Zoom: 增加rank不能替代embedding和norm训练"><img src="assets/longlora-03.png" alt="增加rank不能替代embedding和norm训练 — LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models Table 2" width="1203" height="114" loading="lazy"></button>
+<figcaption><strong>增加rank不能替代embedding和norm训练</strong><a href="https://arxiv.org/abs/2309.12307v3" target="_blank" rel="noopener">LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models</a> · Table 2 · version 2309.12307v3 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 2: Finetuning normalization and embedding layers is crucial for low-rank long-context
+adaptation. Llama2 7B (Touvron et al., 2023b) models with the proposed S2-Attn are trained on the
+RedPajama (Computer, 2023) dataset. The target context length is 32768. ‘+ Normal / Embed’ means
+normalization or embedding layers are trainable. Perplexity results are evaluated on PG19 (Rae et al.,
+2020) validation set. For long context adaptation, there is a large performance gap between standard
+LoRA (Hu et al., 2022) and full fine-tuning. Without trainable normalization or embeddings, larger
+ranks in LoRA can not close this gap.</div><a class="source-url" href="https://arxiv.org/pdf/2309.12307v3">https://arxiv.org/pdf/2309.12307v3</a></details></figcaption></figure>
+
+**读表。** Llama2-7B/RedPajama训练到32768上下文，PG19验证PPL；LoRA r8–256约11.44–11.98，FT8.08。r8加norm10.49、embedding8.29、两者8.12，显示模块选择比单纯增rank更关键。
+
+**含义。** 这是长度适配的特定瓶颈，不能由小rank失败推出普通SFT无效。额外embedding/norm参数要计入预算与保存文件；若服务只加载A/B遗漏这些模块，模型函数不完整。PPL接近FT也不保证远距离任务全部恢复。
+
+<figure id="fig-longlora-04">
+<button class="paper-image" type="button" aria-label="Zoom: 训练小时与显存，32k和64k差异明显"><img src="assets/longlora-04.png" alt="训练小时与显存，32k和64k差异明显 — LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models Table 12" width="1101" height="213" loading="lazy"></button>
+<figcaption><strong>训练小时与显存，32k和64k差异明显</strong><a href="https://arxiv.org/abs/2309.12307v3" target="_blank" rel="noopener">LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models</a> · Table 12 · version 2309.12307v3 · PDF p.16 / printed p.16
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 12: Efficiency comparison on training hours and GPU memory cost. We fine-tune Llama2 (Tou-
+vron et al., 2023b) 7B model for 1000 iterations on 8× A100 GPUs. We set batch size per GPU as
+1 and gradient accumulation steps as 8. OOM means out of GPU memory. Flash-Attention2 (Dao,
+2023) and DeepSpeed (Rasley et al., 2020) in stage 2 are included in these experiments. LongLoRA
+requires significantly lower computational overhead than fine-tuning the full model. It also demands
+fewer training hours compared to LoRA (Hu et al., 2022). Furthermore, the plain LoRA (Hu et al.,
+2022) fails to maintain the same level of accuracy as full fine-tuning when handling longer contexts.</div><a class="source-url" href="https://arxiv.org/pdf/2309.12307v3">https://arxiv.org/pdf/2309.12307v3</a></details></figcaption></figure>
+
+**读表。** 8×A100、7B、1000iterations、每GPU batch1、累积8，包含FlashAttention2与DeepSpeed stage2。32k LoRA36.5h/46.5GB，LongLoRA24.6h/46.4GB；64k FT OOM、LongLoRA52.4h/69.8GB。
+
+**边界。** 本表主要节约计算时间，并非每档显存大幅下降；8卡训练不能写成单卡结果。质量需与前表共同判断，长context训练token量也不同。这些不是单请求TTFT/TPOT或部署峰值。
+
+
+长上下文扩展另有位置编码、注意力连接与长距离评测问题。LongLoRA 的训练稀疏注意力和可训练 embedding/norm 不能由“LoRA文件大小”概括。验证长输入时要分开看语言建模 PPL、信息检索、跨段推理和实际 prefill/KV 成本。
+
+## 9. LoRA 与量化：小 adapter 不自动带来纯低位部署
+
+<figure id="diagram-quantization"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 565" role="img" aria-labelledby="svg-ddb6399b-title svg-ddb6399b-desc">
+<title id="svg-ddb6399b-title">LoRA量化与合并顺序</title><desc id="svg-ddb6399b-desc">三种量化接口及同一网格0.24加0.04的非交换例子，导出需对齐表示与计算精度。</desc>
+<defs><marker id="svg-ddb6399b-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-ddb6399b-arrow)}</style>
+<text x="24" y="36" font-size="22" font-weight="600">量化后的旁路、初始化补偿与可吸收更新是三种接口</text><rect x="24" y="100" width="264" height="191" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="112" width="3" height="167" fill="#7dc6b2"/><text x="42" y="130" class="label" font-weight="600">QLoRA</text><text x="42" y="156" class="small muted">DQ(Q(W₀))x + sBAx</text><text x="42" y="179" class="small muted">低位基座 / 浮点支路</text><text x="42" y="202" class="small muted">NF4 / double quant</text><text x="42" y="225" class="small muted">合并后再量化需重测</text><rect x="318" y="100" width="264" height="191" rx="8" fill="#182230" stroke="#344355"/><rect x="318" y="112" width="3" height="167" fill="#a7b5ee"/><text x="336" y="130" class="label" font-weight="600">LoftQ</text><text x="336" y="156" class="small muted">Q / DQ 与 BA 联合初始化</text><text x="336" y="179" class="small muted">W₀ − DQ(Q) ≈ BA</text><text x="336" y="202" class="small muted">先补权重重建差距</text><text x="336" y="225" class="small muted">不保证任务 loss 最优</text><rect x="612" y="100" width="264" height="191" rx="8" fill="#182230" stroke="#344355"/><rect x="612" y="112" width="3" height="167" fill="#e6bf88"/><text x="630" y="130" class="label" font-weight="600">QA-LoRA</text><text x="630" y="156" class="small muted">输入按组求和</text><text x="630" y="179" class="small muted">同组增量共享</text><text x="630" y="202" class="small muted">吸收进量化偏置</text><text x="630" y="225" class="small muted">自由度 / 格式受约束</text><rect x="24" y="380" width="852" height="151" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="392" width="3" height="127" fill="#a7b5ee"/><text x="42" y="410" class="label" font-weight="600">同一网格：scale0.1，w₀0.24，增量0.04</text><text x="42" y="436" class="small muted">旁路：DQ(Q(0.24)) + 0.04 = 0.24；合并再量化：DQ(Q(0.28)) = 0.30。</text><text x="42" y="459" class="small muted">不相等不代表某边一定更好；训练和 export 必须对应目标函数。</text><text x="42" y="482" class="small muted">group / axis / codebook / scale / zero / layout / accum 精度一起核验。</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+上方三条数据流分别是浮点 adapter 旁路、初始化补量化残差、组结构兼容的量化合并。底部例子用同一量化网格展示顺序差异。对工单模型而言，训练时旁路补偿了某个冻结低位基座；将它合并到浮点原基座后重新量化，或者只重新量化已反量化的基座，都是新的函数，需要重测。
+
+$$
+\operatorname{DQ}(Q(W_0))+sBA
+\;\not\equiv\;
+\operatorname{DQ}\!\left(Q(W_0+sBA)\right).
+$$
+
+$Q$ 把浮点矩阵编码为离散码与尺度，$\operatorname{DQ}$ 重建可计算权重；两边同为 $m\times n$。量化含取整和可能的 clipping，是非线性操作。例如固定网格尺度0.1，$w_0=0.24$、增量0.04，左边为0.24，右边为0.3。这个例子说明非交换性，不能据此判断左边一定更好。真实部署还必须核对 codebook、group、scale/zero、布局、累加精度和算子支持。
+
+<span id="paper-qlora"></span>
+
+**QLoRA：基座低位存储、adapter高精度训练。** 2023年的QLoRA <a href="#source-5">[5]</a> 结合NF4、double quantization与paged optimizer，让较大基座在有限GPU内存上微调。它没有把所有训练算子变成4bit，也没有天然输出无浮点adapter的纯INT4模型。
+
+<figure id="fig-qlora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 内存分成基座、训练状态和峰值，而不是只有权重"><img src="assets/qlora-01.png" alt="内存分成基座、训练状态和峰值，而不是只有权重 — QLoRA: Efficient Finetuning of Quantized LLMs Figure 1" width="1206" height="525" loading="lazy"></button>
+<figcaption><strong>内存分成基座、训练状态和峰值，而不是只有权重</strong><a href="https://arxiv.org/abs/2305.14314v1" target="_blank" rel="noopener">QLoRA: Efficient Finetuning of Quantized LLMs</a> · Figure 1 · version 2305.14314v1 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Different finetuning methods and their memory requirements. QLORA improves over LoRA by
+quantizing the transformer model to 4-bit precision and using paged optimizers to handle memory spikes.</div><a class="source-url" href="https://arxiv.org/pdf/2305.14314v1">https://arxiv.org/pdf/2305.14314v1</a></details></figcaption></figure>
+
+**读图。** 全量FT保存完整权重梯度与optimizer，LoRA冻结基座减少训练状态，QLoRA进一步压缩基座并通过分页处理峰值。反向仍穿过反量化权重到adapter，计算精度与存储位宽不同。
+
+**直觉。** 工单只需少量专用参数，但7B基座仍占显存；4bit主要减少这块。分页可能增加CPU/GPU迁移，低位解码也有成本，图的节省不能直接换算训练加速或端侧内核吞吐。
+
+<figure id="fig-qlora-02">
+<button class="paper-image" type="button" aria-label="Zoom: Alpaca上的强16bit基线与模块覆盖"><img src="assets/qlora-02.png" alt="Alpaca上的强16bit基线与模块覆盖 — QLoRA: Efficient Finetuning of Quantized LLMs Figure 2" width="570" height="561" loading="lazy"></button>
+<figcaption><strong>Alpaca上的强16bit基线与模块覆盖</strong><a href="https://arxiv.org/abs/2305.14314v1" target="_blank" rel="noopener">QLoRA: Efficient Finetuning of Quantized LLMs</a> · Figure 2 · version 2305.14314v1 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: RougeL for LLaMA 7B models on the
+Alpaca dataset. Each point represents a run with a
+different random seed. We improve on the Stanford
+Alpaca fully finetuned default hyperparameters to
+construct a strong 16-bit baseline for comparisons.
+Using LoRA on all transformer layers is critical to
+match 16-bit performance.</div><a class="source-url" href="https://arxiv.org/pdf/2305.14314v1">https://arxiv.org/pdf/2305.14314v1</a></details></figcaption></figure>
+
+**读图。** 横轴方法，纵轴ROUGE-L，颜色/标记区分4bit和16bit，每点为不同seed；比较all、FFN、attention adapter及重新调过的Alpaca FT与原Stanford配置。All更接近强16bit基线，说明只Q/V结论不可普遍沿用。
+
+**边界。** 作者先改进FT超参数有助公平，但这仍是7B/Alpaca的词面指标，不能证明所有任务all-linear最佳。更多target也增加因子和激活成本；工单事实质量需要独立指标，不能由ROUGE-L直接推断。
+
+<figure id="fig-qlora-03">
+<button class="paper-image" type="button" aria-label="Zoom: 同总存储bits下比较NF4与普通FP4"><img src="assets/qlora-03.png" alt="同总存储bits下比较NF4与普通FP4 — QLoRA: Efficient Finetuning of Quantized LLMs Figure 3" width="570" height="420" loading="lazy"></button>
+<figcaption><strong>同总存储bits下比较NF4与普通FP4</strong><a href="https://arxiv.org/abs/2305.14314v1" target="_blank" rel="noopener">QLoRA: Efficient Finetuning of Quantized LLMs</a> · Figure 3 · version 2305.14314v1 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: Mean zero-shot accuracy over Wino-
+grande, HellaSwag, PiQA, Arc-Easy, and Arc-
+Challenge using LLaMA models with different 4-bit
+data types. The NormalFloat data type significantly
+improves the bit-for-bit accuracy gains compared
+to regular 4-bit Floats. While Double Quantization
+(DQ) only leads to minor gains, it allows for a more
+fine-grained control over the memory footprint to fit
+models of certain size (33B/65B) into certain GPUs
+(24/48GB).</div><a class="source-url" href="https://arxiv.org/pdf/2305.14314v1">https://arxiv.org/pdf/2305.14314v1</a></details></figcaption></figure>
+
+**读图。** 横轴total model bits为对数尺度，纵轴五个常识任务mean zero-shot Accuracy；不同点兼有模型规模和量化格式变化。NF4通常比普通4bit float更好，double quantization主要改变元数据存储，横向收益与纵向质量分开读。
+
+**机制。** 正态权重适配的非均匀codebook减少表示误差，二次量化压缩scale而非训练A/B。它的分布假设不保证任意权重最优；不是固定7B的算子速度图，也不代表QNN整数格式可直接加载NF4。
+
+<figure id="fig-qlora-04">
+<button class="paper-image" type="button" aria-label="Zoom: MMLU与BF16近似相当，但不是每格都相同"><img src="assets/qlora-04.png" alt="MMLU与BF16近似相当，但不是每格都相同 — QLoRA: Efficient Finetuning of Quantized LLMs Table 4" width="1200" height="210" loading="lazy"></button>
+<figcaption><strong>MMLU与BF16近似相当，但不是每格都相同</strong><a href="https://arxiv.org/abs/2305.14314v1" target="_blank" rel="noopener">QLoRA: Efficient Finetuning of Quantized LLMs</a> · Table 4 · version 2305.14314v1 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 4: Mean 5-shot MMLU test accuracy for LLaMA 7-65B models finetuned with adapters on Alpaca and
+FLAN v2 for different data types. Overall, NF4 with double quantization (DQ) matches BFloat16 performance,
+while FP4 is consistently one percentage point behind both.</div><a class="source-url" href="https://arxiv.org/pdf/2305.14314v1">https://arxiv.org/pdf/2305.14314v1</a></details></figcaption></figure>
+
+**读表。** 7/13/33/65B与Alpaca/FLAN-v2交叉列，指标mean5-shot MMLU test Accuracy。BF16总均分53.0、NF4+DQ53.1、Float4 52.2；7B FLAN为45.6对44.5，65B FLAN62.5对63.9，各格有升有降。
+
+**结论。** 支持这些条件下NF4保留近似任务表现，不能把总均分写成所有模型无损，或将53.1理解为“ChatGPT能力99%”。prompt/harness、数据与模型必须保留；本次逐行对称W4 RTN不属于这里的NF4实验。
+
+<figure id="fig-qlora-05">
+<button class="paper-image" type="button" aria-label="Zoom: 权重很小后，输入相关成本仍有份量"><img src="assets/qlora-05.png" alt="权重很小后，输入相关成本仍有份量 — QLoRA: Efficient Finetuning of Quantized LLMs Figure 6" width="864" height="687" loading="lazy"></button>
+<figcaption><strong>权重很小后，输入相关成本仍有份量</strong><a href="https://arxiv.org/abs/2305.14314v1" target="_blank" rel="noopener">QLoRA: Efficient Finetuning of Quantized LLMs</a> · Figure 6 · version 2305.14314v1 · PDF p.26 / printed p.26
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 6: Breakdown of the memory footprint of different LLaMA models. The input gradient size is for batch
+size 1 and sequence length 512 and is estimated only for adapters and the base model weights (no attention).
+Numbers on the bars are memory footprint in MB of individual elements of the total footprint. While some
+models do not quite fit on certain GPUs, paged optimzier provide enough memory to make these models fit.</div><a class="source-url" href="https://arxiv.org/pdf/2305.14314v1">https://arxiv.org/pdf/2305.14314v1</a></details></figcaption></figure>
+
+**读图。** 7/13/33/65B各柱按model、adapters、weight gradient、optimizer、input gradient分解，百分比轴与MB标注共同读。估计采用batch1/length512，输入梯度只含基座与adapter、未含attention，总值6.9/11.3/24.7/45.0GB。
+
+**边界。** 该估算不能直接当完整实测峰值，也不能外推到超长日志；attention、临时buffer与分页影响可运行性。原65B/48GB可微调是具体实现成果，最终多租户推理还需KV、缓存和adapter调度预算。
+
+
+<span id="paper-loftq"></span>
+
+**LoftQ：初始化时联合低位基座与低秩残差。** 2023年的LoftQ <a href="#source-7">[7]</a> 将量化残差分解成adapter起点，交替调整量化基座与低秩补偿。它优化权重重建，与PiSSA先分出主权重后量化残差的顺序不同。
+
+<figure id="fig-loftq-01">
+<button class="paper-image" type="button" aria-label="Zoom: 初始化误差：谱范数和Frobenius范数分开"><img src="assets/loftq-01.png" alt="初始化误差：谱范数和Frobenius范数分开 — LoftQ: LoRA-Fine-Tuning-Aware Quantization for Large Language Models Figure 2" width="1428" height="585" loading="lazy"></button>
+<figcaption><strong>初始化误差：谱范数和Frobenius范数分开</strong><a href="https://arxiv.org/abs/2310.08659v4" target="_blank" rel="noopener">LoftQ: LoRA-Fine-Tuning-Aware Quantization for Large Language Models</a> · Figure 2 · version 2310.08659v4 · PDF p.3 / printed p.3
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Initialization discrepancy between the LoRA initialization and the original pre-trained
+weight matrix, described by the spectral norm and Frobenius norm of the difference. The weight
+matrix in the above figures is randomly selected in BART-large. The initialization is obtained by
+QLoRA and LoftQ, with Uniform and NormalFloat quantization methods applied at both 2-bit and
+4-bit levels. LoftQ successfully mitigates the discrepancy, especially at the 2-bit level.</div><a class="source-url" href="https://arxiv.org/pdf/2310.08659v4">https://arxiv.org/pdf/2310.08659v4</a></details></figcaption></figure>
+
+**读图。** BART-large一个选定矩阵，横轴Uniform/NF的4bit/2bit，左右纵轴分别谱范数与Frobenius范数，LoftQ/QLoRA柱对照。2bit误差更大，低秩补偿明显减少差距；两种范数刻度不同不可直接相加。
+
+**含义。** 谱范数看最坏线性方向，Frobenius看总体权重误差，均不是测试loss。图只选一个矩阵，不证明所有层或工单质量同幅改善；训练与导出是否保留补偿另需检查。
+
+<figure id="fig-loftq-02">
+<button class="paper-image" type="button" aria-label="Zoom: 量化残差与SVD交替，不是一次普通随机初始化"><img src="assets/loftq-02.png" alt="量化残差与SVD交替，不是一次普通随机初始化 — LoftQ: LoRA-Fine-Tuning-Aware Quantization for Large Language Models Algorithm 1" width="1413" height="374" loading="lazy"></button>
+<figcaption><strong>量化残差与SVD交替，不是一次普通随机初始化</strong><a href="https://arxiv.org/abs/2310.08659v4" target="_blank" rel="noopener">LoftQ: LoRA-Fine-Tuning-Aware Quantization for Large Language Models</a> · Algorithm 1 · version 2310.08659v4 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Algorithm 1 LoftQ</div><a class="source-url" href="https://arxiv.org/pdf/2310.08659v4">https://arxiv.org/pdf/2310.08659v4</a></details></figcaption></figure>
+
+**算法。** 从零因子起步；每轮量化W减当前低秩项，再SVD分解W减该量化重建，输出最终Q与因子。原图用ABᵀ命名，本文统一为BA；倍率可以吸收进因子，实际库forward仍需对齐。
+
+**边界。** 各轮SVD与量化增加离线成本，局部交替优化不保证全局最优或任务loss最小。与目标量化器不同的初始化可能不能直接迁移；已有QLoRA checkpoint的近似替换接口也不等于完整原算法。
+
+<figure id="fig-loftq-03">
+<button class="paper-image" type="button" aria-label="Zoom: 低bit可运行性与PPL/数学质量分开报告"><img src="assets/loftq-03.png" alt="低bit可运行性与PPL/数学质量分开报告 — LoftQ: LoRA-Fine-Tuning-Aware Quantization for Large Language Models Table 5" width="1020" height="765" loading="lazy"></button>
+<figcaption><strong>低bit可运行性与PPL/数学质量分开报告</strong><a href="https://arxiv.org/abs/2310.08659v4" target="_blank" rel="noopener">LoftQ: LoRA-Fine-Tuning-Aware Quantization for Large Language Models</a> · Table 5 · version 2310.08659v4 · PDF p.12 / printed p.12
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 5: Results of LoftQ using NormalFloat for LLAMA-2 series on WikiText-2 and GSM8K.</div><a class="source-url" href="https://arxiv.org/pdf/2310.08659v4">https://arxiv.org/pdf/2310.08659v4</a></details></figcaption></figure>
+
+**读表。** Llama2-7/13B，WikiText2 PPL↓、GSM8K↑，NF量化位宽逐档。13B4bit QLoRA5.22/39.9，LoftQ5.16/45.0；7B4bit数学35.1与35.0，未全部提升。2.5/2.25是原实验混合位宽，不是单权重有分数bit码。
+
+**边界。** N.A.为不可取得或不可用项，不能补成0准确率。极低位LoftQ较可用仍比16bit差，且没有速度内核证据。工单需比较同量化器、同导出函数与相同训练预算。
+
+
+$$
+\min_{Q,B,A}\|W_0-(\operatorname{DQ}(Q)+BA)\|_F^2.
+$$
+
+这是 LoftQ 初始化目标在本文维度中的等价写法，此处倍率吸收到因子中。Q 受目标位宽和量化器约束，BA 秩≤r，Frobenius 范数平方是所有权重重建误差的平方和。交替量化残差与 SVD 低秩补偿降低初始差距，但它优化的是权重重建，不保证工单摘要损失或测试 PPL 最小；后续任务训练仍需要完成。
+
+<span id="paper-qalora"></span>
+
+**QA-LoRA：把组内共享更新吸收进量化参数。** 2023年的QA-LoRA <a href="#source-6">[6]</a> 通过输入分组求和减少adapter输入自由度，使同组权重共享增量，合并时改量化偏置而不重新取整整个权重。它以结构约束换取最终表示的一致性。
+
+<figure id="fig-qalora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 独立浮点adapter与最终量化模型有不同接口"><img src="assets/qalora-01.png" alt="独立浮点adapter与最终量化模型有不同接口 — QA-LoRA: Quantization-Aware Low-Rank Adaptation of Large Language Models Figure 2" width="1167" height="516" loading="lazy"></button>
+<figcaption><strong>独立浮点adapter与最终量化模型有不同接口</strong><a href="https://arxiv.org/abs/2309.14717v2" target="_blank" rel="noopener">QA-LoRA: Quantization-Aware Low-Rank Adaptation of Large Language Models</a> · Figure 2 · version 2309.14717v2 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: An illustration of the goal of QA-LoRA. Compared to prior adaptation methods, LoRA and
+QLoRA, our approach is computationally efficient in both the fine-tuning and inference stages. More
+importantly, it does not suffer an accuracy loss because post-training quantization is not required.
+We display INT4 quantization in the figure, but QA-LoRA is generalized to INT3 and INT2.</div><a class="source-url" href="https://arxiv.org/pdf/2309.14717v2">https://arxiv.org/pdf/2309.14717v2</a></details></figcaption></figure>
+
+**读图。** 三列LoRA、QLoRA、QA-LoRA，训练与推理上下对照，颜色标FP16/NF4/INT4；前两列若要纯低位推理需合并后PTQ，右列以组内共享支路直接吸收。D_in、D_out、D_int是输入输出和内部rank，L是组数。
+
+**含义。** 工单部署若需要固定INT4权重，训练支路结构应该兼容量化元数据，而不只是文件很小。右列“不需PTQ”只指无需额外合并取整，并不保证相对浮点原基座或任务完全无损；group和偏置存储必须明确。
+
+<figure id="fig-qalora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 输入组求和，让BA成为每组相同的偏置更新"><img src="assets/qalora-02.png" alt="输入组求和，让BA成为每组相同的偏置更新 — QA-LoRA: Quantization-Aware Low-Rank Adaptation of Large Language Models Algorithm 1" width="1197" height="537" loading="lazy"></button>
+<figcaption><strong>输入组求和，让BA成为每组相同的偏置更新</strong><a href="https://arxiv.org/abs/2309.14717v2" target="_blank" rel="noopener">QA-LoRA: Quantization-Aware Low-Rank Adaptation of Large Language Models</a> · Algorithm 1 · version 2309.14717v2 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Algorithm 1 QA-LoRA Pseudocode in the PyTorch-like style</div><a class="source-url" href="https://arxiv.org/pdf/2309.14717v2">https://arxiv.org/pdf/2309.14717v2</a></details></figcaption></figure>
+
+**算法。** AvgPool1d后乘group size恢复组内求和，A输入宽度由D_in变为L，再乘B和s。merge将相同组增量除scale后吸收到beta；此beta是允许连续值的量化偏置参数，不能一概等同于某硬件必须整数的zero-point。
+
+**边界。** 组内共享减少自由度，换group会改变函数。截图的简化 `pre_quantization` 中beta写在round外并相消，单靠此伪代码不足以说明完整码/offset实现；核验作者量化路径及实际重建式，不能按抽象接口断言任意内核可用。
+
+<figure id="fig-qalora-03">
+<button class="paper-image" type="button" aria-label="Zoom: 0-shot/5-shot、训练数据与最终bits分别控制"><img src="assets/qalora-03.png" alt="0-shot/5-shot、训练数据与最终bits分别控制 — QA-LoRA: Quantization-Aware Low-Rank Adaptation of Large Language Models Table 1" width="1197" height="1656" loading="lazy"></button>
+<figcaption><strong>0-shot/5-shot、训练数据与最终bits分别控制</strong><a href="https://arxiv.org/abs/2309.14717v2" target="_blank" rel="noopener">QA-LoRA: Quantization-Aware Low-Rank Adaptation of Large Language Models</a> · Table 1 · version 2309.14717v2 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: 0-shot and 5-shot accuracy (%) on the Massive Multitask Language Understanding
+(MMLU) dataset (Hendrycks et al., 2021). Each block is based on the same foundation model
+specified at the first row. We organize all results using the fine-tuning dataset (Alpaca or Flan-v2)
+and the bit width of quantization. The bit width of ‘4 + 16’ refers to the original QLoRA where the
+final version for inference is in FP16.</div><a class="source-url" href="https://arxiv.org/pdf/2309.14717v2">https://arxiv.org/pdf/2309.14717v2</a></details></figcaption></figure>
+
+**读表。** 各基座块按Alpaca/FLAN-v2、2/3/4bit分组，MMLU四领域及平均；4+16表示原QLoRA基座低位但最终参考版本FP16。7B FLAN4bit5-shot QA47.0高于QLoRA+GPTQ41.4；65B同组QA62.1低于其63.5，未普遍获胜。
+
+**结论。** 结构兼容合并在不少低bit设置优于训练后额外PTQ，但不同评测shots会改变排序。大表不能以一行宣称无精度损失；位宽、group、基座与最终是否有高精度支路必须一起报告。
+
+
+QLoRA 是在量化基座上训练浮点 adapter；QA-LoRA 限制更新结构以支持吸收进量化参数；一般“合并后 fake quant 参与每步训练”的低秩 QAT 又是另一种接口。需要更完整的量化背景，可继续读 [LLM PTQ](../llm-ptq/) 和 [LLM QAT](../llm-qat/)：本文已独立讲清 LoRA 所需的非交换性与导出边界。
+
+## 10. 多 adapter 组合：先定义合并的对象
+
+<figure id="diagram-composition"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 580" role="img" aria-labelledby="svg-a57ff47f-title svg-a57ff47f-desc">
+<title id="svg-a57ff47f-title">LoRA组合的代数对象</title><desc id="svg-a57ff47f-desc">严格增量串接与分别平均因子引入的交叉项不同，用实际训练adapter和真实层输入验证。</desc>
+<defs><marker id="svg-a57ff47f-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-a57ff47f-arrow)}</style>
+<text x="24" y="36" font-size="22" font-weight="600">先定义合并对象：增量相加与因子平均有不同代数</text><rect x="24" y="107" width="405" height="207" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="119" width="3" height="183" fill="#7dc6b2"/><text x="42" y="137" class="label" font-weight="600">严格增量和</text><text x="42" y="163" class="small muted">Δ = c₁s₁B₁A₁ + c₂s₂B₂A₂</text><text x="42" y="186" class="small muted">串接 Bcat=[c₁s₁B₁, c₂s₂B₂]</text><text x="42" y="209" class="small muted">Acat=[A₁; A₂]</text><text x="42" y="232" class="small muted">精确表达，内 rank 加和</text><text x="42" y="255" class="small muted">压缩回低 rank 又有新误差</text><rect x="470" y="107" width="406" height="207" rx="8" fill="#182230" stroke="#344355"/><rect x="470" y="119" width="3" height="183" fill="#e6bf88"/><text x="488" y="137" class="label" font-weight="600">分别平均因子</text><text x="488" y="163" class="small muted">(c₁B₁+c₂B₂)(c₁A₁+c₂A₂)</text><text x="488" y="186" class="small muted">多出 B₁A₂ / B₂A₁ 交叉项</text><text x="488" y="209" class="small muted">原增量系数也变为平方</text><text x="488" y="232" class="small muted">因子坐标还存在可逆变换</text><text x="488" y="255" class="small muted">LoRAHub：可学习但非严格和</text><rect x="24" y="393" width="852" height="151" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="405" width="3" height="127" fill="#a7b5ee"/><text x="42" y="423" class="label" font-weight="600">真实两个 rank4 adapter：同任务不同 seed，CPU float64</text><text x="42" y="449" class="small muted">第一层64个真实 token：因子平均与严格平均输出 max 差0.144317。</text><text x="42" y="472" class="small muted">串接与严格平均输出 max 差2.78×10⁻¹⁷，只验证代数。</text><text x="42" y="495" class="small muted">TIES符号选择 / DARE掩码引入新操作；跨任务能力要单独测试。</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+图左的严格增量和能用串接表示，右边分别平均 A/B 会多出交叉项。工单摘要与代码 adapter 即使来自同一基座，也可能使用不同因子坐标、target、rank 和缩放；正确的代数合并不保证同时保留两项能力，而错误的代数对象更不能靠名字相同来掩盖。
+
+$$
+\Delta W_{\mathrm{sum}}=\sum_i c_i s_iB_iA_i
+=\begin{bmatrix}c_1s_1B_1&c_2s_2B_2&\cdots\end{bmatrix}
+\begin{bmatrix}A_1\\A_2\\\vdots\end{bmatrix}.
+$$
+
+$i$ 为 adapter 编号，$c_i$ 是组合权重，$s_i$ 是各自倍率。串接后的内维度为 $\sum_i r_i$，输出仍为 $m\times n$，可以表达严格的加权权重增量，包括负权重；部署库若额外施加默认 s，须避免重复缩放。要重新压回小 rank，就引入新的近似误差。
+
+$$
+\left(\sum_i c_i B_i\right)\left(\sum_j c_j A_j\right)
+=\sum_i c_i^2B_iA_i+\sum_{i\ne j}c_ic_jB_iA_j.
+$$
+
+该式假设各因子尺寸可平均且倍率已对齐。第一项的系数变为平方，第二项是不同 adapter 的交叉项。即使 $c_1=c_2=0.5$，也不是两个增量的简单平均；学习这些系数可能有用，但应把它作为一种有交叉项的参数化，而不是严格任务向量相加。
+
+<span id="paper-lorahub"></span>
+
+**LoRAHub：从已训练adapter库中少样本搜索组合系数。** 2023公开、COLM2024的LoRAHub <a href="#source-21">[21]</a> 用无梯度优化器选择已有模块组合。作者实现按同名key对A/B分别加权，因此含交叉项；它是可学习组合参数化，不是严格权重增量相加。
+
+<figure id="fig-lorahub-01">
+<button class="paper-image" type="button" aria-label="Zoom: Compose与Adapt：系数搜索需要实际模型评估"><img src="assets/lorahub-01.png" alt="Compose与Adapt：系数搜索需要实际模型评估 — LoraHub: Efficient Cross-Task Generalization via Dynamic LoRA Composition Figure 2" width="1203" height="387" loading="lazy"></button>
+<figcaption><strong>Compose与Adapt：系数搜索需要实际模型评估</strong><a href="https://arxiv.org/abs/2307.13269v3" target="_blank" rel="noopener">LoraHub: Efficient Cross-Task Generalization via Dynamic LoRA Composition</a> · Figure 2 · version 2307.13269v3 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Our method encompasses two stages: the COMPOSE stage and the ADAPT stage.
+During the COMPOSE stage, existing LoRA modules are integrated into one unified mod-
+ule, employing a set of coefficients, denoted as w. In the ADAPT stage, the combined LoRA
+module is evaluated on a few examples from the unseen task. Subsequently, a gradient-free
+algorithm is applied to refine w. After executing K iterations, a highly adapted combined
+LoRA module is produced, which can be incorporated with the LLM to perform the in-
+tended task.</div><a class="source-url" href="https://arxiv.org/pdf/2307.13269v3">https://arxiv.org/pdf/2307.13269v3</a></details></figcaption></figure>
+
+**数据流。** 先对上游任务训练模块；Compose按w形成组合；Adapt用新任务少量样本评估loss，由无梯度搜索更新w，重复K次。图里的加号是概念组合，不能由图单独认定内部用严格BA相加。
+
+**用例与代价。** 工单库已有摘要、分类和代码模块时，新任务可少样本寻找组合，减少梯度训练，但仍需K轮模型前向，库覆盖影响结果。系数正则和样本选择都是实际目标，错误adapter基座身份不能由搜索补救。
+
+<figure id="fig-lorahub-02">
+<button class="paper-image" type="button" aria-label="Zoom: BBH质量与每例token成本，LoRAHub未超过平均ICL"><img src="assets/lorahub-02.png" alt="BBH质量与每例token成本，LoRAHub未超过平均ICL — LoraHub: Efficient Cross-Task Generalization via Dynamic LoRA Composition Table 1" width="1209" height="1194" loading="lazy"></button>
+<figcaption><strong>BBH质量与每例token成本，LoRAHub未超过平均ICL</strong><a href="https://arxiv.org/abs/2307.13269v3" target="_blank" rel="noopener">LoraHub: Efficient Cross-Task Generalization via Dynamic LoRA Composition</a> · Table 1 · version 2307.13269v3 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Experimental results of zero-shot learning (Zero), few-shot in-context learning
+(ICL), IA3 fine-tuning (IA3), LoRA tuning (LoRA), full fine-tuning (FFT) and our pro-
+posed few-shot LoraHub learning (LoraHub) on the BBH benchmark with FLAN-T5-large
+as the base LLM. We denote algorithmic tasks with the superscript § following previous
+work (Wu et al., 2023b). Note that we employ three runs, each leveraging different 5-shot
+examples per task, as demonstrations for all few-shot methods. The average performance
+of all methods is reported below, and the best performance of each few-shot method can
+be found in the Appendix B.</div><a class="source-url" href="https://arxiv.org/pdf/2307.13269v3">https://arxiv.org/pdf/2307.13269v3</a></details></figcaption></figure>
+
+**读表。** FLAN-T5-large，三组不同5-shot示例，各任务EM及平均；LoRAHub34.7、ICL37.3、直接LoRA37.7、FFT42.1。每例tokens为111.6对ICL597.8，差异来自推理时不重复携带演示；梯度训练与否另列。
+
+**结论。** 这是质量—提示成本取舍，不是“组合一定优于ICL”。新任务少量示例搜索成本尚需计入总成本，单个任务差异很大。它也不验证同任务不同seed因子平均的代数正确，本文实测仅检查该对象。
+
+<figure id="fig-lorahub-03">
+<button class="paper-image" type="button" aria-label="Zoom: 库更大，不保证所有新任务都改善"><img src="assets/lorahub-03.png" alt="库更大，不保证所有新任务都改善 — LoraHub: Efficient Cross-Task Generalization via Dynamic LoRA Composition Figure 3" width="888" height="603" loading="lazy"></button>
+<figcaption><strong>库更大，不保证所有新任务都改善</strong><a href="https://arxiv.org/abs/2307.13269v3" target="_blank" rel="noopener">LoraHub: Efficient Cross-Task Generalization via Dynamic LoRA Composition</a> · Figure 3 · version 2307.13269v3 · PDF p.21 / printed p.21
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: The influence of number of LoRA modules on 15 tasks from BBH, and each box
+is obtained from 5 separate runs. The horizontal axis shows the number of LoRA modules
+to be composed in LoraHub learning.</div><a class="source-url" href="https://arxiv.org/pdf/2307.13269v3">https://arxiv.org/pdf/2307.13269v3</a></details></figcaption></figure>
+
+**读图。** 15任务各面板横轴模块数5/10/50/100，纵轴对应任务分数，箱体来自5次运行；各纵轴范围不同，不能按箱体高度横跨任务比较。部分任务随库增大上升，另一些波动或无收益。
+
+**含义。** 模块数量增加既提供更多候选也扩大搜索与干扰空间。工单应按任务相关性建库，验证跨任务收益和方差，不能仅堆adapter。箱线图不是每次组合的稳定性保证，原任务库/少样本协议限制外推。
+
+
+<span id="paper-ties"></span>
+
+**TIES-Merging：先裁小增量，再选符号，最后仅合并同符号值。** 2023年的TIES <a href="#source-22">[22]</a> 针对任务向量相加的冗余与符号冲突，不是专门训练LoRA。其原实验含IA³、全量NLP与视觉，用来解释adapter增量合并时需标明外推。
+
+<figure id="fig-ties-01">
+<button class="paper-image" type="button" aria-label="Zoom: Trim、Elect Sign、Disjoint Merge分别处理什么"><img src="assets/ties-01.png" alt="Trim、Elect Sign、Disjoint Merge分别处理什么 — TIES-Merging: Resolving Interference When Merging Models Figure 1" width="1206" height="489" loading="lazy"></button>
+<figcaption><strong>Trim、Elect Sign、Disjoint Merge分别处理什么</strong><a href="https://arxiv.org/abs/2306.01708v2" target="_blank" rel="noopener">TIES-Merging: Resolving Interference When Merging Models</a> · Figure 1 · version 2306.01708v2 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: A depiction of the steps involved in TIES-MERGING. We visualize each parameter in
+a model as a square. The arrows depict the update (task vector, τ) to a parameter produced by
+fine-tuning on different tasks (coded by colors), with direction denoting sign and length denoting
+magnitude. We first trim the task vector values based on their magnitude, then we elect the sign for
+each parameter (γm, green vector containing +1 or −1) by resolving sign conflicts. Finally, we pick
+only the values that align with the elected sign and take their mean as the final parameter value.</div><a class="source-url" href="https://arxiv.org/pdf/2306.01708v2">https://arxiv.org/pdf/2306.01708v2</a></details></figcaption></figure>
+
+**步骤。** 方格为参数、颜色为任务、箭头方向为符号/长度为增量大小。先删幅度小的值，再为每个位置选合成符号，最后只对与选定符号相符的非零值取均值，得到任务增量并加回共享基座。
+
+**直觉与边界。** 工单摘要与代码在同一参数上若更新方向相反，直接平均可能抵消；TIES保留一个方向。但幅度大小未必对应语义重要性，裁剪与符号选择会损失信息。对LoRA应先明确是在有效增量还是因子上操作，二者不等价。
+
+<figure id="fig-ties-02">
+<button class="paper-image" type="button" aria-label="Zoom: 裁剪后仍有符号冲突，模块越多更明显"><img src="assets/ties-02.png" alt="裁剪后仍有符号冲突，模块越多更明显 — TIES-Merging: Resolving Interference When Merging Models Figure 4" width="597" height="270" loading="lazy"></button>
+<figcaption><strong>裁剪后仍有符号冲突，模块越多更明显</strong><a href="https://arxiv.org/abs/2306.01708v2" target="_blank" rel="noopener">TIES-Merging: Resolving Interference When Merging Models</a> · Figure 4 · version 2306.01708v2 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4: Sign conflicts occur even after trim-
+ming and increase with the number of models.
+We plot the fraction of parameters that have a sign
+conflict after trimming versus the number of mod-
+els being merged.</div><a class="source-url" href="https://arxiv.org/pdf/2306.01708v2">https://arxiv.org/pdf/2306.01708v2</a></details></figcaption></figure>
+
+**读图。** 横轴合并模型数2–11，纵轴裁剪后有sign conflict的参数比例，柱高随模型数增加。它统计同一位置的更新符号分歧，不是任务失败率、相似度或冲突样本数。
+
+**含义。** 合并更多任务会增加需要处理的参数协调问题，支持符号选择设计；柱形趋势不能证明全部干扰都来自符号。基座、稀疏阈值和任务集合决定比例，参数冲突也未必导致工单输出错误，需任务验证。
+
+<figure id="fig-ties-03">
+<button class="paper-image" type="button" aria-label="Zoom: 有无验证集、PEFT与全量模型分开比较"><img src="assets/ties-03.png" alt="有无验证集、PEFT与全量模型分开比较 — TIES-Merging: Resolving Interference When Merging Models Table 1" width="1200" height="405" loading="lazy"></button>
+<figcaption><strong>有无验证集、PEFT与全量模型分开比较</strong><a href="https://arxiv.org/abs/2306.01708v2" target="_blank" rel="noopener">TIES-Merging: Resolving Interference When Merging Models</a> · Table 1 · version 2306.01708v2 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Comparing model merging methods across multiple fine-tuning settings and modalities
+(NLP and Vision) with and without the availability of a validation set.</div><a class="source-url" href="https://arxiv.org/pdf/2306.01708v2">https://arxiv.org/pdf/2306.01708v2</a></details></figcaption></figure>
+
+**读表。** 列为IA³/T5-base/large/ViT，行按是否有validation划分，指标是各设置任务平均。无验证集T5-base TIES69.7低于task arithmetic73.2，T5-large74.4高于73.5；不能只读括号正增益就说全部获胜。
+
+**边界。** 有验证集意味着可选择合并超参数，成本和信息不同；PEFT列不是LoRA列，视觉也不是LLM生成。表支持若干任务的合并改善，不能作为LoRA组合统一排行榜或推理速度证据。
+
+
+<span id="paper-dare"></span>
+
+**DARE：随机丢弃增量并重缩放，也可辅助模型合并。** 2023公开的DARE <a href="#source-23">[23]</a> 用Drop And REscale处理同基座SFT模型的稠密任务增量。随机掩码后的期望等于原增量，但单次网络输出、分数和低秩结构并无同样保证。
+
+<figure id="fig-dare-01">
+<button class="paper-image" type="button" aria-label="Zoom: 丢弃和重缩放先做，合并是后续操作"><img src="assets/dare-01.png" alt="丢弃和重缩放先做，合并是后续操作 — Language Models are Super Mario: Absorbing Abilities from Homologous Models as a Free Lunch Figure 2" width="1293" height="897" loading="lazy"></button>
+<figcaption><strong>丢弃和重缩放先做，合并是后续操作</strong><a href="https://arxiv.org/abs/2311.03099v3" target="_blank" rel="noopener">Language Models are Super Mario: Absorbing Abilities from Homologous Models as a Free Lunch</a> · Figure 2 · version 2311.03099v3 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Illustrations of DARE and merging models with DARE. DARE can achieve comparable performance with standard
+SFT with 90% or even 99% delta parameters removed. Moreover, DARE tackles the parameter interference issue when
+merging models and yields consistent improvements. At the top, we mark each icon with one or two muscle logos, indicating
+its ability for specific tasks. For example, the first or second icon has one muscle logo for math-related tasks, while the third
+or fourth icon can perform better in math with two muscle logos. The rescale operation in DARE multiplies the remaining
+parameters by 1/(1 −p), which enhances the task-specific abilities and leads to changes in icons after rescaling.</div><a class="source-url" href="https://arxiv.org/pdf/2311.03099v3">https://arxiv.org/pdf/2311.03099v3</a></details></figcaption></figure>
+
+**数据流。** 同源基座经不同SFT得到任务增量，随机删其中部分，再把保留值除以1-p；可单独还原任务模型，也可把处理后的增量组合。肌肉图标只是能力示意，不是实际分数或参数数。
+
+**直觉。** 若许多微小改动互相冗余，随机保留并放大可近似总体作用；p很大时方差也变大，不能从期望推出每个adapter都有效。对低秩BA逐元素掩码还可能变为高秩，没有稀疏内核也不自动加速。
+
+<figure id="fig-dare-02">
+<button class="paper-image" type="button" aria-label="Zoom: 数学与代码对丢弃率敏感度不同"><img src="assets/dare-02.png" alt="数学与代码对丢弃率敏感度不同 — Language Models are Super Mario: Absorbing Abilities from Homologous Models as a Free Lunch Figure 3" width="714" height="297" loading="lazy"></button>
+<figcaption><strong>数学与代码对丢弃率敏感度不同</strong><a href="https://arxiv.org/abs/2311.03099v3" target="_blank" rel="noopener">Language Models are Super Mario: Absorbing Abilities from Homologous Models as a Free Lunch</a> · Figure 3 · version 2311.03099v3 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: Performance of decoder-based LMs on GSM8K
+and HumanEval with various drop rates.</div><a class="source-url" href="https://arxiv.org/pdf/2311.03099v3">https://arxiv.org/pdf/2311.03099v3</a></details></figcaption></figure>
+
+**读图。** 横轴drop rate，纵轴GSM8K/HumanEval性能，不同decoder模型曲线分别读，原始任务分作参考。某些曲线到90%或99%仍较稳，另一些更早退化，不能只取最稳曲线概括全部模型。
+
+**边界。** 原方法作用于SFT delta，增量大小、基座和任务决定容忍度；与直接删原权重不同。它说明冗余可利用，不证明99%参数删除后所有技能保留，工单仍需事实与异常场景盲测。
+
+<figure id="fig-dare-03">
+<button class="paper-image" type="button" aria-label="Zoom: 更多任务补充：极端稀疏也会出现失败"><img src="assets/dare-03.png" alt="更多任务补充：极端稀疏也会出现失败 — Language Models are Super Mario: Absorbing Abilities from Homologous Models as a Free Lunch Figure 12" width="1464" height="423" loading="lazy"></button>
+<figcaption><strong>更多任务补充：极端稀疏也会出现失败</strong><a href="https://arxiv.org/abs/2311.03099v3" target="_blank" rel="noopener">Language Models are Super Mario: Absorbing Abilities from Homologous Models as a Free Lunch</a> · Figure 12 · version 2311.03099v3 · PDF p.16 / printed p.16
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 12: Performance of decoder-based LMs on AlpacaEval, MATH, and MBPP with various drop rates.</div><a class="source-url" href="https://arxiv.org/pdf/2311.03099v3">https://arxiv.org/pdf/2311.03099v3</a></details></figcaption></figure>
+
+**读图。** AlpacaEval、MATH、MBPP按面板给不同丢弃率曲线，分别是偏好/数学/代码指标。跨面板同样的drop rate不代表相同任务难度；越靠近1，保留增量缩放越大，可能放大单次掩码扰动。
+
+**含义。** 补充结果用于界定“免费删除”的条件，而不是装饰主结论。开放回答裁判与代码执行不能互相替代，表面稳定仍需多seed与长生成检查。本文没有跑DARE任务，只用其机制说明合并与结构的区别。
+
+
+$$
+\widetilde\Delta=\frac{M\odot\Delta}{1-p},\qquad
+M_{uv}\sim\operatorname{Bernoulli}(1-p).
+$$
+
+这是 DARE 的独立随机掩码写法。$p$ 为丢弃概率，$\odot$ 是逐元素乘，$M$ 与增量同形，假设 $0\le p<1$；期望上 $\mathbb E[\widetilde\Delta]=\Delta$。期望无偏不保证某次模型输出、任务分数或长生成无偏。逐元素掩码还可能破坏原有低秩结构，稀疏权重若没有对应内核，也不会自动加速。
+
+## 11. 多租户服务：共享大 GEMM，组织小 adapter 计算
+
+GEMM 是通用矩阵—矩阵乘法，把许多请求合在一起可减少重复调用并提高硬件利用率。SGMV 是分段 Gather 矩阵—向量乘法，让不同请求行段使用各自的 adapter 矩阵。后文 MFU（模型 FLOPs 利用率）衡量按模型计算量估计的算力利用程度，受计算量口径影响；它与每秒 token 数、单请求等待时间是不同指标。
+
+<figure id="diagram-serving"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 602" role="img" aria-labelledby="svg-f22f44d7-title svg-f22f44d7-desc">
+<title id="svg-f22f44d7-title">多适配器服务与缓存身份</title><desc id="svg-f22f44d7-desc">共享大基座GEMM、按请求匹配小adapter支路，并区分CPU权重缓存、GPU驻留和KV生命周期。</desc>
+<defs><marker id="svg-f22f44d7-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-f22f44d7-arrow)}</style>
+<text x="24" y="36" font-size="22" font-weight="600">同一批请求，共享基座计算；每行匹配自己的 adapter</text><rect x="24" y="100" width="264" height="150" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="112" width="3" height="126" fill="#7dc6b2"/><text x="42" y="130" class="label" font-weight="600">请求 batch / 调度</text><text x="42" y="156" class="small muted">row0 摘要 · row1 代码</text><text x="42" y="179" class="small muted">row2 摘要 · 长度 / 阶段</text><text x="42" y="202" class="small muted">adapter 身份进入映射</text><rect x="318" y="100" width="264" height="150" rx="8" fill="#182230" stroke="#344355"/><rect x="318" y="112" width="3" height="126" fill="#a7b5ee"/><text x="336" y="130" class="label" font-weight="600">共享基座 GEMM</text><text x="336" y="156" class="small muted">Xbatch × W₀ᵀ</text><text x="336" y="179" class="small muted">基座权重只共享一份</text><text x="336" y="202" class="small muted">attention / KV 另有成本</text><rect x="612" y="100" width="264" height="150" rx="8" fill="#182230" stroke="#344355"/><rect x="612" y="112" width="3" height="126" fill="#e6bf88"/><text x="630" y="130" class="label" font-weight="600">分段 adapter 支路</text><text x="630" y="156" class="small muted">每行取对应 A / B</text><text x="630" y="179" class="small muted">SGMV / 异构 rank kernel</text><text x="630" y="202" class="small muted">按原行加回输出</text><path d="M290 176H314" class="line"/><path d="M584 176H608" class="line"/><rect x="24" y="341" width="264" height="174" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="353" width="3" height="150" fill="#7dc6b2"/><text x="42" y="371" class="label" font-weight="600">CPU 权重缓存</text><text x="42" y="397" class="small muted">大库 / 冷加载 / LRU</text><text x="42" y="420" class="small muted">热度决定换入频率</text><text x="42" y="443" class="small muted">文件身份与版本一起绑定</text><rect x="318" y="341" width="264" height="174" rx="8" fill="#182230" stroke="#344355"/><rect x="318" y="353" width="3" height="150" fill="#a7b5ee"/><text x="336" y="371" class="label" font-weight="600">GPU 活跃 adapter</text><text x="336" y="397" class="small muted">rank / target / dtype</text><text x="336" y="420" class="small muted">页表或容量限制</text><text x="336" y="443" class="small muted">实际驻留 != 全部任务数</text><rect x="612" y="341" width="264" height="174" rx="8" fill="#182230" stroke="#344355"/><rect x="612" y="353" width="3" height="150" fill="#e6bf88"/><text x="630" y="371" class="label" font-weight="600">KV pages / prefix cache</text><text x="630" y="397" class="small muted">对应已计算的权重函数</text><text x="630" y="420" class="small muted">切换 adapter 不能任意复用</text><text x="630" y="443" class="small muted">基座 + adapter + tokens</text><path d="M290 427H314" class="line"/><path d="M450 337V254" class="line"/><text x="24" y="569" class="small muted">S-LoRA / Punica 为历史机制；2026 vLLM 官方已支持 LoRA。本文未跑多租户 GPU benchmark。</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+一个批次同时包含“摘要、代码、摘要”请求：基座投影可以共同执行，adapter 支路按请求身份匹配 A/B，最后把结果加回正确行。图把 CPU 权重缓存、GPU 活跃 adapter、KV pages 和调度接口分开。不能只缓存文件名：KV 对应已计算的权重函数，切换 adapter 后通常不能无条件复用旧 KV；完整 prefix-cache 身份要包含基座、adapter、token 序列和相应执行配置。
+
+<span id="paper-slora"></span>
+
+**S-LoRA：共享基座批算与分页管理支持许多adapter。** 2023年的S-LoRA <a href="#source-24">[24]</a> 对基座用大GEMM，对异构rank/长度支路用专用CUDA，同时把adapter与KV纳入统一页池。作者仓库已归档，论文历史基线不能当2026运行时现状。
+
+<figure id="fig-slora-01">
+<button class="paper-image" type="button" aria-label="Zoom: 同一批次，基座共享而支路按请求匹配"><img src="assets/slora-01.png" alt="同一批次，基座共享而支路按请求匹配 — S-LoRA: Serving Thousands of Concurrent LoRA Adapters Figure 1" width="711" height="567" loading="lazy"></button>
+<figcaption><strong>同一批次，基座共享而支路按请求匹配</strong><a href="https://arxiv.org/abs/2311.03285v3" target="_blank" rel="noopener">S-LoRA: Serving Thousands of Concurrent LoRA Adapters</a> · Figure 1 · version 2311.03285v3 · PDF p.3 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1. Separated batched computation for the base model and
+LoRA computation. The batched computation of the base model
+is implemented by GEMM. The batched computation for LoRA
+adapters is implemented by custom CUDA kernels which support
+batching various sequence lengths and adapter ranks.</div><a class="source-url" href="https://arxiv.org/pdf/2311.03285v3">https://arxiv.org/pdf/2311.03285v3</a></details></figcaption></figure>
+
+**数据流。** x₁/x₂/x₃拼成基座batch共同乘W，各自再乘对应A₁/B₁等，结果按原行加回。大矩阵计算可共享，支路权重不能错配；图中三种adapter也可有不同rank和请求长度。
+
+**用例。** “摘要、代码、摘要”连续请求无需三次独立完整基座前向。收益来自批组织与内核，支路并非零成本；图未显示prefill/decode混合调度和KV身份，切adapter后不能无条件复用前函数的缓存。
+
+<figure id="fig-slora-02">
+<button class="paper-image" type="button" aria-label="Zoom: 统一页池减少碎片，权重与KV仍有不同生命周期"><img src="assets/slora-02.png" alt="统一页池减少碎片，权重与KV仍有不同生命周期 — S-LoRA: Serving Thousands of Concurrent LoRA Adapters Figure 3" width="621" height="288" loading="lazy"></button>
+<figcaption><strong>统一页池减少碎片，权重与KV仍有不同生命周期</strong><a href="https://arxiv.org/abs/2311.03285v3" target="_blank" rel="noopener">S-LoRA: Serving Thousands of Concurrent LoRA Adapters</a> · Figure 3 · version 2311.03285v3 · PDF p.5 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. Unified memory pool. We use a unified memory pool to
+store both KV caches and adapter weights in a non-contiguous way
+to reduce memory fragmentation. The page size is H elements.</div><a class="source-url" href="https://arxiv.org/pdf/2311.03285v3">https://arxiv.org/pdf/2311.03285v3</a></details></figcaption></figure>
+
+**读图。** 页色分别KV、adapter、空闲，每页H个元素，物理位置不要求连续。页表把逻辑块映射到分散页；adapter的rank轴与KV序列轴都可以用同一基础页尺寸组织。
+
+**含义。** 长日志占更多KV，小热adapter可复用权重页，统一池减少各自预留导致的闲置。它不把KV变成权重，也不保证无限adapter常驻；CPU换入、元数据与调度仍计时，页数只说明内存管理能力。
+
+<figure id="fig-slora-03">
+<button class="paper-image" type="button" aria-label="Zoom: adapter数量扩展：吞吐与平均完整请求延迟"><img src="assets/slora-03.png" alt="adapter数量扩展：吞吐与平均完整请求延迟 — S-LoRA: Serving Thousands of Concurrent LoRA Adapters Figure 5" width="1467" height="627" loading="lazy"></button>
+<figcaption><strong>adapter数量扩展：吞吐与平均完整请求延迟</strong><a href="https://arxiv.org/abs/2311.03285v3" target="_blank" rel="noopener">S-LoRA: Serving Thousands of Concurrent LoRA Adapters</a> · Figure 5 · version 2311.03285v3 · PDF p.8 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 5. The throughput and average request latency of S-LoRA and its variants under different numbers of adapters. S-LoRA achieves
+significantly better performance and can scale to a large number of adapters. We run S-LoRA-bmm for a shorter duration since it has a
+significantly lower throughput. Some S-LoRA-bmm curves are omitted because it is out of the figures’s scope.</div><a class="source-url" href="https://arxiv.org/pdf/2311.03285v3">https://arxiv.org/pdf/2311.03285v3</a></details></figcaption></figure>
+
+**读图。** 各列模型/硬件分别标，横轴adapter数，上轴req/s，下轴平均latency秒；对照普通bmm与不统一内存。默认5分钟Gamma请求、输入输出U[8,512]、热度幂律alpha1、cv1，性能不能脱离分布。
+
+**结论。** 专用支路和统一页池在原系统扩展中各有收益；下方不是TPOT，平均值也不是p99。旧vLLM-packed/PEFT不能代表今天vLLM，同硬件跨配置S1/S2也要确认模型细节；70B原实验未采用官方GQA。
+
+<figure id="fig-slora-04">
+<button class="paper-image" type="button" aria-label="Zoom: 热度决定什么时候合并单adapter有利"><img src="assets/slora-04.png" alt="热度决定什么时候合并单adapter有利 — S-LoRA: Serving Thousands of Concurrent LoRA Adapters Figure 9" width="474" height="378" loading="lazy"></button>
+<figcaption><strong>热度决定什么时候合并单adapter有利</strong><a href="https://arxiv.org/abs/2311.03285v3" target="_blank" rel="noopener">S-LoRA: Serving Thousands of Concurrent LoRA Adapters</a> · Figure 9 · version 2311.03285v3 · PDF p.10 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 9. Ablation study comparing adapter merging and on-the-
+fly compute for S2 on A10G (24GB) with different α and number
+of adapters. The settings for the synthetic workloads are R =
+2, cv = 1, [It, Iu] = [8, 512], [Ol, Ou] = [8, 512].</div><a class="source-url" href="https://arxiv.org/pdf/2311.03285v3">https://arxiv.org/pdf/2311.03285v3</a></details></figcaption></figure>
+
+**读图。** S2/A10G24GB，横轴adapter1–5、纵轴req/s，两种热度alpha0.1/1比较merge与在线支路；R2、cv1、输入输出均[8,512]。一种adapter时合并免支路，任务混合增大后共享基座在线支路更灵活。
+
+**边界。** 曲线支持合并策略随热度与adapter数变化，不能断言多任务永远不该merge。LoRA alpha缩放与此处幂律alpha不同；加载、排队与SLO仍影响用户体验，单平均吞吐不足以确定部署策略。
+
+
+<span id="paper-punica"></span>
+
+**Punica：用分段Gather算子批处理多适配器，再统一调度GPU。** 2023公开、MLSys2024的Punica <a href="#source-25">[25]</a> 以SGMV组织异构请求，小支路共享一次kernel launch与分段索引。随机A/B用于系统性能输入，未测试其任务质量。
+
+<figure id="fig-punica-01">
+<button class="paper-image" type="button" aria-label="Zoom: 前端、调度器、runner和GPU各自负责什么"><img src="assets/punica-01.png" alt="前端、调度器、runner和GPU各自负责什么 — Punica: Multi-Tenant LoRA Serving Figure 2" width="717" height="408" loading="lazy"></button>
+<figcaption><strong>前端、调度器、runner和GPU各自负责什么</strong><a href="https://arxiv.org/abs/2310.18547v1" target="_blank" rel="noopener">Punica: Multi-Tenant LoRA Serving</a> · Figure 2 · version 2310.18547v1 · PDF p.3 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2. The system architecture of Punica.</div><a class="source-url" href="https://arxiv.org/pdf/2310.18547v1">https://arxiv.org/pdf/2310.18547v1</a></details></figcaption></figure>
+
+**数据流。** 用户请求由frontend送scheduler，再分派runner上的GPU；GPU同时维护基座、多个LoRA与KvCache，结果流式返回。Unary RPC和stream response区分请求提交与输出，不应把网络外计时等同用户TTFT。
+
+**机制。** 工单热点任务可放在已有活跃请求的设备共享基座batch。调度处理请求与adapter驻留，内核处理行对应；两者不能互相替代。图没有证明缓存跨adapter语义等价，也没有把冷加载尾延迟消除。
+
+<figure id="fig-punica-02">
+<button class="paper-image" type="button" aria-label="Zoom: SGMV：同adapter的连续行段用对应矩阵"><img src="assets/punica-02.png" alt="SGMV：同adapter的连续行段用对应矩阵 — Punica: Multi-Tenant LoRA Serving Figure 3" width="576" height="303" loading="lazy"></button>
+<figcaption><strong>SGMV：同adapter的连续行段用对应矩阵</strong><a href="https://arxiv.org/abs/2310.18547v1" target="_blank" rel="noopener">Punica: Multi-Tenant LoRA Serving</a> · Figure 3 · version 2310.18547v1 · PDF p.3 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3. Semantics of SGMV.</div><a class="source-url" href="https://arxiv.org/pdf/2310.18547v1">https://arxiv.org/pdf/2310.18547v1</a></details></figcaption></figure>
+
+**读图。** 区间s[i]:s[i+1]是一段请求行，X该段乘W[i]再加到Y同段。不同颜色段表示不同adapter，W[i]可能是shrink的A或expand的B；行向量表达与本文列向量BA等价。
+
+**直觉与边界。** 摘要行共享摘要矩阵，代码行用代码矩阵，避免每个请求独立launch。重排与segment metadata必须准确，batch更新后不能沿用旧索引。GPU kernel节约组织成本，不改变每个请求应得到的函数。
+
+<figure id="fig-punica-03">
+<button class="paper-image" type="button" aria-label="Zoom: shrink与expand用不同block布局"><img src="assets/punica-03.png" alt="shrink与expand用不同block布局 — Punica: Multi-Tenant LoRA Serving Figure 4" width="720" height="390" loading="lazy"></button>
+<figcaption><strong>shrink与expand用不同block布局</strong><a href="https://arxiv.org/abs/2310.18547v1" target="_blank" rel="noopener">Punica: Multi-Tenant LoRA Serving</a> · Figure 4 · version 2310.18547v1 · PDF p.4 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 4. Scheduling of SGMV expand/shrink kernels</div><a class="source-url" href="https://arxiv.org/pdf/2310.18547v1">https://arxiv.org/pdf/2310.18547v1</a></details></figcaption></figure>
+
+**读图。** 两面板示意CUDA blockIdx.x/y与行段、输出分块的映射；shrink把宽输入降到rank，expand从rank回到宽输出，形状差异使并行布局不同。颜色对应段，不能读成任务质量等级。
+
+**含义。** 小矩阵的效率依赖线程组织、访存与launch，不能只用FLOPs估计。BatchLen与segment index一次构造并跨层复用，减少逐层CPU元信息开销；本图不是任意rank/硬件的固定最优布局。
+
+<figure id="fig-punica-04">
+<button class="paper-image" type="button" aria-label="Zoom: 单算子微秒延迟，要计入Gather成本"><img src="assets/punica-04.png" alt="单算子微秒延迟，要计入Gather成本 — Punica: Multi-Tenant LoRA Serving Figure 8" width="1467" height="312" loading="lazy"></button>
+<figcaption><strong>单算子微秒延迟，要计入Gather成本</strong><a href="https://arxiv.org/abs/2310.18547v1" target="_blank" rel="noopener">Punica: Multi-Tenant LoRA Serving</a> · Figure 8 · version 2310.18547v1 · PDF p.8 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 8. Microbenchmark for LoRA operator implementations. †Gather and BMM are measured separately for reference.</div><a class="source-url" href="https://arxiv.org/pdf/2310.18547v1">https://arxiv.org/pdf/2310.18547v1</a></details></figcaption></figure>
+
+**读图。** 横轴batch、纵轴µs，四面板Distinct/Uniform/Skewed/Identical为adapter分布；比较loop、Gather-BMM、SGMV，Gather和BMM单独曲线仅作参考。只读BMM忽略Gather会低估拼权重代价。
+
+**结论。** SGMV在这些分布和形状中减少小batch与异构组织成本，热度改变权重复用。它不是整个生成耗时或TTFT，随机adapter质量未检验；长prompt的基座attention与KV成本还会改变端到端占比。
+
+<figure id="fig-punica-05">
+<button class="paper-image" type="button" aria-label="Zoom: 单GPU生成tokens/s，历史backbone-only基线要标出"><img src="assets/punica-05.png" alt="单GPU生成tokens/s，历史backbone-only基线要标出 — Punica: Multi-Tenant LoRA Serving Figure 11" width="1467" height="318" loading="lazy"></button>
+<figcaption><strong>单GPU生成tokens/s，历史backbone-only基线要标出</strong><a href="https://arxiv.org/abs/2310.18547v1" target="_blank" rel="noopener">Punica: Multi-Tenant LoRA Serving</a> · Figure 11 · version 2310.18547v1 · PDF p.9 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 11. Single GPU text generation comparison</div><a class="source-url" href="https://arxiv.org/pdf/2310.18547v1">https://arxiv.org/pdf/2310.18547v1</a></details></figcaption></figure>
+
+**读图。** A10080GB，左右7B/13B，横轴四种adapter分布、纵轴Token/s；rank16 all-dense、ShareGPT长度，随机adapter作性能输入。FasterTransformer/vLLM明确是backbone-only，未完整承担多adapter功能。
+
+**边界。** 旧vLLM commit928de46且忽略切换成本，不能称为同功能2026排名。表支持原系统的吞吐组织收益，未给现代运行时公平复测；部署仍需p95/p99、cold load与实际任务质量，不能从tokens/s倒数得到每请求TPOT。
+
+
+### 2026 工程现状与历史基线
+
+S-LoRA 仓库在本次访问时已归档；其“vLLM 不支持 LoRA”描述属于原始实验年代。当前冻结的 vLLM 官方文档明确提供 `enable_lora`、`LoRARequest`、多 adapter 服务、CPU/GPU adapter 容量和最大 rank 配置。本文核查请求身份与 worker 管理源码，但未运行它的 GPU 性能测试；不把 2023 数字当作 2026 排名。
+
+`max_lora_rank` 是服务允许的容量上界，不代表所有请求都有效使用这个 rank；不同 rank、模块覆盖、量化格式和 embedding 改动需要检查具体兼容矩阵。系统微基准中的随机 A/B 可以测算子组织，不能测真实任务质量。相同 adapter 热度提高权重复用，不同请求长度决定连续批处理与 KV 生命周期。
+
+$$
+\mathrm{TTFT}=t_{\mathrm{first}}-t_{\mathrm{request}},\qquad
+\mathrm{TPOT}=\frac{t_{\mathrm{last}}-t_{\mathrm{first}}}{N_{\mathrm{out}}-1}.
+$$
+
+这是对单请求且输出数 $N_{\mathrm{out}}>1$ 的计时定义。$t_{\mathrm{request}}$ 是明确指定的开始点，$t_{\mathrm{first}}$ 和 $t_{\mathrm{last}}$ 为首末输出 token 时间；单位可为 ms。真实服务 TTFT 是否包含排队、tokenization、adapter 加载与网络必须说明。TPOT 是后续 token 的平均间隔，不是请求总耗时，也不能由整个数据集的吞吐直接倒数得到。报告 p50/p95/p99、tokens/s、requests/s 与 SLO 达成率时分别保留分母。
+
+## 12. 能力与反证：低秩限制、优化失配和评测条件一起看
+
+<span id="paper-less"></span>
+
+**LoRA Learns Less and Forgets Less：获取与保持形成任务相关取舍。** 2024年的工作 <a href="#source-26">[26]</a> 在Llama2-7B代码/数学CPT及指令训练中扫描rank和训练量。它提醒小参数方案未必达到全量获取，同时可能保留更多原有能力；“少学少忘”是报告条件下的观察。
+
+<figure id="fig-less-01">
+<button class="paper-image" type="button" aria-label="Zoom: 训练量与rank增加，代码与数学获取仍有差距"><img src="assets/less-01.png" alt="训练量与rank增加，代码与数学获取仍有差距 — LoRA Learns Less and Forgets Less Figure 1" width="1419" height="1347" loading="lazy"></button>
+<figcaption><strong>训练量与rank增加，代码与数学获取仍有差距</strong><a href="https://arxiv.org/abs/2405.09673v2" target="_blank" rel="noopener">LoRA Learns Less and Forgets Less</a> · Figure 1 · version 2405.09673v2 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: LoRA performance scales by rank and underperforms full finetuning in code and math.
+(A) Starcoder-Python, (B) Magicoder-Evol-Instruct-110K, (C) OpenWebMath, (D) MetaMathQA. In (A)
+and (B) y-axis: HumanEval pass@1. In (C) and (D) y-axis: GSM8K strict match. In all panels, “base model”
+indicates Llama-2-7B without instruction finetuning. Note that 16 epochs are ≈1.16B and ≈1.6B tokens, for
+Magicoder-Evol-Instruct-110K and MetaMathQA, respectively.</div><a class="source-url" href="https://arxiv.org/pdf/2405.09673v2">https://arxiv.org/pdf/2405.09673v2</a></details></figcaption></figure>
+
+**读图。** 四面板StarCoder-Python、Magicoder、OpenWebMath、MetaMathQA；前两纵轴HumanEval pass@1，后两GSM8K strict match。横轴CPT token或IFT epochs，颜色/标记区分rank与FT，base为未指令训练Llama2-7B。
+
+**结论。** 不同rank和训练量不能用同一个“小LoRA”概括，部分高rank接近FT但仍有差距。16epochs对应约1.16/1.6B tokens，不是轻量少样本。代码每题50采样、temperature0.2、top_p0.95，数学5-shot贪心，分数口径不同。
+
+<figure id="fig-less-02">
+<button class="paper-image" type="button" aria-label="Zoom: 旧能力保持用三个无关任务平均测量"><img src="assets/less-02.png" alt="旧能力保持用三个无关任务平均测量 — LoRA Learns Less and Forgets Less Figure 2" width="1419" height="1335" loading="lazy"></button>
+<figcaption><strong>旧能力保持用三个无关任务平均测量</strong><a href="https://arxiv.org/abs/2405.09673v2" target="_blank" rel="noopener">LoRA Learns Less and Forgets Less</a> · Figure 2 · version 2405.09673v2 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: LoRA forgets less than full finetuning.
+In all panels, the y-axis shows the average of
+HellaSwag, ARC-Challenge and Winogrande for Llama-2-7B trained trained on: (A) StarCoder-Python (B)
+Magicoder-Evol-Instruct-110k (C) OpenWebMath (D) MetaMathQA.</div><a class="source-url" href="https://arxiv.org/pdf/2405.09673v2">https://arxiv.org/pdf/2405.09673v2</a></details></figcaption></figure>
+
+**读图。** 同样四种训练数据与横轴，纵轴HellaSwag/ARC-Challenge/Winogrande平均；FT随领域训练出现较大退化，LoRA通常保持更多。该纵轴不是训练loss或新领域质量。
+
+**边界。** 对工单，原能力保持必须与摘要收益一起看，不能只选退化最少的模型，未训练基座也可能“最不忘”。三个常识任务不足以代表全部知识、安全与代码，后面的匿名事实反例显示另一个取舍方向。
+
+<figure id="fig-less-03">
+<button class="paper-image" type="button" aria-label="Zoom: 二维frontier同时衡量学到了多少、保留多少"><img src="assets/less-03.png" alt="二维frontier同时衡量学到了多少、保留多少 — LoRA Learns Less and Forgets Less Figure 3" width="1419" height="1317" loading="lazy"></button>
+<figcaption><strong>二维frontier同时衡量学到了多少、保留多少</strong><a href="https://arxiv.org/abs/2405.09673v2" target="_blank" rel="noopener">LoRA Learns Less and Forgets Less</a> · Figure 3 · version 2405.09673v2 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 3: LoRA vs. full finetuning tradeoff for Llama-2-7B. Relative to full finetuning, LoRA learns
+less (lower values on the y-axis) and forgets less (higher values on the x-axis). Each dot is a separate model,
+with marker size corresponding to training duration (from 0.25-20 billion tokens for CPT, and 1-16 epochs
+for IFT). Same data as Figures 1, 2.</div><a class="source-url" href="https://arxiv.org/pdf/2405.09673v2">https://arxiv.org/pdf/2405.09673v2</a></details></figcaption></figure>
+
+**读图。** x为旧任务保持，y为目标任务获取，每点是一个实际训练模型；点大小表示训练时长，CPT0.25–20B tokens、IFT1–16epochs。向右上更理想，单向右并不表示目标任务成功。
+
+**含义。** LoRA常位于少获取、多保持一侧，FT反之，说明不同目标可能需要不同预算。相关位置不证明低秩是全部因果；rank、模块、LR和数据交互仍存在，业务选择应以可接受获取/遗忘边界判断。
+
+<figure id="fig-less-04">
+<button class="paper-image" type="button" aria-label="Zoom: Magicoder上MLP/all targets优于仅attention"><img src="assets/less-04.png" alt="Magicoder上MLP/all targets优于仅attention — LoRA Learns Less and Forgets Less Figure 7" width="1419" height="549" loading="lazy"></button>
+<figcaption><strong>Magicoder上MLP/all targets优于仅attention</strong><a href="https://arxiv.org/abs/2405.09673v2" target="_blank" rel="noopener">LoRA Learns Less and Forgets Less</a> · Figure 7 · version 2405.09673v2 · PDF p.11 / printed p.11
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 7: Targeting MLP or All modules is superior to training Attention modules alone. All
+Llama-2-7B checkpoints were trained on Magicoder for 1, 2 and 4 epochs with rank 16 (left), 64 (center) and
+256 (right).</div><a class="source-url" href="https://arxiv.org/pdf/2405.09673v2">https://arxiv.org/pdf/2405.09673v2</a></details></figcaption></figure>
+
+**读图。** 三面板rank16/64/256，分别比较attention、MLP和all模块，训练1/2/4epochs。相同rank但target改变会改变参数预算；图的问题是覆盖位置怎样影响代码任务，不是严格同参数数量消融。
+
+**结论。** 仅attention可能漏掉代码获取的重要接口，挑战把原LoRA Q/V推荐普遍化。对工单CPT可纳入MLP，但需报告实际参数数、激活和吞吐；这张图不证明all在任何数据和预算中都是最佳。
+
+
+<span id="paper-illusion"></span>
+
+**The Illusion of Equivalence：相似任务分数也可能有不同谱结构。** 2024年的论文 <a href="#source-27">[27]</a> 将微调权重与基座的SVD方向对比，定义intruder维度，并研究遗忘和连续训练。谱诊断是结构证据，不能仅凭阈值认定“新奇异向量就是坏知识”。
+
+<figure id="fig-illusion-01">
+<button class="paper-image" type="button" aria-label="Zoom: intruder方向与基座奇异向量相似度很低"><img src="assets/illusion-01.png" alt="intruder方向与基座奇异向量相似度很低 — LoRA vs Full Fine-tuning: An Illusion of Equivalence Figure 2" width="1200" height="594" loading="lazy"></button>
+<figcaption><strong>intruder方向与基座奇异向量相似度很低</strong><a href="https://arxiv.org/abs/2410.21228v3" target="_blank" rel="noopener">LoRA vs Full Fine-tuning: An Illusion of Equivalence</a> · Figure 2 · version 2410.21228v3 · PDF p.2 / printed p.2
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 2: Characterizing structural differences between solutions learnt by LoRA &amp; Full Fine-tuning. a)
+We measure the changes to the SVD of the pre-trained weights made during fine-tuning. We observe intruder
+dimensions introduced by LoRA in top ranking singular vectors but not by full fine-tuning. b) Comparing a
+matrix fine-tuned with full fine-tuning or LoRA. c) The intruder dimension shows near-zero absolute cosine
+similarity with all pre-trained singular vectors, in contrast to other singular vectors of the finetuned matrix.</div><a class="source-url" href="https://arxiv.org/pdf/2410.21228v3">https://arxiv.org/pdf/2410.21228v3</a></details></figcaption></figure>
+
+**读图。** 左侧流程对微调前后做SVD，中间比较FT/LoRA，右侧把某个新方向与所有原奇异向量的绝对余弦相似度比较。intruder是按论文阈值定义的低相似方向，不是参数矩阵数值rank增加。
+
+**直觉与边界。** 同样工单分数，权重可能从不同方向实现；新方向也可能承载有效能力。相似度依赖谱间隙、近退化奇异向量和阈值，需结合干预与任务结果，不能把结构差异自动写成因果缺陷。
+
+<figure id="fig-illusion-02">
+<button class="paper-image" type="button" aria-label="Zoom: 相同目标拟合下，LoRA仍可能保持更多旧分布"><img src="assets/illusion-02.png" alt="相同目标拟合下，LoRA仍可能保持更多旧分布 — LoRA vs Full Fine-tuning: An Illusion of Equivalence Figure 6" width="1200" height="390" loading="lazy"></button>
+<figcaption><strong>相同目标拟合下，LoRA仍可能保持更多旧分布</strong><a href="https://arxiv.org/abs/2410.21228v3" target="_blank" rel="noopener">LoRA vs Full Fine-tuning: An Illusion of Equivalence</a> · Figure 6 · version 2410.21228v3 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 6: LoRA forgets less, even with same fit to fine-tuning task. For LLaMA2-7B, forgetting is measured
+on unrelated tasks, as described in Biderman et al. [2024]. For RoBERTa, Pseudo loss on a sample of its
+pre-training distribution measured as described by Salazar et al. [2020]. In both, LoRA forgets less than full
+fine-tuning.</div><a class="source-url" href="https://arxiv.org/pdf/2410.21228v3">https://arxiv.org/pdf/2410.21228v3</a></details></figcaption></figure>
+
+**读图。** 左Llama2-7B无关任务保持，右RoBERTa-base预训练分布pseudo loss；比较尽量对齐fine-tuning fit后的遗忘。pseudo loss不是自回归PPL，两个面板单位/方向应分别读。
+
+**含义。** 将新任务拟合程度控制后仍有保持差异，比仅比较训练时长更有证据，但不排除所有混杂因素。图与“intruder导致遗忘”的简单直觉并不完全同一命题；工单还需旧任务盲测而非只看谱。
+
+<figure id="fig-illusion-03">
+<button class="paper-image" type="button" aria-label="Zoom: 主动缩放intruder，质量和遗忘并非同时单调"><img src="assets/illusion-03.png" alt="主动缩放intruder，质量和遗忘并非同时单调 — LoRA vs Full Fine-tuning: An Illusion of Equivalence Figure 8" width="1200" height="357" loading="lazy"></button>
+<figcaption><strong>主动缩放intruder，质量和遗忘并非同时单调</strong><a href="https://arxiv.org/abs/2410.21228v3" target="_blank" rel="noopener">LoRA vs Full Fine-tuning: An Illusion of Equivalence</a> · Figure 8 · version 2410.21228v3 · PDF p.8 / printed p.8
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 8: Scaling down intruder dimensions in fine-tuned models reduces forgetting but not performance.
+We scale the top intruder dimension in each matrix such that W = W0 +∆W +(λ−1)uiσivT
+i . Lines represent
+forgetting (red) and learning (green). Dotted lines represent pre-trained baselines. Axis Labels: Green: Test
+Accuracy (%). Red: Pre-training Loss (Forgetting).</div><a class="source-url" href="https://arxiv.org/pdf/2410.21228v3">https://arxiv.org/pdf/2410.21228v3</a></details></figcaption></figure>
+
+**读图。** 横轴缩放lambda，绿色任务测试Accuracy、红色预训练loss，虚线基座；四面板代码/数学Llama2-r16、MNLI/QQP RoBERTa-r8。lambda1保留原微调矩阵，改变lambda只调整选定谱项。
+
+**机制与限制。** 移除或减弱新方向在报告中减少遗忘，却未同步改善目标性能，说明这些方向兼有作用。原矩阵中按最大intruder干预是有限对象实验，不能推出所有新方向都可安全删。双纵轴曲线交点不代表相等分数。
+
+<figure id="fig-illusion-04">
+<button class="paper-image" type="button" aria-label="Zoom: 连续六任务训练，单次“少忘”不能保证长期保持"><img src="assets/illusion-04.png" alt="连续六任务训练，单次“少忘”不能保证长期保持 — LoRA vs Full Fine-tuning: An Illusion of Equivalence Figure 9" width="1200" height="684" loading="lazy"></button>
+<figcaption><strong>连续六任务训练，单次“少忘”不能保证长期保持</strong><a href="https://arxiv.org/abs/2410.21228v3" target="_blank" rel="noopener">LoRA vs Full Fine-tuning: An Illusion of Equivalence</a> · Figure 9 · version 2410.21228v3 · PDF p.9 / printed p.9
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 9: Full fine-tuning is better than LoRA at continual learning because of accumulating intruder
+dimensions. When sequentially training on six tasks, full fine-tuning retains performance better than LoRA. in
+Fig. 9a, horizontal dotted line indicates baseline pre-trained performance. Vertical solid line indicates when a
+specific dataset is fine-tuned on. Gray region represents performance before the model has been trained on that
+task. See Appendix L, Fig. 17 for more. In Figs. 9b&amp;9c, we see that LoRA accumulates intruder dimensions
+across tasks and contributes to its degrading performance, whereas full fine-tuning does not.</div><a class="source-url" href="https://arxiv.org/pdf/2410.21228v3">https://arxiv.org/pdf/2410.21228v3</a></details></figcaption></figure>
+
+**读图。** 左任务效果随顺序变化，竖线标该任务训练时刻、灰区为训练前；右两相似度矩阵比较LoRA/FT在连续学习中的谱方向。LoRA出现积累intruder与较大退化，FT在该协议保持较好。
+
+**结论。** 单任务的“LoRA忘得少”不能直接外推连续适配，adapter重用和基座更新历史必须记录。谱积累与退化有关，但全部因果仍需独立干预；工单连续学习还应比较独立adapter、重放与显式检索等方案。
+
+
+学习与遗忘应该是二维图：目标任务提高多少，原有任务保持多少，训练数据与预算又是多少。把“LoRA遗忘少”写成无条件性质，与把某个流程任务失败写成“LoRA永远学不会流程”一样，都会跨过证据边界。
+
+<span id="paper-procedural"></span>
+
+**流程知识反例：会把对话聊完，不等于遵守分支规则。** 2026年的研究 <a href="#source-31">[31]</a> 在旅行办理及其他流程上比较LoRA与FT。旅行主实验Qwen2.5-3B-Instruct、1,912训练对话、all-linear、rank16–128、alpha2r、LoRA LR2e-4、FT2e-5。仅一个LoRA LR不能排除优化不足。
+
+<figure id="fig-procedural-01">
+<button class="paper-image" type="button" aria-label="Zoom: 旅行流程的状态、条件与终点不是一段闲聊"><img src="assets/procedural-01.png" alt="旅行流程的状态、条件与终点不是一段闲聊 — Procedural Knowledge Is Not Low-Rank: Why LoRA Fails to Internalize Multi-Step Procedures Figure 1" width="954" height="1734" loading="lazy"></button>
+<figcaption><strong>旅行流程的状态、条件与终点不是一段闲聊</strong><a href="https://arxiv.org/abs/2607.21612v1" target="_blank" rel="noopener">Procedural Knowledge Is Not Low-Rank: Why LoRA Fails to Internalize Multi-Step Procedures</a> · Figure 1 · version 2607.21612v1 · PDF p.11 / printed p.11
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Travel booking procedure (14 nodes, 3 decision hubs, 3 terminal states). The agent opens,
+gathers requirements, routes through an assessment hub based on information completeness, presents
+options, negotiates, and either completes the booking or exits via abandonment.</div><a class="source-url" href="https://arxiv.org/pdf/2607.21612v1">https://arxiv.org/pdf/2607.21612v1</a></details></figcaption></figure>
+
+**读图。** 14节点、三decision hubs、三terminal states，箭头表示请求、信息补全、选项、协商、确认和退出路线；颜色区分agent/user/成功或退出。办理成功要经过最终条件检查，用户放弃则走另一个终点。
+
+**直觉。** 工单同样有收集日志、判断权限、升级与关闭等条件。流畅回答遗漏一个条件仍可能错误；模型训练应验证状态和工具结果，不能仅用自然度。图是目标流程，不是已证明模型内部学出的状态机。
+
+<figure id="fig-procedural-02">
+<button class="paper-image" type="button" aria-label="Zoom: 五项1–5分与对话完成率是两种对象"><img src="assets/procedural-02.png" alt="五项1–5分与对话完成率是两种对象 — Procedural Knowledge Is Not Low-Rank: Why LoRA Fails to Internalize Multi-Step Procedures Table 1" width="1008" height="360" loading="lazy"></button>
+<figcaption><strong>五项1–5分与对话完成率是两种对象</strong><a href="https://arxiv.org/abs/2607.21612v1" target="_blank" rel="noopener">Procedural Knowledge Is Not Low-Rank: Why LoRA Fails to Internalize Multi-Step Procedures</a> · Table 1 · version 2607.21612v1 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: LoRA rank ablation on travel booking (n = 200 per condition, Claude Sonnet 4.5 judge). All
+LoRA configurations fail to internalize procedural knowledge despite maintaining high conversation
+completion rates (p &lt; 0.001 vs. full FT on all criteria at all ranks). Scores decrease at higher ranks,
+with the r=128 degradation significant (p = 0.001 vs. r=64). LoRA targets all linear layers, bf16
+base model, lr = 2 × 10−4, α = 2r, 20 epochs, merged into base before evaluation.</div><a class="source-url" href="https://arxiv.org/pdf/2607.21612v1">https://arxiv.org/pdf/2607.21612v1</a></details></figcaption></figure>
+
+**读表。** 每条件200动态模拟、Claude Sonnet4.5主裁判，五项打分不是二元成功比例；r16 Task Success2.50对FT4.11，completion95.5%对100%，r12897%完成但Success2.10。参数比例与rank另列。
+
+**结论与限制。** 在此协议LoRA未达到FT流程质量，增加rank也未改善；但训练loss收敛不能严格排除其他LR、数据或目标解决。自动用户与裁判偏差、20epochs、单基座都会限制外推，不能写成LoRA永远学不会流程。
+
+<figure id="fig-procedural-03">
+<button class="paper-image" type="button" aria-label="Zoom: FT增量高有效秩，不证明所有LoRA解都失败"><img src="assets/procedural-03.png" alt="FT增量高有效秩，不证明所有LoRA解都失败 — Procedural Knowledge Is Not Low-Rank: Why LoRA Fails to Internalize Multi-Step Procedures Table 3" width="1200" height="906" loading="lazy"></button>
+<figcaption><strong>FT增量高有效秩，不证明所有LoRA解都失败</strong><a href="https://arxiv.org/abs/2607.21612v1" target="_blank" rel="noopener">Procedural Knowledge Is Not Low-Rank: Why LoRA Fails to Internalize Multi-Step Procedures</a> · Table 3 · version 2607.21612v1 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3: SVD analysis of weight diffs (Wft −Wbase) across 252 weight matrices per domain (36 of
+each layer type, one per transformer block). Max is the dimensional ceiling on rank, set by matrix
+shape; K/V projections are smaller because GQA reduces them (max rank 256 in 3B with 2 KV
+heads, 1024 in 8B with 8 KV heads). r=128/Eff. expresses LoRA’s rank-128 budget as a fraction of
+the effective rank—a direct measure of LoRA-128’s dimensional adequacy for the update. “Energy at
+r” = fraction of squared Frobenius norm captured by the top r singular vectors of the full-FT update;
+by Eckart–Young, this upper-bounds what any rank-r adapter could express.</div><a class="source-url" href="https://arxiv.org/pdf/2607.21612v1">https://arxiv.org/pdf/2607.21612v1</a></details></figcaption></figure>
+
+**读表。** 三领域按模块给最大可达rank、有效rank、top-r能量；旅行MLP-gate有效rank1341，top128能量26.7%，K/V上限256受GQA影响。Energy是**这个已训练FT增量**的平方Frobenius能量覆盖。
+
+**关键边界。** 最佳rank-r近似定理只限制对这个矩阵的重建，不能推出不存在另一低秩更新完成同一任务；非线性模型可能有多种解。r128/Eff不是“流程知识学会比例”，全矩阵rank与因子优化轨迹也不同。
+
+<figure id="fig-procedural-04">
+<button class="paper-image" type="button" aria-label="Zoom: 第二裁判复查保留趋势，但绝对分数改变"><img src="assets/procedural-04.png" alt="第二裁判复查保留趋势，但绝对分数改变 — Procedural Knowledge Is Not Low-Rank: Why LoRA Fails to Internalize Multi-Step Procedures Table 5" width="1200" height="234" loading="lazy"></button>
+<figcaption><strong>第二裁判复查保留趋势，但绝对分数改变</strong><a href="https://arxiv.org/abs/2607.21612v1" target="_blank" rel="noopener">Procedural Knowledge Is Not Low-Rank: Why LoRA Fails to Internalize Multi-Step Procedures</a> · Table 5 · version 2607.21612v1 · PDF p.14 / printed p.14
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 5: GPT-4.1 judge replication—LoRA rank ablation on travel booking (3B). Cf. Table 1 (Claude
+Sonnet 4.5 judge). The qualitative pattern is preserved: full fine-tuning dominates every LoRA rank
+on every criterion, and increasing LoRA rank produces worse scores (paradoxical degradation).</div><a class="source-url" href="https://arxiv.org/pdf/2607.21612v1">https://arxiv.org/pdf/2607.21612v1</a></details></figcaption></figure>
+
+**读表。** GPT4.1重新评旅行3B条件，五项1–5分，FT仍高于各LoRA；Success FT4.32、r16 3.69、r128 3.10，与主裁判分数并不相同。读的是趋势复查，不是同一裁判重复测量。
+
+**含义。** 两裁判一致加强相对趋势证据，也显示自动打分尺度依赖模型。仍非独立真实用户试验，不能把p值当作排除训练混杂因素的证明。工单闭环需要实际步骤、异常输入和恢复后功能验证。
+
+
+<span id="paper-acquisition"></span>
+
+**新事实的获取—保持frontier：高rank也可能忘得更多。** 2026年的工作 <a href="#source-32">[32]</a> 用14城市OSM五种关系匿名化，Qwen3-4B回答掩码训练、5seeds；1,938训练问答与900同事实改写测试，不测未见事实。匿名与真实名字基线受答案类型比例影响。
+
+<figure id="fig-acquisition-01">
+<button class="paper-image" type="button" aria-label="Zoom: 横轴新事实改写EM，纵轴旧能力原始均分"><img src="assets/acquisition-01.png" alt="横轴新事实改写EM，纵轴旧能力原始均分 — Learning New Facts with QLoRA: An Acquisition-Retention Frontier Figure 1" width="669" height="495" loading="lazy"></button>
+<figcaption><strong>横轴新事实改写EM，纵轴旧能力原始均分</strong><a href="https://arxiv.org/abs/2608.25677v2" target="_blank" rel="noopener">Learning New Facts with QLoRA: An Acquisition-Retention Frontier</a> · Figure 1 · version 2608.25677v2 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: OSM paraphrase accuracy against aver-
+age OOD performance. Points show final-checkpoint
+means and error bars show standard deviations over five
+seeds. Higher-rank QLoRA reaches stronger acquisition
+but lower retention, while FFT and rank 8 remain closer
+to the pretrained model.</div><a class="source-url" href="https://arxiv.org/pdf/2608.25677v2">https://arxiv.org/pdf/2608.25677v2</a></details></figcaption></figure>
+
+**读图。** 每点最终checkpoint五种子均值/SD；横轴paraphrase EM，纵轴五个OOD指标原始百分数均值，虚线base参考。虽然轴写retention，图并非已除以base的相对保持率；表中Ret另用相对百分比。
+
+**结论。** r8/FFT较靠上但获取弱，高rank右移并下移，r64退化明显，挑战“LoRA必然忘得少”。同事实改写不是新事实外推；原文按最近checkpoint对齐目标时FFT未到95，不能称所有目标都已公平对齐。
+
+<figure id="fig-acquisition-02">
+<button class="paper-image" type="button" aria-label="Zoom: 数学任务frontier更弱，说明取舍不通用"><img src="assets/acquisition-02.png" alt="数学任务frontier更弱，说明取舍不通用 — Learning New Facts with QLoRA: An Acquisition-Retention Frontier Table 3" width="1374" height="207" loading="lazy"></button>
+<figcaption><strong>数学任务frontier更弱，说明取舍不通用</strong><a href="https://arxiv.org/abs/2608.25677v2" target="_blank" rel="noopener">Learning New Facts with QLoRA: An Acquisition-Retention Frontier</a> · Table 3 · version 2608.25677v2 · PDF p.5 / printed p.5
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 3: Math-adaptation results. Pass@1 scores and averages are in percent. OOD averages cover HumanEval,
+IFEval, TruthfulQA, MMLU-Redux, and BBH; OOD drop is relative to the base Qwen3-4B.</div><a class="source-url" href="https://arxiv.org/pdf/2608.25677v2">https://arxiv.org/pdf/2608.25677v2</a></details></figcaption></figure>
+
+**读表。** MATH500、Minerva、Olympiad、AMC/AIME pass@1及平均，OOD单独列。FFT数学42.50、QLoRA16 42.60、32 42.03，OOD71.12/70.61/71.25，差距小于OSM匿名事实情形。
+
+**含义。** 预训练已有结构与新增任意关联的需求不同，rank引起的获取/保持变化不能跨任务照搬。小测试集AIME和多项平均须保留协议；这不是证明数学无遗忘，表中OOD drop仍非零。
+
+<figure id="fig-acquisition-03">
+<button class="paper-image" type="button" aria-label="Zoom: 平均退化拆开看，TruthfulQA并不与其余同步"><img src="assets/acquisition-03.png" alt="平均退化拆开看，TruthfulQA并不与其余同步 — Learning New Facts with QLoRA: An Acquisition-Retention Frontier Table 5" width="1374" height="306" loading="lazy"></button>
+<figcaption><strong>平均退化拆开看，TruthfulQA并不与其余同步</strong><a href="https://arxiv.org/abs/2608.25677v2" target="_blank" rel="noopener">Learning New Facts with QLoRA: An Acquisition-Retention Frontier</a> · Table 5 · version 2608.25677v2 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 5: Per-benchmark OOD scores at the final checkpoint (mean ± standard deviation over five seeds).
+Degradation is broad on HumanEval, IFEval, MMLU-Redux, and BBH; TruthfulQA is comparatively stable.</div><a class="source-url" href="https://arxiv.org/pdf/2608.25677v2">https://arxiv.org/pdf/2608.25677v2</a></details></figcaption></figure>
+
+**读表。** 最终checkpoint、五seeds mean±SD；r8 OOD70.7、r64 28.1，HumanEval78.4→23.2、IFEval80.6→14.6，TruthfulQA51.6→47.7较稳。r64 HumanEval与MMLU-Redux方差很大。
+
+**边界。** 平均下降掩盖不同能力敏感度，不能写成每项均同幅崩塌。FP未量化1.7B对照仍见趋势，但同时换模型规模，不能严格隔离量化因果。工单新知识训练应报告每项保持与seed，不只展示一个总分。
+
+
+流程、新事实和代码 CPT 改变任务所需的信息，公平调参改变能找到的解。它们共同要求同时检验表达限制、优化限制与评测限制。对业务流程，还应与显式状态机、工具和检索方案比较：可检查的流程控制可能比把全部条件隐含在模型权重里更容易维护，这是一项工程选择，不是本文实测的优劣结论。
+
+## 13. 可截断 rank 与有效秩：2026 可核验前沿
+
+<span id="paper-matryoshka"></span>
+
+**MatryoshkaLoRA：在训练前向中给嵌套前缀加权。** 2026年的研究 <a href="#source-29">[29]</a> 引入固定对角P，使共享因子的前缀都得到训练信号；评测丢弃P，再选择普通LoRA前缀及相应倍率。这个训练—推理差异需通过每rank效果核验，不是多个loss的简单求和。
+
+<figure id="fig-matryoshka-01">
+<button class="paper-image" type="button" aria-label="Zoom: 嵌套子rank共享因子，训练计算一个加权前向"><img src="assets/matryoshka-01.png" alt="嵌套子rank共享因子，训练计算一个加权前向 — MatryoshkaLoRA: Learning Accurate Hierarchical Low-Rank Representations for LLM Fine-Tuning Figure 1" width="492" height="474" loading="lazy"></button>
+<figcaption><strong>嵌套子rank共享因子，训练计算一个加权前向</strong><a href="https://arxiv.org/abs/2605.07850v1" target="_blank" rel="noopener">MatryoshkaLoRA: Learning Accurate Hierarchical Low-Rank Representations for LLM Fine-Tuning</a> · Figure 1 · version 2605.07850v1 · PDF p.1 / printed page unnumbered
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: MATRYOSHKALORA</div><a class="source-url" href="https://arxiv.org/pdf/2605.07850v1">https://arxiv.org/pdf/2605.07850v1</a></details></figcaption></figure>
+
+**读图。** 最大rank容纳多个较小前缀，固定P沿内部rank维缩放，使不同前缀贡献在同一模型输出里相加。其A/B命名与本文相反，按维度译写为B diag(P) A，P无可训练参数。
+
+**直觉。** 工单服务可在内存紧张时选择小rank，但训练时小前缀需学过有效输出。它与DyLoRA每步采样一个rank不同；最大rank一套参数不意味着所有截断必然保留质量，默认普通LoRA直接裁小仍无同样训练目标。
+
+<figure id="fig-matryoshka-02">
+<button class="paper-image" type="button" aria-label="Zoom: 反向遍历rank累计权重，避免重复大矩阵计算"><img src="assets/matryoshka-02.png" alt="反向遍历rank累计权重，避免重复大矩阵计算 — MatryoshkaLoRA: Learning Accurate Hierarchical Low-Rank Representations for LLM Fine-Tuning Algorithm 1" width="420" height="416" loading="lazy"></button>
+<figcaption><strong>反向遍历rank累计权重，避免重复大矩阵计算</strong><a href="https://arxiv.org/abs/2605.07850v1" target="_blank" rel="noopener">MatryoshkaLoRA: Learning Accurate Hierarchical Low-Rank Representations for LLM Fine-Tuning</a> · Algorithm 1 · version 2605.07850v1 · PDF p.4 / printed p.4
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Algorithm 1 Algorithm to com-
+pute vector P in Equation 6 for
+our MATRYOSHKALORA</div><a class="source-url" href="https://arxiv.org/pdf/2605.07850v1">https://arxiv.org/pdf/2605.07850v1</a></details></figcaption></figure>
+
+**算法。** 输入训练rank集合S与最大R，从R向1扫描，遇集合成员更新累计数，再按对应倍率求P位置。S={1,2,4,8}、各倍率1时为[4,3,2,2,1,1,1,1]，较前方向在更多前缀出现。
+
+**边界。** 这个累计等价多个前缀**增量相加**，不是分别计算CE后求和。推理移除P，因此不能仅用训练loss验证截断；原文“PyTorch slice不可回传”不准确，方法应按实际广播与计算图说明。
+
+<figure id="fig-matryoshka-03">
+<button class="paper-image" type="button" aria-label="Zoom: 每rank分数与AURAC，训练上限和前缀分开看"><img src="assets/matryoshka-03.png" alt="每rank分数与AURAC，训练上限和前缀分开看 — MatryoshkaLoRA: Learning Accurate Hierarchical Low-Rank Representations for LLM Fine-Tuning Table 1" width="1005" height="675" loading="lazy"></button>
+<figcaption><strong>每rank分数与AURAC，训练上限和前缀分开看</strong><a href="https://arxiv.org/abs/2605.07850v1" target="_blank" rel="noopener">MatryoshkaLoRA: Learning Accurate Hierarchical Low-Rank Representations for LLM Fine-Tuning</a> · Table 1 · version 2605.07850v1 · PDF p.7 / printed p.7
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: [Results for Section 3.1] AURAC metric and per-rank, evaluation accuracies for Llama-3.2-
+1B-Instruct on GSM-8k (8-shot) across multiple ranks. We mark in bold the best AURAC per row
+and emphasize the accuracy of pre-trained model (before finetuning) of 34.7%.</div><a class="source-url" href="https://arxiv.org/pdf/2605.07850v1">https://arxiv.org/pdf/2605.07850v1</a></details></figcaption></figure>
+
+**读表。** Llama3.2-1B-Instruct、GSM8K8-shot，各行是一个最大rank训练模型，列为可评前缀，三个seed均值未给SD。基座34.7，最大32的Matryoshka前缀8/16/32为38.8/39.1/38.3，普通LoRA对应约34.3/34.5/34.6。
+
+**含义。** 训练目标改善可用前缀，支持多预算部署，但不能把没有误差的0.1差说成显著。AURAC为线性rank间距加权梯形面积，大rank区间占更大权重；log-AURAC是另一口径，且面积不能代替业务最常用档位的质量。
+
+
+$$
+\Delta W_{\mathrm{train}}=B\operatorname{diag}(P)A,\qquad
+P_j=\sum_{k\in\mathcal S}\mathbf 1[j\le k]\,s_k.
+$$
+
+这是 MatryoshkaLoRA 的统一维度等价改写。$\mathcal S$ 是训练 rank 集合，$j$ 为从1开始的内维度索引，$s_k$ 为各前缀的缩放，P 为长度最大 rank 的固定权重向量。例如 $\mathcal S=\{1,2,4,8\}$ 且所有 $s_k=1$，P 为 `[4,3,2,2,1,1,1,1]`。它把多个前缀增量相加到同一个前向中，计算一个任务损失，并非分别计算多个前缀 CE。原文推理丢弃训练 P，选择一个普通 LoRA 前缀与相应倍率；这个训练—推理差异必须通过多 rank 曲线验证。
+
+<span id="paper-iso"></span>
+
+**ISO-LoRA：优化每步切向增量的方向利用率。** 2026年的ISO <a href="#source-30">[30]</a> 在低秩切空间内构造更新、正交化后投影并重建因子步长，关注方向能量是否集中。它讨论一阶BδA+δBA而非最终BA；切向上限2r与最终增量上限r不能混用。
+
+<figure id="fig-iso-01">
+<button class="paper-image" type="button" aria-label="Zoom: 数值满秩仍可能只有少数方向贡献能量"><img src="assets/iso-01.png" alt="数值满秩仍可能只有少数方向贡献能量 — Rank-Efficient LoRA via Joint Tangent-Space Optimization under Isotropic Curvature Figure 1" width="1419" height="363" loading="lazy"></button>
+<figcaption><strong>数值满秩仍可能只有少数方向贡献能量</strong><a href="https://arxiv.org/abs/2609.12123v1" target="_blank" rel="noopener">Rank-Efficient LoRA via Joint Tangent-Space Optimization under Isotropic Curvature</a> · Figure 1 · version 2609.12123v1 · PDF p.6 / printed p.6
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 1: Effective-rank diagnostics for the induced per-step LoRA tangent update ∆Wt
+on GPT-2 Small + E2E at LoRA rank r = 128. The tangent-space rank ceiling is 2r = 256.
+All methods nearly saturate numerical rank, but AdamW produces updates with low entropy
+and stable rank; Muon uses a broader set of singular directions and has higher effective ranks.</div><a class="source-url" href="https://arxiv.org/pdf/2609.12123v1">https://arxiv.org/pdf/2609.12123v1</a></details></figcaption></figure>
+
+**读图。** GPT2-small/E2E、r128，横轴steps；三面板数值rank、熵rank、stable rank，切向上限256。AdamW/Muon数值rank都接近上限，但AdamW有效秩更低，说明非零奇异值多不代表能量均匀。
+
+**边界。** ISO熵概率按奇异值平方归一化，本次单层最终delta按奇异值本身归一化，定义/对象均不同。高有效秩也可能是无关噪声，不能凭这张诊断当作任务质量，更不能说最终adapter rank变成256。
+
+<figure id="fig-iso-02">
+<button class="paper-image" type="button" aria-label="Zoom: 低秩核心正交化、投影回切空间、重建因子步长"><img src="assets/iso-02.png" alt="低秩核心正交化、投影回切空间、重建因子步长 — Rank-Efficient LoRA via Joint Tangent-Space Optimization under Isotropic Curvature Algorithm 2" width="780" height="311" loading="lazy"></button>
+<figcaption><strong>低秩核心正交化、投影回切空间、重建因子步长</strong><a href="https://arxiv.org/abs/2609.12123v1" target="_blank" rel="noopener">Rank-Efficient LoRA via Joint Tangent-Space Optimization under Isotropic Curvature</a> · Algorithm 2 · version 2609.12123v1 · PDF p.10 / printed p.10
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Algorithm 2: Factored Iso-LoRA</div><a class="source-url" href="https://arxiv.org/pdf/2609.12123v1">https://arxiv.org/pdf/2609.12123v1</a></details></figcaption></figure>
+
+**算法。** 由当前A/B及梯度构造低秩切向表示U/V；小核心正交化得到候选，再投影回可行切空间，解出δA/δB并更新。关键是更新方向要能由当前因子小变化表达，而非任意正交全矩阵。
+
+**代价与边界。** 低秩核心分解、子空间投影与数值退化处理增加计算；初始零因子须特别处理。orthogonalize-then-project是可行代理，不是精确求解原始非线性约束的全局最优，有限步还有δBδA二阶项。
+
+<figure id="fig-iso-03">
+<button class="paper-image" type="button" aria-label="Zoom: 各rank先调LR，再比较验证loss与秩利用率"><img src="assets/iso-03.png" alt="各rank先调LR，再比较验证loss与秩利用率 — Rank-Efficient LoRA via Joint Tangent-Space Optimization under Isotropic Curvature Figure 6" width="1419" height="462" loading="lazy"></button>
+<figcaption><strong>各rank先调LR，再比较验证loss与秩利用率</strong><a href="https://arxiv.org/abs/2609.12123v1" target="_blank" rel="noopener">Rank-Efficient LoRA via Joint Tangent-Space Optimization under Isotropic Curvature</a> · Figure 6 · version 2609.12123v1 · PDF p.21 / printed p.21
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Figure 6: Rank ablation results. Left: best validation loss across LoRA ranks. Right:
+final stable rank of the one-step update ∆W, normalized by 2r. Iso-LoRA achieves stronger
+utilization and lower validation loss at moderate-to-large ranks.</div><a class="source-url" href="https://arxiv.org/pdf/2609.12123v1">https://arxiv.org/pdf/2609.12123v1</a></details></figcaption></figure>
+
+**读图。** 横轴r2–512；左为各LR中最佳validation loss，右为最终一步stable rank除2r，以每rank内AdamW/Muon/ISO三组柱比较。中高rank的ISO更低loss、更高归一化利用率；两轴分别测质量代理与结构。
+
+**结论。** 两侧柱形比较共同支持该协议下预条件有价值，单右图不足以得出效果因果。大rank的预处理与训练成本还要计入，验证集用于选超参数并非独立测试；原文的其他并行方案仅作对照，不追加本文未解读引用。
+
+<figure id="fig-iso-04">
+<button class="paper-image" type="button" aria-label="Zoom: 下游测试保留rank、种子、指标和基座差异"><img src="assets/iso-04.png" alt="下游测试保留rank、种子、指标和基座差异 — Rank-Efficient LoRA via Joint Tangent-Space Optimization under Isotropic Curvature Table 1" width="1419" height="546" loading="lazy"></button>
+<figcaption><strong>下游测试保留rank、种子、指标和基座差异</strong><a href="https://arxiv.org/abs/2609.12123v1" target="_blank" rel="noopener">Rank-Efficient LoRA via Joint Tangent-Space Optimization under Isotropic Curvature</a> · Table 1 · version 2609.12123v1 · PDF p.22 / printed p.22
+<button class="original-direct" type="button">Read original size</button>
+<details><summary>Original caption &amp; source</summary><div class="original-caption">Table 1: Downstream and test-metric results. (a) LLaMA-2-7B MetaMathQA finetun-
+ing results. All methods are our reproductions aligned with the LoRA-GA and LoRA-Pro
+setups [99, 100]. (b) Official E2E NLG test metrics for GPT-2 Small at LoRA rank r = 128,
+with hyperparameters selected by validation loss. The Iso-LoRA results are averaged over
+seeds 43, 44, and 45. (c) GSM8K 5-shot strict exact match after one epoch at r = 16 (%, mean
+± sample SD over seeds 42, 43, and 44). Qwen uses the Instruct checkpoint. Full protocols,
+additional error-bar tables, and grids are in Appendix F.1.</div><a class="source-url" href="https://arxiv.org/pdf/2609.12123v1">https://arxiv.org/pdf/2609.12123v1</a></details></figcaption></figure>
+
+**读表。** (a)Llama2-7B MetaMathQA/GSM8K，ISO r128 61.87±0.64、FT59.52±0.90；r8 ISO54.94低于GA56.56。(b)GPT2-small E2E r128由验证loss选超参数，ISO BLEU68.79，METEOR0.4659略低于FT0.4666。(c)一epoch/r16 GSM8K5-shot三seed。
+
+**边界。** 作者对齐并复现基线，比跨论文抄数字更可比，但不同rank预算、语言生成指标与模型scale仍不可混排；并非所有低rank/所有指标领先。本文未运行ISO算法，因此这些明确标为论文结果，不声称独立复现或统一SOTA。
+
+
+$$
+\delta W_{\mathrm{tan}}=s(B\,\delta A+\delta B\,A),
+\qquad \operatorname{rank}(\delta W_{\mathrm{tan}})\le2r.
+$$
+
+这是固定 s 下的一阶切向更新。$\delta A,\delta B$ 是两因子的小变化，各乘积至多 rank r；有限一步的真实变化还含 $s\,\delta B\,\delta A$，不能无条件省掉。ISO-LoRA 分析的是这个每步切向对象，最终 $sBA$ 仍至多 rank r。论文的正交化再投影是可行代理，不应称为精确求解原始约束问题的全局最优。
+
+$$
+r_{\mathrm{stable}}=\frac{\|\Delta\|_F^2}{\|\Delta\|_2^2},
+\qquad
+r_{\mathrm{entropy}}=\exp\!\left(-\sum_i p_i\log p_i\right).
+$$
+
+$\Delta$ 是明确指定的矩阵，$\|\cdot\|_2$ 为谱范数，$\sigma_i$ 为奇异值；两种有效秩无量纲，零矩阵需另约定。ISO 用 $p_i=\sigma_i^2/\sum_j\sigma_j^2$ 的能量分布。本次诊断采用 $p_i=\sigma_i/\sum_j\sigma_j$ 的奇异值分布，而且测最终单层增量；定义和对象均不同，不称为 ISO 复现。有效秩能看方向是否集中，不能替代任务质量。均匀但不相关的更新也可能有很高有效秩。
+
+### 截至日期内，什么可以称为领先
+
+截至2026-11-19，本文能核验 MatryoshkaLoRA 的多 rank 质量曲线、ISO 的 GPT-2/E2E 与指定 Llama2 任务结果、学习率研究的公平搜索结果、新事实与流程任务的反例。它们的基座、目标、优化预算与指标不同，**没有从这些证据建立跨任务统一 LoRA 第一名**。本文用“具体设置中的论文代表结果”，不把尚未独立运行的前沿写成确认的全域 SOTA。
+
+## 14. 数据集、Benchmark 与指标：怎样比较才有意义
+
+| 数据或协议 | 输入、输出与角色 | 关键指标与本文涉及的条件 | 主要盲区 |
+| --- | --- | --- | --- |
+| GLUE；[官方](https://gluebenchmark.com/) | 多个句子理解任务；通常任务训练集微调、开发集选超参数 | Accuracy、F1、MCC、相关系数因任务而异；AdaLoRA 使用 DeBERTaV3-base 开发集 | 混合指标平均不是一个单任务准确率；开发集反复选择有偏差 |
+| E2E NLG；[官方](https://www.macs.hw.ac.uk/InteractionLab/E2E/) | 餐馆结构化属性→自然语言描述，训练/开发/测试分开 | BLEU、NIST、METEOR、ROUGE-L、CIDEr；原始 LoRA GPT-2 中型报告0.35M可训练参数 | 多参考词面质量不保证事实正确或复杂工单质量 |
+| MMLU；[数据](https://huggingface.co/datasets/cais/mmlu) | 57科目多选知识问题 | QLoRA Table4 为5-shot test accuracy，按其任务平均 | prompt、harness、聚合不同会改变结果；知识分数不等于聊天表现 |
+| GSM8K；[数据](https://huggingface.co/datasets/openai/gsm8k) | 7,473训练题、1,319测试题，小学数学文字问题 | 生成答案 EM/accuracy；LoRA Learns Less 用5-shot、temperature0 | 答案提取、推理提示和训练改写污染需要核对 |
+| HumanEval；[官方代码](https://github.com/openai/human-eval) | 164个Python函数题，生成代码并执行测试 | LoRA Learns Less 每题50次、temperature0.2、top_p0.95，估计pass@1 | 单元测试不完备；采样数和温度不能省略 |
+| BBH；[官方代码](https://github.com/suzgunmirac/BIG-Bench-Hard) | 27任务；LoRAHub 用5例选择组合 | Exact Match，LoRAHub按三组few-shot样本平均 | 已知任务库与新任务距离影响效果，不等于任意跨域适配 |
+| MT-Bench / 自动裁判 | 多轮开放回答及裁判模型 | VeRA与LoRA-GA等报告GPT-4评分；有的只计首轮 | 裁判版本、顺序偏好、长度与prompt改变分数 |
+| WikiText2；[冻结来源](https://huggingface.co/datasets/Salesforce/wikitext/tree/b08601e04326c79dfdd32d625aee71d232d685c3) | 本次用raw-v1连续文本next-token训练/测试 | 前16,384 train tokens，4,096 test tokens，4,080计分位置 | 只覆盖小样本语言建模，不测工单、代码、OOD与服务 |
+| 流程与OSM专用协议 | 前者多轮旅行办理；后者匿名事实问答 | 前者每条件200模拟对话、五项1–5分；后者5 seeds和同事实改写测试 | 自动裁判不等于业务完成；改写泛化不等于未见事实学习 |
+
+上表中的链接是数据、benchmark 或实现入口，不新增未经讲解的论文引用。文章图注和集中参考文献固定论文版本；本次实验另外固定模型、数据 revision 与 token hash。原论文的训练集和评测集不互换，尤其是 MetaMathQA 训练与 GSM8K/MATH 测试、指令数据训练与 MMLU 测试。
+
+$$
+\mathrm{PPL}=\exp\!\left(-\frac1N\sum_{t=1}^{N}\log p(y_t\mid y_{<t})\right).
+$$
+
+PPL（困惑度）越低越好，N 是实际 next-token 计分位置数，指数内是 mean NLL、单位nats/token，PPL本身无量纲。tokenizer、上下文窗口、滑窗策略和边界处理必须相同；两个模型的PPL差不直接等于业务正确率差。本次每256-token独立窗口计255位置，16窗口共4,080，窗口间不传上下文。
+
+$$
+\widehat{\mathrm{pass@}k}=1-\frac{\binom{n-c}{k}}{\binom nk}.
+$$
+
+这是代码题在 $n$ 次生成中有 $c$ 次通过测试时常用的估计，要求 $n\ge k$，组合数按不够选择时为零处理，再按题平均。$k=1$ 时等于 $c/n$；一次贪心运行的成功比例与多次随机采样估计应明确区分。Accuracy/EM 衡量样本正确比例，ROUGE衡量参考重合，自动裁判衡量指定判断，不应混成同一能力轴。
+
+二元工单分类若另行设定，才需要 TP/FP/TN/FN：真阳性/假阳性/真阴性/假阴性分别按预测与标签计数；$\mathrm{Accuracy}=(TP+TN)/(TP+FP+TN+FN)$，$\mathrm{Precision}=TP/(TP+FP)$，$\mathrm{Recall}=TP/(TP+FN)$，$\mathrm{F1}=2TP/(2TP+FP+FN)$。这些都是无量纲比例，分母为零需约定。本文真实实验是语言建模，不产生二元标签，因此不编造这些计数。
+
+## 15. 本次实测：配对训练、合并、错误注入与量化顺序
+
+下载并逐文件核验真实 `EleutherAI/pythia-70m-deduped`，revision `e93a9faa9c77e5d09219f6c868bfc7a1bd65593c`；模型70,426,624参数，实验只更新24个 Transformer Linear 权重。数据为上表冻结的 WikiText2。三种子20261119/20/21，每种子五个方法读取相同的训练窗口次序；独立CPU随机源避免初始化影响批次排序，原始索引已保存。
+
+训练96步、batch1、length256、float32、MPS、PyTorch2.9.1、Transformers4.57.6、AdamW、weight_decay0、clip1。关闭dropout以隔离数值行为，梯度仍开启。全量组只更新这24个权重、LR2e-5；LoRA与固定A组LR1e-3、alpha=rank。每家族只有预设LR，不是等预算调参，不作算法榜单，也不能把高rank失败单因归为表达能力。
+
+<figure id="diagram-experiment"><div class="diagram-frame"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 723" role="img" aria-labelledby="svg-8c8e9bc0-title svg-8c8e9bc0-desc">
+<title id="svg-8c8e9bc0-title">Pythia真实LoRA训练与恢复诊断</title><desc id="svg-8c8e9bc0-desc">对数坐标PPL显示三种子均值和样本标准差，预设学习率不支持方法排名，错误合并恢复实际验证。</desc>
+<defs><marker id="svg-8c8e9bc0-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#8292a8"/></marker></defs>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#dce4ef} .muted{fill:#9cabc0} .year{fill:#7dc6b2;font-size:17px;font-weight:600} .label{font-size:16px} .small{font-size:14px} .line{stroke:#718299;stroke-width:2;fill:none;marker-end:url(#svg-8c8e9bc0-arrow)}</style>
+<text x="24" y="36" font-size="22" font-weight="600">真实三种子诊断：rank 增加需要训练设置同步验证</text><text x="24" y="74" class="small muted">Pythia-70M / WikiText2 / 4080 test targets / FP32 MPS；每家族一个预设LR，不是方法排名。</text><path d="M210.0 113V440" stroke="#263441"/><text x="200.0" y="470" class="small">40</text><path d="M271.7 113V440" stroke="#263441"/><text x="261.7" y="470" class="small">60</text><path d="M349.5 113V440" stroke="#263441"/><text x="339.5" y="470" class="small">100</text><path d="M455.0 113V440" stroke="#263441"/><text x="445.0" y="470" class="small">200</text><path d="M594.5 113V440" stroke="#263441"/><text x="584.5" y="470" class="small">500</text><path d="M700.0 113V440" stroke="#263441"/><text x="690.0" y="470" class="small">1000</text><text x="360" y="495" class="small">PPL（对数坐标；越低越好）</text><path d="M319.6 108V445" stroke="#9cabc0" stroke-dasharray="5 5"/><text x="24" y="523" class="small muted">未训练基座 PPL 82.20（虚线；无训练方差）</text><text x="24" y="147" class="small">24目标权重 FT</text><path d="M270.64 142H271.62" stroke="#7dc6b2" stroke-width="3"/><circle cx="271.13" cy="142" r="5" fill="#7dc6b2"/><text x="717" y="147" class="small">59.77 ± 0.19</text><text x="24" y="205" class="small">LoRA rank4</text><path d="M260.44 200H266.96" stroke="#7dc6b2" stroke-width="3"/><circle cx="263.73" cy="200" r="5" fill="#7dc6b2"/><text x="717" y="205" class="small">56.93 ± 1.22</text><text x="24" y="263" class="small">LoRA rank16</text><path d="M306.55 258H309.80" stroke="#7dc6b2" stroke-width="3"/><circle cx="308.18" cy="258" r="5" fill="#7dc6b2"/><text x="717" y="263" class="small">76.24 ± 0.81</text><text x="24" y="321" class="small">LoRA rank64</text><path d="M467.29 316H660.64" stroke="#e6bf88" stroke-width="3"/><circle cx="592.80" cy="316" r="5" fill="#e6bf88"/><text x="717" y="321" class="small">494.49 ± 277.67</text><text x="24" y="379" class="small">固定A rank16</text><path d="M295.48 374H304.41" stroke="#7dc6b2" stroke-width="3"/><circle cx="300.01" cy="374" r="5" fill="#7dc6b2"/><text x="717" y="379" class="small">72.25 ± 2.12</text><rect x="24" y="544" width="405" height="144" rx="8" fill="#182230" stroke="#344355"/><rect x="24" y="556" width="3" height="120" fill="#e6bf88"/><text x="42" y="574" class="label" font-weight="600">误差线：PPL样本SD</text><text x="42" y="600" class="small muted">alpha=rank，所有倍率1</text><text x="42" y="623" class="small muted">rank64退化非容量因果证明</text><text x="42" y="646" class="small muted">同seed各方法训练窗口次序相同</text><rect x="470" y="544" width="406" height="144" rx="8" fill="#182230" stroke="#344355"/><rect x="470" y="556" width="3" height="120" fill="#a7b5ee"/><text x="488" y="574" class="label" font-weight="600">主动错误注入并恢复</text><text x="488" y="600" class="small muted">重复 merge / 错 alpha → 输出变</text><text x="488" y="623" class="small muted">恢复后 logits 精确回归</text><text x="488" y="646" class="small muted">浮点64 merge max差2.73×10⁻¹²</text></svg></div><figcaption>原创机制图 · 小屏可局部横向滚动，保留完整关系与标签。</figcaption></figure>
+
+图的横轴为PPL对数刻度，误差线是三次PPL的样本标准差，不是置信区间；未训练基座只是一条确定参考。rank4在此预设协议下优于rank16/64，rank64还出现很大方差。这说明“加rank”与“合适训练设置”必须一起验证，不能从这张图推出rank4普遍最好。
+
+| 实际策略 | 可训练参数 | Seed 20261119 | Seed 20261120 | Seed 20261121 | PPL mean ± sample SD |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 24目标权重全量FT | 18,874,368 | 59.8335 | 59.9187 | 59.5484 | 59.7669 ± 0.1939 |
+| LoRA r4 | 196,608 | 55.5307 | 57.7551 | 57.5111 | 56.9323 ± 1.2199 |
+| LoRA r16 | 786,432 | 76.7773 | 75.3001 | 76.6345 | 76.2373 ± 0.8148 |
+| LoRA r64 | 3,145,728 | 213.5475 | 768.7646 | 501.1634 | 494.4918 ± 277.6687 |
+| 固定A r16（普通AdamW） | 442,368 | 70.1364 | 74.3741 | 72.2425 | 72.2510 ± 2.1189 |
+
+
+“24目标权重全量FT”是18.87M权重更新，**不是整个70M全参数FT**。固定A rank16仅442,368可训练参数，使用普通AdamW，**不是LoRA-FA v3复现**。PPL按每次测试值算术平均，不能用exp(mean NLL)代替该均值；两种统计都保留在原始结果。
+
+### 数学合并正确，float32也可能不逐位相同
+
+初始 B=0 的实际 logits 差为0，第一步 A 梯度为0、B非0，基座无梯度。训练后序列化重载的探测logits精确恢复。首次rank4合并使用预设max-logits误差2e-4阈值，却得到MPS float32 max差0.0133057、mean差0.00118273，因此验收失败；CPU float32也有max差0.0150146。没有隐藏或归咎于某个设备。
+
+同一实际权重和输入改用CPU float64，合并max差为2.728×10⁻¹²；MPS未合并/合并测试PPL为55.530745/55.530190，mean NLL差约−9.993×10⁻⁶ nats。证据支持有限精度计算顺序差异，而不是矩阵合并代数错误；64探测位置argmax相同只涵盖这些位置。后续合并验收改为有限logits与测试mean NLL差≤1e-3 nats，同时继续记录实际logits误差。
+
+主动重复合并，首种子rank4探测max-logits差38.7271、64位置中25个argmax改变；恢复后max差0。rank16还主动注入错误alpha，恢复后实际logits精确回归。恢复要求回到原函数，不以“程序没有崩溃”作为通过条件。
+
+### 两个训练adapter、真实层输入与量化扰动
+
+两个rank4 adapter来自同任务不同seed。第一层64个真实token输入，因子平均与严格增量平均的输出max差0.144317；串接与严格增量平均的输出差约2.78×10⁻¹⁷（CPU float64）。这验证代数对象，**没有验证跨任务组合能力**。
+
+对浮点训练的rank4模型做后训练逐输出行对称W4 RTN，qmax7、15有效等级，计算仍为float32 GEMM：原浮点adapter PPL55.5307，量化基座+浮点adapter路径98.6296，合并后再W4路径97.1755。实际第一层两种量化顺序输出max差0.494074（CPU float64诊断）。这是训练后扰动，不用NF4、double quantization、量化训练或低位内核，不能冒充QLoRA性能。
+
+单个1536×512 Linear、64真实输入位置、CPU float32、输入需梯度时，保存张量的非参数storage统计：标准LoRA rank4/16/64为525,312/528,384/540,672 bytes，固定A为394,240/397,312/409,600 bytes；恰少131,072 bytes，即64×512×4的输入。它仍保留rank特征与输出loss buffer；这不是全模型显存峰值。
+
+| 路径与计时阶段 | 五次实际采样（ms；decode为ms/step） | mean | median |
+| --- | --- | ---: | ---: |
+| 未合并 · prefill + first selection | 17.0852 / 19.1371 / 17.4533 / 16.7588 / 233.1509 | 60.7171 | 17.4533 |
+| 未合并 · KV decode | 13.1135 / 13.0339 / 13.1020 / 14.5599 / 14.4906 | 13.6600 | 13.1135 |
+| 合并 · prefill + first selection | 14.2818 / 18.2622 / 18.8934 / 20.4951 / 15.2870 | 17.4439 | 18.2622 |
+| 合并 · KV decode | 13.9505 / 12.6342 / 11.6956 / 11.8216 / 11.8332 | 12.3870 | 11.8332 |
+
+未合并prefill有一次233.1509ms明显离群，均值受其支配；中位数17.4533ms与合并18.2622ms未显示稳定prefill加速。decode均值12.3870对13.6600ms/step仅是小样本观察，需多次独立进程、交替测量与系统状态控制后再判断。
+
+
+计时仅首种子rank16，单进程MPS float32、64-token prompt、2次warmup、5次同步采样；prefill+first selection与8步KV decode分别记录。排除tokenizer、网络、排队、adapter冷加载和服务调度。它能说明当前实现两条路径的耗时，不能作为低位GPU、HTP或多租户系统的TTFT/TPOT预测。
+
+完整脚本、依赖、冻结manifest与JSON可从 [Reproduction README](assets/README.md)、[训练脚本](assets/experiment.py)、[诊断脚本](assets/diagnostics.py)、[三种子汇总](assets/results.json)、[补充诊断](assets/diagnostics.json) 下载。最初阈值失败、旧协议记录与权重保存在本地证据档案，保留修改原因。
+
+## 16. 从官方实现到业务接口：配置也是模型身份
+
+PEFT 提供通用 adapter 注入、初始化、optimizer 与合并；论文仓库提供原方法的任务配置；vLLM等运行时负责批处理与缓存。三个层次职责不同。本次共冻结16个官方/作者仓库，下面列出精确commit和核心文件；源码核验不等于完整运行各自大模型实验。
+
+对工单SDK，一个完整adapter身份至少包含基座revision、tokenizer与模板、target模块、rank/alpha或rsLoRA缩放、bias/modules-to-save、初始化残差来源、量化格式及文件hash。用同一“rank16”加载到不同基座，矩阵尺寸可能通过，却不是同一语义。采用带残差基座的PiSSA/OLoRA/CorDA时，必须明确保存的是残差基座、原基座相对增量还是库转换后的adapter。
+
+训练配置先检查实际可训练参数数与模块名单；合并路径检查eval/dropout、未合并→合并→序列化→重载→错误恢复；服务路径检查请求adapter映射、batch行顺序、KV生命周期和冷/热缓存。QLoRA等量化模型还要逐级核对重建权重、层输出、logits、任务和真实内核表现。检查应产生可比基线，不能只确认文件成功保存。
+
+<div class="code-source" id="code-acquisition"><h3>zhngstl/new_facts_forgetting</h3>
+<p>训练/保持评测配置与数据处理 · paper-author repository。</p>
+<p>Frozen commit: <code>c496f372dd17fae7c802439330daec35730c359c</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/zhngstl/new_facts_forgetting/tree/c496f372dd17fae7c802439330daec35730c359c">https://github.com/zhngstl/new_facts_forgetting/tree/c496f372dd17fae7c802439330daec35730c359c</a><ul><li><a class="source-url" href="https://github.com/zhngstl/new_facts_forgetting/blob/c496f372dd17fae7c802439330daec35730c359c/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/zhngstl/new_facts_forgetting/blob/c496f372dd17fae7c802439330daec35730c359c/scripts/run_arg_config.py">scripts/run_arg_config.py</a></li><li><a class="source-url" href="https://github.com/zhngstl/new_facts_forgetting/blob/c496f372dd17fae7c802439330daec35730c359c/training/common.py">training/common.py</a></li><li><a class="source-url" href="https://github.com/zhngstl/new_facts_forgetting/blob/c496f372dd17fae7c802439330daec35730c359c/training/evaluate.py">training/evaluate.py</a></li></ul></div>
+<div class="code-source" id="code-dare"><h3>yule-BUAA/MergeLM</h3>
+<p>delta随机mask、rescale与模型合并 · paper-author repository。</p>
+<p>Frozen commit: <code>6d49ad96fd69c92013654b837041b868aa806564</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/yule-BUAA/MergeLM/tree/6d49ad96fd69c92013654b837041b868aa806564">https://github.com/yule-BUAA/MergeLM/tree/6d49ad96fd69c92013654b837041b868aa806564</a><ul><li><a class="source-url" href="https://github.com/yule-BUAA/MergeLM/blob/6d49ad96fd69c92013654b837041b868aa806564/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/yule-BUAA/MergeLM/blob/6d49ad96fd69c92013654b837041b868aa806564/direct_inference_merged_llms_instruct_math_code.py">direct_inference_merged_llms_instruct_math_code.py</a></li><li><a class="source-url" href="https://github.com/yule-BUAA/MergeLM/blob/6d49ad96fd69c92013654b837041b868aa806564/merge_llms_instruct_math_code.py">merge_llms_instruct_math_code.py</a></li><li><a class="source-url" href="https://github.com/yule-BUAA/MergeLM/blob/6d49ad96fd69c92013654b837041b868aa806564/merge_plms_glue.py">merge_plms_glue.py</a></li></ul></div>
+<div class="code-source" id="code-loftq"><h3>yxli2123/LoftQ</h3>
+<p>量化与低秩残差初始化 · paper-author repository。</p>
+<p>Frozen commit: <code>ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/yxli2123/LoftQ/tree/ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3">https://github.com/yxli2123/LoftQ/tree/ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3</a><ul><li><a class="source-url" href="https://github.com/yxli2123/LoftQ/blob/ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/yxli2123/LoftQ/blob/ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3/quantize_save.py">quantize_save.py</a></li></ul></div>
+<div class="code-source" id="code-longlora"><h3>JIA-Lab-research/LongLoRA</h3>
+<p>shifted sparse attention与因果掩码 · paper-author repository。</p>
+<p>Frozen commit: <code>d4eb344c5ccc9e91c0812a2b2aeea69070df8c33</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/JIA-Lab-research/LongLoRA/tree/d4eb344c5ccc9e91c0812a2b2aeea69070df8c33">https://github.com/JIA-Lab-research/LongLoRA/tree/d4eb344c5ccc9e91c0812a2b2aeea69070df8c33</a><ul><li><a class="source-url" href="https://github.com/JIA-Lab-research/LongLoRA/blob/d4eb344c5ccc9e91c0812a2b2aeea69070df8c33/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/JIA-Lab-research/LongLoRA/blob/d4eb344c5ccc9e91c0812a2b2aeea69070df8c33/llama_attn_replace_sft.py">llama_attn_replace_sft.py</a></li></ul></div>
+<div class="code-source" id="code-lora"><h3>microsoft/LoRA</h3>
+<p>Linear/Embedding/Conv适配、merge与状态保存 · paper-author repository。</p>
+<p>Frozen commit: <code>c4593f060e6a368d7bb5af5273b8e42810cdef90</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/microsoft/LoRA/tree/c4593f060e6a368d7bb5af5273b8e42810cdef90">https://github.com/microsoft/LoRA/tree/c4593f060e6a368d7bb5af5273b8e42810cdef90</a><ul><li><a class="source-url" href="https://github.com/microsoft/LoRA/blob/c4593f060e6a368d7bb5af5273b8e42810cdef90/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/microsoft/LoRA/blob/c4593f060e6a368d7bb5af5273b8e42810cdef90/loralib/layers.py">loralib/layers.py</a></li><li><a class="source-url" href="https://github.com/microsoft/LoRA/blob/c4593f060e6a368d7bb5af5273b8e42810cdef90/loralib/utils.py">loralib/utils.py</a></li></ul></div>
+<div class="code-source" id="code-lorahub"><h3>sail-sg/lorahub</h3>
+<p>作者组合实现按key平均因子及无梯度权重搜索 · paper-author repository。</p>
+<p>Frozen commit: <code>df73afe5f38d9ff0fd1cd43774be51c79c581cc3</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/sail-sg/lorahub/tree/df73afe5f38d9ff0fd1cd43774be51c79c581cc3">https://github.com/sail-sg/lorahub/tree/df73afe5f38d9ff0fd1cd43774be51c79c581cc3</a><ul><li><a class="source-url" href="https://github.com/sail-sg/lorahub/blob/df73afe5f38d9ff0fd1cd43774be51c79c581cc3/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/sail-sg/lorahub/blob/df73afe5f38d9ff0fd1cd43774be51c79c581cc3/lorahub/__init__.py">lorahub/__init__.py</a></li><li><a class="source-url" href="https://github.com/sail-sg/lorahub/blob/df73afe5f38d9ff0fd1cd43774be51c79c581cc3/lorahub/algorithm.py">lorahub/algorithm.py</a></li><li><a class="source-url" href="https://github.com/sail-sg/lorahub/blob/df73afe5f38d9ff0fd1cd43774be51c79c581cc3/lorahub/constant.py">lorahub/constant.py</a></li></ul></div>
+<div class="code-source" id="code-lrmatters"><h3>yuang-lee/lr-matters-lora</h3>
+<p>训练与超参数扫描 · paper-author repository。</p>
+<p>Frozen commit: <code>d007318e2840f178e23c0ca9cf2232542f75d905</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/yuang-lee/lr-matters-lora/tree/d007318e2840f178e23c0ca9cf2232542f75d905">https://github.com/yuang-lee/lr-matters-lora/tree/d007318e2840f178e23c0ca9cf2232542f75d905</a><ul><li><a class="source-url" href="https://github.com/yuang-lee/lr-matters-lora/blob/d007318e2840f178e23c0ca9cf2232542f75d905/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/yuang-lee/lr-matters-lora/blob/d007318e2840f178e23c0ca9cf2232542f75d905/run-lora/train.py">run-lora/train.py</a></li></ul></div>
+<div class="code-source" id="code-matryoshka"><h3>IST-DASLab/MatryoshkaLoRA</h3>
+<p>hierarchical adapter训练和rank评测 · paper-author repository。</p>
+<p>Frozen commit: <code>66dd4641d27d8891ab0737549a4d225c96abd1dd</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/IST-DASLab/MatryoshkaLoRA/tree/66dd4641d27d8891ab0737549a4d225c96abd1dd">https://github.com/IST-DASLab/MatryoshkaLoRA/tree/66dd4641d27d8891ab0737549a4d225c96abd1dd</a><ul><li><a class="source-url" href="https://github.com/IST-DASLab/MatryoshkaLoRA/blob/66dd4641d27d8891ab0737549a4d225c96abd1dd/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/IST-DASLab/MatryoshkaLoRA/blob/66dd4641d27d8891ab0737549a4d225c96abd1dd/adapters/dylora.py">adapters/dylora.py</a></li><li><a class="source-url" href="https://github.com/IST-DASLab/MatryoshkaLoRA/blob/66dd4641d27d8891ab0737549a4d225c96abd1dd/adapters/lora.py">adapters/lora.py</a></li><li><a class="source-url" href="https://github.com/IST-DASLab/MatryoshkaLoRA/blob/66dd4641d27d8891ab0737549a4d225c96abd1dd/adapters/matryoshka.py">adapters/matryoshka.py</a></li></ul></div>
+<div class="code-source" id="code-mora"><h3>kongds/MoRA</h3>
+<p>小矩阵、分块压缩扩展和合并 · paper-author repository。</p>
+<p>Frozen commit: <code>de5df312cee84e86508aa0e3c9a2fc271487c2e9</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/kongds/MoRA/tree/de5df312cee84e86508aa0e3c9a2fc271487c2e9">https://github.com/kongds/MoRA/tree/de5df312cee84e86508aa0e3c9a2fc271487c2e9</a><ul><li><a class="source-url" href="https://github.com/kongds/MoRA/blob/de5df312cee84e86508aa0e3c9a2fc271487c2e9/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/kongds/MoRA/blob/de5df312cee84e86508aa0e3c9a2fc271487c2e9/peft-mora/src/peft/mixed_model.py">peft-mora/src/peft/mixed_model.py</a></li><li><a class="source-url" href="https://github.com/kongds/MoRA/blob/de5df312cee84e86508aa0e3c9a2fc271487c2e9/peft-mora/src/peft/peft_model.py">peft-mora/src/peft/peft_model.py</a></li><li><a class="source-url" href="https://github.com/kongds/MoRA/blob/de5df312cee84e86508aa0e3c9a2fc271487c2e9/peft-mora/src/peft/tuners/adalora/layer.py">peft-mora/src/peft/tuners/adalora/layer.py</a></li></ul></div>
+<div class="code-source" id="code-peft"><h3>huggingface/peft</h3>
+<p>通用层与config、初始化、专门optimizer；并非每个变体都由一个开关完整复现 · official maintained library/runtime。</p>
+<p>Frozen commit: <code>c1e3b768911406766bb7960e063a2d317f09802c</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/huggingface/peft/tree/c1e3b768911406766bb7960e063a2d317f09802c">https://github.com/huggingface/peft/tree/c1e3b768911406766bb7960e063a2d317f09802c</a><ul><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/optimizers/loraplus.py">src/peft/optimizers/loraplus.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/tuners/adalora/layer.py">src/peft/tuners/adalora/layer.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/tuners/lora/config.py">src/peft/tuners/lora/config.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/tuners/lora/corda.py">src/peft/tuners/lora/corda.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/tuners/lora/dora.py">src/peft/tuners/lora/dora.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/tuners/lora/eva.py">src/peft/tuners/lora/eva.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/tuners/lora/layer.py">src/peft/tuners/lora/layer.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/tuners/lora/loraga.py">src/peft/tuners/lora/loraga.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/tuners/lora/model.py">src/peft/tuners/lora/model.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/tuners/vera/layer.py">src/peft/tuners/vera/layer.py</a></li><li><a class="source-url" href="https://github.com/huggingface/peft/blob/c1e3b768911406766bb7960e063a2d317f09802c/src/peft/optimizers/lorafa.py">src/peft/optimizers/lorafa.py</a></li></ul></div>
+<div class="code-source" id="code-punica"><h3>punica-ai/punica</h3>
+<p>LoRA data和SGMV接口；CUDA依赖 · paper-author repository。此仓库已归档。</p>
+<p>Frozen commit: <code>591b59899f0a20760821785d06b331c8a2e5cb86</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/punica-ai/punica/tree/591b59899f0a20760821785d06b331c8a2e5cb86">https://github.com/punica-ai/punica/tree/591b59899f0a20760821785d06b331c8a2e5cb86</a><ul><li><a class="source-url" href="https://github.com/punica-ai/punica/blob/591b59899f0a20760821785d06b331c8a2e5cb86/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/punica-ai/punica/blob/591b59899f0a20760821785d06b331c8a2e5cb86/csrc/sgmv/sgmv_cutlass.cu">csrc/sgmv/sgmv_cutlass.cu</a></li><li><a class="source-url" href="https://github.com/punica-ai/punica/blob/591b59899f0a20760821785d06b331c8a2e5cb86/csrc/sgmv/sgmv_cutlass.cuh">csrc/sgmv/sgmv_cutlass.cuh</a></li><li><a class="source-url" href="https://github.com/punica-ai/punica/blob/591b59899f0a20760821785d06b331c8a2e5cb86/csrc/sgmv_flashinfer/sgmv_all.cu">csrc/sgmv_flashinfer/sgmv_all.cu</a></li></ul></div>
+<div class="code-source" id="code-qalora"><h3>yuhuixu1993/qa-lora</h3>
+<p>组内输入汇聚与量化偏置合并 · paper-author repository。</p>
+<p>Frozen commit: <code>91604c71e981946442b05b5b6c3f8f07e4e9c1dc</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/yuhuixu1993/qa-lora/tree/91604c71e981946442b05b5b6c3f8f07e4e9c1dc">https://github.com/yuhuixu1993/qa-lora/tree/91604c71e981946442b05b5b6c3f8f07e4e9c1dc</a><ul><li><a class="source-url" href="https://github.com/yuhuixu1993/qa-lora/blob/91604c71e981946442b05b5b6c3f8f07e4e9c1dc/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/yuhuixu1993/qa-lora/blob/91604c71e981946442b05b5b6c3f8f07e4e9c1dc/qalora.py">qalora.py</a></li><li><a class="source-url" href="https://github.com/yuhuixu1993/qa-lora/blob/91604c71e981946442b05b5b6c3f8f07e4e9c1dc/merge.py">merge.py</a></li><li><a class="source-url" href="https://github.com/yuhuixu1993/qa-lora/blob/91604c71e981946442b05b5b6c3f8f07e4e9c1dc/peft_utils.py">peft_utils.py</a></li></ul></div>
+<div class="code-source" id="code-relora"><h3>Guitaricet/relora</h3>
+<p>merge/reinit、训练与optimizer reset · paper-author repository。</p>
+<p>Frozen commit: <code>176f37633fe02019835387258ddabcf6d91e328d</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/Guitaricet/relora/tree/176f37633fe02019835387258ddabcf6d91e328d">https://github.com/Guitaricet/relora/tree/176f37633fe02019835387258ddabcf6d91e328d</a><ul><li><a class="source-url" href="https://github.com/Guitaricet/relora/blob/176f37633fe02019835387258ddabcf6d91e328d/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/Guitaricet/relora/blob/176f37633fe02019835387258ddabcf6d91e328d/peft_pretraining/args_utils.py">peft_pretraining/args_utils.py</a></li><li><a class="source-url" href="https://github.com/Guitaricet/relora/blob/176f37633fe02019835387258ddabcf6d91e328d/peft_pretraining/dataloader.py">peft_pretraining/dataloader.py</a></li><li><a class="source-url" href="https://github.com/Guitaricet/relora/blob/176f37633fe02019835387258ddabcf6d91e328d/peft_pretraining/megatron_dataset/arguments.py">peft_pretraining/megatron_dataset/arguments.py</a></li></ul></div>
+<div class="code-source" id="code-slora"><h3>S-LoRA/S-LoRA</h3>
+<p>adapter loading与memory manager；已归档历史基线 · paper-author repository。此仓库已归档。</p>
+<p>Frozen commit: <code>c1ddf488781ea7f551cd0bb07bfd097124c93411</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/S-LoRA/S-LoRA/tree/c1ddf488781ea7f551cd0bb07bfd097124c93411">https://github.com/S-LoRA/S-LoRA/tree/c1ddf488781ea7f551cd0bb07bfd097124c93411</a><ul><li><a class="source-url" href="https://github.com/S-LoRA/S-LoRA/blob/c1ddf488781ea7f551cd0bb07bfd097124c93411/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/S-LoRA/S-LoRA/blob/c1ddf488781ea7f551cd0bb07bfd097124c93411/slora/models/peft/lora_adapter.py">slora/models/peft/lora_adapter.py</a></li><li><a class="source-url" href="https://github.com/S-LoRA/S-LoRA/blob/c1ddf488781ea7f551cd0bb07bfd097124c93411/slora/common/mem_manager.py">slora/common/mem_manager.py</a></li></ul></div>
+<div class="code-source" id="code-ties"><h3>prateeky2806/ties-merging</h3>
+<p>task-vector trim、sign election与merge · paper-author repository。</p>
+<p>Frozen commit: <code>44e7891fc84f3de7e4caa52664cd864ca3715e91</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/prateeky2806/ties-merging/tree/44e7891fc84f3de7e4caa52664cd864ca3715e91">https://github.com/prateeky2806/ties-merging/tree/44e7891fc84f3de7e4caa52664cd864ca3715e91</a><ul><li><a class="source-url" href="https://github.com/prateeky2806/ties-merging/blob/44e7891fc84f3de7e4caa52664cd864ca3715e91/README.md">README.md</a></li><li><a class="source-url" href="https://github.com/prateeky2806/ties-merging/blob/44e7891fc84f3de7e4caa52664cd864ca3715e91/src/ties_merging.py">src/ties_merging.py</a></li><li><a class="source-url" href="https://github.com/prateeky2806/ties-merging/blob/44e7891fc84f3de7e4caa52664cd864ca3715e91/src/utils/merge_utils.py">src/utils/merge_utils.py</a></li></ul></div>
+<div class="code-source" id="code-vllm"><h3>vllm-project/vllm</h3>
+<p>当前官方服务文档、LoRARequest身份与LRU worker；非历史系统论文官方复现 · official maintained library/runtime。</p>
+<p>Frozen commit: <code>a87e3a6554891f43ad81168a2a89397de91e9654</code> · accessed 2026-11-19</p><a class="source-url" href="https://github.com/vllm-project/vllm/tree/a87e3a6554891f43ad81168a2a89397de91e9654">https://github.com/vllm-project/vllm/tree/a87e3a6554891f43ad81168a2a89397de91e9654</a><ul><li><a class="source-url" href="https://github.com/vllm-project/vllm/blob/a87e3a6554891f43ad81168a2a89397de91e9654/docs/features/lora.md">docs/features/lora.md</a></li><li><a class="source-url" href="https://github.com/vllm-project/vllm/blob/a87e3a6554891f43ad81168a2a89397de91e9654/vllm/lora/request.py">vllm/lora/request.py</a></li><li><a class="source-url" href="https://github.com/vllm-project/vllm/blob/a87e3a6554891f43ad81168a2a89397de91e9654/vllm/lora/worker_manager.py">vllm/lora/worker_manager.py</a></li></ul></div>
+
+## 17. 瓶颈、取舍与下一步研究
+
+| 具体瓶颈 | 对应机制 | 本文证据 | 仍需解决 |
+| --- | --- | --- | --- |
+| 均匀rank浪费预算 | AdaLoRA/EVA按重要性或方差分配 | 原算法、rank热图、消融与数据扫描成本 | 重要性迁移、罕见样本、异构rank内核 |
+| 高rank不学或不稳定 | rsLoRA、LoRA+、方法分别调LR | 原缩放/梯度曲线、公平搜索、本次高rank退化 | 联合alpha/LR/batch/初始化预算 |
+| 激活超过adapter状态 | LoRA-FA固定A、checkpointing等实现选择 | 原内存分析、本次saved-storage检查 | 全图峰值、重算、吞吐与容量边界 |
+| 小增量难引入新知识 | ReLoRA/MoRA、高rank、数据与优化改进 | CPT、UUID、流程与事实反证 | 分离表达限制与搜索不足；持续学习 |
+| 低位训练和合并函数失配 | LoftQ初始化补偿、QA-LoRA组结构 | 原算法与本次量化顺序实测 | 表示约束、混合精度内核、跨格式导出 |
+| 合并后任务互相干扰 | 正确增量串接、TIES符号、DARE稀疏 | 原组合图、任务结果、实际因子平均误差 | rank压缩、任务验证、因子坐标差异 |
+| 多adapter切换与碎片 | S-LoRA分页、Punica分段批算 | 原系统架构、算子/请求性能、当前源码 | 尾延迟、加载成本、prefix/KV身份 |
+| 名义rank利用率低 | 可截断前缀、切空间预条件 | Matryoshka/ISO原图与算法 | 高有效秩是否对目标任务有用 |
+
+值得继续验证的是**预算随任务与数据改变**：不仅选择rank，还选择模块、初始化信息与重置周期。可用低预算搜索和样本覆盖诊断，观察收益是否来自新增表达方向、优化器尺度还是数据变化。保留同计算预算与同质量预算两种比较，才能知道是更省还是学得更多。
+
+第二条方向是**表示与最终运行共同设计**。训练时的低秩补偿、量化分组和服务算子若不兼容，导出可能重新损失精度；需要在真实低位内核上验证权重与logits一致性、TTFT/TPOT、峰值与能耗。本次浮点诊断只提供如何发现失配的实例，没有硬件速度结论。
+
+第三条是**获取、保持和执行分别评测**。新事实的同事实改写、流程的多轮分支、旧能力的OOD保持不能互相替代；加入真实业务盲测、独立裁判与可验证工具结果，才有助于判断权重微调是否值得。以上是基于已有证据提出的研究路径，不预测未来必然赢家或虚构性能提升。
+
+读完后可以记住三件事：低秩是增量参数化的结构约束；训练设置决定哪些方向真正被学到；合并、量化、缓存和请求映射共同决定用户实际得到哪个函数。学习路径可先沿原始LoRA的前向与梯度图，再读rank/初始化，最后根据业务选择量化、组合或多租户部署分支。
+
+## 18. 集中参考来源
+
+下列原论文使用固定版本，提供完整网址。首次公开时间与版本更新分开，论文结果的原图、页码及解读在相应正文处。代码来源的完整commit链接在上一节，实验输入版本在可下载manifest中。
+
+<div class="source-entry" id="source-1"><h3>[1] · Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning</h3>
+<p>Original paper · version: <code>2012.13255v1</code> · first public Tue, 22 Dec 2020 07:42:30 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2012.13255v1">https://arxiv.org/abs/2012.13255v1</a><p><a class="source-url" href="https://arxiv.org/pdf/2012.13255v1">https://arxiv.org/pdf/2012.13255v1</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>e3205485a4222770dd73705495cbce0a27afdec63d6c21fa27f2a165e7f805f1</code></p><p>Submission history From: Armen Aghajanyan [ view email ] [v1] Tue, 22 Dec 2020 07:42:30 UTC (91 KB)</p></details></div>
+<div class="source-entry" id="source-2"><h3>[2] · LoRA: Low-Rank Adaptation of Large Language Models</h3>
+<p>Original paper · version: <code>2106.09685v2</code> · first public Thu, 17 Jun 2021 17:37:18 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2106.09685v2">https://arxiv.org/abs/2106.09685v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2106.09685v2">https://arxiv.org/pdf/2106.09685v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>e9a0d3128767db616085dc0f4e6e455e672e89af823e8ed1282793682787395a</code></p><p>Submission history From: Edward J. Hu [ view email ] [v1] Thu, 17 Jun 2021 17:37:18 UTC (1,791 KB) [v2] Sat, 16 Oct 2021 18:40:34 UTC (896 KB)</p></details></div>
+<div class="source-entry" id="source-3"><h3>[3] · DyLoRA: Parameter Efficient Tuning of Pre-trained Models using Dynamic Search-Free Low-Rank Adaptation</h3>
+<p>Original paper · version: <code>2210.07558v2</code> · first public Fri, 14 Oct 2022 06:29:22 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2210.07558v2">https://arxiv.org/abs/2210.07558v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2210.07558v2">https://arxiv.org/pdf/2210.07558v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>5fbd783656967ab50d22fc0d125e79b156abfdaf46d5d5830547387c0db81512</code></p><p>Submission history From: Mojtaba Valipour [ view email ] [v1] Fri, 14 Oct 2022 06:29:22 UTC (307 KB) [v2] Wed, 19 Apr 2023 04:28:24 UTC (490 KB)</p></details></div>
+<div class="source-entry" id="source-4"><h3>[4] · AdaLoRA: Adaptive Budget Allocation for Parameter-Efficient Fine-Tuning</h3>
+<p>Original paper · version: <code>2303.10512v2</code> · first public Sat, 18 Mar 2023 22:36:25 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2303.10512v2">https://arxiv.org/abs/2303.10512v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2303.10512v2">https://arxiv.org/pdf/2303.10512v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>7afe399a4d0c5cf37c956b0a8afb2294c2d2b289608162b4e49bddecc3b311ef</code></p><p>Submission history From: Qingru Zhang [ view email ] [v1] Sat, 18 Mar 2023 22:36:25 UTC (1,296 KB) [v2] Wed, 20 Dec 2023 20:56:14 UTC (1,297 KB)</p></details></div>
+<div class="source-entry" id="source-5"><h3>[5] · QLoRA: Efficient Finetuning of Quantized LLMs</h3>
+<p>Original paper · version: <code>2305.14314v1</code> · first public Tue, 23 May 2023 17:50:33 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2305.14314v1">https://arxiv.org/abs/2305.14314v1</a><p><a class="source-url" href="https://arxiv.org/pdf/2305.14314v1">https://arxiv.org/pdf/2305.14314v1</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>33a4e757c19d6ea8d3cca8958fce8fe405e290272e135c99ee66065c775d5bd1</code></p><p>Submission history From: Tim Dettmers [ view email ] [v1] Tue, 23 May 2023 17:50:33 UTC (568 KB)</p></details></div>
+<div class="source-entry" id="source-6"><h3>[6] · QA-LoRA: Quantization-Aware Low-Rank Adaptation of Large Language Models</h3>
+<p>Original paper · version: <code>2309.14717v2</code> · first public Tue, 26 Sep 2023 07:22:23 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2309.14717v2">https://arxiv.org/abs/2309.14717v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2309.14717v2">https://arxiv.org/pdf/2309.14717v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>c8086d00324e1606184346cfffb0caac165e3174090210c721ddca419ed2f38d</code></p><p>Submission history From: Yuhui Xu [ view email ] [v1] Tue, 26 Sep 2023 07:22:23 UTC (538 KB) [v2] Mon, 9 Oct 2023 07:39:04 UTC (549 KB)</p></details></div>
+<div class="source-entry" id="source-7"><h3>[7] · LoftQ: LoRA-Fine-Tuning-Aware Quantization for Large Language Models</h3>
+<p>Original paper · version: <code>2310.08659v4</code> · first public Thu, 12 Oct 2023 18:34:08 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2310.08659v4">https://arxiv.org/abs/2310.08659v4</a><p><a class="source-url" href="https://arxiv.org/pdf/2310.08659v4">https://arxiv.org/pdf/2310.08659v4</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>3d214938f89fd5451236506ce288d1729e5cde805a82e3ddfc60da739be52f6d</code></p><p>Submission history From: Yixiao Li [ view email ] [v1] Thu, 12 Oct 2023 18:34:08 UTC (141 KB) [v2] Tue, 17 Oct 2023 01:35:10 UTC (141 KB) [v3] Mon, 23 Oct 2023 02:49:42 UTC (141 KB) [v4] Tue, 28 Nov 2023 16:06:59 UTC (143 KB)</p></details></div>
+<div class="source-entry" id="source-8"><h3>[8] · A Rank Stabilization Scaling Factor for Fine-Tuning with LoRA</h3>
+<p>Original paper · version: <code>2312.03732v1</code> · first public Tue, 28 Nov 2023 03:23:20 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2312.03732v1">https://arxiv.org/abs/2312.03732v1</a><p><a class="source-url" href="https://arxiv.org/pdf/2312.03732v1">https://arxiv.org/pdf/2312.03732v1</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>8d45b0bc98bf5d0b4e6d63a297a5c4709935e2912c94a11471eadf14a9a1e80e</code></p><p>Submission history From: Damjan Kalajdzievski [ view email ] [v1] Tue, 28 Nov 2023 03:23:20 UTC (2,062 KB)</p></details></div>
+<div class="source-entry" id="source-9"><h3>[9] · LoRA+: Efficient Low Rank Adaptation of Large Models</h3>
+<p>Original paper · version: <code>2402.12354v2</code> · first public Mon, 19 Feb 2024 18:33:49 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2402.12354v2">https://arxiv.org/abs/2402.12354v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2402.12354v2">https://arxiv.org/pdf/2402.12354v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>ee93deb531da2dc2fcc4db5aa7ff6f26c08c9e8a77853afe68d1940bb0b1d301</code></p><p>Submission history From: Soufiane Hayou [ view email ] [v1] Mon, 19 Feb 2024 18:33:49 UTC (548 KB) [v2] Thu, 4 Jul 2024 18:33:00 UTC (780 KB)</p></details></div>
+<div class="source-entry" id="source-10"><h3>[10] · DoRA: Weight-Decomposed Low-Rank Adaptation</h3>
+<p>Original paper · version: <code>2402.09353v6</code> · first public Wed, 14 Feb 2024 17:59:34 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2402.09353v6">https://arxiv.org/abs/2402.09353v6</a><p><a class="source-url" href="https://arxiv.org/pdf/2402.09353v6">https://arxiv.org/pdf/2402.09353v6</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>f048986e4d0b1c5b0a3f6c3c709ab245a5bcb993aa92704d6170304b413f08a4</code></p><p>Submission history From: Shih-Yang Liu [ view email ] [v1] Wed, 14 Feb 2024 17:59:34 UTC (495 KB) [v2] Fri, 1 Mar 2024 16:26:41 UTC (495 KB) [v3] Tue, 5 Mar 2024 07:31:21 UTC (495 KB) [v4] Sun, 28 Apr 2024 09:06:50 UTC (521 KB) [v5] Mon, 3 Jun 2024 07:27:15 UTC (5,473 KB) [v6] Tue, 9 Jul 2024 05:59:16 UTC (12,309 KB)</p></details></div>
+<div class="source-entry" id="source-11"><h3>[11] · VeRA: Vector-based Random Matrix Adaptation</h3>
+<p>Original paper · version: <code>2310.11454v2</code> · first public Tue, 17 Oct 2023 17:59:46 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2310.11454v2">https://arxiv.org/abs/2310.11454v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2310.11454v2">https://arxiv.org/pdf/2310.11454v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>b91f11fc716e3dae85ed7954e11a7e3c93cce93cbd4c7bde243735c44426c7ab</code></p><p>Submission history From: Dawid Jan Kopiczko [ view email ] [v1] Tue, 17 Oct 2023 17:59:46 UTC (139 KB) [v2] Tue, 16 Jan 2024 18:59:22 UTC (187 KB)</p></details></div>
+<div class="source-entry" id="source-12"><h3>[12] · PiSSA: Principal Singular Values and Singular Vectors Adaptation of Large Language Models</h3>
+<p>Original paper · version: <code>2404.02948v4</code> · first public Wed, 3 Apr 2024 15:06:43 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2404.02948v4">https://arxiv.org/abs/2404.02948v4</a><p><a class="source-url" href="https://arxiv.org/pdf/2404.02948v4">https://arxiv.org/pdf/2404.02948v4</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>472e7951326f498d1d85a5ec956fb248918d12e56dbdb74e721a851724ad1da4</code></p><p>Submission history From: Meng Fanxu [ view email ] [v1] Wed, 3 Apr 2024 15:06:43 UTC (419 KB) [v2] Sun, 14 Apr 2024 15:24:10 UTC (457 KB) [v3] Tue, 28 May 2024 14:19:33 UTC (5,562 KB) [v4] Wed, 9 Apr 2025 06:54:20 UTC (5,592 KB)</p></details></div>
+<div class="source-entry" id="source-13"><h3>[13] · OLoRA: Orthonormal Low-Rank Adaptation of Large Language Models</h3>
+<p>Original paper · version: <code>2406.01775v2</code> · first public Mon, 3 Jun 2024 20:37:27 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2406.01775v2">https://arxiv.org/abs/2406.01775v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2406.01775v2">https://arxiv.org/pdf/2406.01775v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>1bf7bb5c9e9d6c062c912b567b4c09e5cdec9edb903a9201a74719d29ba5b32d</code></p><p>Submission history From: Kerim Büyükakyüz [ view email ] [v1] Mon, 3 Jun 2024 20:37:27 UTC (167 KB) [v2] Mon, 25 Nov 2024 12:45:19 UTC (167 KB)</p></details></div>
+<div class="source-entry" id="source-14"><h3>[14] · LoRA-GA: Low-Rank Adaptation with Gradient Approximation</h3>
+<p>Original paper · version: <code>2407.05000v2</code> · first public Sat, 6 Jul 2024 08:37:21 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2407.05000v2">https://arxiv.org/abs/2407.05000v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2407.05000v2">https://arxiv.org/pdf/2407.05000v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>eebc441dda1c7ec61e2995b67f1dce007982966670d9cab29db211b55617288f</code></p><p>Submission history From: Shaowen Wang [ view email ] [v1] Sat, 6 Jul 2024 08:37:21 UTC (4,568 KB) [v2] Tue, 16 Jul 2024 07:32:23 UTC (4,568 KB)</p></details></div>
+<div class="source-entry" id="source-15"><h3>[15] · Parameter Efficient Fine-tuning via Explained Variance Adaptation</h3>
+<p>Original paper · version: <code>2410.07170v5</code> · first public Wed, 9 Oct 2024 17:59:06 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2410.07170v5">https://arxiv.org/abs/2410.07170v5</a><p><a class="source-url" href="https://arxiv.org/pdf/2410.07170v5">https://arxiv.org/pdf/2410.07170v5</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>0eed83e42019a16b0fc8a4a9cb08325c2ccee18df7239a3b6cdfc9e062161662</code></p><p>Submission history From: Fabian Paischer [ view email ] [v1] Wed, 9 Oct 2024 17:59:06 UTC (3,277 KB) [v2] Wed, 4 Dec 2024 07:18:17 UTC (3,548 KB) [v3] Mon, 16 Dec 2024 19:19:14 UTC (3,560 KB) [v4] Wed, 21 May 2025 07:57:40 UTC (4,070 KB) [v5] Mon, 20 Oct 2025 13:48:17 UTC (4,044 KB)</p></details></div>
+<div class="source-entry" id="source-16"><h3>[16] · CorDA: Context-Oriented Decomposition Adaptation of Large Language Models for Task-Aware Parameter-Efficient Fine-tuning</h3>
+<p>Original paper · version: <code>2406.05223v3</code> · first public Fri, 7 Jun 2024 19:10:35 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2406.05223v3">https://arxiv.org/abs/2406.05223v3</a><p><a class="source-url" href="https://arxiv.org/pdf/2406.05223v3">https://arxiv.org/pdf/2406.05223v3</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>463be94d649d1e1c96e6e1b6feb3305f55d9c780c435635aa8a64d408fb76c3f</code></p><p>Submission history From: Yibo Yang [ view email ] [v1] Fri, 7 Jun 2024 19:10:35 UTC (262 KB) [v2] Sun, 27 Oct 2024 15:27:57 UTC (669 KB) [v3] Fri, 7 Mar 2025 21:18:41 UTC (671 KB)</p></details></div>
+<div class="source-entry" id="source-17"><h3>[17] · LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning</h3>
+<p>Original paper · version: <code>2308.03303v3</code> · first public Mon, 7 Aug 2023 05:12:27 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2308.03303v3">https://arxiv.org/abs/2308.03303v3</a><p><a class="source-url" href="https://arxiv.org/pdf/2308.03303v3">https://arxiv.org/pdf/2308.03303v3</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>92cbd65b03a4342835c497530b6dc1db58a11222c18a454eec28d9f62f51d55d</code></p><p>Submission history From: Longteng Zhang [ view email ] [v1] Mon, 7 Aug 2023 05:12:27 UTC (1,032 KB) [v2] Wed, 22 Apr 2026 10:33:58 UTC (247 KB) [v3] Sat, 9 May 2026 05:30:15 UTC (249 KB)</p></details></div>
+<div class="source-entry" id="source-18"><h3>[18] · ReLoRA: High-Rank Training Through Low-Rank Updates</h3>
+<p>Original paper · version: <code>2307.05695v4</code> · first public Tue, 11 Jul 2023 18:02:09 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2307.05695v4">https://arxiv.org/abs/2307.05695v4</a><p><a class="source-url" href="https://arxiv.org/pdf/2307.05695v4">https://arxiv.org/pdf/2307.05695v4</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>456aa1b49414be59efeb39e23754b81eeb336f1a209fcd773119b565613e392b</code></p><p>Submission history From: Vladislav Lialin [ view email ] [v1] Tue, 11 Jul 2023 18:02:09 UTC (294 KB) [v2] Thu, 13 Jul 2023 19:31:52 UTC (294 KB) [v3] Tue, 15 Aug 2023 16:41:13 UTC (1,011 KB) [v4] Sun, 10 Dec 2023 16:21:29 UTC (4,676 KB)</p></details></div>
+<div class="source-entry" id="source-19"><h3>[19] · MoRA: High-Rank Updating for Parameter-Efficient Fine-Tuning</h3>
+<p>Original paper · version: <code>2405.12130v1</code> · first public Mon, 20 May 2024 15:48:32 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2405.12130v1">https://arxiv.org/abs/2405.12130v1</a><p><a class="source-url" href="https://arxiv.org/pdf/2405.12130v1">https://arxiv.org/pdf/2405.12130v1</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>ce1ef4c2e094edb59c096ec2af288711e8e662062d4efced6c80ee74b8f571fe</code></p><p>Submission history From: Ting Jiang [ view email ] [v1] Mon, 20 May 2024 15:48:32 UTC (961 KB)</p></details></div>
+<div class="source-entry" id="source-20"><h3>[20] · LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models</h3>
+<p>Original paper · version: <code>2309.12307v3</code> · first public Thu, 21 Sep 2023 17:59:11 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2309.12307v3">https://arxiv.org/abs/2309.12307v3</a><p><a class="source-url" href="https://arxiv.org/pdf/2309.12307v3">https://arxiv.org/pdf/2309.12307v3</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>ebae0749edbed429e7c250fa337fb6f8846f352b024ee72b450bf19e804007fd</code></p><p>Submission history From: Chen Yukang [ view email ] [v1] Thu, 21 Sep 2023 17:59:11 UTC (1,474 KB) [v2] Tue, 5 Dec 2023 08:12:50 UTC (844 KB) [v3] Fri, 8 Mar 2024 15:26:38 UTC (842 KB)</p></details></div>
+<div class="source-entry" id="source-21"><h3>[21] · LoraHub: Efficient Cross-Task Generalization via Dynamic LoRA Composition</h3>
+<p>Original paper · version: <code>2307.13269v3</code> · first public Tue, 25 Jul 2023 05:39:21 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2307.13269v3">https://arxiv.org/abs/2307.13269v3</a><p><a class="source-url" href="https://arxiv.org/pdf/2307.13269v3">https://arxiv.org/pdf/2307.13269v3</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>50c241ff886684e64cbf2651e88499e2adee5f7c3faaf6248fa03c52e52443c1</code></p><p>Submission history From: Qian Liu [ view email ] [v1] Tue, 25 Jul 2023 05:39:21 UTC (321 KB) [v2] Thu, 18 Jan 2024 06:53:39 UTC (343 KB) [v3] Mon, 19 Aug 2024 03:31:19 UTC (354 KB)</p></details></div>
+<div class="source-entry" id="source-22"><h3>[22] · TIES-Merging: Resolving Interference When Merging Models</h3>
+<p>Original paper · version: <code>2306.01708v2</code> · first public Fri, 2 Jun 2023 17:31:32 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2306.01708v2">https://arxiv.org/abs/2306.01708v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2306.01708v2">https://arxiv.org/pdf/2306.01708v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>828742490193a58a3be52c339318f341e7eafced2ffa919d8e45e0ffeebaeb6f</code></p><p>Submission history From: Prateek Yadav [ view email ] [v1] Fri, 2 Jun 2023 17:31:32 UTC (365 KB) [v2] Fri, 27 Oct 2023 01:09:31 UTC (567 KB)</p></details></div>
+<div class="source-entry" id="source-23"><h3>[23] · Language Models are Super Mario: Absorbing Abilities from Homologous Models as a Free Lunch</h3>
+<p>Original paper · version: <code>2311.03099v3</code> · first public Mon, 6 Nov 2023 13:43:07 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2311.03099v3">https://arxiv.org/abs/2311.03099v3</a><p><a class="source-url" href="https://arxiv.org/pdf/2311.03099v3">https://arxiv.org/pdf/2311.03099v3</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>2072d68a55aa86280b47f55523781a17e70029aecf9bef23dc6e6b22ab6c175f</code></p><p>Submission history From: Bowen Yu [ view email ] [v1] Mon, 6 Nov 2023 13:43:07 UTC (31,034 KB) [v2] Sun, 4 Feb 2024 16:28:06 UTC (31,174 KB) [v3] Thu, 13 Jun 2024 11:56:04 UTC (28,206 KB)</p></details></div>
+<div class="source-entry" id="source-24"><h3>[24] · S-LoRA: Serving Thousands of Concurrent LoRA Adapters</h3>
+<p>Original paper · version: <code>2311.03285v3</code> · first public Mon, 6 Nov 2023 17:26:17 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2311.03285v3">https://arxiv.org/abs/2311.03285v3</a><p><a class="source-url" href="https://arxiv.org/pdf/2311.03285v3">https://arxiv.org/pdf/2311.03285v3</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>c8d93e5a2525d3139d4994740a0057a8f447a568c5a31613976c9fd254867db7</code></p><p>Submission history From: Ying Sheng [ view email ] [v1] Mon, 6 Nov 2023 17:26:17 UTC (259 KB) [v2] Tue, 7 Nov 2023 06:59:33 UTC (274 KB) [v3] Wed, 5 Jun 2024 06:06:43 UTC (260 KB)</p></details></div>
+<div class="source-entry" id="source-25"><h3>[25] · Punica: Multi-Tenant LoRA Serving</h3>
+<p>Original paper · version: <code>2310.18547v1</code> · first public Sat, 28 Oct 2023 00:33:37 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2310.18547v1">https://arxiv.org/abs/2310.18547v1</a><p><a class="source-url" href="https://arxiv.org/pdf/2310.18547v1">https://arxiv.org/pdf/2310.18547v1</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>1d015550e7c3c13fc2574fd2cdfa48b343a5b6d02f2bf8607c2e568d7a619944</code></p><p>Submission history From: Lequn Chen [ view email ] [v1] Sat, 28 Oct 2023 00:33:37 UTC (484 KB)</p></details></div>
+<div class="source-entry" id="source-26"><h3>[26] · LoRA Learns Less and Forgets Less</h3>
+<p>Original paper · version: <code>2405.09673v2</code> · first public Wed, 15 May 2024 19:27:45 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2405.09673v2">https://arxiv.org/abs/2405.09673v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2405.09673v2">https://arxiv.org/pdf/2405.09673v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>76c8a0a69a33a2255b3dbc64d36dbb9e7b96a17a87d7374656d41c0a6b8b3492</code></p><p>Submission history From: Dan Biderman [ view email ] [v1] Wed, 15 May 2024 19:27:45 UTC (6,178 KB) [v2] Fri, 20 Sep 2024 21:21:56 UTC (4,882 KB)</p></details></div>
+<div class="source-entry" id="source-27"><h3>[27] · LoRA vs Full Fine-tuning: An Illusion of Equivalence</h3>
+<p>Original paper · version: <code>2410.21228v3</code> · first public Mon, 28 Oct 2024 17:14:01 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2410.21228v3">https://arxiv.org/abs/2410.21228v3</a><p><a class="source-url" href="https://arxiv.org/pdf/2410.21228v3">https://arxiv.org/pdf/2410.21228v3</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>a89c625e873cedec6dfde1c667ec3c761a6f147cbd3223bc255f59fc4513555f</code></p><p>Submission history From: Reece Shuttleworth [ view email ] [v1] Mon, 28 Oct 2024 17:14:01 UTC (9,438 KB) [v2] Mon, 23 Jun 2025 04:59:01 UTC (10,828 KB) [v3] Wed, 22 Oct 2025 17:58:00 UTC (10,828 KB)</p></details></div>
+<div class="source-entry" id="source-28"><h3>[28] · Learning Rate Matters: Vanilla LoRA May Suffice for LLM Fine-tuning</h3>
+<p>Original paper · version: <code>2602.04998v2</code> · first public Wed, 4 Feb 2026 19:36:20 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2602.04998v2">https://arxiv.org/abs/2602.04998v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2602.04998v2">https://arxiv.org/pdf/2602.04998v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>a26b2b8959e46c4d8025ebfb991e8ff601a07671ac49c64fe7c62ef03e89cba5</code></p><p>Submission history From: Yu-Ang Lee [ view email ] [v1] Wed, 4 Feb 2026 19:36:20 UTC (467 KB) [v2] Tue, 19 May 2026 00:07:35 UTC (388 KB)</p></details></div>
+<div class="source-entry" id="source-29"><h3>[29] · MatryoshkaLoRA: Learning Accurate Hierarchical Low-Rank Representations for LLM Fine-Tuning</h3>
+<p>Original paper · version: <code>2605.07850v1</code> · first public Fri, 8 May 2026 15:13:01 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2605.07850v1">https://arxiv.org/abs/2605.07850v1</a><p><a class="source-url" href="https://arxiv.org/pdf/2605.07850v1">https://arxiv.org/pdf/2605.07850v1</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>44c791f266543d227e70e026dc4f0048c33b900ffa1e962a64285fba2418e7a3</code></p><p>Submission history From: Ionut-Vlad Modoranu [ view email ] [v1] Fri, 8 May 2026 15:13:01 UTC (94 KB)</p></details></div>
+<div class="source-entry" id="source-30"><h3>[30] · Rank-Efficient LoRA via Joint Tangent-Space Optimization under Isotropic Curvature</h3>
+<p>Original paper · version: <code>2609.12123v1</code> · first public Thu, 10 Sep 2026 18:50:17 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2609.12123v1">https://arxiv.org/abs/2609.12123v1</a><p><a class="source-url" href="https://arxiv.org/pdf/2609.12123v1">https://arxiv.org/pdf/2609.12123v1</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>0d6472592629eae07f78afb2277e88f77ec469d5742de1d6e5d74e624d0a6095</code></p><p>Submission history From: Zihan Zhu [ view email ] [v1] Thu, 10 Sep 2026 18:50:17 UTC (804 KB)</p></details></div>
+<div class="source-entry" id="source-31"><h3>[31] · Procedural Knowledge Is Not Low-Rank: Why LoRA Fails to Internalize Multi-Step Procedures</h3>
+<p>Original paper · version: <code>2607.21612v1</code> · first public Sat, 23 May 2026 17:06:02 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2607.21612v1">https://arxiv.org/abs/2607.21612v1</a><p><a class="source-url" href="https://arxiv.org/pdf/2607.21612v1">https://arxiv.org/pdf/2607.21612v1</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>f6e52e873a6ccb3602288143507995245e50239db904274b38e23a3809f43fa4</code></p><p>Submission history From: Simon Dennis [ view email ] [v1] Sat, 23 May 2026 17:06:02 UTC (88 KB)</p></details></div>
+<div class="source-entry" id="source-32"><h3>[32] · Learning New Facts with QLoRA: An Acquisition-Retention Frontier</h3>
+<p>Original paper · version: <code>2608.25677v2</code> · first public Wed, 26 Aug 2026 11:54:58 UTC · accessed 2026-11-19</p>
+<a class="source-url" href="https://arxiv.org/abs/2608.25677v2">https://arxiv.org/abs/2608.25677v2</a><p><a class="source-url" href="https://arxiv.org/pdf/2608.25677v2">https://arxiv.org/pdf/2608.25677v2</a></p>
+<details><summary>Frozen source identity &amp; history</summary><p class="hash">PDF SHA256: <code>76afe03c68beaeb5db0be526806101f856a4a9c612ac0b3ebd9d6837a7f14512</code></p><p>Submission history From: Estelle Zheng [ view email ] [v1] Wed, 26 Aug 2026 11:54:58 UTC (76 KB) [v2] Thu, 27 Aug 2026 14:10:56 UTC (76 KB)</p></details></div>

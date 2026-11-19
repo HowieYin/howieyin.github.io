@@ -1,0 +1,422 @@
+{
+  "identity": "Actual trained adapters and frozen WikiText2 activations; local algebra diagnostic",
+  "model_revision": "e93a9faa9c77e5d09219f6c868bfc7a1bd65593c",
+  "inputs": {
+    "seed19_rank4_sha256": "999518b83fb5703a76da721f2fd8d3baaf8b58d3bf1d9f7fefb48615bc85e8d8",
+    "seed20_rank4_sha256": "91711656f174aeeb20b18da1ddd4b8cd3bab5bbdfac997dd93d628c415d8ff1f",
+    "test_token_sha256": "52f3f24e1e42fa4abed302686a75f398377aa350f1f8eae08e15e5c6710c64ef"
+  },
+  "composition": {
+    "layer": "gpt_neox.layers.0.attention.query_key_value",
+    "weights": [
+      0.5,
+      0.5
+    ],
+    "each_rank": 4,
+    "concatenated_rank_bound": 8,
+    "factor_average_vs_delta_average": {
+      "max_abs": 0.0032788278452291824,
+      "mean_abs": 0.00030177254850655583,
+      "rmse": 0.00040308487495178486
+    },
+    "concatenation_vs_delta_average": {
+      "max_abs": 4.336808689942018e-19,
+      "mean_abs": 3.871752950786559e-21,
+      "rmse": 2.2467820256227925e-20
+    },
+    "factor_average_activation_output_error": {
+      "max_abs": 0.14431709282516028,
+      "mean_abs": 0.010139392770064315,
+      "rmse": 0.015442524174056753
+    },
+    "concatenation_activation_output_error": {
+      "max_abs": 2.7755575615628914e-17,
+      "mean_abs": 8.837534215024509e-19,
+      "rmse": 1.9921442503634483e-18
+    },
+    "limit": "same-task different-seed adapters; algebra does not establish multi-task quality"
+  },
+  "quantization_order_layer": {
+    "format": "per-output-row symmetric W4 RTN, qmax7; 15 used levels; CPU float64 GEMM",
+    "weights_side_vs_requantized": {
+      "max_abs": 0.049851283702630256,
+      "mean_abs": 0.0012942051147689705,
+      "rmse": 0.0031872278917965623
+    },
+    "outputs_side_vs_requantized": {
+      "max_abs": 0.4940736726313495,
+      "mean_abs": 0.05221405873156439,
+      "rmse": 0.06970208393190348
+    },
+    "limit": "no NF4, double quantization, low-bit kernel, quantized training or QA-LoRA group restriction"
+  },
+  "quantization_order_model": [
+    {
+      "mode": "float_adapter",
+      "nll_nats": 4.016936836990656,
+      "ppl": 55.53074531406507,
+      "targets": 4080
+    },
+    {
+      "mode": "W4_base_plus_float_adapter",
+      "nll_nats": 4.5913709752699905,
+      "ppl": 98.62955619599073,
+      "targets": 4080
+    },
+    {
+      "mode": "merge_then_W4",
+      "nll_nats": 4.576518369188496,
+      "ppl": 97.17547542501205,
+      "targets": 4080
+    }
+  ],
+  "retained_tensors": [
+    {
+      "rank": 4,
+      "fixed_A": false,
+      "non_parameter_unique_retained_storage_bytes": 525312,
+      "saved": [
+        {
+          "shape": [
+            512,
+            1536
+          ],
+          "storage": 5115478016,
+          "bytes": 3145728,
+          "parameter": true
+        },
+        {
+          "shape": [
+            512,
+            4
+          ],
+          "storage": 481959952384,
+          "bytes": 8192,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            512
+          ],
+          "storage": 5102141440,
+          "bytes": 131072,
+          "parameter": false
+        },
+        {
+          "shape": [
+            4,
+            1536
+          ],
+          "storage": 481959960576,
+          "bytes": 24576,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            4
+          ],
+          "storage": 481959835136,
+          "bytes": 1024,
+          "parameter": false
+        },
+        {
+          "shape": [
+            64,
+            1536
+          ],
+          "storage": 5103517696,
+          "bytes": 393216,
+          "parameter": false
+        }
+      ]
+    },
+    {
+      "rank": 4,
+      "fixed_A": true,
+      "non_parameter_unique_retained_storage_bytes": 394240,
+      "saved": [
+        {
+          "shape": [
+            512,
+            1536
+          ],
+          "storage": 5102600192,
+          "bytes": 3145728,
+          "parameter": true
+        },
+        {
+          "shape": [
+            512,
+            4
+          ],
+          "storage": 481959952384,
+          "bytes": 8192,
+          "parameter": true
+        },
+        {
+          "shape": [
+            4,
+            1536
+          ],
+          "storage": 481959960576,
+          "bytes": 24576,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            4
+          ],
+          "storage": 481960848896,
+          "bytes": 1024,
+          "parameter": false
+        },
+        {
+          "shape": [
+            64,
+            1536
+          ],
+          "storage": 5116264448,
+          "bytes": 393216,
+          "parameter": false
+        }
+      ]
+    },
+    {
+      "rank": 16,
+      "fixed_A": false,
+      "non_parameter_unique_retained_storage_bytes": 528384,
+      "saved": [
+        {
+          "shape": [
+            512,
+            1536
+          ],
+          "storage": 5119377408,
+          "bytes": 3145728,
+          "parameter": true
+        },
+        {
+          "shape": [
+            512,
+            16
+          ],
+          "storage": 481960875520,
+          "bytes": 32768,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            512
+          ],
+          "storage": 5116329984,
+          "bytes": 131072,
+          "parameter": false
+        },
+        {
+          "shape": [
+            16,
+            1536
+          ],
+          "storage": 5102141440,
+          "bytes": 98304,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            16
+          ],
+          "storage": 481959990784,
+          "bytes": 4096,
+          "parameter": false
+        },
+        {
+          "shape": [
+            64,
+            1536
+          ],
+          "storage": 5117247488,
+          "bytes": 393216,
+          "parameter": false
+        }
+      ]
+    },
+    {
+      "rank": 16,
+      "fixed_A": true,
+      "non_parameter_unique_retained_storage_bytes": 397312,
+      "saved": [
+        {
+          "shape": [
+            512,
+            1536
+          ],
+          "storage": 5511380992,
+          "bytes": 3145728,
+          "parameter": true
+        },
+        {
+          "shape": [
+            512,
+            16
+          ],
+          "storage": 481960875520,
+          "bytes": 32768,
+          "parameter": true
+        },
+        {
+          "shape": [
+            16,
+            1536
+          ],
+          "storage": 5102141440,
+          "bytes": 98304,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            16
+          ],
+          "storage": 482052114944,
+          "bytes": 4096,
+          "parameter": false
+        },
+        {
+          "shape": [
+            64,
+            1536
+          ],
+          "storage": 5236064256,
+          "bytes": 393216,
+          "parameter": false
+        }
+      ]
+    },
+    {
+      "rank": 64,
+      "fixed_A": false,
+      "non_parameter_unique_retained_storage_bytes": 540672,
+      "saved": [
+        {
+          "shape": [
+            512,
+            1536
+          ],
+          "storage": 5121310720,
+          "bytes": 3145728,
+          "parameter": true
+        },
+        {
+          "shape": [
+            512,
+            64
+          ],
+          "storage": 5510823936,
+          "bytes": 131072,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            512
+          ],
+          "storage": 5235998720,
+          "bytes": 131072,
+          "parameter": false
+        },
+        {
+          "shape": [
+            64,
+            1536
+          ],
+          "storage": 5514526720,
+          "bytes": 393216,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            64
+          ],
+          "storage": 482052119040,
+          "bytes": 16384,
+          "parameter": false
+        },
+        {
+          "shape": [
+            64,
+            1536
+          ],
+          "storage": 5238030336,
+          "bytes": 393216,
+          "parameter": false
+        }
+      ]
+    },
+    {
+      "rank": 64,
+      "fixed_A": true,
+      "non_parameter_unique_retained_storage_bytes": 409600,
+      "saved": [
+        {
+          "shape": [
+            512,
+            1536
+          ],
+          "storage": 5643075584,
+          "bytes": 3145728,
+          "parameter": true
+        },
+        {
+          "shape": [
+            512,
+            64
+          ],
+          "storage": 5510823936,
+          "bytes": 131072,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            1536
+          ],
+          "storage": 5514526720,
+          "bytes": 393216,
+          "parameter": true
+        },
+        {
+          "shape": [
+            64,
+            64
+          ],
+          "storage": 482052119040,
+          "bytes": 16384,
+          "parameter": false
+        },
+        {
+          "shape": [
+            64,
+            1536
+          ],
+          "storage": 5235933184,
+          "bytes": 393216,
+          "parameter": false
+        }
+      ]
+    }
+  ],
+  "retained_tensor_boundary": "CPU float32, single1536x512 Linear,64 actual token activations; x needs gradient; includes loss/output buffers; not whole-model peak, optimizer memory, CUDA memory or specialized LoRA-FA optimizer",
+  "cpu_float64_merge": {
+    "max_abs": 2.7284841053187847e-12,
+    "mean_abs": 2.920991657485397e-13,
+    "rmse": 3.831712270534667e-13,
+    "argmax_mismatches": 0,
+    "argmax_positions": 64
+  }
+}

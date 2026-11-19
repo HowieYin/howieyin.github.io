@@ -1,0 +1,5 @@
+{
+  "id": "EleutherAI/pythia-70m-deduped",
+  "sha": "e93a9faa9c77e5d09219f6c868bfc7a1bd65593c",
+  "note": "Minimal identity extracted from the frozen official model metadata; no numerical results changed."
+}
