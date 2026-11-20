@@ -139,6 +139,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "文生图与图片编辑：怎样让人物、物体和画风保持一致",
+          "path": "surveys/image-asset-consistency/index.html",
+          "date": "2026-11-20",
+          "description": "DreamBooth-LoRA, PhotoMaker, identity adapters, reference routing, group portraits, story attributes and persistent editing. 34 studies, 162 original figures and tables, four diagrams, frozen implementations and an actual 64-input CLIP/DINO and pixel-preservation diagnostic.",
+          "topic": "Image personalization & asset consistency"
+        },
+        {
           "title": "Over-Encoding 与 Engram：LLM 如何把局部模式交给可扩展记忆",
           "path": "surveys/over-encoding-engram/index.html",
           "date": "2026-11-19",
