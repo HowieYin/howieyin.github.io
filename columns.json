@@ -161,6 +161,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "RNN 模型综述：从递归骨干到语言、语音、OCR、时序与视觉任务",
+          "path": "surveys/rnn-backbones-tasks/index.html",
+          "date": "2026-11-23",
+          "description": "Classical gated RNNs, RWKV, xLSTM, state-space and delta backbones across language, speech, OCR, classification, detection, landmarks, segmentation, video and forecasting. 53 papers, 173 original figures and tables, five diagrams, frozen implementations and an actual 18-model CPU state and classification experiment.",
+          "topic": "RNN backbones & sequence / vision tasks"
+        },
+        {
           "title": "CNN 模型综述：从特征骨干到分类、检测、关键点与分割",
           "path": "surveys/cnn-backbones-tasks/index.html",
           "date": "2026-11-23",
