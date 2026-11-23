@@ -91,4 +91,4 @@
 .reading>.table-wrap:first-of-type table{min-width:0;table-layout:fixed}
 .reading>.table-wrap:first-of-type th:first-child,.reading>.table-wrap:first-of-type td:first-child{width:28%;min-width:0}
 .reading>.table-wrap:first-of-type td{overflow-wrap:anywhere}
-@media(max-width:640px){.page.reading-page{width:calc(100% - 32px)}.reading .interactive{padding:16px}.page-tools span{max-width:100%}.equation .ltx_eqn_table math{font-size:18px}}
+@media(max-width:640px){.page.reading-page{width:calc(100% - 32px)}.reading .interactive{padding:16px}.page-tools span{max-width:100%}.equation .ltx_eqn_table math{font-size:18px}.interactive svg text{font-size:18px}}
