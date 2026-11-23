@@ -1,0 +1,58 @@
+[
+  {
+    "id": "S3.F1",
+    "caption": "Figure 1: (a) An example of our proposed RelaxQAT bitwidth schedule which gradually and smoothly reduces the bitwidth. The gradient of the schedule 0 whenever it is approaches 2-bits; this helps to ease into the 2-bit precision instead of an abrupt change. (b) Prior progressive quantization methods reduce the bitwidth suddenly during training like UPQ, or (c) keep it the same throughout.",
+    "file": "assets/original/bitschedule.svg",
+    "url": "https://arxiv.org/html/2611.27056v1/bitschedule.svg",
+    "bytes": 45956,
+    "sha256": "298c407add13eeae17d2f94b97848b231912fa7454d297013551d143718fc946"
+  },
+  {
+    "id": "S3.F2",
+    "caption": "Figure 2: ParetoQ SEQ with a bitwidth schedule loses extreme integers as k = 2 b t − 1 k=2^{b_{t}-1} decreases with a shrinking bitwidth. RelaxSEQ shows a smooth change in extreme values which results in a smoothly changing loss.",
+    "file": "assets/original/extreme_val_change2.svg",
+    "url": "https://arxiv.org/html/2611.27056v1/extreme_val_change2.svg",
+    "bytes": 135135,
+    "sha256": "12a016ebefd6bbc4c7a6ebc612ff52e65642809b318441d045e3caf0c2141f13"
+  },
+  {
+    "id": "S4.F3",
+    "caption": "Figure 3: (a) A simple 1-d function to minimize. (b) The 1-d function above results in a highly complex 2-d, 2-bit quantization loss surface (generated using LSQ) where the width of the hyperplanes (defined as the flat regions between integer changes) increases with larger scales. Red line shows the QAT trajectory.",
+    "file": "assets/original/lsq_theory.png",
+    "url": "https://arxiv.org/html/2611.27056v1/figures/lsq_theory.png",
+    "bytes": 1018683,
+    "sha256": "63dc368dba19202ddab6919c7da43abbd2b906995aefcf5419a9b38100b7560b"
+  },
+  {
+    "id": "S5.F4",
+    "caption": "Figure 4: RelaxQAT converges significantly faster than ParetoQ.",
+    "file": "assets/original/trainloss.svg",
+    "url": "https://arxiv.org/html/2611.27056v1/trainloss.svg",
+    "bytes": 195598,
+    "sha256": "65bace641b6c8968bc377e73ed25c34fbdd35914a21a24947d9a9e7fd02b1e2f"
+  },
+  {
+    "id": "A1.F5",
+    "caption": "Figure 5: Existing SEQ (Clip-then-Round) with a bitwidth schedule shows an unstable training behavior with sudden loss spikes as predicted by Fig. 2 . The new RelaxSEQ with Round-the-Clip has a smooth transition in loss with changing bitwidth. Although, the final loss after the end of schedule was similar for both Clip-then-Round vs. Round-then-Clip, we found that RelaxSEQ resulted in better benchmark scores (see Table 10 ).",
+    "file": "assets/original/ctr_rtc_loss.png",
+    "url": "https://arxiv.org/html/2611.27056v1/ctr_rtc_loss.png",
+    "bytes": 67326,
+    "sha256": "c3519bcaabb5a62f81ff2c9cdc17dee84873401382464074509cb725676c9c8e"
+  },
+  {
+    "id": "A1.F6",
+    "caption": "Figure 6: (a-d) Clip-then-Round operation in the existing SEQ (Eq. ( 2 )) creates integers at the extremes (see vertical red dotted lines) since the round operation follows the clip. As the bitwidth reduces, the extreme integers are suddenly lost (e.g., from { − 15 , 15 } \\{-15,15\\} to { − 13 , 13 } \\{-13,13\\} and so on). This means that a training assumes that the previous range of integers (say { − 15 , 15 } \\{-15,15\\} ) was available until k = 2 b − 1 k=2^{b-1} reduces sufficiently; once k k is sufficiently small, the round abruptly moves on to the new range of integers (i.e., { − 13 , 13 } \\{-13,13\\} ). The sudden change in integer ranges can cause loss spikes (similar to UPQ Lee et al. (2025) ) and unstable training behavior. (e-h) RelaxSEQ employs the Round-then-Clip operation (Eq. ( 3 )) which keeps the extremes in floating point as the k k reduces. The range of the distribution changes slowly and the extremes stay floating point until the end of the schedule. This causes the loss to change smoothly as the bitwidth shrinks.",
+    "file": "assets/original/ctr_rtc.svg",
+    "url": "https://arxiv.org/html/2611.27056v1/ctr_rtc.svg",
+    "bytes": 693949,
+    "sha256": "d5bfb990b6bf4d54660e7c184e6f31146e3e17a3a200e9c419af20c5fa18d990"
+  },
+  {
+    "id": "A1.F7",
+    "caption": "Figure 7: (a) ParetoQ SEQ simulation for a 1-d optimization problem. QAT gets stuck near the minimum point around step 2000 and stays there until the end of training (10000 steps). (b) RelaxQAT (with just a half cycle bit schedule) converges within the first 2000 steps.",
+    "file": "assets/original/loss_sim.png",
+    "url": "https://arxiv.org/html/2611.27056v1/loss_sim.png",
+    "bytes": 288333,
+    "sha256": "b1b6b29f204739dbfec24ce6d0097f926efd56be438fbbf067b54dc5363011b5"
+  }
+]

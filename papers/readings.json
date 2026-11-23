@@ -33,6 +33,14 @@
   ],
   "papers": [
     {
+      "slug": "relaxqat",
+      "title": "RelaxQAT：让量化网格随训练移动，再收回到低比特",
+      "metadata": "2026 · arXiv v1 · Read November 23, 2026 · QAT / Quantization / Edge AI",
+      "readDate": "2026-11-23",
+      "description": "All 7 original figures, 13 complete tables, 9 equations and 3 algorithms; continuous bitwidth and RelaxSEQ, STE and export audits, three interactive explainers, and dated low-bit QAT research.",
+      "category": "quantization"
+    },
+    {
       "slug": "navit",
       "title": "NaViT：让图片保留形状，让训练批次保持形状",
       "metadata": "2023 · NeurIPS · arXiv v1 · Read October 29, 2026 · CV / VLM / Training / Systems",

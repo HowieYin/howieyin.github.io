@@ -1,0 +1,10 @@
+flowchart TD
+  C["Callback: set b(t)<br/>precomputed schedule"] --> Q["RelaxSEQ<br/>round → clip → shift → rescale"]
+  W["Latent weights θ: out × in<br/>scales α: out"] --> Q
+  Q --> L["QDQ w: out × in<br/>Linear: X @ wᵀ"]
+  X["Input X: B × T × in"] --> L
+  L --> F["Model forward → logits → loss"]
+  F --> G["STE backward<br/>optimizer updates θ, α"]
+  G --> W
+  C --> D["After cycles: b = target<br/>fixed-grid fine-tuning"]
+  D --> E["Export codes + scales<br/>verify layout and backend kernel"]

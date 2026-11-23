@@ -1,0 +1,38 @@
+[
+  {
+    "id": "S3.E1",
+    "latex": "b_{t}=b_{s}-(b_{s}-b_{e})\\text{sin}\\left(\\frac{\\pi}{2}\\omega\\right),\\ \\ \\ \\ \\omega\\in[0,1]"
+  },
+  {
+    "id": "S3.E2",
+    "latex": "w_{p}=\\frac{\\alpha}{k}\\left\\{\\text{round}\\left[\\text{clip}\\left(\\frac{\\theta}{\\alpha},-1,1\\right)\\times k-0.5\\right]+0.5\\right\\}."
+  },
+  {
+    "id": "S3.E3",
+    "latex": "w_{r}=\\frac{\\alpha}{k}\\left\\{\\text{clip}\\left(\\text{round}\\left[\\frac{\\theta}{\\alpha}\\times k-0.5\\right],-k,k-1\\right)+0.5\\right\\}."
+  },
+  {
+    "id": "S4.E4",
+    "latex": "w_{l}=\\frac{\\alpha}{k}\\left\\{\\text{clip}\\left(\\text{round}\\left[\\frac{\\theta}{\\alpha}\\times k\\right],-k,k-1\\right)\\right\\}."
+  },
+  {
+    "id": "S4.E5",
+    "latex": "w^{(t)}=\\delta^{(t)}\\left\\lfloor\\frac{\\theta^{(t)}}{\\delta^{(t)}}\\right\\rceil=\\delta^{(t)}z^{(t)},"
+  },
+  {
+    "id": "S4.E6",
+    "latex": "\\displaystyle w^{(t+1)}\n\\displaystyle=\\delta^{(t+1)}\\left\\lfloor\\frac{\\theta^{(t+1)}}{\\delta^{(t+1)}}\\right\\rceil\n\\displaystyle=(\\delta^{(t)}-\\eta d_{\\delta}^{(t)})\\left\\lfloor\\frac{(\\theta^{(t)}-\\eta d_{\\theta}^{(t)})}{(\\delta^{(t)}-\\eta d_{\\delta}^{(t)})}\\right\\rceil\n\\displaystyle=(\\delta^{(t)}-\\eta d_{\\delta}^{(t)})z^{(t+1)}\n\\displaystyle=\\delta^{(t)}z^{(t+1)}-\\eta z^{(t+1)}d_{\\delta}^{(t)},"
+  },
+  {
+    "id": "S4.E7",
+    "latex": "\\displaystyle w^{(t+1)}\n\\displaystyle=\\delta^{(t)}z^{(t+1)}-\\eta z^{(t+1)}d_{\\delta}^{(t)}\n\\displaystyle=\\delta^{(t)}z^{(t)}-\\eta z^{(t)}d_{\\delta}^{(t)}\\ \\ \\ \\ \\ (\\text{since }z^{(t+1)}=z^{(t)})\n\\displaystyle=w^{(t)}-\\eta z^{(t)}d_{\\delta}^{(t)}\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ (\\text{Eq.~\\eqref{eq:anotherlsq}})\n\\displaystyle=w^{(t)}-\\eta d_{w}^{(t)},"
+  },
+  {
+    "id": "A2.E8",
+    "latex": "\\frac{\\delta_{1}}{\\delta_{2}}=\\frac{\\frac{\\alpha}{2^{b_{1}-1}}}{\\frac{\\alpha}{2^{b_{2}-1}}}=2^{b_{2}-b_{1}}\\implies\\delta_{2}=\\frac{\\delta_{1}}{2^{b_{2}-b_{1}}}"
+  },
+  {
+    "id": "A6.E9",
+    "latex": "w_{r}=\\frac{\\alpha}{k}\\left\\{\\text{clip}\\left(\\text{round}\\left[\\frac{\\theta}{\\alpha}\\times k\\right],-k+0.5,k-0.5\\right)\\right\\}."
+  }
+]
