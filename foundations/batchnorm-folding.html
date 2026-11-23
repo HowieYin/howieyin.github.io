@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="theme-color" content="#0c1016">
+<meta name="description" content="BatchNorm：训练时看一批图，部署时为什么能折叠进卷积？">
+<title>BatchNorm：训练时看一批图，部署时为什么能折叠进卷积？ — Howie Yin</title>
+<link rel="canonical" href="https://howieyin.github.io/foundations/batchnorm-folding.html">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/article-navigation.css">
+<script src="../assets/article-navigation.js" defer></script>
+<link rel="stylesheet" href="../styles.css?v=3"><style>
+.report { padding: 48px 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.report h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.6px; line-height: 1.4; margin-bottom: 28px; }
+.report h2 { margin: 52px 0 20px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; }
+.report h3 { font-size: 20px; margin: 28px 0 14px; }
+.report p, .report li { color: var(--secondary); }
+.report strong { color: var(--text); }
+.report a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.report li { margin: 9px 0; }
+.report code { font-family: var(--mono); font-size: .85em; }
+.report pre { overflow-x: auto; padding: 20px; background: #111720; border: 1px solid var(--line); border-radius: 8px; }
+.report img { display: block; max-width: 100%; height: auto; background: white; padding: 16px; border-radius: 6px; margin: 24px auto; width: 680px; }
+.report .table-scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 6px; }
+.report table { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 14px; }
+.report th, .report td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.report th { color: var(--text); background: #111720; }
+.report td { color: var(--secondary); }
+.report .toc { padding: 24px; border: 1px solid var(--line); border-radius: 8px; margin: 32px 0; }
+.report .toc ul { padding-left: 22px; }
+@media(max-width:640px) { .report { font-size: 15px; padding: 32px 0; } .report h2 { font-size: 22px; } .report img { padding: 8px; } }
+
+.formula { padding: 20px; margin: 24px 0; background: #111720; border-left: 3px solid var(--accent); font-family: var(--mono); font-size: 14px; overflow-x: auto; }
+.diagram { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:24px 0; padding:20px; border:1px solid var(--line); border-radius:8px; }
+.diagram div { flex:1 1 160px; padding:14px; background:#111720; border:1px solid var(--line); border-radius:6px; }
+.diagram span:not(.diagram-arrow) { display:block; color:var(--secondary); font-size:13px; margin-top:8px; }
+</style></head>
+<body><a class="skip-link" href="#main">Skip to content</a><div class="page">
+<header class="site-header"><a class="wordmark" href="../" aria-label="Howie Yin, home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../weekly/">Weekly</a><a href="../foundations/" aria-current="page">Foundations</a><a href="../lab/" >Lab</a><a href="../#about">About</a></nav></header>
+<main id="main" class="report"><p class="eyebrow">FOUNDATIONS / BATCH NORMALIZATION</p><details class="toc" hidden><summary>Contents</summary><ul><li><a href="#section-01">1｜直觉：训练时“看同伴”，推理时“用固定刻度”</a></li><li><a href="#section-02">2｜CNN 的 BatchNorm 到底沿哪些轴求统计？</a></li><li><a href="#section-03">3｜为什么引入 BN？原论文的动机与后来的修正</a></li><li><a href="#section-04">4｜eval 不等于“不计算梯度”：running buffers 是模型状态</a></li><li><a href="#section-05">5｜推导：固定 BN 怎样吸收进 Conv 权重与偏置？</a></li><li><a href="#section-06">6｜真实 CNN 验证：输出一致，比“节点消失”更重要</a></li><li><a href="#section-07">7｜同一张图，换同伴：train 与 eval 的分界</a></li><li><a href="#section-08">8｜复杂度、访存与端侧：省下的是哪一层工作？</a></li><li><a href="#section-09">9｜折叠会改变权重范围：量化要检查哪个张量？</a></li><li><a href="#section-10">10｜局限与替代：小 Batch、分布变化和其他归一化</a></li><li><a href="#section-11">11｜总结与复现：先明确状态，再谈删除算子</a></li><li><a href="#section-12">来源</a></li></ul></details><article>
+<h1 id="batchnorm-folding">BatchNorm：训练时看一批图，部署时为什么能折叠进卷积？</h1>
+<p><strong>结论：BatchNorm 在训练时利用每个通道的一批激活计算统计量；在常规推理时改用固定统计量，成为逐通道的仿射变换。因此，紧接卷积的冻结 BN 可以吸收进卷积权重与偏置。训练行为、推理行为、折叠后的数值行为必须分别验证，“图里没有 BN 节点”本身不代表部署正确。</strong></p>
+<p>类型：CV / 深度学习基础 / 模型部署。发布与实验：2026-11-23。前置：均值、方差、卷积。本文用真实手写数字训练小型 CNN，核对冻结统计量、批次依赖和折叠误差；没有测 GPU、HTP 或 NPU 延迟。所有本地数值由文末脚本生成，论文历史结果另行标记。</p>
+<h2 id="section-01">1｜直觉：训练时“看同伴”，推理时“用固定刻度”</h2>
+<p>想象卷积输出的某个通道像一把不断变化的尺子：前面权重更新后，它的激活数值范围也会变化。BN 先估计这个通道的中心与尺度，再把数值转换到新的坐标中。接着，它用可学习的 γ 和 β 重新缩放、平移，让模型自己选择需要的表示范围。BN 并不强迫最后输出始终零均值、单位方差。</p>
+<p>最容易漏掉的是“尺子的刻度从哪里来”。训练模式下，当前输入批次提供刻度；常规 eval 模式下，训练期间累积的 running mean / running variance 提供固定刻度。于是，同一张图在训练模式下可能受同批其他图影响；冻结推理时，它应当独立于同伴。这个区别也是 BN 能否静态折叠的分界。<a href="#source-1">[1]</a><a href="#source-2">[2]</a></p>
+<div class="diagram" aria-label="BatchNorm training and inference data flow"><div>Training<span>Conv → 当前批次 μ / v → γ、β → ReLU<br>同时更新 running buffers</span></div><div>Inference<span>Conv → 固定 μ̄ / v̄ → γ、β → ReLU<br>不再从输入求新统计量</span></div><div>Folded inference<span>Conv(W′, b′) → ReLU<br>μ̄、v̄、γ、β 已进入参数</span></div></div>
+<h2 id="section-02">2｜CNN 的 BatchNorm 到底沿哪些轴求统计？</h2>
+<p>以 NCHW 张量为例，N 是图片数量，C 是通道数，H、W 是特征图高宽。对每一个 c，BN2d 在 N、H、W 上一起求统计量；每个通道有一套均值、方差、γ、β。它既不是每张图独立归一化，也不是把所有通道混在一起。<a href="#source-1">[1]</a><a href="#source-2">[2]</a></p>
+<div class="formula" role="math" aria-label="M = N × H × Wμc = (1/M) Σn,h,w zn,c,h,wvc = (1/M) Σn,h,w (zn,c,h,w − μc)²yn,c,h,w = γc (zn,c,h,w − μc) / √(vc + ε) + βc">M = N × H × W<br>μ<sub>c</sub> = (1/M) Σ<sub>n,h,w</sub> z<sub>n,c,h,w</sub><br>v<sub>c</sub> = (1/M) Σ<sub>n,h,w</sub> (z<sub>n,c,h,w</sub> − μ<sub>c</sub>)²<br>y<sub>n,c,h,w</sub> = γ<sub>c</sub> (z<sub>n,c,h,w</sub> − μ<sub>c</sub>) / √(v<sub>c</sub> + ε) + β<sub>c</sub></div><details><summary>LaTeX</summary><pre><code>\mu_c=\frac{1}{M}\sum_{n,h,w}z_{n,c,h,w},\quad v_c=\frac{1}{M}\sum_{n,h,w}(z_{n,c,h,w}-\mu_c)^2\ny_{n,c,h,w}=\gamma_c\frac{z_{n,c,h,w}-\mu_c}{\sqrt{v_c+\epsilon}}+\beta_c</code></pre></details>
+<p>z 是卷积的输出，y 是 BN 输出；ε 是放在平方根内部的小正数，避免除以零并影响低方差通道的尺度。γ、β 是通过梯度学习的参数，μ、v 是这次 forward 的统计量。数学上计算方差使用 M 分母；PyTorch 的训练 forward 也用这一有偏估计。running variance 的更新则使用 M−1 分母的无偏估计，二者不能混淆。<a href="#source-2">[2]</a></p>
+<p><strong>N=1 不一定意味着 BN2d 完全没有统计样本。</strong>只要 H×W 大于 1，同一张图的空间位置仍参与计算；但空间位置可能强相关，不能把 N×H×W 简单当成同样数量的独立图像。BN1d 遇到只有一个有效统计元素的训练输入则是另一种边界。将 NCHW 改成 NHWC 时，物理通道轴应随之改变；不能只改 shape 标签，仍对错误轴做归约。</p>
+<h2 id="section-03">3｜为什么引入 BN？原论文的动机与后来的修正</h2>
+<p>2015 年，Google 的 Sergey Ioffe 与 Christian Szegedy 提出 Batch Normalization，把归一化纳入可微计算图，让统计量也参与反向传播。它区别于在优化器步骤之外重新调整数据刻度：后者若忽略统计量对参数的依赖，会使更新与归一化相互抵消。原论文强调更高学习率、对初始化的适应性与一定的正则化效应。<a href="#source-1">[1]</a></p>
+<p>原论文在特定 ImageNet 网络和训练方案下报告，以约 14 倍更少的训练步数达到对照精度。这个数是论文实验结果，不是所有网络训练都能快 14 倍，也不是推理提速。其训练安排、学习率与其他改动需要一起阅读。本文的小 CNN 不用于复现该 ImageNet 比例。</p>
+<p>BN 的原始解释强调 <em>internal covariate shift</em>：前层更新导致后层输入分布变化。但 Santurkar、Tsipras、Ilyas 与 Mądry 的 2018 年论文设计了“BN 后再加入随时间变化的噪声”等对照。分布稳定性被破坏后，BN 的训练优势仍可能保留；作者进一步分析了损失和梯度的局部平滑性。<a href="#source-3">[3]</a></p>
+<p>因此，较稳妥的结论是：<strong>BN 会改变优化问题与梯度行为，原论文给出了有效方法和实验；只靠“稳定输入分布”解释全部收益并不充分。</strong>平滑性分析也有模型与假设范围，不能扩展成对任何架构的统一因果证明。本文验证的是 BN 的计算语义与部署等价性，不测试这些训练机制孰为唯一原因。</p>
+<h3>反向传播也会看同伴</h3>
+<p>对一个通道，把 N/H/W 位置统一编号为 i。令 ĝ<sub>i</sub>=∂L/∂y<sub>i</sub>，ẑ<sub>i</sub>=(z<sub>i</sub>−μ)/√(v+ε)，则当前批次 BN 的输入梯度是：</p>
+<div class="formula" role="math" aria-label="∂L/∂zi = γ / √(v+ε) · [ ĝi − mean(ĝ) − ẑi mean(ĝ·ẑ) ]">∂L/∂z<sub>i</sub> = γ / √(v+ε) · [ ĝ<sub>i</sub> − mean(ĝ) − ẑ<sub>i</sub> mean(ĝ·ẑ) ]</div><details><summary>LaTeX</summary><pre><code>\frac{\partial L}{\partial z_i}=\frac{\gamma}{\sqrt{v+\epsilon}}\left[g_i-\frac{1}{M}\sum_j g_j-\hat z_i\frac{1}{M}\sum_j g_j\hat z_j\right]</code></pre></details>
+<p>mean 是在同一通道的 M 个元素上求平均。与“直接乘固定缩放系数”相比，梯度还要减去整批梯度的均值，以及沿当前归一化激活方向的分量；ε&gt;0 时，后一项不能简单理解为完全移除这个方向。这是统计量依赖输入所带来的真实链式求导，展示了同批元素在 backward 中也相互耦合。γ 的梯度是 Σ ĝ·ẑ，β 的梯度是 Σ ĝ。冻结 eval 的输入梯度才退化为固定系数 a·ĝ，所以把训练 BN 提前折叠会改变训练问题。<a href="#source-1">[1]</a> 文末脚本还用已训练网络的 32 张真实图核对该式与 autograd，最大绝对差为 4.657e-10。</p>
+<p>此外，逐通道消去均值和调整方差，并不消除通道之间的相关性；BN 不是完整 whitening。原论文主动选择独立归一化各特征，避免计算并求逆完整协方差矩阵。</p>
+<h2 id="section-04">4｜eval 不等于“不计算梯度”：running buffers 是模型状态</h2>
+<p>PyTorch 默认 <code>track_running_stats=True</code>，训练时同时更新运行统计量。以 momentum=m 表示：</p>
+<div class="formula" role="math" aria-label="μ̄new = (1 − m) μ̄old + m μbatchv̄new = (1 − m) v̄old + m vbatch, unbiased">μ̄<sub>new</sub> = (1 − m) μ̄<sub>old</sub> + m μ<sub>batch</sub><br>v̄<sub>new</sub> = (1 − m) v̄<sub>old</sub> + m v<sub>batch, unbiased</sub></div>
+<p>默认 m=0.1，所以新批次占 10%，旧统计占 90%。这不是 Adam 或 SGD 的动量含义；不同框架也可能用互补的系数定义同名参数。默认指数移动平均不是严格的全训练集总体方差。保存模型时，running mean、running variance、批次计数也是 state_dict 的一部分。<a href="#source-2">[2]</a></p>
+<div class="table-scroll" role="region" aria-label="Scrollable data table" tabindex="0"><table><thead><tr><th>操作</th><th>影响 BN 使用的统计量？</th><th>是否禁止梯度？</th></tr></thead><tbody><tr><td>model.eval()</td><td>默认改用 running buffers</td><td>否</td></tr><tr><td>torch.no_grad() / inference_mode()</td><td>不会自行改变 train/eval</td><td>是</td></tr><tr><td>requires_grad_(False)</td><td>冻结 γ、β 的学习，不自行改变统计来源</td><td>只针对相应参数</td></tr><tr><td>track_running_stats=False</td><td>eval 仍使用批次统计，无法按常规方式静态折叠</td><td>否</td></tr></tbody></table></div>
+<p>所以“冻结参数后导出”还需要确认模型模式；“no_grad 里跑了一遍”也不等于 eval。某些视觉微调流程只冻结 BN 统计而继续训练其他层，这与把整个网络切成 eval 是不同操作。在线重新估计统计量会改变模型函数，若重新采用这种策略，旧的折叠参数也必须重新生成。</p>
+<h2 id="section-05">5｜推导：固定 BN 怎样吸收进 Conv 权重与偏置？</h2>
+<p>对一个输出通道 c，卷积输出是 z<sub>c</sub>=W<sub>c</sub>*x+b<sub>c</sub>，其中 * 表示卷积求和。eval 的 BN 是 a<sub>c</sub>z<sub>c</sub>+d<sub>c</sub>。因为 a、d 已固定，直接把它们代入：</p>
+<div class="formula" role="math" aria-label="ac = γc / √(v̄c + ε)W′c = ac Wcb′c = βc + ac (bc − μ̄c)BNeval(Conv(x; W,b)) = Conv(x; W′,b′)">a<sub>c</sub> = γ<sub>c</sub> / √(v̄<sub>c</sub> + ε)<br>W′<sub>c</sub> = a<sub>c</sub> W<sub>c</sub><br>b′<sub>c</sub> = β<sub>c</sub> + a<sub>c</sub> (b<sub>c</sub> − μ̄<sub>c</sub>)<br>BN<sub>eval</sub>(Conv(x; W,b)) = Conv(x; W′,b′)</div><details><summary>LaTeX</summary><pre><code>a_c=\frac{\gamma_c}{\sqrt{\bar v_c+\epsilon}},\quad W^\prime_c=a_c W_c,\quad b^\prime_c=\beta_c+a_c(b_c-\bar\mu_c)</code></pre></details>
+<p>一个纯代数例子：若 γ=2、β=−1、μ̄=3，并且 v̄+ε=4，那么 a=1；原卷积偏置 b=5 折叠后 b′=−1+(5−3)=1，权重不变。这个例子只是说明运算，不是训练测量。</p>
+<p>若原卷积没有 bias，就令 b=0，再生成新 bias。γ=0 时，该通道的折叠权重全为零，输出是 β；γ 为负数时，权重符号翻转，两种情况均合法。PyTorch 的 <code>fuse_conv_bn_eval</code> 正是实现这一转换，要求 Conv 与 BN 都处于 eval 且 running buffers 存在。<a href="#source-4">[4]</a><a href="#source-5">[5]</a></p>
+<pre><code>scale = bn.weight / torch.sqrt(bn.running_var + bn.eps)
+fused_weight = conv.weight * scale[:, None, None, None]
+bias = torch.zeros_like(scale) if conv.bias is None else conv.bias
+fused_bias = bn.bias + scale * (bias - bn.running_mean)</code></pre>
+<p>对标准 Conv2d，权重是 [Cout, Cin/groups, Kh, Kw]，应缩放 Cout 轴；grouped/depthwise 卷积也依这一输出通道定义。ConvTranspose 的参数布局不同，官方函数显式提供 transpose 参数，不能机械照搬上述广播。</p>
+<p><strong>ReLU 不能随意跨过去。</strong><code>Conv → BN → ReLU</code> 可以先折叠紧邻的 Conv–BN；<code>Conv → ReLU → BN</code> 不能一般地按同一公式移走 BN，因为非线性夹在中间。若卷积输出还有其他消费者，仅替换这个卷积可能改变那些分支，需要按数据流处理。</p>
+<h2 id="section-06">6｜真实 CNN 验证：输出一致，比“节点消失”更重要</h2>
+<p>数据来自 scikit-learn 的真实 digits：1797 张 8×8 灰度手写数字，原始整数 0–16 除以 16 映射到 [0,1]。固定分层切分 seed=42，训练 1347 张、测试 450 张。网络是 Conv(1→8,3×3)–BN–ReLU–Conv(8→16,3×3)–BN–ReLU–MaxPool–Linear(256→10)；两层卷积原本均无 bias。训练 seed=17，Adam 0.003，batch=64，固定 25 epochs，不按测试集选 checkpoint。<a href="#source-6">[6]</a></p>
+<p>CPU 单线程、PyTorch 2.13.0、NumPy 2.4.6、scikit-learn 1.9.1。原网络正确 445/450，Accuracy=98.89%。FP64 验证把已训练的 FP32 参数和 buffers 转成 FP64 后再折叠，验证的是运算精度，并不是重新以 FP64 训练。</p>
+<div class="table-scroll" role="region" aria-label="Scrollable data table" tabindex="0"><table><thead><tr><th>变体</th><th>最大 Logit 绝对误差</th><th>预测变化 /450</th><th>Accuracy</th></tr></thead><tbody><tr><td>torch.float32</td><td>2.003e-05</td><td>0</td><td>98.89%</td></tr><tr><td>torch.float64</td><td>8.882e-15</td><td>0</td><td>98.89%</td></tr><tr><td>wrong_eps_1e-3</td><td>3.883e-01</td><td>1</td><td>98.67%</td></tr><tr><td>reset_running_stats</td><td>1.587e+01</td><td>262</td><td>41.33%</td></tr><tr><td>zero_negative_gamma</td><td>2.193e-05</td><td>0</td><td>89.11%</td></tr></tbody></table></div>
+<p>正确 FP32 与 FP64 折叠都保留了所有测试预测；手工与官方折叠参数最大差分别为 1.192e-07、4.441e-16。浮点中的归约和乘加顺序发生变化，所以代数等价不承诺 bitwise 相等。另用真实已训练卷积主动把一个 γ 置零、另一个 γ 设为负数，折叠仍保持等价。表中 zero_negative_gamma 行的误差和预测变化，相对于这份修改 γ 后的同一网络；改变 γ 本身已将正确数改成 401，不是折叠导致。</p>
+<div role="region" aria-label="Scrollable figure" tabindex="0" style="overflow-x:auto;margin:24px 0"><svg role="img" aria-label="图1：正确折叠与主动错误注入" style="display:block;width:680px;min-width:620px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:0 auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="590.35009pt" height="293.365375pt" viewBox="0 0 590.35009 293.365375" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-23</dc:date>
+    <dc:description>Actual CPU measurements; downloadable experiment.py and results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="fold_errors_figure_1">
+  <g id="fold_errors_patch_1">
+   <path d="M 0 293.365375
+L 590.35009 293.365375
+L 590.35009 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="fold_errors_axes_1">
+   <g id="fold_errors_patch_2">
+    <path d="M 125.366875 242.541937
+L 560.606875 242.541937
+L 560.606875 31.869937
+L 125.366875 31.869937
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="fold_errors_patch_3">
+    <path d="M -24373.734738 41.445937
+L 137.228246 41.445937
+L 137.228246 81.765937
+L -24373.734738 81.765937
+z
+" clip-path="url(#fold_errors_pe9879f6793)" style="fill: #286aab"/>
+   </g>
+   <g id="fold_errors_patch_4">
+    <path d="M -24373.734738 91.845937
+L 369.749476 91.845937
+L 369.749476 132.165937
+L -24373.734738 132.165937
+z
+" clip-path="url(#fold_errors_pe9879f6793)" style="fill: #286aab"/>
+   </g>
+   <g id="fold_errors_patch_5">
+    <path d="M -24373.734738 142.245937
+L 476.338089 142.245937
+L 476.338089 182.565937
+L -24373.734738 182.565937
+z
+" clip-path="url(#fold_errors_pe9879f6793)" style="fill: #d17b28"/>
+   </g>
+   <g id="fold_errors_patch_6">
+    <path d="M -24373.734738 192.645937
+L 516.401524 192.645937
+L 516.401524 232.965937
+L -24373.734738 232.965937
+z
+" clip-path="url(#fold_errors_pe9879f6793)" style="fill: #b34242"/>
+   </g>
+   <g id="fold_errors_matplotlib.axis_1">
+    <g id="fold_errors_xtick_1">
+     <g id="fold_errors_line2d_1">
+      <defs>
+       <path id="fold_errors_m25b15b706e" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#fold_errors_m25b15b706e" x="138.508546" y="242.541937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_1">
+      <!-- $\mathdefault{10^{-14}}$ -->
+      <g transform="translate(123.163546 259.771937)">
+       <text>
+        <tspan x="0" y="-0.846063" style="font-size: 11px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="6.998535" y="-0.846063" style="font-size: 11px; font-family: 'DejaVu Sans'">0</tspan>
+        <tspan x="14.102344" y="-5.389063" style="font-size: 7.7px; font-family: 'DejaVu Sans'">−</tspan>
+        <tspan x="20.554102" y="-5.389063" style="font-size: 7.7px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="25.453076" y="-5.389063" style="font-size: 7.7px; font-family: 'DejaVu Sans'">4</tspan>
+       </text>
+      </g>
+     </g>
+    </g>
+    <g id="fold_errors_xtick_2">
+     <g id="fold_errors_line2d_2">
+      <g>
+       <use xlink:href="#fold_errors_m25b15b706e" x="188.22912" y="242.541937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_2">
+      <!-- $\mathdefault{10^{-12}}$ -->
+      <g transform="translate(172.88412 259.881937)">
+       <text>
+        <tspan x="0" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="6.998535" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">0</tspan>
+        <tspan x="14.102344" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">−</tspan>
+        <tspan x="20.554102" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="25.453076" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">2</tspan>
+       </text>
+      </g>
+     </g>
+    </g>
+    <g id="fold_errors_xtick_3">
+     <g id="fold_errors_line2d_3">
+      <g>
+       <use xlink:href="#fold_errors_m25b15b706e" x="237.949695" y="242.541937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_3">
+      <!-- $\mathdefault{10^{-10}}$ -->
+      <g transform="translate(222.604695 259.881937)">
+       <text>
+        <tspan x="0" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="6.998535" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">0</tspan>
+        <tspan x="14.102344" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">−</tspan>
+        <tspan x="20.554102" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="25.453076" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">0</tspan>
+       </text>
+      </g>
+     </g>
+    </g>
+    <g id="fold_errors_xtick_4">
+     <g id="fold_errors_line2d_4">
+      <g>
+       <use xlink:href="#fold_errors_m25b15b706e" x="287.67027" y="242.541937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_4">
+      <!-- $\mathdefault{10^{-8}}$ -->
+      <g transform="translate(274.74527 259.881937)">
+       <text>
+        <tspan x="0" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="6.998535" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">0</tspan>
+        <tspan x="14.102344" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">−</tspan>
+        <tspan x="20.554102" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">8</tspan>
+       </text>
+      </g>
+     </g>
+    </g>
+    <g id="fold_errors_xtick_5">
+     <g id="fold_errors_line2d_5">
+      <g>
+       <use xlink:href="#fold_errors_m25b15b706e" x="337.390844" y="242.541937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_5">
+      <!-- $\mathdefault{10^{-6}}$ -->
+      <g transform="translate(324.465844 259.881937)">
+       <text>
+        <tspan x="0" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="6.998535" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">0</tspan>
+        <tspan x="14.102344" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">−</tspan>
+        <tspan x="20.554102" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">6</tspan>
+       </text>
+      </g>
+     </g>
+    </g>
+    <g id="fold_errors_xtick_6">
+     <g id="fold_errors_line2d_6">
+      <g>
+       <use xlink:href="#fold_errors_m25b15b706e" x="387.111419" y="242.541937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_6">
+      <!-- $\mathdefault{10^{-4}}$ -->
+      <g transform="translate(374.186419 259.771937)">
+       <text>
+        <tspan x="0" y="-0.846063" style="font-size: 11px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="6.998535" y="-0.846063" style="font-size: 11px; font-family: 'DejaVu Sans'">0</tspan>
+        <tspan x="14.102344" y="-5.389063" style="font-size: 7.7px; font-family: 'DejaVu Sans'">−</tspan>
+        <tspan x="20.554102" y="-5.389063" style="font-size: 7.7px; font-family: 'DejaVu Sans'">4</tspan>
+       </text>
+      </g>
+     </g>
+    </g>
+    <g id="fold_errors_xtick_7">
+     <g id="fold_errors_line2d_7">
+      <g>
+       <use xlink:href="#fold_errors_m25b15b706e" x="436.831994" y="242.541937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_7">
+      <!-- $\mathdefault{10^{-2}}$ -->
+      <g transform="translate(423.906994 259.881937)">
+       <text>
+        <tspan x="0" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="6.998535" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">0</tspan>
+        <tspan x="14.102344" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">−</tspan>
+        <tspan x="20.554102" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">2</tspan>
+       </text>
+      </g>
+     </g>
+    </g>
+    <g id="fold_errors_xtick_8">
+     <g id="fold_errors_line2d_8">
+      <g>
+       <use xlink:href="#fold_errors_m25b15b706e" x="486.552568" y="242.541937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_8">
+      <!-- $\mathdefault{10^{0}}$ -->
+      <g transform="translate(476.872568 259.881937)">
+       <text>
+        <tspan x="0" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="6.998535" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">0</tspan>
+        <tspan x="14.102344" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">0</tspan>
+       </text>
+      </g>
+     </g>
+    </g>
+    <g id="fold_errors_xtick_9">
+     <g id="fold_errors_line2d_9">
+      <g>
+       <use xlink:href="#fold_errors_m25b15b706e" x="536.273143" y="242.541937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_9">
+      <!-- $\mathdefault{10^{2}}$ -->
+      <g transform="translate(526.593143 259.881937)">
+       <text>
+        <tspan x="0" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">1</tspan>
+        <tspan x="6.998535" y="-0.736688" style="font-size: 11px; font-family: 'DejaVu Sans'">0</tspan>
+        <tspan x="14.102344" y="-5.279688" style="font-size: 7.7px; font-family: 'DejaVu Sans'">2</tspan>
+       </text>
+      </g>
+     </g>
+    </g>
+    <g id="fold_errors_text_10">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="342.986875" y="274.882797" transform="rotate(-0 342.986875 274.882797)">Max absolute logit error (log scale)</text>
+    </g>
+   </g>
+   <g id="fold_errors_matplotlib.axis_2">
+    <g id="fold_errors_ytick_1">
+     <g id="fold_errors_line2d_10">
+      <defs>
+       <path id="fold_errors_mc61f793783" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#fold_errors_mc61f793783" x="125.366875" y="61.605937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_11">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="118.366875" y="65.784648" transform="rotate(-0 118.366875 65.784648)">Correct / FP64</text>
+     </g>
+    </g>
+    <g id="fold_errors_ytick_2">
+     <g id="fold_errors_line2d_11">
+      <g>
+       <use xlink:href="#fold_errors_mc61f793783" x="125.366875" y="112.005937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_12">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="118.366875" y="116.184648" transform="rotate(-0 118.366875 116.184648)">Correct / FP32</text>
+     </g>
+    </g>
+    <g id="fold_errors_ytick_3">
+     <g id="fold_errors_line2d_12">
+      <g>
+       <use xlink:href="#fold_errors_mc61f793783" x="125.366875" y="162.405937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_13">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="118.366875" y="166.584648" transform="rotate(-0 118.366875 166.584648)">Wrong eps (1e-3)</text>
+     </g>
+    </g>
+    <g id="fold_errors_ytick_4">
+     <g id="fold_errors_line2d_13">
+      <g>
+       <use xlink:href="#fold_errors_mc61f793783" x="125.366875" y="212.805937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="fold_errors_text_14">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="118.366875" y="216.985078" transform="rotate(-0 118.366875 216.985078)">Reset BN statistics</text>
+     </g>
+    </g>
+   </g>
+   <g id="fold_errors_patch_7">
+    <path d="M 125.366875 242.541937
+L 125.366875 31.869937
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="fold_errors_patch_8">
+    <path d="M 125.366875 242.541937
+L 560.606875 242.541937
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="fold_errors_text_15">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="140.861031" y="64.463359" transform="rotate(-0 140.861031 64.463359)">8.88e-15</text>
+   </g>
+   <g id="fold_errors_text_16">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="373.382261" y="114.863359" transform="rotate(-0 373.382261 114.863359)">2.00e-05</text>
+   </g>
+   <g id="fold_errors_text_17">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="479.970874" y="165.263359" transform="rotate(-0 479.970874 165.263359)">3.88e-01</text>
+   </g>
+   <g id="fold_errors_text_18">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="520.034309" y="215.663359" transform="rotate(-0 520.034309 215.663359)">1.59e+01</text>
+   </g>
+   <g id="fold_errors_text_19">
+    <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="342.986875" y="25.869937" transform="rotate(-0 342.986875 25.869937)">Removing BN is safe only with the right frozen state</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="fold_errors_pe9879f6793">
+   <rect x="125.366875" y="31.869937" width="435.24" height="210.672"/>
+  </clipPath>
+ </defs>
+</svg></div><p><strong>图1：正确折叠与主动错误注入。</strong>横轴为最大 Logit 误差的对数刻度；错误 ε 和重置 running buffers 是刻意注入的缺陷，不能与正确折叠合并解读。 小屏可横向滚动查看。<a href="assets/batchnorm-folding/fold-errors.svg" target="_blank" rel="noopener">Open full-size figure ↗</a></p>
+<p>把 ε 从 1e−5 错改为 1e−3，会使 Logit 最大误差变成 3.883e-01，并使 1 张预测改变。把 running mean 清零、variance 设为 1 后，误差是 1.587e+01，有 262 张预测改变。这个对照说明：缺失统计状态可能直接改变任务能力，而不是只影响某个中间张量。</p>
+<h2 id="section-07">7｜同一张图，换同伴：train 与 eval 的分界</h2>
+<p>取测试集的一张数字 0，保持它的像素完全不变。分别让它与 31 张 0/1 图像、31 张 8/9 图像同批处理；每次都深拷贝模型，防止前一次 forward 更新 buffers 污染后一组。比较目标图的第一层 BN 输出和最终 Logits。</p>
+<div class="table-scroll" role="region" aria-label="Scrollable data table" tabindex="0"><table><thead><tr><th>模式</th><th>第一层 BN 最大差</th><th>最终 Logit 最大差</th><th>两组目标预测</th></tr></thead><tbody><tr><td>train</td><td>1.745e-01</td><td>1.181e+00</td><td>[0, 0]</td></tr><tr><td>eval</td><td>0.000e+00</td><td>0.000e+00</td><td>[0, 0]</td></tr></tbody></table></div>
+<div role="region" aria-label="Scrollable figure" tabindex="0" style="overflow-x:auto;margin:24px 0"><svg role="img" aria-label="图2：改变同伴，不改变目标图" style="display:block;width:680px;min-width:620px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:0 auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="583.213047pt" height="259.704859pt" viewBox="0 0 583.213047 259.704859" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-23</dc:date>
+    <dc:description>Actual CPU measurements; downloadable experiment.py and results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="batch_dependency_figure_1">
+  <g id="batch_dependency_patch_1">
+   <path d="M 0 259.704859
+L 583.213047 259.704859
+L 583.213047 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="batch_dependency_axes_1">
+   <g id="batch_dependency_patch_2">
+    <path d="M 62.333047 225.864
+L 288.913047 225.864
+L 288.913047 64.035094
+L 62.333047 64.035094
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="batch_dependency_patch_3">
+    <path d="M 72.632138 225.864
+L 164.179613 225.864
+L 164.179613 91.006578
+L 72.632138 91.006578
+z
+" clip-path="url(#batch_dependency_p5e4f43a218)" style="fill: #d17b28"/>
+   </g>
+   <g id="batch_dependency_patch_4">
+    <path d="M 187.066481 225.864
+L 278.613956 225.864
+L 278.613956 225.864
+L 187.066481 225.864
+z
+" clip-path="url(#batch_dependency_p5e4f43a218)" style="fill: #286aab"/>
+   </g>
+   <g id="batch_dependency_matplotlib.axis_1">
+    <g id="batch_dependency_xtick_1">
+     <g id="batch_dependency_line2d_1">
+      <defs>
+       <path id="batch_dependency_m25b15b706e" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#batch_dependency_m25b15b706e" x="118.405875" y="225.864" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_1">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="118.405875" y="241.222281" transform="rotate(-0 118.405875 241.222281)">train</text>
+     </g>
+    </g>
+    <g id="batch_dependency_xtick_2">
+     <g id="batch_dependency_line2d_2">
+      <g>
+       <use xlink:href="#batch_dependency_m25b15b706e" x="232.840219" y="225.864" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_2">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="232.840219" y="241.222281" transform="rotate(-0 232.840219 241.222281)">eval</text>
+     </g>
+    </g>
+   </g>
+   <g id="batch_dependency_matplotlib.axis_2">
+    <g id="batch_dependency_ytick_1">
+     <g id="batch_dependency_line2d_3">
+      <defs>
+       <path id="batch_dependency_mc61f793783" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="62.333047" y="225.864" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_3">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="55.333047" y="230.042711" transform="rotate(-0 55.333047 230.042711)">0.00</text>
+     </g>
+    </g>
+    <g id="batch_dependency_ytick_2">
+     <g id="batch_dependency_line2d_4">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="62.333047" y="187.22116" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_4">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="55.333047" y="191.399871" transform="rotate(-0 55.333047 191.399871)">0.05</text>
+     </g>
+    </g>
+    <g id="batch_dependency_ytick_3">
+     <g id="batch_dependency_line2d_5">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="62.333047" y="148.57832" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_5">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="55.333047" y="152.757031" transform="rotate(-0 55.333047 152.757031)">0.10</text>
+     </g>
+    </g>
+    <g id="batch_dependency_ytick_4">
+     <g id="batch_dependency_line2d_6">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="62.333047" y="109.93548" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_6">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="55.333047" y="114.114191" transform="rotate(-0 55.333047 114.114191)">0.15</text>
+     </g>
+    </g>
+    <g id="batch_dependency_ytick_5">
+     <g id="batch_dependency_line2d_7">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="62.333047" y="71.29264" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_7">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="55.333047" y="75.471351" transform="rotate(-0 55.333047 75.471351)">0.20</text>
+     </g>
+    </g>
+    <g id="batch_dependency_text_8">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="24.198281" y="144.949547" transform="rotate(-90 24.198281 144.949547)">Max abs difference</text>
+    </g>
+   </g>
+   <g id="batch_dependency_patch_5">
+    <path d="M 62.333047 225.864
+L 62.333047 64.035094
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="batch_dependency_patch_6">
+    <path d="M 62.333047 225.864
+L 288.913047 225.864
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="batch_dependency_text_9">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="118.405875" y="86.286568" transform="rotate(-0 118.405875 86.286568)">0.174</text>
+   </g>
+   <g id="batch_dependency_text_10">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="232.840219" y="221.14399" transform="rotate(-0 232.840219 221.14399)">0</text>
+   </g>
+   <g id="batch_dependency_text_11">
+    <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="175.623047" y="58.035094" transform="rotate(-0 175.623047 58.035094)">First BN output</text>
+   </g>
+  </g>
+  <g id="batch_dependency_axes_2">
+   <g id="batch_dependency_patch_7">
+    <path d="M 340.793047 225.864
+L 567.373047 225.864
+L 567.373047 64.035094
+L 340.793047 64.035094
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="batch_dependency_patch_8">
+    <path d="M 351.092138 225.864
+L 442.639613 225.864
+L 442.639613 91.006578
+L 351.092138 91.006578
+z
+" clip-path="url(#batch_dependency_p00477540dc)" style="fill: #d17b28"/>
+   </g>
+   <g id="batch_dependency_patch_9">
+    <path d="M 465.526481 225.864
+L 557.073956 225.864
+L 557.073956 225.864
+L 465.526481 225.864
+z
+" clip-path="url(#batch_dependency_p00477540dc)" style="fill: #286aab"/>
+   </g>
+   <g id="batch_dependency_matplotlib.axis_3">
+    <g id="batch_dependency_xtick_3">
+     <g id="batch_dependency_line2d_8">
+      <g>
+       <use xlink:href="#batch_dependency_m25b15b706e" x="396.865875" y="225.864" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_12">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="396.865875" y="241.222281" transform="rotate(-0 396.865875 241.222281)">train</text>
+     </g>
+    </g>
+    <g id="batch_dependency_xtick_4">
+     <g id="batch_dependency_line2d_9">
+      <g>
+       <use xlink:href="#batch_dependency_m25b15b706e" x="511.300219" y="225.864" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_13">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="511.300219" y="241.222281" transform="rotate(-0 511.300219 241.222281)">eval</text>
+     </g>
+    </g>
+   </g>
+   <g id="batch_dependency_matplotlib.axis_4">
+    <g id="batch_dependency_ytick_6">
+     <g id="batch_dependency_line2d_10">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="340.793047" y="225.864" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_14">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="333.793047" y="230.042711" transform="rotate(-0 333.793047 230.042711)">0.00</text>
+     </g>
+    </g>
+    <g id="batch_dependency_ytick_7">
+     <g id="batch_dependency_line2d_11">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="340.793047" y="197.326896" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_15">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="333.793047" y="201.505607" transform="rotate(-0 333.793047 201.505607)">0.25</text>
+     </g>
+    </g>
+    <g id="batch_dependency_ytick_8">
+     <g id="batch_dependency_line2d_12">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="340.793047" y="168.789792" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_16">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="333.793047" y="172.968503" transform="rotate(-0 333.793047 172.968503)">0.50</text>
+     </g>
+    </g>
+    <g id="batch_dependency_ytick_9">
+     <g id="batch_dependency_line2d_13">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="340.793047" y="140.252688" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_17">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="333.793047" y="144.431399" transform="rotate(-0 333.793047 144.431399)">0.75</text>
+     </g>
+    </g>
+    <g id="batch_dependency_ytick_10">
+     <g id="batch_dependency_line2d_14">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="340.793047" y="111.715584" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_18">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="333.793047" y="115.894295" transform="rotate(-0 333.793047 115.894295)">1.00</text>
+     </g>
+    </g>
+    <g id="batch_dependency_ytick_11">
+     <g id="batch_dependency_line2d_15">
+      <g>
+       <use xlink:href="#batch_dependency_mc61f793783" x="340.793047" y="83.17848" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="batch_dependency_text_19">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="333.793047" y="87.357191" transform="rotate(-0 333.793047 87.357191)">1.25</text>
+     </g>
+    </g>
+    <g id="batch_dependency_text_20">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="302.658281" y="144.949547" transform="rotate(-90 302.658281 144.949547)">Max abs difference</text>
+    </g>
+   </g>
+   <g id="batch_dependency_patch_10">
+    <path d="M 340.793047 225.864
+L 340.793047 64.035094
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="batch_dependency_patch_11">
+    <path d="M 340.793047 225.864
+L 567.373047 225.864
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="batch_dependency_text_21">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="396.865875" y="86.286568" transform="rotate(-0 396.865875 86.286568)">1.18</text>
+   </g>
+   <g id="batch_dependency_text_22">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="511.300219" y="221.14399" transform="rotate(-0 511.300219 221.14399)">0</text>
+   </g>
+   <g id="batch_dependency_text_23">
+    <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="454.083047" y="58.035094" transform="rotate(-0 454.083047 58.035094)">Final logits</text>
+   </g>
+  </g>
+  <g id="batch_dependency_text_24">
+   <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="291.253047" y="25.869937" transform="rotate(-0 291.253047 25.869937)">Same real digit; change only its 31 companions</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="batch_dependency_p5e4f43a218">
+   <rect x="62.333047" y="64.035094" width="226.58" height="161.828906"/>
+  </clipPath>
+  <clipPath id="batch_dependency_p00477540dc">
+   <rect x="340.793047" y="64.035094" width="226.58" height="161.828906"/>
+  </clipPath>
+ </defs>
+</svg></div><p><strong>图2：改变同伴，不改变目标图。</strong>纵轴为同一目标图的最大绝对差；train 中观察到批次依赖，eval 中两组输出一致。这不是在比较两个不同训练模型。 小屏可横向滚动查看。<a href="assets/batchnorm-folding/batch-dependency.svg" target="_blank" rel="noopener">Open full-size figure ↗</a></p>
+<p>训练时出现数值差异，即使这张图的 top-1 仍相同，也已经证明函数依赖同伴；不能只看分类结果。反过来，固定 eval BN 并不会使推理必须保持训练 batch size。这里两种同伴组只是一项有目的的对照，不能把差异的幅度推广到所有数据。</p>
+<h2 id="section-08">8｜复杂度、访存与端侧：省下的是哪一层工作？</h2>
+<p>训练 BN 要对 NCHW 激活做统计归约和逐元素变换，工作量 O(NCHW)，逐通道统计状态 O(C)。训练 backward 还需保存或重算相关激活/统计量，不能把它当成一个可免费消失的层。常规推理 BN 则不再做批次归约，但独立 kernel 仍要读写整份激活。</p>
+<p>Conv 的乘加规模约为 N·Hout·Wout·Cout·(Cin/groups)·Kh·Kw。离线折叠一次的成本是 O(卷积权重数)，运行时 Conv 的主要乘加数量并未下降，却可能省去独立 BN 的逐元素运算、调度和中间激活传输。以未经 fusion、需要物化输出的基线看，至少有一次 BN 输入读取与输出写入可能被消除；这是数据流分析，不是 DRAM 实测。</p>
+<p>模型持久参数也要算清楚：原 BN 有 γ、β 两组可学习向量和均值、方差两组 buffers；无偏置卷积折叠后新产生一个 Cout 偏置向量，因此净节省不能简单说成“BN 参数全部删掉”。如果编译器早已执行等价融合，手动折叠未必再增加速度。小模型在 CPU 上的 Python 开销也不能代表 HTP kernel 收益。</p>
+<p>在 QNN/HTP 等端侧链路，核对导出图是否用冻结统计量、输出通道轴是否正确、ε 是否保持一致，再看编译后的实际算子映射与端到端耗时。本文未调用 QNN，未测 DMA、峰值内存或 NPU 吞吐，因此不给出这些硬件数字。</p>
+<h2 id="section-09">9｜折叠会改变权重范围：量化要检查哪个张量？</h2>
+<p>W′<sub>c</sub>=a<sub>c</sub>W<sub>c</sub>，所以 BN 的逐通道尺度会改变最终卷积权重的动态范围。下图是本模型第一层的真实 a<sub>c</sub>，不是预设“异常值”生成的数据。</p>
+<div role="region" aria-label="Scrollable figure" tabindex="0" style="overflow-x:auto;margin:24px 0"><svg role="img" aria-label="图3：冻结 BN 的逐通道尺度" style="display:block;width:680px;min-width:620px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:0 auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="495.919609pt" height="280.294797pt" viewBox="0 0 495.919609 280.294797" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-23</dc:date>
+    <dc:description>Actual CPU measurements; downloadable experiment.py and results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="channel_scales_figure_1">
+  <g id="channel_scales_patch_1">
+   <path d="M 0 280.294797
+L 495.919609 280.294797
+L 495.919609 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="channel_scales_axes_1">
+   <g id="channel_scales_patch_2">
+    <path d="M 44.839609 231.453937
+L 480.079609 231.453937
+L 480.079609 31.869937
+L 44.839609 31.869937
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="channel_scales_patch_3">
+    <path d="M 64.623246 231.453937
+L 105.205064 231.453937
+L 105.205064 54.493914
+L 64.623246 54.493914
+z
+" clip-path="url(#channel_scales_p4d566d2353)" style="fill: #286aab"/>
+   </g>
+   <g id="channel_scales_patch_4">
+    <path d="M 115.350518 231.453937
+L 155.932337 231.453937
+L 155.932337 172.409893
+L 115.350518 172.409893
+z
+" clip-path="url(#channel_scales_p4d566d2353)" style="fill: #286aab"/>
+   </g>
+   <g id="channel_scales_patch_5">
+    <path d="M 166.077791 231.453937
+L 206.659609 231.453937
+L 206.659609 41.373937
+L 166.077791 41.373937
+z
+" clip-path="url(#channel_scales_p4d566d2353)" style="fill: #286aab"/>
+   </g>
+   <g id="channel_scales_patch_6">
+    <path d="M 216.805064 231.453937
+L 257.386882 231.453937
+L 257.386882 91.492141
+L 216.805064 91.492141
+z
+" clip-path="url(#channel_scales_p4d566d2353)" style="fill: #286aab"/>
+   </g>
+   <g id="channel_scales_patch_7">
+    <path d="M 267.532337 231.453937
+L 308.114155 231.453937
+L 308.114155 43.388619
+L 267.532337 43.388619
+z
+" clip-path="url(#channel_scales_p4d566d2353)" style="fill: #286aab"/>
+   </g>
+   <g id="channel_scales_patch_8">
+    <path d="M 318.259609 231.453937
+L 358.841428 231.453937
+L 358.841428 83.711769
+L 318.259609 83.711769
+z
+" clip-path="url(#channel_scales_p4d566d2353)" style="fill: #286aab"/>
+   </g>
+   <g id="channel_scales_patch_9">
+    <path d="M 368.986882 231.453937
+L 409.5687 231.453937
+L 409.5687 56.076186
+L 368.986882 56.076186
+z
+" clip-path="url(#channel_scales_p4d566d2353)" style="fill: #286aab"/>
+   </g>
+   <g id="channel_scales_patch_10">
+    <path d="M 419.714155 231.453937
+L 460.295973 231.453937
+L 460.295973 123.525216
+L 419.714155 123.525216
+z
+" clip-path="url(#channel_scales_p4d566d2353)" style="fill: #286aab"/>
+   </g>
+   <g id="channel_scales_matplotlib.axis_1">
+    <g id="channel_scales_xtick_1">
+     <g id="channel_scales_line2d_1">
+      <defs>
+       <path id="channel_scales_m25b15b706e" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#channel_scales_m25b15b706e" x="84.914155" y="231.453937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_1">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="84.914155" y="246.811359" transform="rotate(-0 84.914155 246.811359)">0</text>
+     </g>
+    </g>
+    <g id="channel_scales_xtick_2">
+     <g id="channel_scales_line2d_2">
+      <g>
+       <use xlink:href="#channel_scales_m25b15b706e" x="135.641428" y="231.453937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_2">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="135.641428" y="246.811359" transform="rotate(-0 135.641428 246.811359)">1</text>
+     </g>
+    </g>
+    <g id="channel_scales_xtick_3">
+     <g id="channel_scales_line2d_3">
+      <g>
+       <use xlink:href="#channel_scales_m25b15b706e" x="186.3687" y="231.453937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_3">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="186.3687" y="246.811359" transform="rotate(-0 186.3687 246.811359)">2</text>
+     </g>
+    </g>
+    <g id="channel_scales_xtick_4">
+     <g id="channel_scales_line2d_4">
+      <g>
+       <use xlink:href="#channel_scales_m25b15b706e" x="237.095973" y="231.453937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_4">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="237.095973" y="246.811359" transform="rotate(-0 237.095973 246.811359)">3</text>
+     </g>
+    </g>
+    <g id="channel_scales_xtick_5">
+     <g id="channel_scales_line2d_5">
+      <g>
+       <use xlink:href="#channel_scales_m25b15b706e" x="287.823246" y="231.453937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_5">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="287.823246" y="246.811359" transform="rotate(-0 287.823246 246.811359)">4</text>
+     </g>
+    </g>
+    <g id="channel_scales_xtick_6">
+     <g id="channel_scales_line2d_6">
+      <g>
+       <use xlink:href="#channel_scales_m25b15b706e" x="338.550518" y="231.453937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_6">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="338.550518" y="246.811359" transform="rotate(-0 338.550518 246.811359)">5</text>
+     </g>
+    </g>
+    <g id="channel_scales_xtick_7">
+     <g id="channel_scales_line2d_7">
+      <g>
+       <use xlink:href="#channel_scales_m25b15b706e" x="389.277791" y="231.453937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_7">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="389.277791" y="246.811359" transform="rotate(-0 389.277791 246.811359)">6</text>
+     </g>
+    </g>
+    <g id="channel_scales_xtick_8">
+     <g id="channel_scales_line2d_8">
+      <g>
+       <use xlink:href="#channel_scales_m25b15b706e" x="440.005064" y="231.453937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_8">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="440.005064" y="246.811359" transform="rotate(-0 440.005064 246.811359)">7</text>
+     </g>
+    </g>
+    <g id="channel_scales_text_9">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="262.459609" y="261.812219" transform="rotate(-0 262.459609 261.812219)">First Conv output channel</text>
+    </g>
+   </g>
+   <g id="channel_scales_matplotlib.axis_2">
+    <g id="channel_scales_ytick_1">
+     <g id="channel_scales_line2d_9">
+      <defs>
+       <path id="channel_scales_mc61f793783" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#channel_scales_mc61f793783" x="44.839609" y="231.453937" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_10">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="235.632648" transform="rotate(-0 37.839609 235.632648)">0</text>
+     </g>
+    </g>
+    <g id="channel_scales_ytick_2">
+     <g id="channel_scales_line2d_10">
+      <g>
+       <use xlink:href="#channel_scales_mc61f793783" x="44.839609" y="200.616771" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_11">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="204.795482" transform="rotate(-0 37.839609 204.795482)">1</text>
+     </g>
+    </g>
+    <g id="channel_scales_ytick_3">
+     <g id="channel_scales_line2d_11">
+      <g>
+       <use xlink:href="#channel_scales_mc61f793783" x="44.839609" y="169.779605" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_12">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="173.958316" transform="rotate(-0 37.839609 173.958316)">2</text>
+     </g>
+    </g>
+    <g id="channel_scales_ytick_4">
+     <g id="channel_scales_line2d_12">
+      <g>
+       <use xlink:href="#channel_scales_mc61f793783" x="44.839609" y="138.942439" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_13">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="143.12115" transform="rotate(-0 37.839609 143.12115)">3</text>
+     </g>
+    </g>
+    <g id="channel_scales_ytick_5">
+     <g id="channel_scales_line2d_13">
+      <g>
+       <use xlink:href="#channel_scales_mc61f793783" x="44.839609" y="108.105272" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_14">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="112.283983" transform="rotate(-0 37.839609 112.283983)">4</text>
+     </g>
+    </g>
+    <g id="channel_scales_ytick_6">
+     <g id="channel_scales_line2d_14">
+      <g>
+       <use xlink:href="#channel_scales_mc61f793783" x="44.839609" y="77.268106" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_15">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="81.446817" transform="rotate(-0 37.839609 81.446817)">5</text>
+     </g>
+    </g>
+    <g id="channel_scales_ytick_7">
+     <g id="channel_scales_line2d_15">
+      <g>
+       <use xlink:href="#channel_scales_mc61f793783" x="44.839609" y="46.43094" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="channel_scales_text_16">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="50.609651" transform="rotate(-0 37.839609 50.609651)">6</text>
+     </g>
+    </g>
+    <g id="channel_scales_text_17">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="24.198281" y="131.661937" transform="rotate(-90 24.198281 131.661937)">Frozen BN scale</text>
+    </g>
+   </g>
+   <g id="channel_scales_patch_11">
+    <path d="M 44.839609 231.453937
+L 44.839609 31.869937
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="channel_scales_patch_12">
+    <path d="M 44.839609 231.453937
+L 480.079609 231.453937
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="channel_scales_text_18">
+    <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="262.459609" y="25.869937" transform="rotate(-0 262.459609 25.869937)">One scale per channel: gamma / sqrt(running_var + eps)</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="channel_scales_p4d566d2353">
+   <rect x="44.839609" y="31.869937" width="435.24" height="199.584"/>
+  </clipPath>
+ </defs>
+</svg></div><p><strong>图3：冻结 BN 的逐通道尺度。</strong>每根柱来自训练后的 γ 与 running variance；它说明不同通道缩放不同，但不单独证明某种量化粒度一定更优。 小屏可横向滚动查看。<a href="assets/batchnorm-folding/channel-scales.svg" target="_blank" rel="noopener">Open full-size figure ↗</a></p>
+<p>附加诊断对两层<strong>折叠后的卷积权重</strong>做对称 INT8 量化/反量化，q=clip(round(W′/s),−127,127)，分别用整层一个 s 或每个输出通道一个 s；激活、偏置、最后 Linear 均保持 FP32。没有用测试集调整 scale，scale 来自权重最大绝对值。结果：</p>
+<div class="table-scroll" role="region" aria-label="Scrollable data table" tabindex="0"><table><thead><tr><th>权重分组</th><th>Accuracy</th><th>相对原网络最大 Logit 误差</th><th>预测变化</th></tr></thead><tbody><tr><td>per_tensor</td><td>98.67%</td><td>1.203e-01</td><td>1</td></tr><tr><td>per_output_channel</td><td>98.44%</td><td>9.646e-02</td><td>2</td></tr></tbody></table></div>
+<p>这里展示的是 weight-only fake quant 的数值误差，<strong>不是完整 W8A8、QAT 或 QNN 实测</strong>，不能据此断言端侧速度。本次 per-channel 的最大 Logit 误差从 0.120 降到 0.096，正确数却从 444 降到 443。不同样本的分类间隔不同，较小的全局最大误差不保证每张图都更接近正确类别；这种一张之差也不能证明某种粒度普遍更差。校准和验证应针对实际导出图，尤其确认框架在观察量化范围时是否已经执行 BN folding，以及偏置所用的 input-scale×weight-scale。</p>
+<h2 id="section-10">10｜局限与替代：小 Batch、分布变化和其他归一化</h2>
+<p>BN 的训练统计可能受小 batch、相关空间位置、跨设备分片与分布变化影响。SyncBatchNorm 跨设备汇总统计，改变的是有效统计集合并引入通信；梯度累积不会自动让每次 forward 的 BN 看到一个大批次。检测、分割、视频等任务常因分辨率和内存限制只能使用小 batch。Wu 与 He 的 Group Normalization（2018）正针对这一问题，把统计放到每个样本内部的一组通道，而不是依赖 batch。<a href="#source-7">[7]</a></p>
+<p>GroupNorm、LayerNorm 的统计一般仍取决于当前输入，不能在普通推理时像冻结 BN 一样整体吸收进前一层卷积。它们的可学习仿射部分与输入依赖的归一化部分应区分。可折叠性来自<strong>统计量固定后函数成为仿射</strong>，不来自层名字里有 “Norm”。</p>
+<p>此外，BN buffers 适配的是训练过程所见的激活分布。如果相机预处理、亮度范围、颜色顺序或数据排布在导出链路改变，完美的代数折叠也无法修复输入分布偏移。需要分别定位预处理一致性、统计状态、量化和后端误差，而不是把这些变化混成“模型太小”。</p>
+<h2 id="section-11">11｜总结与复现：先明确状态，再谈删除算子</h2>
+<p>值得记住的三件事：BN2d 的统计是逐通道、跨 N/H/W；train 和默认 eval 是两种计算语义；冻结且紧邻卷积的 BN 是可精确代数吸收的仿射变换。部署验证应同时包含中间值误差与原任务输出，不能仅验证不崩溃或节点数量。</p>
+<p><a href="assets/batchnorm-folding/experiment.py">完整实验脚本</a> · <a href="assets/batchnorm-folding/results.json">原始结果与逐类指标 JSON</a> · <a href="assets/batchnorm-folding/model.pt">训练模型 state_dict</a> · <a href="assets/batchnorm-folding/requirements.txt">固定依赖</a> · <a href="assets/batchnorm-folding/README.md">复现说明</a>。下载脚本后运行：</p>
+<pre><code>python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python experiment.py --out results</code></pre>
+<p>结果保存 split、数据 SHA-256、训练条件与全部分类混淆矩阵。实验在 CPU 单线程运行，跨平台库版本和浮点后端可能产生小幅差异；可以先核对数据散列和切分，再核对数值误差与预测。</p>
+<h2 id="section-12">来源</h2><ol>
+<li id="source-1"><a href="https://arxiv.org/html/1502.03167">Batch Normalization 原论文</a>：Ioffe / Szegedy，Google，2015；ICML 2015，Algorithm 1、§3.1/3.2 的训练/推理与卷积处理，§4 的论文实验。</li>
+<li id="source-2"><a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.BatchNorm2d.html">PyTorch BatchNorm2d</a>：统计轴、方差估计、running buffers、momentum 与 track_running_stats 的官方定义。</li>
+<li id="source-3"><a href="https://arxiv.org/html/1805.11604v5">How Does Batch Normalization Help Optimization?</a>：Santurkar 等，MIT，NeurIPS 2018，v5 更新于 2019；§2 的噪声对照与 §3/4 的优化分析。</li>
+<li id="source-4"><a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.utils.fuse_conv_bn_eval.html">fuse_conv_bn_eval 官方 API</a>：固定统计量与 eval 的前置条件。</li>
+<li id="source-5"><a href="https://raw.githubusercontent.com/pytorch/pytorch/v2.11.0/torch/nn/utils/fusion.py">官方 folding 实现，固定 v2.11.0</a>：fuse_conv_bn_eval / fuse_conv_bn_weights；本地实际运行库版本见实验条件。</li>
+<li id="source-6"><a href="https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html">scikit-learn load_digits 数据说明</a>：真实 8×8 图像与 0–16 数值范围，复制自 UCI 手写数字数据的 test 部分；本文对这 1797 张再做教学用途 train/test 切分，未复现 UCI 官方划分。</li>
+<li id="source-7"><a href="https://arxiv.org/abs/1803.08494">Group Normalization</a>：Wu / He，Facebook AI Research，ECCV 2018；小 batch 限制与按组归一化；官方代码见论文链接。</li>
+</ol>
+</article></main>
+<footer class="site-footer"><span>© 2026 Howie Yin</span><div class="footer-links"><a href="./">Back to archive ←</a><a href="../">Home ←</a></div></footer>
+</div></body></html>

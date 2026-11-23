@@ -1,0 +1,2235 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="theme-color" content="#0c1016">
+<meta name="description" content="改动像素的方向，为什么比改动幅度更容易骗过分类器？">
+<title>改动像素的方向，为什么比改动幅度更容易骗过分类器？ — Howie Yin</title>
+<link rel="canonical" href="https://howieyin.github.io/lab/fgsm-digits.html">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/article-navigation.css">
+<script src="../assets/article-navigation.js" defer></script>
+<link rel="stylesheet" href="../styles.css?v=3"><style>
+.report { padding: 48px 0; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.report h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.6px; line-height: 1.4; margin-bottom: 28px; }
+.report h2 { margin: 52px 0 20px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; }
+.report h3 { font-size: 20px; margin: 28px 0 14px; }
+.report p, .report li { color: var(--secondary); }
+.report strong { color: var(--text); }
+.report a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.report li { margin: 9px 0; }
+.report code { font-family: var(--mono); font-size: .85em; }
+.report pre { overflow-x: auto; padding: 20px; background: #111720; border: 1px solid var(--line); border-radius: 8px; }
+.report img { display: block; max-width: 100%; height: auto; background: white; padding: 16px; border-radius: 6px; margin: 24px auto; width: 680px; }
+.report .table-scroll { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 6px; }
+.report table { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 14px; }
+.report th, .report td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.report th { color: var(--text); background: #111720; }
+.report td { color: var(--secondary); }
+.report .toc { padding: 24px; border: 1px solid var(--line); border-radius: 8px; margin: 32px 0; }
+.report .toc ul { padding-left: 22px; }
+@media(max-width:640px) { .report { font-size: 15px; padding: 32px 0; } .report h2 { font-size: 22px; } .report img { padding: 8px; } }
+
+.formula { padding: 20px; margin: 24px 0; background: #111720; border-left: 3px solid var(--accent); font-family: var(--mono); font-size: 14px; overflow-x: auto; }
+.diagram { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:24px 0; padding:20px; border:1px solid var(--line); border-radius:8px; }
+.diagram div { flex:1 1 160px; padding:14px; background:#111720; border:1px solid var(--line); border-radius:6px; }
+.diagram span:not(.diagram-arrow) { display:block; color:var(--secondary); font-size:13px; margin-top:8px; }
+</style></head>
+<body><a class="skip-link" href="#main">Skip to content</a><div class="page">
+<header class="site-header"><a class="wordmark" href="../" aria-label="Howie Yin, home"><span class="brand-mark" aria-hidden="true"></span>howieyin</a>
+<nav aria-label="Main navigation"><a href="../weekly/">Weekly</a><a href="../foundations/" >Foundations</a><a href="../lab/" aria-current="page">Lab</a><a href="../#about">About</a></nav></header>
+<main id="main" class="report"><p class="eyebrow">LAB / VISION EXPERIMENT</p><details class="toc" hidden><summary>Contents</summary><ul><li><a href="#section-01">1｜先猜一下：每个像素最多改 0.1，方向有多重要？</a></li><li><a href="#section-02">2｜FGSM 的技巧：把“学习权重”改为“修改输入”</a></li><li><a href="#section-03">3｜为什么取 sign？一阶近似下每个维度都能出力</a></li><li><a href="#section-04">4｜实验设置：三个训练种子、真实数据、固定模型</a></li><li><a href="#section-05">5｜实测曲线：幅度一样，定向扰动下降更快</a></li><li><a href="#section-06">6｜别混用两个分母：Accuracy 与攻击成功率</a></li><li><a href="#section-07">7｜更强一点的对照：FGSM 没骗过，不代表安全</a></li><li><a href="#section-08">8｜有趣的延伸：一个模型算出的方向能迁移吗？</a></li><li><a href="#section-09">9｜输入坐标与工程边界：ε 必须放在正确的位置</a></li><li><a href="#section-10">10｜总结与自己动手：模型会学会分类，却未必学会整个邻域</a></li><li><a href="#section-11">来源</a></li></ul></details><article>
+<h1 id="fgsm-digits">改动像素的方向，为什么比改动幅度更容易骗过分类器？</h1>
+<p><strong>结论：对这个真实数字分类实验，同等 L∞ 像素预算下，沿损失梯度符号修改像素，比随机选择符号更容易造成误分类。小幅改动是否危险，取决于方向、决策边界与输入坐标；测试集准确率高，不等于附近每一种输入扰动都安全。</strong></p>
+<p>类型：视觉趣味实验 / 模型行为。发布与实验：2026-11-23。使用真实 scikit-learn digits、独立训练的三个 MLP、CPU 自动微分；没有调用 LLM 或 Attention，没有攻击外部服务。8×8 教学数据上的结果不是 ImageNet、OCR、真实相机或物理攻击效果，也不声称扰动不可被人眼察觉。</p>
+<h2 id="section-01">1｜先猜一下：每个像素最多改 0.1，方向有多重要？</h2>
+<p>把一张灰度图映射到 [0,1]。两种修改都允许每个像素最多变动 0.1：一种按模型损失对像素的梯度决定加减，另一种随机决定加减。幅度预算一样，结果会接近吗？</p>
+<p>在固定 seed=7 的模型上，干净测试集正确 438/450（97.33%）。ε=0.1 的随机符号扰动后仍正确 427/450（94.89%）；FGSM 则只正确 182/450（40.44%）。其他两个训练种子也做了同一比较，结果见后文。差异来自有目的的方向，而不是给 FGSM 更大的像素预算。</p>
+<div role="region" aria-label="Scrollable figure" tabindex="0" style="overflow-x:auto;margin:24px 0"><svg role="img" aria-label="图1：真实数字、实际扰动与修改后的预测" style="display:block;width:680px;min-width:620px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:0 auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="545.008022pt" height="692.894437pt" viewBox="0 0 545.008022 692.894437" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-23</dc:date>
+    <dc:description>Actual CPU measurements; downloadable experiment.py and results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="digit_examples_figure_1">
+  <g id="digit_examples_patch_1">
+   <path d="M 0 692.894437
+L 545.008022 692.894437
+L 545.008022 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="digit_examples_axes_1">
+   <g id="digit_examples_patch_2">
+    <path d="M 43.845469 173.01875
+L 140.151852 173.01875
+L 140.151852 76.712367
+L 43.845469 76.712367
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_p57ec19d7f4)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACOElEQVR4nO3dwU3jUBRAUTOaPUkHKYEOEjqhhHRA0kFKSAnQAS3QAVRAqGBG7O8C6TsyQufs/fQtXf1snpybaZr+TQs7HA7DM/b7/fCM29vboec/Pz+Hz7DZbIZnXC6X4Rl/hifwKwmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEg3cyzqrFaroec/Pj5GjzA9Pz8Pz3h4eBh6/uXlZfgM5/N5eMbpdBqe4cYgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDNLfaQajH+q4v7+flt4JmeM9np6eFt8J+WIfg6vxU0ISBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYXG9RZ9QcHxzZ7XaL/7vQaoZloTlmzMGNQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYfC7F3W22+20tNfX1+EZc3yVZw5uDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYPrLerc3d0tvmSzXq8XX5LZzvAeh8Nh+gncGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkITB9fYxLpfLtLT9fr/4e7y/v/+Ij8jMwY1BEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhcL1Fnbe3t6Hnj8fj8BkeHx8X/4ei3W73K5aevrgxSMIgCYMkDITB97kxSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYOp/Ac2TEwLi4VVgAAAAABJRU5ErkJggg==" id="digit_examples_image40886ced92" transform="scale(1 -1) translate(0 -96.48)" x="43.92" y="-76.574437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_1"/>
+   <g id="digit_examples_matplotlib.axis_2">
+    <g id="digit_examples_text_1">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(24.439414 143.742902) rotate(-90)">id 1379</text>
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(36.442148 141.72884) rotate(-90)">label 9</text>
+    </g>
+   </g>
+   <g id="digit_examples_patch_3">
+    <path d="M 43.845469 173.01875
+L 43.845469 76.712367
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_4">
+    <path d="M 43.845469 173.01875
+L 140.151852 173.01875
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_text_2">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle" x="91.99866" y="70.712367" transform="rotate(-0 91.99866 70.712367)">Original</text>
+   </g>
+  </g>
+  <g id="digit_examples_axes_2">
+   <g id="digit_examples_patch_5">
+    <path d="M 173.517526 173.01875
+L 269.823909 173.01875
+L 269.823909 76.712367
+L 173.517526 76.712367
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pbb684ec3e3)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAAB9ElEQVR4nO3dPUpDQRhA0efPLtIruAA7GzsJuIO0qW1dQVprW5cg4jasAi7AdSj2txDmBR/hnP4Nk3D5qmHm5PXs4nv6Z7u752kJXp5Ww2tsHr6Gvr+5vx7ew/Z2bA+/TodX4CgJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBI59ORHJDZX66H13i+/xhe4/F9bB+7afzQ0vZ2/P80MUjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDdLKEi1NYHhODJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCYLkXpxyT3eBrTY/v22kJTAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDwx3Uufp8G/p+8/A1xzaYkYlBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhcLinr0ZvkXl5Wo1uYdpfrqf//h1LMcf/aWKQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBss9j8G8LxyNXmTzy8QgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwONwLR6MXdbj0ZN5DNnMwMUjCIAmDJAyEwd+ZGCRhkIRBEgZJGCRhkIRBEgZJGCRhkITBVH4A+xUudA2jsXUAAAAASUVORK5CYII=" id="digit_examples_image11aaa4eebc" transform="scale(1 -1) translate(0 -96.48)" x="173.52" y="-76.574437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_3"/>
+   <g id="digit_examples_matplotlib.axis_4"/>
+   <g id="digit_examples_patch_6">
+    <path d="M 173.517526 173.01875
+L 173.517526 76.712367
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_7">
+    <path d="M 173.517526 173.01875
+L 269.823909 173.01875
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_text_3">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(191.75353 58.709633)">Actual delta</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(176.011342 70.712367)">color range +/-0.1</text>
+   </g>
+  </g>
+  <g id="digit_examples_axes_3">
+   <g id="digit_examples_patch_8">
+    <path d="M 303.189583 173.01875
+L 399.495965 173.01875
+L 399.495965 76.712367
+L 303.189583 76.712367
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pfc230d5cd4)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACa0lEQVR4nO3dIUqsURiA4ZnL7Vr/ZB4XIW5AMBlchSsQ92ByAwaT4AYE2ySbSbDJNDUK4t3AGy6cGWbC8/Tv4ygvJx3+mU/T9DvbAScnJ0PzFxcXw2dYLBbDO15eXobmDw8PZ7vgz7YPwG4SBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQ/s7WYG9vb3jHzc3N0PxyuRw+w3w+H96xWq2G5s/OzobPcHd3N7zDjUESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYbO49xufn5/CO8/Pzofn9/f3hM0zTNLzj/v5+aP76+nr4DE9PT8M73BgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGm3uosw6Pj49D88fHx8NnODg4GN7x+vq69QdH6+DGIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMNjcQ5339/fhHbe3t1t/qLMOz8/PW/0iz7q4MUjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAzSfJqm39mgn5+f0RWz1Wo1NL9YLIbPcHl5ObzjePDB0Onp6fAZlsvl8A43BkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGwuQ+nfHx8bP3jK0dHRzvxd7y9vQ3Nf319zXaBG4MkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMJgcw91vr+/h3c8PDwMzV9dXW3914nW8eGUdfwv18GNQRIGSRgkYSAM/p8bgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjCYlX84MlTMT2Y7owAAAABJRU5ErkJggg==" id="digit_examples_image509e2110d0" transform="scale(1 -1) translate(0 -96.48)" x="303.12" y="-76.574437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_5">
+    <g id="digit_examples_text_4">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle" x="351.342774" y="184.617187" transform="rotate(-0 351.342774 184.617187)">prediction: 0</text>
+    </g>
+   </g>
+   <g id="digit_examples_matplotlib.axis_6"/>
+   <g id="digit_examples_patch_9">
+    <path d="M 303.189583 173.01875
+L 303.189583 76.712367
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_10">
+    <path d="M 303.189583 173.01875
+L 399.495965 173.01875
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_text_5">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle" x="351.342774" y="70.712367" transform="rotate(-0 351.342774 70.712367)">FGSM, eps 0.1</text>
+   </g>
+  </g>
+  <g id="digit_examples_axes_4">
+   <g id="digit_examples_patch_11">
+    <path d="M 432.86164 173.01875
+L 529.168022 173.01875
+L 529.168022 76.712367
+L 432.86164 76.712367
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_p2924c98b85)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACZUlEQVR4nO3csUlsURRA0fc/poJgIJoaaCQ2IFqCWMTYjwYyDRjbgKBMZmQDNiAIipmJv4EdfLgzjMha+T2cYTY3urw/0zR9Tz/AfD4fOn9ycjK8w9bW1vCM9/f34RkXFxdD5z8+PoZ3+Ds8gV9JGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRB2piW4PDwcHjGbDYbOn9zczO8w9XV1fCMx8fH4RlHR0dD5xeLxfAObgySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCYHXvMZbxoY6Dg4O1f/RkGb/j7u5ueMb19fXQ+Z2dneEd3BgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGq3uoswyfn5/rXmF6e3sbnvHy8jI8YxmPjka5MUjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAzSxu7u7vQTPDw8DJ3f3NycfoLn5+e1f5VnGf+pG4MkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMJgdV/UOT4+Hp4x+tBmb29veIfb29vhGWdnZ8Mzzs/Pp3VzY5CEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGq3uPcX9/Pzxj9GMfs9lseIf9/f3hGdvb28Mznp6epnVzY5CEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRis7qHO19fX8IzLy8uh8/P5fHiH19fX4Rmnp6fTb+DGIAmDJAySMBAG/8+NQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRhM5R+UJ0SgCyA0uwAAAABJRU5ErkJggg==" id="digit_examples_image6bf02937d1" transform="scale(1 -1) translate(0 -96.48)" x="432.72" y="-76.574437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_7"/>
+   <g id="digit_examples_matplotlib.axis_8"/>
+   <g id="digit_examples_patch_12">
+    <path d="M 432.86164 173.01875
+L 432.86164 76.712367
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_13">
+    <path d="M 432.86164 173.01875
+L 529.168022 173.01875
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_text_6">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle" x="481.014831" y="70.712367" transform="rotate(-0 481.014831 70.712367)">Random signs</text>
+   </g>
+  </g>
+  <g id="digit_examples_axes_5">
+   <g id="digit_examples_patch_14">
+    <path d="M 43.845469 295.527477
+L 140.151852 295.527477
+L 140.151852 199.221094
+L 43.845469 199.221094
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pa6150e515d)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAAB60lEQVR4nO3dwakiQRRA0f7D32sGGoKhaGaGYAYagkagKRhCRzDDrGZzFwMl/KY5Z++jGi5vVZRf0zT9nn7Y8XgcnnG9Xj9yljWY53l4xq+PnITVEQZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkL6nBdhut8MzHo/H8Iz9fj/0+91ut4jvOJ/PwzNsDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgfS3h4ZRPOBwOwzMul8u0hu/4BBuDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCYLkPp4w+WPLX8/mcftrpdJrWwsYgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwWO5FnaUY/Xeh2+02rYWNQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRis+z7GPM/DM16v10fOsgY2BkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhMG6L+psNpvhGS7q/GNjkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCz3os7xeBye8X6/h2fc7/fhGWthY5CEQRIGSRgIg/9nY5CEQRIGSRgkYZCEQRIGSRgkYZCEQRIGU/kDjp8ozqbF2DMAAAAASUVORK5CYII=" id="digit_examples_imagec63d120384" transform="scale(1 -1) translate(0 -96.48)" x="43.92" y="-198.974437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_9"/>
+   <g id="digit_examples_matplotlib.axis_10">
+    <g id="digit_examples_text_7">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(24.439414 263.070379) rotate(-90)">id 517</text>
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(36.442148 264.237566) rotate(-90)">label 1</text>
+    </g>
+   </g>
+   <g id="digit_examples_patch_15">
+    <path d="M 43.845469 295.527477
+L 43.845469 199.221094
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_16">
+    <path d="M 43.845469 295.527477
+L 140.151852 295.527477
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_6">
+   <g id="digit_examples_patch_17">
+    <path d="M 173.517526 295.527477
+L 269.823909 295.527477
+L 269.823909 199.221094
+L 173.517526 199.221094
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pa6d817b922)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAAB6ElEQVR4nO3dsUkEQRiA0T29LswV7ESswdTY1ApMjU0tQcRODkQNrUMb+AJhR25Y3itgmdn7mE2G/3Yvp+c/ywZcvr8eewnTuLn7Xv2MkyErYXOEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRik/TLBJZnDxfXqNYx4xsPV0+pnPD+eHX0fy4B9ODFIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJg7T7+vzYxOCUEcNCRrh/u122wIlBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkHYj/uFo7eCUEZds1g4sGbWOGfYxghODJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCYN6JOjNckNnaRZu1nBgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQdofLq6XYw9O2ZLDgPc5w+/hxCAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjD4v8EpW7mcMsM+RnBRh3/jU0ISBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYpP2yEbNcsrmcYLrQiHfhxCAJgyQMkjAQBn/nxCAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMlvILBxg6WvSsXIIAAAAASUVORK5CYII=" id="digit_examples_imagedb62bdf62d" transform="scale(1 -1) translate(0 -96.48)" x="173.52" y="-198.974437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_11"/>
+   <g id="digit_examples_matplotlib.axis_12"/>
+   <g id="digit_examples_patch_18">
+    <path d="M 173.517526 295.527477
+L 173.517526 199.221094
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_19">
+    <path d="M 173.517526 295.527477
+L 269.823909 295.527477
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_7">
+   <g id="digit_examples_patch_20">
+    <path d="M 303.189583 295.527477
+L 399.495965 295.527477
+L 399.495965 199.221094
+L 303.189583 199.221094
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_p68468edfe7)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACLElEQVR4nO3cMUokQRiA0XYdjI2EjownE4w8hDDewFMZz000nmgywQuIgWBssnuBL1ioXuwd3svrp3rmo6KizuZ5/j2twG63G1r/9PS02F7+d6+vr8Mzfi2yE06OMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDtJkW8P7+Pjzj8vJyaP3b29vwHj4/P4dn3N3d/fh3PD4+Ds9wYpCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIG6WyaplU8nDLq6upqeMZ+vx+ecXt7O7T+5uZmWgMnBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEHazPM8reHhlIuLi6H1Hx8fq/iO+/v7H9/DEpwYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBmmzlosho5b4jpeXl+EZh8NhOgVODJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMJg3Q+njPr6+hqecTweh2fMC/yea/g/nBgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIG/+7hlCUup1xfXw+t3263w3s4Pz8fnnEqnBgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGaTOtxMPDw9D67+/v4T08Pz+fxOtC8wIXp5wYJGGQhEESBsLg7zkxSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYOp/AEy8EbaO1P4ggAAAABJRU5ErkJggg==" id="digit_examples_image5b763edd6b" transform="scale(1 -1) translate(0 -96.48)" x="303.12" y="-198.974437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_13">
+    <g id="digit_examples_text_8">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle" x="351.342774" y="307.125914" transform="rotate(-0 351.342774 307.125914)">prediction: 2</text>
+    </g>
+   </g>
+   <g id="digit_examples_matplotlib.axis_14"/>
+   <g id="digit_examples_patch_21">
+    <path d="M 303.189583 295.527477
+L 303.189583 199.221094
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_22">
+    <path d="M 303.189583 295.527477
+L 399.495965 295.527477
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_8">
+   <g id="digit_examples_patch_23">
+    <path d="M 432.86164 295.527477
+L 529.168022 295.527477
+L 529.168022 199.221094
+L 432.86164 199.221094
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_p0966a8932d)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACMUlEQVR4nO3dMUpkQRRA0d+DC+hI+EGvQxPB2NW4FJdgZuY+NBDBQDA16MgNmDgbuMFA/aELOSev4tFcKnr0363r+rNM4HA4DJ1/enoanuF4PA7fsa7r8hv8OfUAzEkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEE6m2U5Zb/fD53/+PgYnuHr62uK3+Lh4WHo/N3d3fAMXgySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIO22+OOULXY6Rp2fnw/fcX9/v8zg5ubm5DshXgySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDtFuWZYovHF1eXg6df3x8HJ5hiwWXi4uL4Ts+Pz+XU/NikIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGKSzZQNbLLjMMMMWX0l6fn5efgMvBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGHw//YxZvD+/j58x9vb2xR7IccJvhjlxSAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjCYe1Hn5eVl6Px+vx+e4fX1dYolm3WCP6LxYpCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRik3bquP8sEbm9vh85fXV0Nz3B9fT18x/f393JqWyz6eDFIwiAJgyQMhMG/82KQhEESBkkYJGGQhEESBkkYJGGQhEESBkv5C6koP+pxR0zQAAAAAElFTkSuQmCC" id="digit_examples_imagecee47b6d64" transform="scale(1 -1) translate(0 -96.48)" x="432.72" y="-198.974437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_15"/>
+   <g id="digit_examples_matplotlib.axis_16"/>
+   <g id="digit_examples_patch_24">
+    <path d="M 432.86164 295.527477
+L 432.86164 199.221094
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_25">
+    <path d="M 432.86164 295.527477
+L 529.168022 295.527477
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_9">
+   <g id="digit_examples_patch_26">
+    <path d="M 43.845469 418.036203
+L 140.151852 418.036203
+L 140.151852 321.72982
+L 43.845469 321.72982
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pdb7d5b50a5)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACEUlEQVR4nO3dwW0iMRiA0WGVgugg0wGUQgdMB0kJlJBUACVQAukgHewq9++wkoMYoffutkaaT//JsjfTNP2dHmy73Q7vcTqdhve4XC5D65dlGf6G7+/vaQ3+PPoDWCdhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBeplW4Hq9Du/x8fExvMfxeHz4uZJ5nqc1MDFIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQM0mYNF6esxeFwGFr/9vY2/A2bzc8veTwTgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwmC9N+r8xm04t9vtaV4XWgMTgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwuB+B3WWZRlav9vtpmfw9fU1PQsTgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjC43wtH8zwPrT+fz6OfMH1+fg7v8f7+PrT+er0+zeUtJgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkITB/Q7qPMvhlNGDOr/hdDqt4rUnE4MkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMLgfi8cjdrv96vYY/RmoNfX12kNRl+c+mFikIRBEgZJGAiD/2dikIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZT+Qey+T7H4E2yQQAAAABJRU5ErkJggg==" id="digit_examples_imageee1eb1e97a" transform="scale(1 -1) translate(0 -96.48)" x="43.92" y="-321.374437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_17"/>
+   <g id="digit_examples_matplotlib.axis_18">
+    <g id="digit_examples_text_9">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(24.439414 388.760355) rotate(-90)">id 1700</text>
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(36.442148 386.746293) rotate(-90)">label 5</text>
+    </g>
+   </g>
+   <g id="digit_examples_patch_27">
+    <path d="M 43.845469 418.036203
+L 43.845469 321.72982
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_28">
+    <path d="M 43.845469 418.036203
+L 140.151852 418.036203
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_10">
+   <g id="digit_examples_patch_29">
+    <path d="M 173.517526 418.036203
+L 269.823909 418.036203
+L 269.823909 321.72982
+L 173.517526 321.72982
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_p5c39f1aa51)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAAB6UlEQVR4nO3dMUpDQRhG0Rd1F/YK7kRcg621rStIa23rEkTciSBq6ToUG6tbCG9ChnBOn5Di8lcfk83nx/v3smfXt1/LDO5ebvb9E6ZxtO8fwJyEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGaTNij/F6frXq8xdvzwez6TiUTYiLQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZA2T8dne384ZcRQZ4QZxj6P96fLDFwMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJg3Qyw0hmxEBmyEs0lw/LIXhd+cLRLxeDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCYHd/fbV2aDPLKzKzjGTWGjG+cjFIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJg93tMdZuELYDHiwZ8nAKf1wMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJg90NdWb4h6NZ3K0cDM0yWnIxSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDNLJciBGjFNGjGS2A75jBi4GSRgkYZCEgTD4PxeDJAySMEjCIAmDJAySMEjCIAmDJAySMFjKD6dYPzLc54JxAAAAAElFTkSuQmCC" id="digit_examples_image8452063eea" transform="scale(1 -1) translate(0 -96.48)" x="173.52" y="-321.374437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_19"/>
+   <g id="digit_examples_matplotlib.axis_20"/>
+   <g id="digit_examples_patch_30">
+    <path d="M 173.517526 418.036203
+L 173.517526 321.72982
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_31">
+    <path d="M 173.517526 418.036203
+L 269.823909 418.036203
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_11">
+   <g id="digit_examples_patch_32">
+    <path d="M 303.189583 418.036203
+L 399.495965 418.036203
+L 399.495965 321.72982
+L 303.189583 321.72982
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_p6050ad79af)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACUUlEQVR4nO3dsUktQRiA0fVhB4KwRkY2YANWYQlmRhbgBRswEszswViwAzMbMDCWmwnyHuZf8GBW7iLn5P8wwcdsMszuTdP0d1qBw8PDofmHh4fhPWy32+E1rq+vh+Y/Pj6mNfiz6w2wTsIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYO0t8R9jHmeR5eY3t/fh+YvLi6G97DZbIbXeH5+Hpq/urqa1sCJQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZD25nlexcMpoxd1lnB+fj68xu3t7dD80dHRtAZODJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYO0v4YLMt/u7u6G5g8ODob38PT0NP0G8wIvHDkxSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDH7u11dL/Hbq/v5++g0+Pz+H5o+Pj4f3sMTlKycGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZD2pwVst9ud3yF4e3vb+d+Jvr28vEy75uEUfoxPCUkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGHwcw+nLOH19XXXW1jkos7p6enQ/OXl5fAelvjbkxODJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCYN0XdU5OTobmb25uhvfw9fU1vMbZ2dnQ/GazGd7D4+Pj8BpODJIwSMIgCQNh8P+cGCRhkIRBEgZJGCRhkIRBEgZJGCRhkITBVP4BAh9MAvu97X8AAAAASUVORK5CYII=" id="digit_examples_imagebb825d17b0" transform="scale(1 -1) translate(0 -96.48)" x="303.12" y="-321.374437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_21">
+    <g id="digit_examples_text_10">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle" x="351.342774" y="429.634641" transform="rotate(-0 351.342774 429.634641)">prediction: 9</text>
+    </g>
+   </g>
+   <g id="digit_examples_matplotlib.axis_22"/>
+   <g id="digit_examples_patch_33">
+    <path d="M 303.189583 418.036203
+L 303.189583 321.72982
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_34">
+    <path d="M 303.189583 418.036203
+L 399.495965 418.036203
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_12">
+   <g id="digit_examples_patch_35">
+    <path d="M 432.86164 418.036203
+L 529.168022 418.036203
+L 529.168022 321.72982
+L 432.86164 321.72982
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pcc9d2f061e)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACUUlEQVR4nO3dIUqsURiA4XMvVkEwTTAZXIAbcAOCTRTMrsIF2GxicgWC4AaMdpM2i65CvNjfcOGMzCDP08/Hx/By0uGfP2OMrzFpsVjMjhifn59T55+fn6d3eHx8nJ5xfHw81uH3nPV31QuwnoRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZpYyzBx8fHyt8gXFxcTO9wc3Oz8ncl305PT8eq33O4MUjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAx+7qHOOnh4eJiesbu7Oz3j7Oxs/AZuDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYO0sQ7/pvPt/v5+6vzd3d30DltbW+M3+FjCF47cGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgY/90Wdw8PD6Rk7OztT5y8vL9figcv29vb4DdwYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEH6s1gsvsakzc3N2RHj5eVl6vz19fX0DldXV9MzXl9fx2/gxiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjD4uYc6y/D+/r7qFcb5+fn0jP39/ekZt7e3U+efnp6md3BjkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGPzcPxwtw97e3tT5o6Oj6R0ODg6mZ5ycnIxVe3t7m57hxiAJgyQMkjAQBv/PjUESBkkYJGGQhEESBkkYJGGQhEESBkkYjPIPVHdAaKx2jxwAAAAASUVORK5CYII=" id="digit_examples_image171e82d430" transform="scale(1 -1) translate(0 -96.48)" x="432.72" y="-321.374437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_23"/>
+   <g id="digit_examples_matplotlib.axis_24"/>
+   <g id="digit_examples_patch_36">
+    <path d="M 432.86164 418.036203
+L 432.86164 321.72982
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_37">
+    <path d="M 432.86164 418.036203
+L 529.168022 418.036203
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_13">
+   <g id="digit_examples_patch_38">
+    <path d="M 43.845469 540.54493
+L 140.151852 540.54493
+L 140.151852 444.238547
+L 43.845469 444.238547
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pd3899183fa)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACFCAYAAACe7YA/AAACC0lEQVR4nO3dQW3jUBRAUXc0ABoGgWIIhtAwCJOWQQMhYRIGSRGkDGY0+7sY6beqZZ2z91MUXb3Vk/00TdOfaQNeXl6GZ7y/v08/7XK5DM9YlmV4xq/hCWySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCID2t4R5jv98Pz7jdbsMzDofD0PPzPK/iluL5+Xl4ho1BEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkH5PX2D0MOR0Ok1bMH/Boc5a/gsbgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwuD73qgzeqjzeDymNfj4+Bh6/ng8Dv+G8/k8rYGNQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRis9wtHX3HH8Pr6Ojxjt9sNPf/5+TlthY1BEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRh8H1fOBq1lgOX/X4/9Pz1ep22wsYgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwWO8bdUa/kPTP/X4fnjF6aLMsy2aOlmwMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJg22/Ueft7W14xjzPwzO2wsYgCYMkDJIwEAb/z8YgCYMkDJIwSMIgCYMkDJIwSMIgCYOp/AXwXTmXDCUKlwAAAABJRU5ErkJggg==" id="digit_examples_imageea356635f1" transform="scale(1 -1) translate(0 -95.76)" x="43.92" y="-444.494437" width="96.48" height="95.76"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_25"/>
+   <g id="digit_examples_matplotlib.axis_26">
+    <g id="digit_examples_text_11">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(24.439414 508.087832) rotate(-90)">id 223</text>
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(36.442148 509.25502) rotate(-90)">label 6</text>
+    </g>
+   </g>
+   <g id="digit_examples_patch_39">
+    <path d="M 43.845469 540.54493
+L 43.845469 444.238547
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_40">
+    <path d="M 43.845469 540.54493
+L 140.151852 540.54493
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_14">
+   <g id="digit_examples_patch_41">
+    <path d="M 173.517526 540.54493
+L 269.823909 540.54493
+L 269.823909 444.238547
+L 173.517526 444.238547
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pfa54c34f78)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACFCAYAAACe7YA/AAACCElEQVR4nO3dMWpVQRSA4Xn6dmGvkM7KwhWIa7BNbRsXYFo7wU7cgCjyujTGIqlSCZKkdB3aWvyFMDfkcvm+/g3z4OdUw7m725vrP2PSzycvxxacvvgwtuDkcDx9xoNFbsLmCIMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDNJ+rMBW3kEs4fPTj9NnXBzm72FikIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGKTd14ePpxennL+/mvr99y+Xs1fgH5/ePRqzTAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDtD/69W3MOj8bm3icssSXmk4ntwOt5X+YGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRB2t3eXE8vTpn16vXv6TPW8o5hDZZ4Y2NikIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGNzdF47ue9nIUk4Ox/d9hdUwMUjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAzubqPOGjbRPHvzfPqMi7c/FrnLFpgYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBmk/NmIrj2yOFvhs1RIPp0wMkjBIwiAJA2Hw/0wMkjBIwiAJgyQMkjBIwiAJgyQMkjAY5S/2iDoThUt28wAAAABJRU5ErkJggg==" id="digit_examples_image867742aedf" transform="scale(1 -1) translate(0 -95.76)" x="173.52" y="-444.494437" width="96.48" height="95.76"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_27"/>
+   <g id="digit_examples_matplotlib.axis_28"/>
+   <g id="digit_examples_patch_42">
+    <path d="M 173.517526 540.54493
+L 173.517526 444.238547
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_43">
+    <path d="M 173.517526 540.54493
+L 269.823909 540.54493
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_15">
+   <g id="digit_examples_patch_44">
+    <path d="M 303.189583 540.54493
+L 399.495965 540.54493
+L 399.495965 444.238547
+L 303.189583 444.238547
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pe5c1eb0177)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACFCAYAAACe7YA/AAACQklEQVR4nO3dIU4kQRiA0WaDR4NDziFI+gY4NBdAT9DcggNMguMcKBwJCsUoErCY3az/xCbVk5kl7/n6Uxm+VJtKcTRN0+9p0Onp6bRv19fXwzNubm6mfXt8fByecXd3Nzzj1/AEfiRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBOjqU+xgfHx9D69/e3g7iTsc8z0Prb29vh/dwdnY2PMOJQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCOl7hks91uh2dsNpvpJ5gHL+qs1+uD+Hs4MUjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAx296LOEt7f34fWL3Hh6Pv7e3jGxcXF0Pqnp6fhPSzxWzgxSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYPDvo9xdXU1tP7h4WF4D6vVanjG19fXtG8eTmFnfEpIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJg939h6MlfH5+7v1yyvn5+fCM5+fnad88nMLO+JSQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBrt7UWeJiyEnJydD619eXob38Pr6Ojzj8vLyv3+R5y8nBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEE6ng7E6AWV+/v74T3M8zzt23aBl4G8qMPO+JSQhEESBsLg3zkxSMIgCYMkDJIwSMIgCYMkDJIwSMJgKn8A84hMTgnGWT8AAAAASUVORK5CYII=" id="digit_examples_image3dd41cb1c4" transform="scale(1 -1) translate(0 -95.76)" x="303.12" y="-444.494437" width="96.48" height="95.76"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_29">
+    <g id="digit_examples_text_12">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle" x="351.342774" y="552.143367" transform="rotate(-0 351.342774 552.143367)">prediction: 8</text>
+    </g>
+   </g>
+   <g id="digit_examples_matplotlib.axis_30"/>
+   <g id="digit_examples_patch_45">
+    <path d="M 303.189583 540.54493
+L 303.189583 444.238547
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_46">
+    <path d="M 303.189583 540.54493
+L 399.495965 540.54493
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_16">
+   <g id="digit_examples_patch_47">
+    <path d="M 432.86164 540.54493
+L 529.168022 540.54493
+L 529.168022 444.238547
+L 432.86164 444.238547
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_p309beaaa76)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACFCAYAAACe7YA/AAACSUlEQVR4nO3dsUk0QRiA4fU/U7l4Ta3DAoxswVgwukAs4kAwsABzMbMVQ7OLDKzgbOANfpiVk+N58vkY2JeJhp2TeZ730xG4ubkZnnF3dzf9BW9vb0Prb29vh/fwb3gCR0kYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQTqZpGr6PMc/z6Ijp6+traP3n5+fwHp6enoZnnJ2dDc94eHgYWn9+fj68BycGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQTqdFrBer4dnbLfb6RhsNpvhGff390Prd7vd8B6cGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgbpZIkXjpa4GLLf7w++hyX+yvPy8jI84/n5eTo0JwZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRh8Hv3MZZweXk5tP7x8XF4D0u8DDQv8NrTEndLRjkxSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDH7vhaMlXFxcHHoL09XV1fCM9/f36Rg4MUjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAz+9h911uv10PrX19fhPaxWq+EZ19fXwzO+v78P/kceJwZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBOl3iUscSzz19fHwc/OmrzWYz/QW7wW+yxPdwYpCEQRIGSRgIg//nxCAJgyQMkjBIwiAJgyQMkjBIwiAJg6n8AI6vSZPYEPUzAAAAAElFTkSuQmCC" id="digit_examples_imagedc4cd16fde" transform="scale(1 -1) translate(0 -95.76)" x="432.72" y="-444.494437" width="96.48" height="95.76"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_31"/>
+   <g id="digit_examples_matplotlib.axis_32"/>
+   <g id="digit_examples_patch_48">
+    <path d="M 432.86164 540.54493
+L 432.86164 444.238547
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_49">
+    <path d="M 432.86164 540.54493
+L 529.168022 540.54493
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_17">
+   <g id="digit_examples_patch_50">
+    <path d="M 43.845469 663.053656
+L 140.151852 663.053656
+L 140.151852 566.747273
+L 43.845469 566.747273
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_p18868122cb)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACH0lEQVR4nO3dQW0jMRiAUWdVAIUwEBoGYdBSKYNACIRCSBkEQhgkTLra+3dYyRllVL13tzVVPzmXX/ZujPEznmxZluk9TqfT9B7v7+9T67+/v6e/4ePjY2zBn2d/ANskDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgvYwNuFwu03tcr9fpPfb7/dT6r6+vTQzqnM/n6T2cGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgbrDeocDoenD9ls4Saa4/E4vcfb29v0HgZ1WI2fEpIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMJgvUGd2eGSRwzqbMHr6+v4LZwYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhMF68xiz8xSzF69sxeEBf8cjXkl6BCcGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQdqNMX7GpGVZptZfLpdNvAw0e/HJ7Xab/obd7t+/5PmcGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgbr3ahzv9+fuv5RryTNDup8fn6O38KJQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEQRIGSRisd3HKFl4GOh6P03ucTqep9efzefwWTgySMEjCIAkDYfD/nBgkYZCEQRIGSRgkYZCEQRIGSRgkYZCEwSh/ASw6OqcRA00UAAAAAElFTkSuQmCC" id="digit_examples_image51b57de3fe" transform="scale(1 -1) translate(0 -96.48)" x="43.92" y="-566.894437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_33"/>
+   <g id="digit_examples_matplotlib.axis_34">
+    <g id="digit_examples_text_13">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(24.439414 633.777809) rotate(-90)">id 1516</text>
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'" transform="translate(36.442148 631.763746) rotate(-90)">label 0</text>
+    </g>
+   </g>
+   <g id="digit_examples_patch_51">
+    <path d="M 43.845469 663.053656
+L 43.845469 566.747273
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_52">
+    <path d="M 43.845469 663.053656
+L 140.151852 663.053656
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_18">
+   <g id="digit_examples_patch_53">
+    <path d="M 173.517526 663.053656
+L 269.823909 663.053656
+L 269.823909 566.747273
+L 173.517526 566.747273
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pd987682b17)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACE0lEQVR4nO3dMWoVURiA0Xn6dmFvwCqVjbqAEBA3kDaQLmD13EBa67TuQAlvAcEiLiAgapl1KFY2nyDckTcM5/RzuQwfd5qfO5sf37/9nAbdH50OPX91cj26hWm3Px9eYyn7WIJHh94AyyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiBtR4dsfnv29WZsgcuHRQzZ8IcTgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiBt5rhR52yGQZtRH94/mZbgbCXvwolBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkLbTSsxxM9AsTq5X8S6cGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkITBuucxmPGPU04M/sanhCQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIm0+Pnw7/4WjU1QyXjbx6/Xx4jZcXxwcfkrlfyAUwTgySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDtJ3j9pUlDJfcfvwyvMbbdy+G13hz+TD0/G54B27U4T/yKSEJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJg3X/4Wi3Px9e424/wz6mz9OhzTEf48QgCYMkDJIwEAb/zolBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGEzlFw+9OCBwwE1HAAAAAElFTkSuQmCC" id="digit_examples_image8f3021736e" transform="scale(1 -1) translate(0 -96.48)" x="173.52" y="-566.894437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_35"/>
+   <g id="digit_examples_matplotlib.axis_36"/>
+   <g id="digit_examples_patch_54">
+    <path d="M 173.517526 663.053656
+L 173.517526 566.747273
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_55">
+    <path d="M 173.517526 663.053656
+L 269.823909 663.053656
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_19">
+   <g id="digit_examples_patch_56">
+    <path d="M 303.189583 663.053656
+L 399.495965 663.053656
+L 399.495965 566.747273
+L 303.189583 566.747273
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_p27f37d0d9d)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACY0lEQVR4nO3csUmkQRiA4fEwFUx/QcyMDdXIBgQze7AYsQRLWLAEYY0EwQYEAyNruOPyNziYX5TjefL5mN19mU2G2Rlj/B6TlmWZHTE+Pz+n1j8+Pk7v4fDwcHrG+/v71Pqrq6vxE/z67g3wMwmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEi7a1yy+fj4mJ6x3W6n1j8/P0/v4fLycnrG6+vrt1/U2Ww20zOcGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZpd41LNsfHx9MzXl5eptbf3NyMn+By8rLPycnJ9B7W+E2dGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZpd6xgjcslsxd11ngZaA37+/vfvYVVvgsnBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGHwdfcxZu9S/HVxcTH+BxeTn+P+/n56Dx5O4cv4KyEJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQM0s6yLL/HpKOjo9kR4/b2dmr9+fn59B5OT0+nZzw9PU2tPzg4GD+BE4MkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIg7a7x+soa3t7eptZvt9vpPZydnU3PuL6+Ht/Nizp8GX8lJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQdsYY0w+nLMsyO2Ls7e1NrX94eJjew93d3fSMzWYz/gdODJIwSMIgCQNh8O+cGCRhkIRBEgZJGCRhkIRBEgZJGCRhkITBKH8AlGRLYxETtRwAAAAASUVORK5CYII=" id="digit_examples_image5c5549b24c" transform="scale(1 -1) translate(0 -96.48)" x="303.12" y="-566.894437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_37">
+    <g id="digit_examples_text_14">
+     <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle" x="351.342774" y="674.652094" transform="rotate(-0 351.342774 674.652094)">prediction: 0</text>
+    </g>
+   </g>
+   <g id="digit_examples_matplotlib.axis_38"/>
+   <g id="digit_examples_patch_57">
+    <path d="M 303.189583 663.053656
+L 303.189583 566.747273
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_58">
+    <path d="M 303.189583 663.053656
+L 399.495965 663.053656
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_axes_20">
+   <g id="digit_examples_patch_59">
+    <path d="M 432.86164 663.053656
+L 529.168022 663.053656
+L 529.168022 566.747273
+L 432.86164 566.747273
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#digit_examples_pfcf30ebc28)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAIYAAACGCAYAAAAYefKRAAACZElEQVR4nO3dsUktQRiA0b0PsYeNLEMwsgFbEMHIwMgGBDMbEIwsQbgNCIKBINiAYGZkAQbyXgNf8GBW1uCcfH4G7sfcZJjdTNP0dxo0z/PoiGlvb29o/fHx8fAezs7Ohmc8Pz8Pz9jf35/W9mftDfA7CYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSJslLuos4enpaWj96+vr8B622+3wjLu7u+EZl5eXQ+vv7++H9+DEIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEg7S7yGc3h4ODxj9KLN1dXV9BscHR0Nzzg9PR1a76IOP8ZfCUkYJGGQhEESBkkYJGGQhEESBkkYJGGQhEESBkkYJGGQdqYFfH9/D89Y4kWcUR8fH8MzTk5Ohme8vLxMa3NikIRBEgZJGCRhkIRBEgZJGCRhkIRBEgZJGCRhkIRBEgY/dx9jibsUFxcXQ+tvb2+n3+BwgUdkzs/Pp7U5MUjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAySMEjCIAmDJAzSZp7nv9Ogz8/P0RHTw8PD0PqDg4PhPezu7g7P+Pr6Gp6x2WymtTkxSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDJIwSMIgCYMkDNLOEl/1WcL7+/vqF2Te3t6GZ1xfXw/PmOd5WpsTgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjBIwiAJgyQMkjD4uS8cLXF/YLvdTmt7fHwcnnFzczOtbYnfw4lBEgZJGCRhIAz+nxODJAySMEjCIAmDJAySMEjCIAmDJAySMJjKP4SMTz5ttUwiAAAAAElFTkSuQmCC" id="digit_examples_image58c038d98c" transform="scale(1 -1) translate(0 -96.48)" x="432.72" y="-566.894437" width="96.48" height="96.48"/>
+   </g>
+   <g id="digit_examples_matplotlib.axis_39"/>
+   <g id="digit_examples_matplotlib.axis_40"/>
+   <g id="digit_examples_patch_60">
+    <path d="M 432.86164 663.053656
+L 432.86164 566.747273
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="digit_examples_patch_61">
+    <path d="M 432.86164 663.053656
+L 529.168022 663.053656
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+  <g id="digit_examples_text_15">
+   <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="273.374038" y="25.869937" transform="rotate(-0 273.374038 25.869937)">Seed 7: four failures and one surviving example</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="digit_examples_p57ec19d7f4">
+   <rect x="43.845469" y="76.712367" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pbb684ec3e3">
+   <rect x="173.517526" y="76.712367" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pfc230d5cd4">
+   <rect x="303.189583" y="76.712367" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_p2924c98b85">
+   <rect x="432.86164" y="76.712367" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pa6150e515d">
+   <rect x="43.845469" y="199.221094" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pa6d817b922">
+   <rect x="173.517526" y="199.221094" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_p68468edfe7">
+   <rect x="303.189583" y="199.221094" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_p0966a8932d">
+   <rect x="432.86164" y="199.221094" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pdb7d5b50a5">
+   <rect x="43.845469" y="321.72982" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_p5c39f1aa51">
+   <rect x="173.517526" y="321.72982" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_p6050ad79af">
+   <rect x="303.189583" y="321.72982" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pcc9d2f061e">
+   <rect x="432.86164" y="321.72982" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pd3899183fa">
+   <rect x="43.845469" y="444.238547" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pfa54c34f78">
+   <rect x="173.517526" y="444.238547" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pe5c1eb0177">
+   <rect x="303.189583" y="444.238547" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_p309beaaa76">
+   <rect x="432.86164" y="444.238547" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_p18868122cb">
+   <rect x="43.845469" y="566.747273" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pd987682b17">
+   <rect x="173.517526" y="566.747273" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_p27f37d0d9d">
+   <rect x="303.189583" y="566.747273" width="96.306383" height="96.306383"/>
+  </clipPath>
+  <clipPath id="digit_examples_pfcf30ebc28">
+   <rect x="432.86164" y="566.747273" width="96.306383" height="96.306383"/>
+  </clipPath>
+ </defs>
+</svg></div><p><strong>图1：真实数字、实际扰动与修改后的预测。</strong>展示 seed=7、ε=0.1 的四个失败例和一个保持正确的反例。灰度图都用 0–1 相同范围；差值单独用 −0.1 到 +0.1 的颜色标尺，便于看清方向，不能把彩色差值图误当成肉眼不可见的证据。样本由确定性规则选取，不是全测试集统计。 小屏可横向滚动查看。<a href="assets/fgsm-digits/digit-examples.svg" target="_blank" rel="noopener">Open full-size figure ↗</a></p>
+<h2 id="section-02">2｜FGSM 的技巧：把“学习权重”改为“修改输入”</h2>
+<p>训练时，通常固定输入 x，更新参数 θ，让正确标签 y 的损失 L 降低。Fast Gradient Sign Method（FGSM）反过来：固定模型参数，计算损失对<strong>输入像素</strong>的梯度，然后沿使损失上升的方向修改输入。本文用真实标签计算交叉熵，目标是让模型认错，不指定它必须错成哪个数字。<a href="#source-1">[1]</a><a href="#source-2">[2]</a></p>
+<div class="formula" role="math" aria-label="g = ∇x L(fθ(x), y)xadv = clip[0,1](x + ε · sign(g))‖xadv − x‖∞ ≤ ε">g = ∇<sub>x</sub> L(f<sub>θ</sub>(x), y)<br>x<sub>adv</sub> = clip<sub>[0,1]</sub>(x + ε · sign(g))<br>‖x<sub>adv</sub> − x‖<sub>∞</sub> ≤ ε</div><details><summary>LaTeX</summary><pre><code>x_{adv}=\operatorname{clip}_{[0,1]}\left(x+\epsilon\operatorname{sign}\left(\nabla_x L(f_\theta(x),y)\right)\right)</code></pre></details>
+<p>θ 是已训练的权重，f 输出 Logits，y 是真实类别；g 的每个元素说明增加对应像素会如何改变损失，sign(g) 只保留方向，零梯度元素保持零。L∞ 范数是所有像素改变量绝对值的最大值。clip 保证修改后仍是合法灰度值，因此边界像素的实际改动可能小于 ε。</p>
+<pre><code>model.eval()
+x = images.detach().clone().requires_grad_(True)
+loss = torch.nn.functional.cross_entropy(model(x), labels)
+grad = torch.autograd.grad(loss, x)[0]
+x_adv = (x.detach() + epsilon * grad.sign()).clamp(0, 1)</code></pre>
+<p><code>eval()</code> 不禁止输入梯度；生成攻击时不能把求梯度过程包在 <code>no_grad()</code> 中。生成完毕后，测预测可以使用 no_grad。本文 MLP 没有 BN 或 Dropout，避免同批样本改变彼此的梯度；模型权重不在攻击期间更新。</p>
+<h2 id="section-03">3｜为什么取 sign？一阶近似下每个维度都能出力</h2>
+<p>在输入 x 附近，损失的一阶展开是 L(x+δ)≈L(x)+gᵀδ。如果约束每个 |δ<sub>i</sub>|≤ε，就可以让每个 δ<sub>i</sub> 的符号与 g<sub>i</sub> 对齐，得到最大的局部线性增量。<a href="#source-1">[1]</a></p>
+<div class="formula" role="math" aria-label="max‖δ‖∞≤ε gᵀδ = ε Σi |gi| = ε ‖g‖1一个最优方向：δi = ε sign(gi)">max<sub>‖δ‖∞≤ε</sub> gᵀδ = ε Σ<sub>i</sub> |g<sub>i</sub>| = ε ‖g‖<sub>1</sub><br>一个最优方向：δ<sub>i</sub> = ε sign(g<sub>i</sub>)</div><details><summary>LaTeX</summary><pre><code>\max_{\|\delta\|_\infty\le\epsilon}g^\top\delta=\epsilon\|g\|_1,\quad\delta_i=\epsilon\operatorname{sign}(g_i)</code></pre></details>
+<p>这个等式针对没有额外像素边界的一阶线性问题。存在 [0,1] 边界时，对应方向的可移动距离被截短；对非线性模型的大步扰动，一阶近似也不再保证最坏情况。FGSM 是便宜的一次梯度探索，不是整个 ε 邻域的穷尽搜索。</p>
+<p>随机方向中，许多维度对损失的正负贡献会抵消；梯度方向尽量让贡献相加。高维输入允许很多小改动累积成明显的 Logit 或损失变化。但“高维导致所有模型必然失败”仍是过度推论，实际还取决于模型、边界距离与可行扰动。</p>
+<p>Goodfellow、Shlens 与 Szegedy 的原论文（2014 年首次预印本，ICLR 2015）提出这种线性解释和快速方法，也展示了浅层线性分类器的对抗样本。它提醒读者：现象并不要求模型特别深、非线性特别复杂，不能直接归因于“神经网络太玄学”。<a href="#source-1">[1]</a></p>
+<h2 id="section-04">4｜实验设置：三个训练种子、真实数据、固定模型</h2>
+<div class="table-scroll" role="region" aria-label="Scrollable data table" tabindex="0"><table><thead><tr><th>项目</th><th>实际配置</th></tr></thead><tbody><tr><td>数据</td><td>1797 张真实 digits；8×8；10 类；原始 0–16 除以 16</td></tr><tr><td>切分</td><td>固定 stratified split seed=42；训练 1347 / 测试 450</td></tr><tr><td>模型</td><td>Flatten → Linear(64,128) → ReLU → Linear(128,64) → ReLU → Linear(64,10)</td></tr><tr><td>训练</td><td>seeds 7 /19 /31；Adam lr=0.003；batch=64；固定 40 epochs</td></tr><tr><td>checkpoint</td><td>固定最后一轮；不按测试集挑最佳模型；不使用对抗训练</td></tr><tr><td>FGSM</td><td>白盒、无目标；真实标签交叉熵；ε=0/.025/.05/.1/.15/.2/.3</td></tr><tr><td>随机对照</td><td>每像素独立 ±1；固定 seed=555；同 ε、同 clipping；同方向重复使用</td></tr><tr><td>PGD 对照</td><td>ε=.1；step=.01；20 步；5 次随机起点；按逐样本最大 CE 保留</td></tr><tr><td>环境</td><td>CPU 单线程；torch 2.13.0；numpy 2.4.6；sklearn 1.9.1</td></tr></tbody></table></div>
+<p>digits 是 UCI 手写数字数据 test 部分的拷贝；本文对这 1797 张另做教学 train/test 切分，不复现 UCI 官方协议，也不是 28×28 的 MNIST。<a href="#source-3">[3]</a> 三个训练种子共享测试集，因此代表初始化和打乱顺序的变化；不能当成三个独立数据集，也不是置信区间。</p>
+<p>攻击在<strong>所有 450 个测试输入</strong>上实际执行，包括原本就错的图；同时另报告只在干净输入正确子集上的攻击成功率，避免把原始错误算成攻击造成。随机符号对照与 FGSM 共享最大预算，但 clipping 后各图实际 L1/L2 改变量可能不同，不能说两种改动的感知强度完全一致。</p>
+<p>梯度实现还对一个真实输入的最大梯度坐标做有限差分检查：autograd=-6.221e+00，中心差分=-6.221e+00。同时断言 ε=0 时预测不变、全部输入在 [0,1]、实际 L∞ 不越界。这些检查验证基本链路，不能证明攻击已找到最坏扰动。</p>
+<h2 id="section-05">5｜实测曲线：幅度一样，定向扰动下降更快</h2>
+<div role="region" aria-label="Scrollable figure" tabindex="0" style="overflow-x:auto;margin:24px 0"><svg role="img" aria-label="图2：相同 ε 下的 FGSM 与随机方向" style="display:block;width:680px;min-width:620px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:0 auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="506.413437pt" height="308.014797pt" viewBox="0 0 506.413437 308.014797" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-23</dc:date>
+    <dc:description>Actual CPU measurements; downloadable experiment.py and results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="accuracy_curves_figure_1">
+  <g id="accuracy_curves_patch_1">
+   <path d="M 0 308.014797
+L 506.413437 308.014797
+L 506.413437 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="accuracy_curves_axes_1">
+   <g id="accuracy_curves_patch_2">
+    <path d="M 55.333438 259.173938
+L 490.573438 259.173938
+L 490.573438 31.869938
+L 55.333438 31.869938
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="accuracy_curves_FillBetweenPolyCollection_1">
+    <defs>
+     <path id="accuracy_curves_m269fb02cd7" d="M 75.117074 -264.620277
+L 75.117074 -263.639467
+L 108.089801 -246.965601
+L 141.062528 -220.973979
+L 207.007983 -134.66222
+L 272.953438 -72.380433
+L 338.898892 -52.764122
+L 470.789801 -50.312083
+L 470.789801 -53.744937
+L 470.789801 -53.744937
+L 338.898892 -59.62983
+L 272.953438 -76.303695
+L 207.007983 -138.095076
+L 141.062528 -226.368468
+L 108.089801 -248.436823
+L 75.117074 -264.620277
+z
+" style="stroke: #b34242; stroke-opacity: 0.1"/>
+    </defs>
+    <g clip-path="url(#accuracy_curves_pa4dde4af22)">
+     <use xlink:href="#accuracy_curves_m269fb02cd7" x="0" y="308.014797" style="fill: #b34242; fill-opacity: 0.1; stroke: #b34242; stroke-opacity: 0.1"/>
+    </g>
+   </g>
+   <g id="accuracy_curves_FillBetweenPolyCollection_2">
+    <defs>
+     <path id="accuracy_curves_m8ecc063a69" d="M 75.117074 -264.620277
+L 75.117074 -263.639467
+L 108.089801 -262.168232
+L 141.062528 -260.206611
+L 207.007983 -257.754566
+L 272.953438 -251.869679
+L 338.898892 -241.571112
+L 470.789801 -205.280937
+L 470.789801 -211.656236
+L 470.789801 -211.656236
+L 338.898892 -245.984778
+L 272.953438 -253.831312
+L 207.007983 -258.244978
+L 141.062528 -262.168232
+L 108.089801 -264.129865
+L 75.117074 -264.620277
+z
+" style="stroke: #286aab; stroke-opacity: 0.1"/>
+    </defs>
+    <g clip-path="url(#accuracy_curves_pa4dde4af22)">
+     <use xlink:href="#accuracy_curves_m8ecc063a69" x="0" y="308.014797" style="fill: #286aab; fill-opacity: 0.1; stroke: #286aab; stroke-opacity: 0.1"/>
+    </g>
+   </g>
+   <g id="accuracy_curves_matplotlib.axis_1">
+    <g id="accuracy_curves_xtick_1">
+     <g id="accuracy_curves_line2d_1">
+      <defs>
+       <path id="accuracy_curves_m25b15b706e" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#accuracy_curves_m25b15b706e" x="75.117074" y="259.173938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_1">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="75.117074" y="274.531359" transform="rotate(-0 75.117074 274.531359)">0.00</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_xtick_2">
+     <g id="accuracy_curves_line2d_2">
+      <g>
+       <use xlink:href="#accuracy_curves_m25b15b706e" x="141.062528" y="259.173938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_2">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="141.062528" y="274.531359" transform="rotate(-0 141.062528 274.531359)">0.05</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_xtick_3">
+     <g id="accuracy_curves_line2d_3">
+      <g>
+       <use xlink:href="#accuracy_curves_m25b15b706e" x="207.007983" y="259.173938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_3">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="207.007983" y="274.531359" transform="rotate(-0 207.007983 274.531359)">0.10</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_xtick_4">
+     <g id="accuracy_curves_line2d_4">
+      <g>
+       <use xlink:href="#accuracy_curves_m25b15b706e" x="272.953438" y="259.173938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_4">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="272.953438" y="274.531359" transform="rotate(-0 272.953438 274.531359)">0.15</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_xtick_5">
+     <g id="accuracy_curves_line2d_5">
+      <g>
+       <use xlink:href="#accuracy_curves_m25b15b706e" x="338.898892" y="259.173938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_5">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="338.898892" y="274.531359" transform="rotate(-0 338.898892 274.531359)">0.20</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_xtick_6">
+     <g id="accuracy_curves_line2d_6">
+      <g>
+       <use xlink:href="#accuracy_curves_m25b15b706e" x="404.844347" y="259.173938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_6">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="404.844347" y="274.531359" transform="rotate(-0 404.844347 274.531359)">0.25</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_xtick_7">
+     <g id="accuracy_curves_line2d_7">
+      <g>
+       <use xlink:href="#accuracy_curves_m25b15b706e" x="470.789801" y="259.173938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_7">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="470.789801" y="274.531359" transform="rotate(-0 470.789801 274.531359)">0.30</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_text_8">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="272.953438" y="289.532219" transform="rotate(-0 272.953438 289.532219)">Per-pixel epsilon in [0, 1] coordinates</text>
+    </g>
+   </g>
+   <g id="accuracy_curves_matplotlib.axis_2">
+    <g id="accuracy_curves_ytick_1">
+     <g id="accuracy_curves_line2d_8">
+      <defs>
+       <path id="accuracy_curves_mc61f793783" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#accuracy_curves_mc61f793783" x="55.333438" y="259.173938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_9">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="48.333438" y="263.352648" transform="rotate(-0 48.333438 263.352648)">0.0</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_ytick_2">
+     <g id="accuracy_curves_line2d_9">
+      <g>
+       <use xlink:href="#accuracy_curves_mc61f793783" x="55.333438" y="215.037238" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_10">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="48.333438" y="219.215949" transform="rotate(-0 48.333438 219.215949)">0.2</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_ytick_3">
+     <g id="accuracy_curves_line2d_10">
+      <g>
+       <use xlink:href="#accuracy_curves_mc61f793783" x="55.333438" y="170.900539" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_11">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="48.333438" y="175.07925" transform="rotate(-0 48.333438 175.07925)">0.4</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_ytick_4">
+     <g id="accuracy_curves_line2d_11">
+      <g>
+       <use xlink:href="#accuracy_curves_mc61f793783" x="55.333438" y="126.76384" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_12">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="48.333438" y="130.942551" transform="rotate(-0 48.333438 130.942551)">0.6</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_ytick_5">
+     <g id="accuracy_curves_line2d_12">
+      <g>
+       <use xlink:href="#accuracy_curves_mc61f793783" x="55.333438" y="82.627141" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_13">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="48.333438" y="86.805852" transform="rotate(-0 48.333438 86.805852)">0.8</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_ytick_6">
+     <g id="accuracy_curves_line2d_13">
+      <g>
+       <use xlink:href="#accuracy_curves_mc61f793783" x="55.333438" y="38.490442" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="accuracy_curves_text_14">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="48.333438" y="42.669153" transform="rotate(-0 48.333438 42.669153)">1.0</text>
+     </g>
+    </g>
+    <g id="accuracy_curves_text_15">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="24.197422" y="145.521938" transform="rotate(-90 24.197422 145.521938)">Test accuracy</text>
+    </g>
+   </g>
+   <g id="accuracy_curves_line2d_14">
+    <path d="M 75.117074 44.37533
+L 108.089801 61.049196
+L 141.062528 87.040818
+L 207.007983 169.919721
+L 272.953438 235.143957
+L 338.898892 255.250675
+L 470.789801 257.702714
+" clip-path="url(#accuracy_curves_pa4dde4af22)" style="fill: none; stroke: #b34242; stroke-opacity: 0.25; stroke-linecap: square"/>
+   </g>
+   <g id="accuracy_curves_line2d_15">
+    <path d="M 75.117074 43.39452
+L 108.089801 59.577974
+L 141.062528 85.079184
+L 207.007983 173.352577
+L 272.953438 235.634364
+L 338.898892 248.384967
+L 470.789801 254.26986
+" clip-path="url(#accuracy_curves_pa4dde4af22)" style="fill: none; stroke: #b34242; stroke-opacity: 0.25; stroke-linecap: square"/>
+   </g>
+   <g id="accuracy_curves_line2d_16">
+    <path d="M 75.117074 44.37533
+L 108.089801 61.049196
+L 141.062528 81.646329
+L 207.007983 172.862172
+L 272.953438 231.711102
+L 338.898892 248.384967
+L 470.789801 254.26986
+" clip-path="url(#accuracy_curves_pa4dde4af22)" style="fill: none; stroke: #b34242; stroke-opacity: 0.25; stroke-linecap: square"/>
+   </g>
+   <g id="accuracy_curves_line2d_17">
+    <path d="M 75.117074 44.048393
+L 108.089801 60.558788
+L 141.062528 84.588777
+L 207.007983 172.044823
+L 272.953438 234.163141
+L 338.898892 250.673536
+L 470.789801 255.414145
+" clip-path="url(#accuracy_curves_pa4dde4af22)" style="fill: none; stroke: #b34242; stroke-width: 1.5; stroke-linecap: square"/>
+    <defs>
+     <path id="accuracy_curves_mf1907d4315" d="M 0 3
+C 0.795609 3 1.55874 2.683901 2.12132 2.12132
+C 2.683901 1.55874 3 0.795609 3 0
+C 3 -0.795609 2.683901 -1.55874 2.12132 -2.12132
+C 1.55874 -2.683901 0.795609 -3 0 -3
+C -0.795609 -3 -1.55874 -2.683901 -2.12132 -2.12132
+C -2.683901 -1.55874 -3 -0.795609 -3 0
+C -3 0.795609 -2.683901 1.55874 -2.12132 2.12132
+C -1.55874 2.683901 -0.795609 3 0 3
+z
+" style="stroke: #b34242"/>
+    </defs>
+    <g clip-path="url(#accuracy_curves_pa4dde4af22)">
+     <use xlink:href="#accuracy_curves_mf1907d4315" x="75.117074" y="44.048393" style="fill: #b34242; stroke: #b34242"/>
+     <use xlink:href="#accuracy_curves_mf1907d4315" x="108.089801" y="60.558788" style="fill: #b34242; stroke: #b34242"/>
+     <use xlink:href="#accuracy_curves_mf1907d4315" x="141.062528" y="84.588777" style="fill: #b34242; stroke: #b34242"/>
+     <use xlink:href="#accuracy_curves_mf1907d4315" x="207.007983" y="172.044823" style="fill: #b34242; stroke: #b34242"/>
+     <use xlink:href="#accuracy_curves_mf1907d4315" x="272.953438" y="234.163141" style="fill: #b34242; stroke: #b34242"/>
+     <use xlink:href="#accuracy_curves_mf1907d4315" x="338.898892" y="250.673536" style="fill: #b34242; stroke: #b34242"/>
+     <use xlink:href="#accuracy_curves_mf1907d4315" x="470.789801" y="255.414145" style="fill: #b34242; stroke: #b34242"/>
+    </g>
+   </g>
+   <g id="accuracy_curves_line2d_18">
+    <path d="M 75.117074 44.37533
+L 108.089801 45.846565
+L 141.062528 47.808185
+L 207.007983 49.769819
+L 272.953438 55.164308
+L 338.898892 66.443685
+L 470.789801 96.358561
+" clip-path="url(#accuracy_curves_pa4dde4af22)" style="fill: none; stroke: #286aab; stroke-opacity: 0.25; stroke-linecap: square"/>
+   </g>
+   <g id="accuracy_curves_line2d_19">
+    <path d="M 75.117074 43.39452
+L 108.089801 43.884931
+L 141.062528 45.846565
+L 207.007983 50.260231
+L 272.953438 54.183485
+L 338.898892 62.030019
+L 470.789801 98.320194
+" clip-path="url(#accuracy_curves_pa4dde4af22)" style="fill: none; stroke: #286aab; stroke-opacity: 0.25; stroke-linecap: square"/>
+   </g>
+   <g id="accuracy_curves_line2d_20">
+    <path d="M 75.117074 44.37533
+L 108.089801 45.846565
+L 141.062528 46.827375
+L 207.007983 50.260231
+L 272.953438 56.145118
+L 338.898892 65.462875
+L 470.789801 102.73386
+" clip-path="url(#accuracy_curves_pa4dde4af22)" style="fill: none; stroke: #286aab; stroke-opacity: 0.25; stroke-linecap: square"/>
+   </g>
+   <g id="accuracy_curves_line2d_21">
+    <path d="M 75.117074 44.048393
+L 108.089801 45.192687
+L 141.062528 46.827375
+L 207.007983 50.09676
+L 272.953438 55.164304
+L 338.898892 64.645526
+L 470.789801 99.137538
+" clip-path="url(#accuracy_curves_pa4dde4af22)" style="fill: none; stroke: #286aab; stroke-width: 1.5; stroke-linecap: square"/>
+    <defs>
+     <path id="accuracy_curves_m522fc313c1" d="M 0 3
+C 0.795609 3 1.55874 2.683901 2.12132 2.12132
+C 2.683901 1.55874 3 0.795609 3 0
+C 3 -0.795609 2.683901 -1.55874 2.12132 -2.12132
+C 1.55874 -2.683901 0.795609 -3 0 -3
+C -0.795609 -3 -1.55874 -2.683901 -2.12132 -2.12132
+C -2.683901 -1.55874 -3 -0.795609 -3 0
+C -3 0.795609 -2.683901 1.55874 -2.12132 2.12132
+C -1.55874 2.683901 -0.795609 3 0 3
+z
+" style="stroke: #286aab"/>
+    </defs>
+    <g clip-path="url(#accuracy_curves_pa4dde4af22)">
+     <use xlink:href="#accuracy_curves_m522fc313c1" x="75.117074" y="44.048393" style="fill: #286aab; stroke: #286aab"/>
+     <use xlink:href="#accuracy_curves_m522fc313c1" x="108.089801" y="45.192687" style="fill: #286aab; stroke: #286aab"/>
+     <use xlink:href="#accuracy_curves_m522fc313c1" x="141.062528" y="46.827375" style="fill: #286aab; stroke: #286aab"/>
+     <use xlink:href="#accuracy_curves_m522fc313c1" x="207.007983" y="50.09676" style="fill: #286aab; stroke: #286aab"/>
+     <use xlink:href="#accuracy_curves_m522fc313c1" x="272.953438" y="55.164304" style="fill: #286aab; stroke: #286aab"/>
+     <use xlink:href="#accuracy_curves_m522fc313c1" x="338.898892" y="64.645526" style="fill: #286aab; stroke: #286aab"/>
+     <use xlink:href="#accuracy_curves_m522fc313c1" x="470.789801" y="99.137538" style="fill: #286aab; stroke: #286aab"/>
+    </g>
+   </g>
+   <g id="accuracy_curves_patch_3">
+    <path d="M 55.333438 259.173938
+L 55.333438 31.869938
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="accuracy_curves_patch_4">
+    <path d="M 55.333438 259.173938
+L 490.573438 259.173938
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="accuracy_curves_text_16">
+    <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="272.953438" y="25.869937" transform="rotate(-0 272.953438 25.869937)">Same L-infinity budget; different perturbation directions</text>
+   </g>
+   <g id="accuracy_curves_legend_1">
+    <g id="accuracy_curves_line2d_22">
+     <path d="M 288.37625 136.279359
+L 299.37625 136.279359
+L 310.37625 136.279359
+" style="fill: none; stroke: #b34242; stroke-width: 1.5; stroke-linecap: square"/>
+     <g>
+      <use xlink:href="#accuracy_curves_mf1907d4315" x="299.37625" y="136.279359" style="fill: #b34242; stroke: #b34242"/>
+     </g>
+    </g>
+    <g id="accuracy_curves_text_17">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="319.17625" y="140.129359" transform="rotate(-0 319.17625 140.129359)">FGSM (3-seed mean)</text>
+    </g>
+    <g id="accuracy_curves_line2d_23">
+     <path d="M 288.37625 152.780219
+L 299.37625 152.780219
+L 310.37625 152.780219
+" style="fill: none; stroke: #286aab; stroke-width: 1.5; stroke-linecap: square"/>
+     <g>
+      <use xlink:href="#accuracy_curves_m522fc313c1" x="299.37625" y="152.780219" style="fill: #286aab; stroke: #286aab"/>
+     </g>
+    </g>
+    <g id="accuracy_curves_text_18">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="319.17625" y="156.630219" transform="rotate(-0 319.17625 156.630219)">Random signs (3-seed mean)</text>
+    </g>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="accuracy_curves_pa4dde4af22">
+   <rect x="55.333438" y="31.869937" width="435.24" height="227.304"/>
+  </clipPath>
+ </defs>
+</svg></div><p><strong>图2：相同 ε 下的 FGSM 与随机方向。</strong>粗线是三个训练种子平均值，细线与淡色带显示实际各种子范围；只连接实测 ε 点，带宽不是统计置信区间。纵轴为全部 450 个测试输入的准确率。 小屏可横向滚动查看。<a href="assets/fgsm-digits/accuracy-curves.svg" target="_blank" rel="noopener">Open full-size figure ↗</a></p>
+<div class="table-scroll" role="region" aria-label="Scrollable data table" tabindex="0"><table><thead><tr><th>训练 seed</th><th>干净正确数</th><th>干净 Acc</th><th>FGSM Acc (.1)</th><th>随机 Acc (.1)</th><th>PGD Acc (.1)</th><th>FGSM 新失败/原正确</th><th>条件成功率</th></tr></thead><tbody><tr><td>7</td><td>438/450</td><td>97.33%</td><td>40.44%</td><td>94.89%</td><td>34.22%</td><td>256/438</td><td>58.45%</td></tr><tr><td>19</td><td>440/450</td><td>97.78%</td><td>38.89%</td><td>94.67%</td><td>30.22%</td><td>265/440</td><td>60.23%</td></tr><tr><td>31</td><td>438/450</td><td>97.33%</td><td>39.11%</td><td>94.67%</td><td>31.11%</td><td>262/438</td><td>59.82%</td></tr></tbody></table></div>
+<p>这三个固定模型上，FGSM 与随机方向的差异一致可见；但每个 ε 的准确率不是自然常数，换模型、训练强度、数据或预处理都会改变。ε=0 是干净基线，小 ε 下也有大量样本仍保持正确。图中最后一行就是 ε=0.1 的幸存例；一次攻击失败不能被换算成“没有对抗样本”。</p>
+<p>本实验的输入间距原本是 1/16=0.0625。ε=0.1 相当于最多 1.6 个原始灰度单位，改后的浮点图没有重新量化回 0–16 格点。ε=0.3 的修改则明显更大，可能改变人类对图像的判断。这里没有组织人类标注，所以“保留标签”是数值威胁模型的评估假设，不能把全部扰动都称作语义不变。</p>
+<h2 id="section-06">6｜别混用两个分母：Accuracy 与攻击成功率</h2>
+<div class="formula" role="math" aria-label="Accuracyattack = 攻击后预测正确数 / 全部测试样本数ASRclean-correct = 原本正确、攻击后变错的样本数 / 原本正确的样本数">Accuracy<sub>attack</sub> = 攻击后预测正确数 / 全部测试样本数<br>ASR<sub>clean-correct</sub> = 原本正确、攻击后变错的样本数 / 原本正确的样本数</div>
+<p>以 seed=7、ε=.1 为例，原正确 438 张中，256 张变错，因此条件攻击成功率=58.45%。攻击后全部测试集正确 182/450；另有 0 张原错输入被改成正确。只有把这些集合和分母说清楚，读者才能判断准确率下降究竟来自哪里。<a href="#source-4">[4]</a></p>
+<div role="region" aria-label="Scrollable figure" tabindex="0" style="overflow-x:auto;margin:24px 0"><svg role="img" aria-label="图3：从只看总准确率，到观察错成了什么" style="display:block;width:680px;min-width:620px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:0 auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="513.387425pt" height="281.982314pt" viewBox="0 0 513.387425 281.982314" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-23</dc:date>
+    <dc:description>Actual CPU measurements; downloadable experiment.py and results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="confusion_matrices_figure_1">
+  <g id="confusion_matrices_patch_1">
+   <path d="M 0 281.982314
+L 513.387425 281.982314
+L 513.387425 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="confusion_matrices_axes_1">
+   <g id="confusion_matrices_patch_2">
+    <path d="M 44.839609 233.141455
+L 215.487425 233.141455
+L 215.487425 62.493639
+L 44.839609 62.493639
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#confusion_matrices_pf2842507dc)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAO0AAADtCAYAAABTTfKPAAADmUlEQVR4nO3cv2qTYRiH4cTEYhYhg4fSpY6Onkq3joKTq5sH5OTiwQRcAs0/6SrU7SHc4boO4Gn4ys27/Zb7w+Wy4CqOp/Po/fXqzeh9Xrd9eFpM8V+FGNFCjGghRrQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYtbTf2D/fBq9v7lbLarsEl/P9vP30fu7X3P3vbQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFmOX+cLlc+0fAv7b3j6MfZff7R/aje2khRrQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFmPW1fwBN24en9C7x8XQevb9ezb2HXlqIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghxu7xDdveP2Z3iaetB3eJp3eVvbQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGBOqNzpxegszp2XrwYlWLy3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQY/f4hneJj6dzcteX//PlIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihZjx3ePJ7d0XHz59ze4ST7NNfJu8tBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZiRAsxooWY8QnVyYnTF7uf30bvc5v+7A+j999v3o7d9tJCjGghRrQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMct3H79cJv+AXeLX7Z9Pk59+sblbjd7nOry0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRwqLlL0itPupd0pVnAAAAAElFTkSuQmCC" id="confusion_matrices_image7e5e289be7" transform="scale(1 -1) translate(0 -170.64)" x="44.64" y="-62.382314" width="170.64" height="170.64"/>
+   </g>
+   <g id="confusion_matrices_matplotlib.axis_1">
+    <g id="confusion_matrices_xtick_1">
+     <g id="confusion_matrices_line2d_1">
+      <defs>
+       <path id="confusion_matrices_m25b15b706e" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="53.372" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_1">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="53.372" y="248.498876" transform="rotate(-0 53.372 248.498876)">0</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_2">
+     <g id="confusion_matrices_line2d_2">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="70.436782" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_2">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="70.436782" y="248.498876" transform="rotate(-0 70.436782 248.498876)">1</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_3">
+     <g id="confusion_matrices_line2d_3">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="87.501563" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_3">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="87.501563" y="248.498876" transform="rotate(-0 87.501563 248.498876)">2</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_4">
+     <g id="confusion_matrices_line2d_4">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="104.566345" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_4">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="104.566345" y="248.498876" transform="rotate(-0 104.566345 248.498876)">3</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_5">
+     <g id="confusion_matrices_line2d_5">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="121.631126" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_5">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="121.631126" y="248.498876" transform="rotate(-0 121.631126 248.498876)">4</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_6">
+     <g id="confusion_matrices_line2d_6">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="138.695908" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_6">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="138.695908" y="248.498876" transform="rotate(-0 138.695908 248.498876)">5</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_7">
+     <g id="confusion_matrices_line2d_7">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="155.760689" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_7">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="155.760689" y="248.498876" transform="rotate(-0 155.760689 248.498876)">6</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_8">
+     <g id="confusion_matrices_line2d_8">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="172.825471" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_8">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="172.825471" y="248.498876" transform="rotate(-0 172.825471 248.498876)">7</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_9">
+     <g id="confusion_matrices_line2d_9">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="189.890252" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_9">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="189.890252" y="248.498876" transform="rotate(-0 189.890252 248.498876)">8</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_10">
+     <g id="confusion_matrices_line2d_10">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="206.955034" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_10">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="206.955034" y="248.498876" transform="rotate(-0 206.955034 248.498876)">9</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_text_11">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="130.163517" y="263.499736" transform="rotate(-0 130.163517 263.499736)">Predicted digit</text>
+    </g>
+   </g>
+   <g id="confusion_matrices_matplotlib.axis_2">
+    <g id="confusion_matrices_ytick_1">
+     <g id="confusion_matrices_line2d_11">
+      <defs>
+       <path id="confusion_matrices_mc61f793783" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="71.02603" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_12">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="75.204741" transform="rotate(-0 37.839609 75.204741)">0</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_2">
+     <g id="confusion_matrices_line2d_12">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="88.090812" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_13">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="92.269522" transform="rotate(-0 37.839609 92.269522)">1</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_3">
+     <g id="confusion_matrices_line2d_13">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="105.155593" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_14">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="109.334304" transform="rotate(-0 37.839609 109.334304)">2</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_4">
+     <g id="confusion_matrices_line2d_14">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="122.220375" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_15">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="126.399086" transform="rotate(-0 37.839609 126.399086)">3</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_5">
+     <g id="confusion_matrices_line2d_15">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="139.285156" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_16">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="143.463867" transform="rotate(-0 37.839609 143.463867)">4</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_6">
+     <g id="confusion_matrices_line2d_16">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="156.349938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_17">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="160.528649" transform="rotate(-0 37.839609 160.528649)">5</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_7">
+     <g id="confusion_matrices_line2d_17">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="173.414719" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_18">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="177.59343" transform="rotate(-0 37.839609 177.59343)">6</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_8">
+     <g id="confusion_matrices_line2d_18">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="190.479501" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_19">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="194.658212" transform="rotate(-0 37.839609 194.658212)">7</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_9">
+     <g id="confusion_matrices_line2d_19">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="207.544282" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_20">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="211.722993" transform="rotate(-0 37.839609 211.722993)">8</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_10">
+     <g id="confusion_matrices_line2d_20">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="44.839609" y="224.609064" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_21">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="37.839609" y="228.787775" transform="rotate(-0 37.839609 228.787775)">9</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_text_22">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="24.198281" y="147.817547" transform="rotate(-90 24.198281 147.817547)">True digit</text>
+    </g>
+   </g>
+   <g id="confusion_matrices_patch_3">
+    <path d="M 44.839609 233.141455
+L 44.839609 62.493639
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="confusion_matrices_patch_4">
+    <path d="M 44.839609 233.141455
+L 215.487425 233.141455
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="confusion_matrices_text_23">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="53.372" y="72.844389" transform="rotate(-0 53.372 72.844389)">43</text>
+   </g>
+   <g id="confusion_matrices_text_24">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="121.631126" y="72.844389" transform="rotate(-0 121.631126 72.844389)">2</text>
+   </g>
+   <g id="confusion_matrices_text_25">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="70.436782" y="89.909171" transform="rotate(-0 70.436782 89.909171)">43</text>
+   </g>
+   <g id="confusion_matrices_text_26">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="189.890252" y="89.909171" transform="rotate(-0 189.890252 89.909171)">3</text>
+   </g>
+   <g id="confusion_matrices_text_27">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="70.436782" y="106.973952" transform="rotate(-0 70.436782 106.973952)">1</text>
+   </g>
+   <g id="confusion_matrices_text_28">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="87.501563" y="106.973952" transform="rotate(-0 87.501563 106.973952)">43</text>
+   </g>
+   <g id="confusion_matrices_text_29">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="104.566345" y="124.038734" transform="rotate(-0 104.566345 124.038734)">45</text>
+   </g>
+   <g id="confusion_matrices_text_30">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="138.695908" y="124.038734" transform="rotate(-0 138.695908 124.038734)">1</text>
+   </g>
+   <g id="confusion_matrices_text_31">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="121.631126" y="141.103515" transform="rotate(-0 121.631126 141.103515)">45</text>
+   </g>
+   <g id="confusion_matrices_text_32">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="138.695908" y="158.168297" transform="rotate(-0 138.695908 158.168297)">45</text>
+   </g>
+   <g id="confusion_matrices_text_33">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="206.955034" y="158.168297" transform="rotate(-0 206.955034 158.168297)">1</text>
+   </g>
+   <g id="confusion_matrices_text_34">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="155.760689" y="175.233079" transform="rotate(-0 155.760689 175.233079)">44</text>
+   </g>
+   <g id="confusion_matrices_text_35">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="189.890252" y="175.233079" transform="rotate(-0 189.890252 175.233079)">1</text>
+   </g>
+   <g id="confusion_matrices_text_36">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="172.825471" y="192.29786" transform="rotate(-0 172.825471 192.29786)">45</text>
+   </g>
+   <g id="confusion_matrices_text_37">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="70.436782" y="209.362642" transform="rotate(-0 70.436782 209.362642)">2</text>
+   </g>
+   <g id="confusion_matrices_text_38">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="189.890252" y="209.362642" transform="rotate(-0 189.890252 209.362642)">41</text>
+   </g>
+   <g id="confusion_matrices_text_39">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="121.631126" y="226.427423" transform="rotate(-0 121.631126 226.427423)">1</text>
+   </g>
+   <g id="confusion_matrices_text_40">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="206.955034" y="226.427423" transform="rotate(-0 206.955034 226.427423)">44</text>
+   </g>
+   <g id="confusion_matrices_text_41">
+    <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="130.163517" y="56.493639" transform="rotate(-0 130.163517 56.493639)">Clean</text>
+   </g>
+  </g>
+  <g id="confusion_matrices_axes_2">
+   <g id="confusion_matrices_patch_5">
+    <path d="M 326.899609 233.141455
+L 497.547425 233.141455
+L 497.547425 62.493639
+L 326.899609 62.493639
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#confusion_matrices_p3e541bcbae)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAO0AAADtCAYAAABTTfKPAAAEhUlEQVR4nO3cPWuedRiH4TtNUvr4EjFKh0pxULduBYuTiKubm4MufgTd3B1FXF0EcdLvUEQHRaGCQwerFW1Bh1iT0oS8NNLR3Us94Tg+wI+HO5z8M11rv+0eni6DtlabS9X123uj+9sPd7/N+cfOje7f2tkf3d87OB7b3lxfWyadGV0H/nGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcRsTN8lvnbzztj2pYtbS/ku8fYjZ7N3mx9dtb/NJHePgb/x7zHEiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCzNr+0enpErV/eLKU7dw9HN1fnV3Pnjh99cOvR/c/fv3yUuWlhRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmI2pm8Hb66vJe/6/hv2Do5H9ydvE3/wxY1l0mdvPj+6/9WNnbHtK89sL5O8tBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZiRAsxooUY0ULM2v7R6el//SP+r67dvDO6f+ni1uj+e5//OLb99kvPLpPK97i//2V3meSlhRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZiRAsxooUY0UKMaCFGtBAjWogRLcSMn1D9/c+Dse3zj51byl776NvR/U/euJz8uz6wf3R/dP/pJx/Knn/10kKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZiRAsx43ePJ12/vTe6/8PO7P4rly6M7u/uH41tb602l0k7dw9H91dn18e2v/l5Z5nkpYUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZixu8eT94mfv/Ln5ZJ77z83Oj+U9ur0f3jk/tj2xvrZ7K//YF7hydL9Sa0lxZiRAsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQs7Z3cDJ6QvXWHwdj2/uDZzAfuPD4udH9zeEzpJvra0vV9InWT7/7dWz7hYtPLJO8tBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES3EiBZiRAsxooUY0ULM2pV3r47ePb761ovZu8ers+uj+zt3D0f3t1YbY9v3hr/91mpzdP/45P7Y9u7+8TLJSwsxooUY0UKMaCFGtBAjWogRLcSIFmJECzGihRjRQoxoIUa0ECNaiBEtxIgWYkQLMaKFGNFCjGghRrQQI1qIES0sLX8Bc0yVnakVXf0AAAAASUVORK5CYII=" id="confusion_matrices_imagefeeb8d6a83" transform="scale(1 -1) translate(0 -170.64)" x="326.88" y="-62.382314" width="170.64" height="170.64"/>
+   </g>
+   <g id="confusion_matrices_matplotlib.axis_3">
+    <g id="confusion_matrices_xtick_11">
+     <g id="confusion_matrices_line2d_21">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="335.432" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_42">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="335.432" y="248.498876" transform="rotate(-0 335.432 248.498876)">0</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_12">
+     <g id="confusion_matrices_line2d_22">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="352.496782" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_43">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="352.496782" y="248.498876" transform="rotate(-0 352.496782 248.498876)">1</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_13">
+     <g id="confusion_matrices_line2d_23">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="369.561563" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_44">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="369.561563" y="248.498876" transform="rotate(-0 369.561563 248.498876)">2</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_14">
+     <g id="confusion_matrices_line2d_24">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="386.626345" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_45">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="386.626345" y="248.498876" transform="rotate(-0 386.626345 248.498876)">3</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_15">
+     <g id="confusion_matrices_line2d_25">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="403.691126" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_46">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="403.691126" y="248.498876" transform="rotate(-0 403.691126 248.498876)">4</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_16">
+     <g id="confusion_matrices_line2d_26">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="420.755908" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_47">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="420.755908" y="248.498876" transform="rotate(-0 420.755908 248.498876)">5</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_17">
+     <g id="confusion_matrices_line2d_27">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="437.820689" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_48">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="437.820689" y="248.498876" transform="rotate(-0 437.820689 248.498876)">6</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_18">
+     <g id="confusion_matrices_line2d_28">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="454.885471" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_49">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="454.885471" y="248.498876" transform="rotate(-0 454.885471 248.498876)">7</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_19">
+     <g id="confusion_matrices_line2d_29">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="471.950252" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_50">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="471.950252" y="248.498876" transform="rotate(-0 471.950252 248.498876)">8</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_xtick_20">
+     <g id="confusion_matrices_line2d_30">
+      <g>
+       <use xlink:href="#confusion_matrices_m25b15b706e" x="489.015034" y="233.141455" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_51">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="489.015034" y="248.498876" transform="rotate(-0 489.015034 248.498876)">9</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_text_52">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="412.223517" y="263.499736" transform="rotate(-0 412.223517 263.499736)">Predicted digit</text>
+    </g>
+   </g>
+   <g id="confusion_matrices_matplotlib.axis_4">
+    <g id="confusion_matrices_ytick_11">
+     <g id="confusion_matrices_line2d_31">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="71.02603" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_53">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="75.204741" transform="rotate(-0 319.899609 75.204741)">0</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_12">
+     <g id="confusion_matrices_line2d_32">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="88.090812" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_54">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="92.269522" transform="rotate(-0 319.899609 92.269522)">1</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_13">
+     <g id="confusion_matrices_line2d_33">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="105.155593" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_55">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="109.334304" transform="rotate(-0 319.899609 109.334304)">2</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_14">
+     <g id="confusion_matrices_line2d_34">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="122.220375" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_56">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="126.399086" transform="rotate(-0 319.899609 126.399086)">3</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_15">
+     <g id="confusion_matrices_line2d_35">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="139.285156" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_57">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="143.463867" transform="rotate(-0 319.899609 143.463867)">4</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_16">
+     <g id="confusion_matrices_line2d_36">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="156.349938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_58">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="160.528649" transform="rotate(-0 319.899609 160.528649)">5</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_17">
+     <g id="confusion_matrices_line2d_37">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="173.414719" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_59">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="177.59343" transform="rotate(-0 319.899609 177.59343)">6</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_18">
+     <g id="confusion_matrices_line2d_38">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="190.479501" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_60">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="194.658212" transform="rotate(-0 319.899609 194.658212)">7</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_19">
+     <g id="confusion_matrices_line2d_39">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="207.544282" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_61">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="211.722993" transform="rotate(-0 319.899609 211.722993)">8</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_ytick_20">
+     <g id="confusion_matrices_line2d_40">
+      <g>
+       <use xlink:href="#confusion_matrices_mc61f793783" x="326.899609" y="224.609064" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="confusion_matrices_text_62">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="319.899609" y="228.787775" transform="rotate(-0 319.899609 228.787775)">9</text>
+     </g>
+    </g>
+    <g id="confusion_matrices_text_63">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="306.258281" y="147.817547" transform="rotate(-90 306.258281 147.817547)">True digit</text>
+    </g>
+   </g>
+   <g id="confusion_matrices_patch_6">
+    <path d="M 326.899609 233.141455
+L 326.899609 62.493639
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="confusion_matrices_patch_7">
+    <path d="M 326.899609 233.141455
+L 497.547425 233.141455
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="confusion_matrices_text_64">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="335.432" y="72.844389" transform="rotate(-0 335.432 72.844389)">30</text>
+   </g>
+   <g id="confusion_matrices_text_65">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="369.561563" y="72.844389" transform="rotate(-0 369.561563 72.844389)">2</text>
+   </g>
+   <g id="confusion_matrices_text_66">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="403.691126" y="72.844389" transform="rotate(-0 403.691126 72.844389)">4</text>
+   </g>
+   <g id="confusion_matrices_text_67">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="420.755908" y="72.844389" transform="rotate(-0 420.755908 72.844389)">1</text>
+   </g>
+   <g id="confusion_matrices_text_68">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="437.820689" y="72.844389" transform="rotate(-0 437.820689 72.844389)">3</text>
+   </g>
+   <g id="confusion_matrices_text_69">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="471.950252" y="72.844389" transform="rotate(-0 471.950252 72.844389)">1</text>
+   </g>
+   <g id="confusion_matrices_text_70">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="489.015034" y="72.844389" transform="rotate(-0 489.015034 72.844389)">4</text>
+   </g>
+   <g id="confusion_matrices_text_71">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="335.432" y="89.909171" transform="rotate(-0 335.432 89.909171)">1</text>
+   </g>
+   <g id="confusion_matrices_text_72">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="352.496782" y="89.909171" transform="rotate(-0 352.496782 89.909171)">7</text>
+   </g>
+   <g id="confusion_matrices_text_73">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="369.561563" y="89.909171" transform="rotate(-0 369.561563 89.909171)">9</text>
+   </g>
+   <g id="confusion_matrices_text_74">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="386.626345" y="89.909171" transform="rotate(-0 386.626345 89.909171)">3</text>
+   </g>
+   <g id="confusion_matrices_text_75">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="403.691126" y="89.909171" transform="rotate(-0 403.691126 89.909171)">2</text>
+   </g>
+   <g id="confusion_matrices_text_76">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="420.755908" y="89.909171" transform="rotate(-0 420.755908 89.909171)">1</text>
+   </g>
+   <g id="confusion_matrices_text_77">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="437.820689" y="89.909171" transform="rotate(-0 437.820689 89.909171)">1</text>
+   </g>
+   <g id="confusion_matrices_text_78">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="471.950252" y="89.909171" transform="rotate(-0 471.950252 89.909171)">16</text>
+   </g>
+   <g id="confusion_matrices_text_79">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="489.015034" y="89.909171" transform="rotate(-0 489.015034 89.909171)">6</text>
+   </g>
+   <g id="confusion_matrices_text_80">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="352.496782" y="106.973952" transform="rotate(-0 352.496782 106.973952)">9</text>
+   </g>
+   <g id="confusion_matrices_text_81">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="369.561563" y="106.973952" transform="rotate(-0 369.561563 106.973952)">24</text>
+   </g>
+   <g id="confusion_matrices_text_82">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="386.626345" y="106.973952" transform="rotate(-0 386.626345 106.973952)">6</text>
+   </g>
+   <g id="confusion_matrices_text_83">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="420.755908" y="106.973952" transform="rotate(-0 420.755908 106.973952)">1</text>
+   </g>
+   <g id="confusion_matrices_text_84">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="454.885471" y="106.973952" transform="rotate(-0 454.885471 106.973952)">1</text>
+   </g>
+   <g id="confusion_matrices_text_85">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="471.950252" y="106.973952" transform="rotate(-0 471.950252 106.973952)">3</text>
+   </g>
+   <g id="confusion_matrices_text_86">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="369.561563" y="124.038734" transform="rotate(-0 369.561563 124.038734)">9</text>
+   </g>
+   <g id="confusion_matrices_text_87">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="386.626345" y="124.038734" transform="rotate(-0 386.626345 124.038734)">15</text>
+   </g>
+   <g id="confusion_matrices_text_88">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="420.755908" y="124.038734" transform="rotate(-0 420.755908 124.038734)">3</text>
+   </g>
+   <g id="confusion_matrices_text_89">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="454.885471" y="124.038734" transform="rotate(-0 454.885471 124.038734)">4</text>
+   </g>
+   <g id="confusion_matrices_text_90">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="471.950252" y="124.038734" transform="rotate(-0 471.950252 124.038734)">2</text>
+   </g>
+   <g id="confusion_matrices_text_91">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="489.015034" y="124.038734" transform="rotate(-0 489.015034 124.038734)">13</text>
+   </g>
+   <g id="confusion_matrices_text_92">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="352.496782" y="141.103515" transform="rotate(-0 352.496782 141.103515)">5</text>
+   </g>
+   <g id="confusion_matrices_text_93">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="403.691126" y="141.103515" transform="rotate(-0 403.691126 141.103515)">26</text>
+   </g>
+   <g id="confusion_matrices_text_94">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="437.820689" y="141.103515" transform="rotate(-0 437.820689 141.103515)">5</text>
+   </g>
+   <g id="confusion_matrices_text_95">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="454.885471" y="141.103515" transform="rotate(-0 454.885471 141.103515)">7</text>
+   </g>
+   <g id="confusion_matrices_text_96">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="489.015034" y="141.103515" transform="rotate(-0 489.015034 141.103515)">2</text>
+   </g>
+   <g id="confusion_matrices_text_97">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="386.626345" y="158.168297" transform="rotate(-0 386.626345 158.168297)">11</text>
+   </g>
+   <g id="confusion_matrices_text_98">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="403.691126" y="158.168297" transform="rotate(-0 403.691126 158.168297)">1</text>
+   </g>
+   <g id="confusion_matrices_text_99">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="420.755908" y="158.168297" transform="rotate(-0 420.755908 158.168297)">20</text>
+   </g>
+   <g id="confusion_matrices_text_100">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="454.885471" y="158.168297" transform="rotate(-0 454.885471 158.168297)">2</text>
+   </g>
+   <g id="confusion_matrices_text_101">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="471.950252" y="158.168297" transform="rotate(-0 471.950252 158.168297)">1</text>
+   </g>
+   <g id="confusion_matrices_text_102">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="489.015034" y="158.168297" transform="rotate(-0 489.015034 158.168297)">11</text>
+   </g>
+   <g id="confusion_matrices_text_103">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="335.432" y="175.233079" transform="rotate(-0 335.432 175.233079)">2</text>
+   </g>
+   <g id="confusion_matrices_text_104">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="352.496782" y="175.233079" transform="rotate(-0 352.496782 175.233079)">1</text>
+   </g>
+   <g id="confusion_matrices_text_105">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="403.691126" y="175.233079" transform="rotate(-0 403.691126 175.233079)">9</text>
+   </g>
+   <g id="confusion_matrices_text_106">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="420.755908" y="175.233079" transform="rotate(-0 420.755908 175.233079)">2</text>
+   </g>
+   <g id="confusion_matrices_text_107">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="437.820689" y="175.233079" transform="rotate(-0 437.820689 175.233079)">19</text>
+   </g>
+   <g id="confusion_matrices_text_108">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="471.950252" y="175.233079" transform="rotate(-0 471.950252 175.233079)">12</text>
+   </g>
+   <g id="confusion_matrices_text_109">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="369.561563" y="192.29786" transform="rotate(-0 369.561563 192.29786)">2</text>
+   </g>
+   <g id="confusion_matrices_text_110">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="386.626345" y="192.29786" transform="rotate(-0 386.626345 192.29786)">2</text>
+   </g>
+   <g id="confusion_matrices_text_111">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="403.691126" y="192.29786" transform="rotate(-0 403.691126 192.29786)">6</text>
+   </g>
+   <g id="confusion_matrices_text_112">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="420.755908" y="192.29786" transform="rotate(-0 420.755908 192.29786)">4</text>
+   </g>
+   <g id="confusion_matrices_text_113">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="454.885471" y="192.29786" transform="rotate(-0 454.885471 192.29786)">27</text>
+   </g>
+   <g id="confusion_matrices_text_114">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="471.950252" y="192.29786" transform="rotate(-0 471.950252 192.29786)">2</text>
+   </g>
+   <g id="confusion_matrices_text_115">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="489.015034" y="192.29786" transform="rotate(-0 489.015034 192.29786)">2</text>
+   </g>
+   <g id="confusion_matrices_text_116">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="352.496782" y="209.362642" transform="rotate(-0 352.496782 209.362642)">11</text>
+   </g>
+   <g id="confusion_matrices_text_117">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="369.561563" y="209.362642" transform="rotate(-0 369.561563 209.362642)">1</text>
+   </g>
+   <g id="confusion_matrices_text_118">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="386.626345" y="209.362642" transform="rotate(-0 386.626345 209.362642)">5</text>
+   </g>
+   <g id="confusion_matrices_text_119">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="403.691126" y="209.362642" transform="rotate(-0 403.691126 209.362642)">1</text>
+   </g>
+   <g id="confusion_matrices_text_120">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="420.755908" y="209.362642" transform="rotate(-0 420.755908 209.362642)">10</text>
+   </g>
+   <g id="confusion_matrices_text_121">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="437.820689" y="209.362642" transform="rotate(-0 437.820689 209.362642)">2</text>
+   </g>
+   <g id="confusion_matrices_text_122">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="454.885471" y="209.362642" transform="rotate(-0 454.885471 209.362642)">2</text>
+   </g>
+   <g id="confusion_matrices_text_123">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="471.950252" y="209.362642" transform="rotate(-0 471.950252 209.362642)">6</text>
+   </g>
+   <g id="confusion_matrices_text_124">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="489.015034" y="209.362642" transform="rotate(-0 489.015034 209.362642)">5</text>
+   </g>
+   <g id="confusion_matrices_text_125">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="335.432" y="226.427423" transform="rotate(-0 335.432 226.427423)">3</text>
+   </g>
+   <g id="confusion_matrices_text_126">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="386.626345" y="226.427423" transform="rotate(-0 386.626345 226.427423)">9</text>
+   </g>
+   <g id="confusion_matrices_text_127">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="403.691126" y="226.427423" transform="rotate(-0 403.691126 226.427423)">5</text>
+   </g>
+   <g id="confusion_matrices_text_128">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="420.755908" y="226.427423" transform="rotate(-0 420.755908 226.427423)">5</text>
+   </g>
+   <g id="confusion_matrices_text_129">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="454.885471" y="226.427423" transform="rotate(-0 454.885471 226.427423)">6</text>
+   </g>
+   <g id="confusion_matrices_text_130">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="471.950252" y="226.427423" transform="rotate(-0 471.950252 226.427423)">9</text>
+   </g>
+   <g id="confusion_matrices_text_131">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="489.015034" y="226.427423" transform="rotate(-0 489.015034 226.427423)">8</text>
+   </g>
+   <g id="confusion_matrices_text_132">
+    <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="412.223517" y="56.493639" transform="rotate(-0 412.223517 56.493639)">FGSM epsilon 0.1</text>
+   </g>
+  </g>
+  <g id="confusion_matrices_text_133">
+   <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="256.593517" y="25.869938" transform="rotate(-0 256.593517 25.869938)">Same 450 test digits; counts, not row-normalized percentages</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="confusion_matrices_pf2842507dc">
+   <rect x="44.839609" y="62.493639" width="170.647815" height="170.647815"/>
+  </clipPath>
+  <clipPath id="confusion_matrices_p3e541bcbae">
+   <rect x="326.899609" y="62.493639" width="170.647815" height="170.647815"/>
+  </clipPath>
+ </defs>
+</svg></div><p><strong>图3：从只看总准确率，到观察错成了什么。</strong>同一 seed=7、同一测试集的原始计数；行是真实标签，列是预测。没有把每行归一化，也没有把它伪装成同一个二分类混淆矩阵。 小屏可横向滚动查看。<a href="assets/fgsm-digits/confusion-matrices.svg" target="_blank" rel="noopener">Open full-size figure ↗</a></p>
+<p>十分类使用 one-vs-rest 逐类 TP/FP/TN/FN：TP 是真实为 c 且预测为 c；FN 是真实为 c 却预测为其他；FP 是其他类误报为 c；TN 是其余样本。Precision=TP/(TP+FP)，Recall=TP/(TP+FN)，F1=2PR/(P+R)。某类别从未被预测时 precision 按 0 处理。下表是 ε=.1 的全部逐类指标：</p>
+<div class="table-scroll" role="region" aria-label="Scrollable data table" tabindex="0"><table><thead><tr><th>数字</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody><tr><td>0</td><td>30</td><td>6</td><td>399</td><td>15</td><td>83.33%</td><td>66.67%</td><td>74.07%</td></tr><tr><td>1</td><td>7</td><td>26</td><td>378</td><td>39</td><td>21.21%</td><td>15.22%</td><td>17.72%</td></tr><tr><td>2</td><td>24</td><td>23</td><td>383</td><td>20</td><td>51.06%</td><td>54.55%</td><td>52.75%</td></tr><tr><td>3</td><td>15</td><td>36</td><td>368</td><td>31</td><td>29.41%</td><td>32.61%</td><td>30.93%</td></tr><tr><td>4</td><td>26</td><td>28</td><td>377</td><td>19</td><td>48.15%</td><td>57.78%</td><td>52.53%</td></tr><tr><td>5</td><td>20</td><td>27</td><td>377</td><td>26</td><td>42.55%</td><td>43.48%</td><td>43.01%</td></tr><tr><td>6</td><td>19</td><td>11</td><td>394</td><td>26</td><td>63.33%</td><td>42.22%</td><td>50.67%</td></tr><tr><td>7</td><td>27</td><td>22</td><td>383</td><td>18</td><td>55.10%</td><td>60.00%</td><td>57.45%</td></tr><tr><td>8</td><td>6</td><td>46</td><td>361</td><td>37</td><td>11.54%</td><td>13.95%</td><td>12.63%</td></tr><tr><td>9</td><td>8</td><td>43</td><td>362</td><td>37</td><td>15.69%</td><td>17.78%</td><td>16.67%</td></tr></tbody></table></div>
+<p>该点 Macro Precision=42.14%，Macro Recall=40.42%，Macro F1=40.84%。Macro F1 是先算每类 F1 再平均，不是把 Macro Precision 与 Macro Recall 代入一次 F1 公式。完整 JSON 保存所有 seed、ε 和方法的混淆矩阵与逐类指标。</p>
+<h2 id="section-07">7｜更强一点的对照：FGSM 没骗过，不代表安全</h2>
+<p>Projected Gradient Descent（PGD）重复“沿输入梯度上升，再投影回 x±ε 和合法像素范围”。本文 ε=.1，20 步、步长 .01、5 次随机起点，并在干净输入及每个迭代点之间逐样本保留最大交叉熵。它比一次沿原始梯度走完更有机会找到附近坏输入。</p>
+<p>三个模型的 PGD 准确率见前表；在此配置下，它低于对应 FGSM 准确率。该对照说明只报 FGSM 会遗漏可找到的失败，但它仍不是经过收敛研究的鲁棒性上界测量。即使保留最大损失，分类是否错误也不必与损失严格一一对应；更多步数、更多起点或更合适的目标仍可能找到额外失败。</p>
+<p>Carlini 等的 <em>On Evaluating Adversarial Robustness</em>（2019）明确建议不要只用 FGSM 宣称防御有效，要检验攻击强度、迭代、随机性、梯度可用性与威胁模型。这里没有提出防御，也没有做完整的鲁棒性认证；PGD 是补充诊断。<a href="#source-4">[4]</a></p>
+<h2 id="section-08">8｜有趣的延伸：一个模型算出的方向能迁移吗？</h2>
+<p>让 seed=7 的模型生成 ε=.1 的 FGSM 图，再把同一批图交给 seed=19 和 31 的模型。图不根据目标模型梯度重新优化。为了不把目标原本就错的样本算成迁移成功，分母只取<strong>源模型和目标模型在干净图上都正确</strong>的交集。</p>
+<div role="region" aria-label="Scrollable figure" tabindex="0" style="overflow-x:auto;margin:24px 0"><svg role="img" aria-label="图4：跨训练种子的迁移" style="display:block;width:680px;min-width:620px;max-width:100%;height:auto;box-sizing:border-box;padding:24px;background:white;border-radius:6px;margin:0 auto" xmlns:xlink="http://www.w3.org/1999/xlink" width="419.390653pt" height="335.734797pt" viewBox="0 0 419.390653 335.734797" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-23</dc:date>
+    <dc:description>Actual CPU measurements; downloadable experiment.py and results.json.</dc:description>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="transfer_figure_1">
+  <g id="transfer_patch_1">
+   <path d="M -0 335.734797
+L 419.390653 335.734797
+L 419.390653 0
+L -0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="transfer_axes_1">
+   <g id="transfer_patch_2">
+    <path d="M 77.588156 286.893938
+L 332.612156 286.893938
+L 332.612156 31.869938
+L 77.588156 31.869938
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#transfer_pb4d5047c0f)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAAWIAAAFiCAYAAADMXNJ6AAAFCElEQVR4nO3WsW0CURRFQWxttNmG1EhvlOMOyCwky4DAyaeKryOtZyq4esHR+zidv8aB3fm5/9UTmOB6e7nrDn3WAwD+OyEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBBbxhj1Bib4/n266w4dt7WewAQ+YoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiAkxQEyIAWJCDBATYoCYEAPEhBggJsQAMSEGiC2X66PewATHbXXXHRpj1BOYwEcMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxAAxIQaICTFATIgBYkIMEBNigJgQA8SEGCAmxACH1hudjRdzdGzC1wAAAABJRU5ErkJggg==" id="transfer_image24a28c83b5" transform="scale(1 -1) translate(0 -254.88)" x="77.76" y="-31.894797" width="254.88" height="254.88"/>
+   </g>
+   <g id="transfer_matplotlib.axis_1">
+    <g id="transfer_xtick_1">
+     <g id="transfer_line2d_1">
+      <defs>
+       <path id="transfer_m25b15b706e" d="M 0 0
+L 0 3.5
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#transfer_m25b15b706e" x="120.092156" y="286.893938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_1">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="120.092156" y="302.251359" transform="rotate(-0 120.092156 302.251359)">7</text>
+     </g>
+    </g>
+    <g id="transfer_xtick_2">
+     <g id="transfer_line2d_2">
+      <g>
+       <use xlink:href="#transfer_m25b15b706e" x="205.100156" y="286.893938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_2">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="205.100156" y="302.251359" transform="rotate(-0 205.100156 302.251359)">19</text>
+     </g>
+    </g>
+    <g id="transfer_xtick_3">
+     <g id="transfer_line2d_3">
+      <g>
+       <use xlink:href="#transfer_m25b15b706e" x="290.108156" y="286.893938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_3">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="290.108156" y="302.251359" transform="rotate(-0 290.108156 302.251359)">31</text>
+     </g>
+    </g>
+    <g id="transfer_text_4">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="205.100156" y="317.252219" transform="rotate(-0 205.100156 317.252219)">Target model training seed</text>
+    </g>
+   </g>
+   <g id="transfer_matplotlib.axis_2">
+    <g id="transfer_ytick_1">
+     <g id="transfer_line2d_4">
+      <defs>
+       <path id="transfer_mc61f793783" d="M 0 0
+L -3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#transfer_mc61f793783" x="77.588156" y="74.373938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_5">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="70.588156" y="78.552648" transform="rotate(-0 70.588156 78.552648)">7</text>
+     </g>
+    </g>
+    <g id="transfer_ytick_2">
+     <g id="transfer_line2d_5">
+      <g>
+       <use xlink:href="#transfer_mc61f793783" x="77.588156" y="159.381938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_6">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="70.588156" y="163.560648" transform="rotate(-0 70.588156 163.560648)">19</text>
+     </g>
+    </g>
+    <g id="transfer_ytick_3">
+     <g id="transfer_line2d_6">
+      <g>
+       <use xlink:href="#transfer_mc61f793783" x="77.588156" y="244.389938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_7">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="70.588156" y="248.568648" transform="rotate(-0 70.588156 248.568648)">31</text>
+     </g>
+    </g>
+    <g id="transfer_text_8">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="49.948078" y="159.381938" transform="rotate(-90 49.948078 159.381938)">Gradient source training seed</text>
+    </g>
+   </g>
+   <g id="transfer_patch_3">
+    <path d="M 77.588156 286.893938
+L 77.588156 31.869938
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="transfer_patch_4">
+    <path d="M 77.588156 286.893938
+L 332.612156 286.893938
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="transfer_text_9">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="120.092156" y="77.231359" transform="rotate(-0 120.092156 77.231359)">58.4%</text>
+   </g>
+   <g id="transfer_text_10">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="205.100156" y="77.231359" transform="rotate(-0 205.100156 77.231359)">53.0%</text>
+   </g>
+   <g id="transfer_text_11">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="290.108156" y="77.231359" transform="rotate(-0 290.108156 77.231359)">53.5%</text>
+   </g>
+   <g id="transfer_text_12">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="120.092156" y="162.239359" transform="rotate(-0 120.092156 162.239359)">50.2%</text>
+   </g>
+   <g id="transfer_text_13">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="205.100156" y="162.239359" transform="rotate(-0 205.100156 162.239359)">60.2%</text>
+   </g>
+   <g id="transfer_text_14">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="290.108156" y="162.239359" transform="rotate(-0 290.108156 162.239359)">52.8%</text>
+   </g>
+   <g id="transfer_text_15">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="120.092156" y="247.247359" transform="rotate(-0 120.092156 247.247359)">49.8%</text>
+   </g>
+   <g id="transfer_text_16">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172331" x="205.100156" y="247.247359" transform="rotate(-0 205.100156 247.247359)">54.6%</text>
+   </g>
+   <g id="transfer_text_17">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="290.108156" y="247.247359" transform="rotate(-0 290.108156 247.247359)">59.8%</text>
+   </g>
+   <g id="transfer_text_18">
+    <text style="font-size: 13.2px; font-family: 'DejaVu Sans'; text-anchor: middle" x="205.100156" y="25.869937" transform="rotate(-0 205.100156 25.869937)">Transfer: failure rate among jointly clean-correct samples</text>
+   </g>
+  </g>
+  <g id="transfer_axes_2">
+   <g id="transfer_patch_5">
+    <path d="M 351.305156 286.893938
+L 364.056356 286.893938
+L 364.056356 31.869938
+L 351.305156 31.869938
+z
+" style="fill: #ffffff"/>
+   </g>
+   <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAABIAAAFiCAYAAAD7m4giAAABzklEQVR4nO2ZQY4dQQxCicX9r5tFJDNH6CzQiKZdB3hqcGG7/v/z958Ew6EHA4wHA1DwfBJNHNDEgdEjuUBQmDSkVY3FEVGatHGBWBwRxUUEafeIvRFhXNV4EXnjPcJF5MtTBHFTRHERUdpbZDwYBFaNF5F37pDygHAReToXkedzEfn0FBkPBoGNjfc75OO5KfJ8LiK/6dGaOhsv/Y+H2ztFlLawj4UCY9WYJ01KA22xR6iVtmltZBKfEPKA1oKB9R7JBEKttE37oun9w3d612PmlX/zxpHSPFKvtL0d8jfLj9Z7pDSPJnCJUK9HCPNoeps/z6M3PkXXBtI1/xfu2QoDjQeDe2W/c4qo9x4pTtreLxFfbv5Kk8biKSILBtWLlnqlbe8UUXH6EVY15kVk06QxLyLbK01p0pgXETVLkwuEXo9QavZ4MDhpr7xHY6EgURqrIyILaCwUXPn/53BNizarbzZcIFlAY6EgURrzPEKaR2OhILFqzPMIV/7fKz+ap4iyQGOh4Mr/9fLjOuTTufJ/2yP1SkNa+pnokVygtYCmVxpdXzQWCrzS1gVSr0eygKZXGq+NfLtDbnFE1gVSr0eygKZXGq9DfrtDqjUiP/D4G4ANOjfyAAAAAElFTkSuQmCC" id="transfer_image9f6923eb7b" transform="scale(1 -1) translate(0 -254.88)" x="351.36" y="-31.68" width="12.96" height="254.88"/>
+   <g id="transfer_matplotlib.axis_3"/>
+   <g id="transfer_matplotlib.axis_4">
+    <g id="transfer_ytick_4">
+     <g id="transfer_line2d_7">
+      <defs>
+       <path id="transfer_m4cd90ad15a" d="M 0 0
+L 3.5 0
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#transfer_m4cd90ad15a" x="364.056356" y="286.893938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_19">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="371.056356" y="291.072648" transform="rotate(-0 371.056356 291.072648)">0.0</text>
+     </g>
+    </g>
+    <g id="transfer_ytick_5">
+     <g id="transfer_line2d_8">
+      <g>
+       <use xlink:href="#transfer_m4cd90ad15a" x="364.056356" y="235.889138" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_20">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="371.056356" y="240.067848" transform="rotate(-0 371.056356 240.067848)">0.2</text>
+     </g>
+    </g>
+    <g id="transfer_ytick_6">
+     <g id="transfer_line2d_9">
+      <g>
+       <use xlink:href="#transfer_m4cd90ad15a" x="364.056356" y="184.884338" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_21">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="371.056356" y="189.063048" transform="rotate(-0 371.056356 189.063048)">0.4</text>
+     </g>
+    </g>
+    <g id="transfer_ytick_7">
+     <g id="transfer_line2d_10">
+      <g>
+       <use xlink:href="#transfer_m4cd90ad15a" x="364.056356" y="133.879537" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_22">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="371.056356" y="138.058248" transform="rotate(-0 371.056356 138.058248)">0.6</text>
+     </g>
+    </g>
+    <g id="transfer_ytick_8">
+     <g id="transfer_line2d_11">
+      <g>
+       <use xlink:href="#transfer_m4cd90ad15a" x="364.056356" y="82.874738" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_23">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="371.056356" y="87.053448" transform="rotate(-0 371.056356 87.053448)">0.8</text>
+     </g>
+    </g>
+    <g id="transfer_ytick_9">
+     <g id="transfer_line2d_12">
+      <g>
+       <use xlink:href="#transfer_m4cd90ad15a" x="364.056356" y="31.869938" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="transfer_text_24">
+      <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start" x="371.056356" y="36.048648" transform="rotate(-0 371.056356 36.048648)">1.0</text>
+     </g>
+    </g>
+    <g id="transfer_text_25">
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="400.908075" y="159.381938" transform="rotate(-90 400.908075 159.381938)">Conditional attack success</text>
+    </g>
+   </g>
+   <g id="transfer_LineCollection_1"/>
+   <g id="transfer_patch_6">
+    <path d="M 351.305156 286.893938
+L 357.680756 286.893938
+L 364.056356 286.893938
+L 364.056356 31.869938
+L 357.680756 31.869938
+L 351.305156 31.869938
+L 351.305156 286.893938
+z
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="transfer_pb4d5047c0f">
+   <rect x="77.588156" y="31.869937" width="255.024" height="255.024"/>
+  </clipPath>
+ </defs>
+</svg></div><p><strong>图4：跨训练种子的迁移。</strong>行是生成梯度的模型，列是接收图像的模型；每格分母是对应两模型共同正确子集。对角线是白盒自身攻击；非对角线是共享架构、共享训练集的跨初始化迁移，不是跨架构或跨真实应用。 小屏可横向滚动查看。<a href="assets/fgsm-digits/transfer.svg" target="_blank" rel="noopener">Open full-size figure ↗</a></p>
+<p>实测非对角线也出现失败，但成功率并非等同于自身攻击。这与原论文研究过的迁移现象相呼应；当前小实验只验证同架构不同初始化这一较窄情形。它不能推导出某个 OCR、VLM 或商业模型必然接受同一扰动。<a href="#source-1">[1]</a></p>
+<h2 id="section-09">9｜输入坐标与工程边界：ε 必须放在正确的位置</h2>
+<p>本文只做 raw/16，没有额外标准化。如果生产模型输入 z=(x−μ)/σ，那么在 z 空间改 ε<sub>z</sub>，对应原像素预算是 σ·ε<sub>z</sub>；RGB 各通道 σ 不同，预算也不同。直接把教程中的 ε 数字复制到另一个预处理里，会改变威胁模型。可以在原像素 x 上求整个预处理加模型的梯度，再在原像素空间投影，保持预算定义一致。<a href="#source-2">[2]</a><a href="#source-4">[4]</a></p>
+<p>JPEG、重新缩放、取整、真实相机噪声与硬件量化也会改变扰动。本文只把浮点输入直接喂给 CPU 分类器，未验证经过这些链路后仍有效。数值 L∞ 邻域与人类感知邻域是不同定义；8×8 的 64 维 MLP 教学结果也不能直接推到高分辨率 CNN。</p>
+<p>一次 FGSM 通常需要一次前向和输入梯度反向；随机符号对照不需要模型梯度。PGD 的计算随步数与重启次数增长。本文没有测速度、显存或端侧内存，不根据算法迭代数伪造真实设备延迟。</p>
+<p>在实际评测中，干净准确率、普通噪声稳定性和定向扰动下的表现是不同维度。若低位量化或非可微预处理令普通梯度攻击失效，也应先调查梯度链路，不能直接宣布鲁棒；反之，本实验的失败并不解释实际部署中的所有精度下降。</p>
+<h2 id="section-10">10｜总结与自己动手：模型会学会分类，却未必学会整个邻域</h2>
+<p>这个实验带来的直觉是：<strong>“每个像素都只改一点”没有指定改动方向。</strong>很多维度沿同一目标共同贡献，可能把输入推过决策边界。模型在采样测试集上的正确率描述自然数据表现；附近输入的最坏情况需要另外测，而且一次攻击未成功不等于得到保证。</p>
+<p>复现后可以先试两个小变化：把 ε=0 保持为基线，确认全部预测完全一样；把随机符号换成不同种子，观察随机对照的变化。若修改预处理或重新取整，要重新核对原像素预算，再比较结果。若想研究真正的防御，需另设验证集、对抗训练基线和更完整攻击评估，不能据当前曲线下定论。</p>
+<p><a href="assets/fgsm-digits/experiment.py">完整实验脚本</a> · <a href="assets/fgsm-digits/results.json">所有指标与图像数据 JSON</a> · <a href="assets/fgsm-digits/curves.csv">曲线 CSV</a> · <a href="assets/fgsm-digits/requirements.txt">固定依赖</a> · <a href="assets/fgsm-digits/README.md">复现与 checkpoint 下载说明</a>。</p>
+<pre><code>python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python experiment.py --out results</code></pre>
+<p>下载的模型参数与结果保存实际版本、split 和数据 SHA-256。CPU 后端与库版本可能造成小差异，因此应先核对输入与训练设置，而不是只追求某一个例图的预测数字。</p>
+<h2 id="section-11">来源</h2><ol>
+<li id="source-1"><a href="https://arxiv.org/html/1412.6572v3">Explaining and Harnessing Adversarial Examples</a>：Goodfellow / Shlens / Szegedy，Google，2014 首次预印本、ICLR 2015；§3/4 的线性解释与 FGSM，§5 的线性分类器，§8 的迁移讨论；本文数字均为独立 digits 实测，不复刻论文百分比。</li>
+<li id="source-2"><a href="https://docs.pytorch.org/tutorials/beginner/fgsm_tutorial.html">PyTorch Adversarial Example Generation</a>：Nathan Inkawhich 的官方教程；梯度、clipping 与原像素/标准化坐标处理；教程使用 MNIST，本文数据不同。</li>
+<li id="source-3"><a href="https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html">load_digits 官方数据说明</a>：1797 样本、8×8 图像、0–16 像素，以及 UCI 来源。</li>
+<li id="source-4"><a href="https://arxiv.org/html/1902.06705v2">On Evaluating Adversarial Robustness</a>：Carlini 等，2019；威胁模型、强攻击、避免只用 FGSM、迁移与逐样本报告。作者维护的源文件：<a href='https://github.com/evaluating-adversarial-robustness/adv-eval-paper'>GitHub 仓库</a>。</li>
+</ol>
+</article></main>
+<footer class="site-footer"><span>© 2026 Howie Yin</span><div class="footer-links"><a href="./">Back to archive ←</a><a href="../">Home ←</a></div></footer>
+</div></body></html>
