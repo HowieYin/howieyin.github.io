@@ -12,6 +12,14 @@
       "readLabel": "Read the report",
       "articles": [
         {
+          "title": "AI 情报｜2026-11-16 ～ 2026-11-22",
+          "path": "weekly/2026-11-16_2026-11-22.html",
+          "date": "2026-11-22",
+          "periodStart": "2026-11-16",
+          "description": "GPT-6.2, Qwen4-Max, Neon, Inkling Mini, WeMM, KV quantization, vLLM, SGLang, RTX Spark, AMD NPU, ROCm and CPO. Task costs, state correctness and hardware conditions examined through primary sources.",
+          "topic": "Weekly briefing"
+        },
+        {
           "title": "AI 情报｜2026-11-09 ～ 2026-11-15",
           "path": "weekly/2026-11-09_2026-11-15.html",
           "date": "2026-11-15",
