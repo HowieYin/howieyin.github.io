@@ -161,6 +161,13 @@
       "readLabel": "Read the survey",
       "articles": [
         {
+          "title": "CNN 模型综述：从特征骨干到分类、检测、关键点与分割",
+          "path": "surveys/cnn-backbones-tasks/index.html",
+          "date": "2026-11-23",
+          "description": "From LeNet and ResNet to modern CNNs, detection, human pose, facial landmarks, semantic and instance segmentation, OCR and reconstruction. 43 papers, 172 original figures and tables, four diagrams, frozen implementations and an actual layout and per-op runtime diagnostic.",
+          "topic": "CNN backbones & vision tasks"
+        },
+        {
           "title": "文生图与图片编辑：怎样让人物、物体和画风保持一致",
           "path": "surveys/image-asset-consistency/index.html",
           "date": "2026-11-20",

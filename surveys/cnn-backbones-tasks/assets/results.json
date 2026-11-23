@@ -1,0 +1,686 @@
+{
+  "date": "2026-11-23",
+  "scope": "8 selected real DreamBench++ images; layout/logit/runtime diagnostic only; no ground-truth labels, no accuracy",
+  "dataset_url": "https://huggingface.co/datasets/yuangpeng/dreambench_plus",
+  "hardware": "Apple M3 Pro",
+  "platform": "macOS-27.2.1-arm64-arm-64bit",
+  "torch": "2.15.0",
+  "torchvision": "0.29.2",
+  "threads": 4,
+  "dtype": "float32",
+  "batch_size_timing": 1,
+  "warmup": 10,
+  "repeats": 50,
+  "samples": [
+    {
+      "path": "/tmp/image-consistency-survey-work/data/images/live_subject/animal/00.jpg",
+      "sha256": "161187d91b1160057af265ad9e64cfe6c9aecd1ad17d3599d8ed1f6f6ce4b4c9"
+    },
+    {
+      "path": "/tmp/image-consistency-survey-work/data/images/live_subject/animal/01.jpg",
+      "sha256": "5a2e7f8ce5b9a7569ef28a3e629f6056a4510f09421357c5d8d96d84ac417edf"
+    },
+    {
+      "path": "/tmp/image-consistency-survey-work/data/images/live_subject/human/00.jpg",
+      "sha256": "934b13ca996ba2cb90624de22464adc6ea96f494771fc90823f12d175270bdb9"
+    },
+    {
+      "path": "/tmp/image-consistency-survey-work/data/images/live_subject/human/01.jpg",
+      "sha256": "5c316b87bab11b7b3bf8b60da5c06812c3b13406ca292d1c359df626dc990b99"
+    },
+    {
+      "path": "/tmp/image-consistency-survey-work/data/images/object/00.jpg",
+      "sha256": "b9acfb6d6a65abefd5f994fa5fc882dbe56ab2a42ae617e7bad319e2e0cd8c30"
+    },
+    {
+      "path": "/tmp/image-consistency-survey-work/data/images/object/01.jpg",
+      "sha256": "947f961adf0b6715aeb3bebf2067b0ae729b41c26722d81779e7f54ea585b202"
+    },
+    {
+      "path": "/tmp/image-consistency-survey-work/data/images/style/00.jpg",
+      "sha256": "0ee305167c7e046ad69888dcbb26b236e8d8330cc9866253bb82ea9a01bc1359"
+    },
+    {
+      "path": "/tmp/image-consistency-survey-work/data/images/style/01.jpg",
+      "sha256": "36e00824e46342a415b2e200bd471a42b1ab828c4a7e8eb3b4a256cb596de16c"
+    }
+  ],
+  "models": [
+    {
+      "name": "resnet18",
+      "weights_url": "https://download.pytorch.org/models/resnet18-f37072fd.pth",
+      "weights_sha256": "f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec",
+      "preprocessing": "ImageClassification(\n    crop_size=[224]\n    resize_size=[256]\n    mean=[0.485, 0.456, 0.406]\n    std=[0.229, 0.224, 0.225]\n    interpolation=InterpolationMode.BILINEAR\n)",
+      "parameter_count": 11689512,
+      "input_shape": [
+        8,
+        3,
+        224,
+        224
+      ],
+      "nchw_stride": [
+        150528,
+        50176,
+        224,
+        1
+      ],
+      "channels_last_stride": [
+        150528,
+        1,
+        672,
+        3
+      ],
+      "correct_max_abs_logit_error": 1.0967254638671875e-05,
+      "correct_mean_abs_logit_error": 1.858800260379212e-06,
+      "top1_agreement_correct": 8,
+      "wrong_max_abs_logit_error": 19.710405349731445,
+      "top1_agreement_wrong": 0,
+      "timing": {
+        "nchw": {
+          "median_ms": 22.173854,
+          "p10_ms": 17.998625,
+          "p90_ms": 26.405125,
+          "samples_ms": [
+            16.810542,
+            17.374875,
+            17.74,
+            17.8695,
+            17.998625,
+            18.169625,
+            18.257084,
+            18.35575,
+            18.578625,
+            18.639792,
+            18.689708,
+            18.6985,
+            19.285875,
+            19.538667,
+            19.802833,
+            19.947667,
+            20.40075,
+            20.936667,
+            21.06575,
+            21.2215,
+            21.434542,
+            21.454417,
+            21.603625,
+            21.686917,
+            22.135917,
+            22.211791,
+            22.302584,
+            22.325208,
+            22.425792,
+            22.503708,
+            22.539375,
+            22.820541,
+            22.8565,
+            23.196375,
+            23.229333,
+            23.3135,
+            23.55675,
+            24.264708,
+            24.520791,
+            24.645542,
+            24.841833,
+            25.499792,
+            25.688208,
+            25.699708,
+            26.405125,
+            27.781709,
+            29.580667,
+            32.456917,
+            42.74625,
+            62.877875
+          ],
+          "top_ops": [
+            {
+              "op": "aten::_slow_conv2d_forward",
+              "self_cpu_ms": 20.041678000000005,
+              "calls": 20
+            },
+            {
+              "op": "aten::native_batch_norm",
+              "self_cpu_ms": 1.7260280000000066,
+              "calls": 20
+            },
+            {
+              "op": "aten::max_pool2d_with_indices",
+              "self_cpu_ms": 1.2943249999999997,
+              "calls": 1
+            },
+            {
+              "op": "aten::clamp_min_",
+              "self_cpu_ms": 0.6267440000000087,
+              "calls": 17
+            },
+            {
+              "op": "aten::add_",
+              "self_cpu_ms": 0.3248720000000012,
+              "calls": 8
+            },
+            {
+              "op": "aten::max_pool2d",
+              "self_cpu_ms": 0.14295799999999964,
+              "calls": 1
+            },
+            {
+              "op": "aten::_convolution",
+              "self_cpu_ms": 0.12491300000000866,
+              "calls": 20
+            },
+            {
+              "op": "aten::empty",
+              "self_cpu_ms": 0.10380000000000052,
+              "calls": 160
+            },
+            {
+              "op": "aten::_batch_norm_impl_index",
+              "self_cpu_ms": 0.10095499999998082,
+              "calls": 20
+            },
+            {
+              "op": "aten::conv2d",
+              "self_cpu_ms": 0.08078999999999814,
+              "calls": 20
+            },
+            {
+              "op": "aten::addmm",
+              "self_cpu_ms": 0.06412399999999616,
+              "calls": 1
+            },
+            {
+              "op": "aten::view",
+              "self_cpu_ms": 0.06300000000000171,
+              "calls": 21
+            }
+          ]
+        },
+        "channels_last": {
+          "median_ms": 21.4813955,
+          "p10_ms": 16.809,
+          "p90_ms": 25.39175,
+          "samples_ms": [
+            16.035417,
+            16.309333,
+            16.437417,
+            16.762084,
+            16.809,
+            16.949125,
+            16.958125,
+            17.080833,
+            17.319541,
+            17.400916,
+            18.063459,
+            18.064,
+            18.173625,
+            19.193084,
+            19.244542,
+            20.1335,
+            20.176542,
+            20.486333,
+            20.560959,
+            20.574584,
+            20.697333,
+            21.186375,
+            21.237708,
+            21.247333,
+            21.38875,
+            21.574041,
+            21.577083,
+            21.592834,
+            21.684375,
+            21.717166,
+            21.806916,
+            21.8665,
+            21.934292,
+            22.296958,
+            22.307209,
+            22.407708,
+            22.629542,
+            22.702708,
+            22.835458,
+            22.9745,
+            24.408083,
+            24.70275,
+            24.755584,
+            25.248542,
+            25.39175,
+            25.55775,
+            25.733208,
+            25.76225,
+            29.064208,
+            30.927709
+          ],
+          "top_ops": [
+            {
+              "op": "aten::_slow_conv2d_forward",
+              "self_cpu_ms": 20.390828999999975,
+              "calls": 20
+            },
+            {
+              "op": "aten::native_batch_norm",
+              "self_cpu_ms": 1.8051089999999854,
+              "calls": 20
+            },
+            {
+              "op": "aten::clamp_min_",
+              "self_cpu_ms": 0.5852449999999995,
+              "calls": 17
+            },
+            {
+              "op": "aten::add_",
+              "self_cpu_ms": 0.33612099999999917,
+              "calls": 8
+            },
+            {
+              "op": "aten::max_pool2d_with_indices",
+              "self_cpu_ms": 0.2814990000000003,
+              "calls": 1
+            },
+            {
+              "op": "aten::_convolution",
+              "self_cpu_ms": 0.15112599999999793,
+              "calls": 20
+            },
+            {
+              "op": "aten::_batch_norm_impl_index",
+              "self_cpu_ms": 0.13370799999999464,
+              "calls": 20
+            },
+            {
+              "op": "aten::empty",
+              "self_cpu_ms": 0.11753900000003126,
+              "calls": 160
+            },
+            {
+              "op": "aten::as_strided",
+              "self_cpu_ms": 0.07941700000000401,
+              "calls": 22
+            },
+            {
+              "op": "aten::convolution",
+              "self_cpu_ms": 0.07050100000000839,
+              "calls": 20
+            },
+            {
+              "op": "aten::addmm",
+              "self_cpu_ms": 0.06529000000000815,
+              "calls": 1
+            },
+            {
+              "op": "aten::thnn_conv2d",
+              "self_cpu_ms": 0.052541999999998555,
+              "calls": 20
+            }
+          ]
+        }
+      },
+      "stage_shapes": [
+        {
+          "stage": "conv1",
+          "shape": [
+            1,
+            64,
+            112,
+            112
+          ]
+        },
+        {
+          "stage": "layer1",
+          "shape": [
+            1,
+            64,
+            56,
+            56
+          ]
+        },
+        {
+          "stage": "layer2",
+          "shape": [
+            1,
+            128,
+            28,
+            28
+          ]
+        },
+        {
+          "stage": "layer3",
+          "shape": [
+            1,
+            256,
+            14,
+            14
+          ]
+        },
+        {
+          "stage": "layer4",
+          "shape": [
+            1,
+            512,
+            7,
+            7
+          ]
+        }
+      ],
+      "conv_MACs_only": 1813561344
+    },
+    {
+      "name": "mobilenet_v2",
+      "weights_url": "https://download.pytorch.org/models/mobilenet_v2-7ebf99e0.pth",
+      "weights_sha256": "7ebf99e03e254b273379b23edca7ec0da9f48273b23a332b93c1c99d49e86e8f",
+      "preprocessing": "ImageClassification(\n    crop_size=[224]\n    resize_size=[232]\n    mean=[0.485, 0.456, 0.406]\n    std=[0.229, 0.224, 0.225]\n    interpolation=InterpolationMode.BILINEAR\n)",
+      "parameter_count": 3504872,
+      "input_shape": [
+        8,
+        3,
+        224,
+        224
+      ],
+      "nchw_stride": [
+        150528,
+        50176,
+        224,
+        1
+      ],
+      "channels_last_stride": [
+        150528,
+        1,
+        672,
+        3
+      ],
+      "correct_max_abs_logit_error": 6.4373016357421875e-06,
+      "correct_mean_abs_logit_error": 8.832250273371756e-07,
+      "top1_agreement_correct": 8,
+      "wrong_max_abs_logit_error": 7.561575889587402,
+      "top1_agreement_wrong": 0,
+      "timing": {
+        "nchw": {
+          "median_ms": 36.787896,
+          "p10_ms": 34.445125,
+          "p90_ms": 39.526084,
+          "samples_ms": [
+            33.378709,
+            33.387167,
+            34.395375,
+            34.412792,
+            34.445125,
+            34.822417,
+            35.14225,
+            35.143208,
+            35.264875,
+            35.322542,
+            35.543042,
+            35.556584,
+            35.631417,
+            35.639416,
+            35.715,
+            35.843334,
+            35.872792,
+            35.911916,
+            35.918709,
+            35.924834,
+            36.121084,
+            36.202458,
+            36.448,
+            36.534542,
+            36.7545,
+            36.821292,
+            36.86375,
+            37.038125,
+            37.282292,
+            37.451958,
+            37.684292,
+            37.715667,
+            37.760625,
+            37.768375,
+            37.932708,
+            38.098083,
+            38.111042,
+            38.173625,
+            38.533375,
+            38.567334,
+            38.7235,
+            38.858708,
+            39.193292,
+            39.335875,
+            39.526084,
+            40.189833,
+            41.195708,
+            41.46,
+            42.017041,
+            42.712458
+          ],
+          "top_ops": [
+            {
+              "op": "aten::_slow_conv2d_forward",
+              "self_cpu_ms": 27.31444999999987,
+              "calls": 1043
+            },
+            {
+              "op": "aten::_convolution",
+              "self_cpu_ms": 3.281000000000174,
+              "calls": 52
+            },
+            {
+              "op": "aten::native_batch_norm",
+              "self_cpu_ms": 3.174376000000014,
+              "calls": 52
+            },
+            {
+              "op": "aten::clamp",
+              "self_cpu_ms": 1.1754590000000098,
+              "calls": 35
+            },
+            {
+              "op": "aten::slice",
+              "self_cpu_ms": 1.0726310000000048,
+              "calls": 2019
+            },
+            {
+              "op": "aten::narrow",
+              "self_cpu_ms": 0.9613989999999467,
+              "calls": 2019
+            },
+            {
+              "op": "aten::thnn_conv2d",
+              "self_cpu_ms": 0.7258009999999849,
+              "calls": 1043
+            },
+            {
+              "op": "aten::empty",
+              "self_cpu_ms": 0.5612959999999544,
+              "calls": 2390
+            },
+            {
+              "op": "aten::resize_",
+              "self_cpu_ms": 0.42518599999990875,
+              "calls": 1043
+            },
+            {
+              "op": "aten::view",
+              "self_cpu_ms": 0.4097610000001314,
+              "calls": 1078
+            },
+            {
+              "op": "aten::as_strided",
+              "self_cpu_ms": 0.3861240000000198,
+              "calls": 2021
+            },
+            {
+              "op": "aten::cat",
+              "self_cpu_ms": 0.2547519999999895,
+              "calls": 4
+            }
+          ]
+        },
+        "channels_last": {
+          "median_ms": 232.78441700000002,
+          "p10_ms": 228.44475,
+          "p90_ms": 246.735917,
+          "samples_ms": [
+            222.942667,
+            227.951792,
+            228.338167,
+            228.360125,
+            228.44475,
+            228.999667,
+            229.719959,
+            229.894084,
+            230.159,
+            230.470333,
+            230.622458,
+            230.714042,
+            230.920084,
+            230.924,
+            230.926875,
+            231.317166,
+            231.3555,
+            231.888375,
+            232.009791,
+            232.349958,
+            232.383625,
+            232.4605,
+            232.635542,
+            232.763417,
+            232.7665,
+            232.802334,
+            232.892208,
+            232.965875,
+            233.582708,
+            233.711417,
+            233.77975,
+            234.28825,
+            234.589083,
+            234.96925,
+            235.01125,
+            235.059833,
+            235.444625,
+            235.5385,
+            237.184792,
+            237.435583,
+            237.881,
+            238.7945,
+            241.206875,
+            245.8705,
+            246.735917,
+            251.8395,
+            265.563792,
+            294.010334,
+            304.674459,
+            351.659334
+          ],
+          "top_ops": [
+            {
+              "op": "aten::_slow_conv2d_forward",
+              "self_cpu_ms": 249.556307999997,
+              "calls": 7171
+            },
+            {
+              "op": "aten::_convolution",
+              "self_cpu_ms": 16.944987000002165,
+              "calls": 52
+            },
+            {
+              "op": "aten::copy_",
+              "self_cpu_ms": 10.113468000001332,
+              "calls": 7138
+            },
+            {
+              "op": "aten::slice",
+              "self_cpu_ms": 8.616643999999008,
+              "calls": 14288
+            },
+            {
+              "op": "aten::narrow",
+              "self_cpu_ms": 8.047179999999216,
+              "calls": 14288
+            },
+            {
+              "op": "aten::empty",
+              "self_cpu_ms": 7.2000820000037455,
+              "calls": 21756
+            },
+            {
+              "op": "aten::as_strided",
+              "self_cpu_ms": 6.067835000000205,
+              "calls": 21495
+            },
+            {
+              "op": "aten::thnn_conv2d",
+              "self_cpu_ms": 5.898538999998525,
+              "calls": 7171
+            },
+            {
+              "op": "aten::clone",
+              "self_cpu_ms": 5.0929399999956315,
+              "calls": 7136
+            },
+            {
+              "op": "aten::native_batch_norm",
+              "self_cpu_ms": 5.061384999999818,
+              "calls": 52
+            },
+            {
+              "op": "aten::resize_",
+              "self_cpu_ms": 4.765206000001201,
+              "calls": 7171
+            },
+            {
+              "op": "aten::cat",
+              "self_cpu_ms": 4.4948450000000175,
+              "calls": 17
+            }
+          ]
+        }
+      },
+      "stage_shapes": [
+        {
+          "stage": "features.0",
+          "shape": [
+            1,
+            32,
+            112,
+            112
+          ]
+        },
+        {
+          "stage": "features.3",
+          "shape": [
+            1,
+            24,
+            56,
+            56
+          ]
+        },
+        {
+          "stage": "features.6",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ]
+        },
+        {
+          "stage": "features.13",
+          "shape": [
+            1,
+            96,
+            14,
+            14
+          ]
+        },
+        {
+          "stage": "features.18",
+          "shape": [
+            1,
+            1280,
+            7,
+            7
+          ]
+        }
+      ],
+      "conv_MACs_only": 299494272
+    }
+  ]
+}
