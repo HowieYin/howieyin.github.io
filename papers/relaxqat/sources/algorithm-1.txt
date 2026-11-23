@@ -1,0 +1,19 @@
+function InitializeRelaxQATCallback(model, b_s, b_e, c_ss, c_es, c_l, m_s)
+    assert c_ss > m_s
+    assert c_l > 2 * m_s
+    assert b_s > b_e
+    assert (c_es - c_ss) % c_l = 0
+    omega ← linspace(0, 1, num=m_s)
+    B ← b_s - (b_s - b_e) * sin((pi / 2) * omega)
+    n ← ((c_es - c_ss) / c_l) + 1  # number of cycles
+    C ← linspace(c_ss, c_es, num=n)
+    modules ← all SEQ modules in model
+    for all m ∈ modules do
+        m.enable_relax_qat ← true
+        m.i ← 0  # current bit schedule index
+        m.B ← B  # bit schedule list: [b_s, b_e]
+        m.cci ← 0  # current_cycle_idx
+        m.pci ← -1  # previous_cycle_idx
+    end for
+    return initialized callback state
+end function

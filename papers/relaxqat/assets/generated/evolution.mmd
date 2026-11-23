@@ -1,0 +1,7 @@
+flowchart TD
+  A["2019–2020 · LSQ<br/>learn the quantization step size"] --> B["2025 · ParetoQ / SEQ<br/>symmetric low-bit grids"]
+  C["2024 · BitNet fine-tuning<br/>scheduled weight mixing"] --> D["2026 · WinQ<br/>periodic weight interpolation"]
+  U["2025 · UPQ<br/>INT4 PTQ → INT2 QAT"] --> R["2026-11-20 · RelaxQAT<br/>continuous b + moving clip endpoints"]
+  B --> R
+  D --> R
+  R --> F["As of 2026-11-23<br/>no verified dedicated public implementation<br/>or independent follow-up replication"]

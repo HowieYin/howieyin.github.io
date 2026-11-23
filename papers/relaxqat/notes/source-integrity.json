@@ -1,0 +1,198 @@
+{
+  "date": "2026-11-23",
+  "figures": [
+    {
+      "id": "S3.F1",
+      "sha256": "298c407add13eeae17d2f94b97848b231912fa7454d297013551d143718fc946",
+      "status": "PASS"
+    },
+    {
+      "id": "S3.F2",
+      "sha256": "12a016ebefd6bbc4c7a6ebc612ff52e65642809b318441d045e3caf0c2141f13",
+      "status": "PASS"
+    },
+    {
+      "id": "S4.F3",
+      "sha256": "63dc368dba19202ddab6919c7da43abbd2b906995aefcf5419a9b38100b7560b",
+      "status": "PASS"
+    },
+    {
+      "id": "S5.F4",
+      "sha256": "65bace641b6c8968bc377e73ed25c34fbdd35914a21a24947d9a9e7fd02b1e2f",
+      "status": "PASS"
+    },
+    {
+      "id": "A1.F5",
+      "sha256": "c3519bcaabb5a62f81ff2c9cdc17dee84873401382464074509cb725676c9c8e",
+      "status": "PASS"
+    },
+    {
+      "id": "A1.F6",
+      "sha256": "d5bfb990b6bf4d54660e7c184e6f31146e3e17a3a200e9c419af20c5fa18d990",
+      "status": "PASS"
+    },
+    {
+      "id": "A1.F7",
+      "sha256": "b1b6b29f204739dbfec24ce6d0097f926efd56be438fbbf067b54dc5363011b5",
+      "status": "PASS"
+    }
+  ],
+  "tables": [
+    {
+      "number": 1,
+      "cells": 6,
+      "colors": {
+        "red": 0,
+        "green": 1
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 2,
+      "cells": 95,
+      "colors": {
+        "red": 3,
+        "green": 3
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 3,
+      "cells": 95,
+      "colors": {
+        "red": 0,
+        "green": 6
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 4,
+      "cells": 95,
+      "colors": {
+        "red": 2,
+        "green": 4
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 5,
+      "cells": 95,
+      "colors": {
+        "red": 3,
+        "green": 3
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 6,
+      "cells": 50,
+      "colors": {
+        "red": 3,
+        "green": 3
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 7,
+      "cells": 50,
+      "colors": {
+        "red": 1,
+        "green": 5
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 8,
+      "cells": 80,
+      "colors": {
+        "red": 0,
+        "green": 6
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 9,
+      "cells": 80,
+      "colors": {
+        "red": 0,
+        "green": 6
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 10,
+      "cells": 6,
+      "colors": {
+        "red": 0,
+        "green": 1
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 11,
+      "cells": 95,
+      "colors": {
+        "red": 2,
+        "green": 3
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 12,
+      "cells": 71,
+      "colors": {
+        "red": 0,
+        "green": 5
+      },
+      "text_spans_emphasis_caption": "PASS"
+    },
+    {
+      "number": 13,
+      "cells": 71,
+      "colors": {
+        "red": 3,
+        "green": 2
+      },
+      "text_spans_emphasis_caption": "PASS"
+    }
+  ],
+  "equations": [
+    {
+      "number": 1,
+      "latex_and_mathml": "PASS"
+    },
+    {
+      "number": 2,
+      "latex_and_mathml": "PASS"
+    },
+    {
+      "number": 3,
+      "latex_and_mathml": "PASS"
+    },
+    {
+      "number": 4,
+      "latex_and_mathml": "PASS"
+    },
+    {
+      "number": 5,
+      "latex_and_mathml": "PASS"
+    },
+    {
+      "number": 6,
+      "latex_and_mathml": "PASS"
+    },
+    {
+      "number": 7,
+      "latex_and_mathml": "PASS"
+    },
+    {
+      "number": 8,
+      "latex_and_mathml": "PASS"
+    },
+    {
+      "number": 9,
+      "latex_and_mathml": "PASS"
+    }
+  ],
+  "pdf_sha256": "2b0e2e33b54c69a6d25cce14f848b5a94da3008572b0542d8d04ce2e368e9188"
+}

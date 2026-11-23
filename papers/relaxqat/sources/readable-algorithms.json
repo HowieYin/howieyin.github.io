@@ -1,0 +1,100 @@
+{
+  "source": "Author TeX main.tex, Algorithms 1–3; arXiv 2611.27056v1",
+  "notation": "ASCII aliases retain subscripts with underscores. C = 𝒞; omega = ω; pi = π; theta = θ; alpha = α; delta = δ. ** denotes exponentiation.",
+  "algorithms": [
+    {
+      "number": 1,
+      "title": "RelaxQATCallback: At initialization",
+      "function": "InitializeRelaxQATCallback",
+      "parameters": [
+        {"name": "model", "label": "待训练模型"},
+        {"name": "b_s", "label": "start_bits · 起始位宽"},
+        {"name": "b_e", "label": "end_bits · 目标位宽"},
+        {"name": "c_ss", "label": "cycle_start_step · 首个完整周期起点"},
+        {"name": "c_es", "label": "cycle_end_step · 最后一个完整周期起点"},
+        {"name": "c_l", "label": "cycle_length · 完整周期间隔"},
+        {"name": "m_s", "label": "max_schedule_steps · 单程调度步数"}
+      ],
+      "rows": [
+        {"depth": 0, "code": "function InitializeRelaxQATCallback(…)"},
+        {"depth": 1, "code": "assert c_ss > m_s"},
+        {"depth": 1, "code": "assert c_l > 2 * m_s"},
+        {"depth": 1, "code": "assert b_s > b_e"},
+        {"depth": 1, "code": "assert (c_es - c_ss) % c_l = 0"},
+        {"depth": 1, "code": "omega ← linspace(0, 1, num=m_s)"},
+        {"depth": 1, "code": "B ← b_s - (b_s - b_e) * sin((pi / 2) * omega)"},
+        {"depth": 1, "code": "n ← ((c_es - c_ss) / c_l) + 1", "comment": "number of cycles"},
+        {"depth": 1, "code": "C ← linspace(c_ss, c_es, num=n)"},
+        {"depth": 1, "code": "modules ← all SEQ modules in model"},
+        {"depth": 1, "code": "for all m ∈ modules do"},
+        {"depth": 2, "code": "m.enable_relax_qat ← true"},
+        {"depth": 2, "code": "m.i ← 0", "comment": "current bit schedule index"},
+        {"depth": 2, "code": "m.B ← B", "comment": "bit schedule list: [b_s, b_e]"},
+        {"depth": 2, "code": "m.cci ← 0", "comment": "current_cycle_idx"},
+        {"depth": 2, "code": "m.pci ← -1", "comment": "previous_cycle_idx"},
+        {"depth": 1, "code": "end for"},
+        {"depth": 1, "code": "return initialized callback state"},
+        {"depth": 0, "code": "end function"}
+      ]
+    },
+    {
+      "number": 2,
+      "title": "RelaxQATCallback: At each training step",
+      "function": "RelaxQATOnStepBegin",
+      "parameters": [
+        {"name": "modules", "label": "全部 SEQ 模块"},
+        {"name": "t", "label": "global_step · 当前训练步"},
+        {"name": "C", "label": "cycle_intervals · 完整周期起点列表"},
+        {"name": "m_s", "label": "max_schedule_steps · 单程调度步数"}
+      ],
+      "rows": [
+        {"depth": 0, "code": "function RelaxQATOnStepBegin(…)"},
+        {"depth": 1, "code": "for all m ∈ modules do"},
+        {"depth": 2, "code": "if t < C[0] then", "comment": "first half cycle: b_s → b_e"},
+        {"depth": 3, "code": "m.i ← min(t, m_s - 1)"},
+        {"depth": 2, "code": "else if t < C[-1] then", "comment": "n full cycles"},
+        {"depth": 3, "code": "if t = C[m.cci] then"},
+        {"depth": 4, "code": "", "comment": "Update current and previous cycle idx"},
+        {"depth": 4, "code": "m.i ← m_s - 1"},
+        {"depth": 4, "code": "m.cci ← m.cci + 1"},
+        {"depth": 4, "code": "m.pci ← m.pci + 1"},
+        {"depth": 3, "code": "else if t ≤ C[m.pci] + m_s - 1 then"},
+        {"depth": 4, "code": "", "comment": "first: relax bits from b_e to b_s"},
+        {"depth": 4, "code": "m.i ← C[m.pci] + m_s - 1 - t"},
+        {"depth": 3, "code": "else"},
+        {"depth": 4, "code": "", "comment": "second: reduce bits from b_s to b_e"},
+        {"depth": 4, "code": "m.i ← min(t - (C[m.pci] + m_s - 1), m_s - 1)"},
+        {"depth": 3, "code": "end if"},
+        {"depth": 2, "code": "else", "comment": "all n cycles ended: set bits to b_e"},
+        {"depth": 3, "code": "m.i ← m_s - 1"},
+        {"depth": 2, "code": "end if"},
+        {"depth": 2, "code": "m.b_t ← m.B[m.i]", "comment": "set dynamic bitwidth b_t"},
+        {"depth": 1, "code": "end for"},
+        {"depth": 1, "code": "return dynamic bitwidth b_t for all SEQ modules"},
+        {"depth": 0, "code": "end function"}
+      ]
+    },
+    {
+      "number": 3,
+      "title": "RelaxSEQ for 2-bit QAT",
+      "function": "RelaxSEQ",
+      "parameters": [
+        {"name": "theta", "label": "θ · latent weights"},
+        {"name": "alpha", "label": "α · 可学习的逐通道 scale 参数"},
+        {"name": "b", "label": "当前连续有效位宽"}
+      ],
+      "rows": [
+        {"depth": 0, "code": "function RelaxSEQ(theta, alpha, b)"},
+        {"depth": 1, "code": "n_levels ← 2**(b - 1)"},
+        {"depth": 1, "code": "shift ← 0.5"},
+        {"depth": 1, "code": "delta ← alpha / n_levels"},
+        {"depth": 1, "code": "q_bins ← round(theta / delta - shift)"},
+        {"depth": 1, "code": "q_bins ← clip(q_bins, -n_levels, n_levels - 1)"},
+        {"depth": 1, "code": "q ← q_bins + shift"},
+        {"depth": 1, "code": "w_r ← q * delta"},
+        {"depth": 1, "code": "return w_r"},
+        {"depth": 0, "code": "end function"}
+      ]
+    }
+  ]
+}

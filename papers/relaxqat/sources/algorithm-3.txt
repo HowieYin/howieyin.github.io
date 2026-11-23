@@ -1,0 +1,10 @@
+function RelaxSEQ(theta, alpha, b)
+    n_levels ← 2**(b - 1)
+    shift ← 0.5
+    delta ← alpha / n_levels
+    q_bins ← round(theta / delta - shift)
+    q_bins ← clip(q_bins, -n_levels, n_levels - 1)
+    q ← q_bins + shift
+    w_r ← q * delta
+    return w_r
+end function
