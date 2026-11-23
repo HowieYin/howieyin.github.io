@@ -62,7 +62,7 @@
     if (!button) return;
     button.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(frame.querySelector('code').textContent);
+        await navigator.clipboard.writeText((frame.querySelector('.algorithm-copy code') || frame.querySelector('code')).textContent);
         button.textContent = 'Copied';
       } catch { button.textContent = 'Select text'; }
       setTimeout(() => {button.textContent = 'Copy';}, 1800);

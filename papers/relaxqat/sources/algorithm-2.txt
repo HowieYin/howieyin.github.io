@@ -1,0 +1,24 @@
+function RelaxQATOnStepBegin(modules, t, C, m_s)
+    for all m ∈ modules do
+        if t < C[0] then  # first half cycle: b_s → b_e
+            m.i ← min(t, m_s - 1)
+        else if t < C[-1] then  # n full cycles
+            if t = C[m.cci] then
+                # Update current and previous cycle idx
+                m.i ← m_s - 1
+                m.cci ← m.cci + 1
+                m.pci ← m.pci + 1
+            else if t ≤ C[m.pci] + m_s - 1 then
+                # first: relax bits from b_e to b_s
+                m.i ← C[m.pci] + m_s - 1 - t
+            else
+                # second: reduce bits from b_s to b_e
+                m.i ← min(t - (C[m.pci] + m_s - 1), m_s - 1)
+            end if
+        else  # all n cycles ended: set bits to b_e
+            m.i ← m_s - 1
+        end if
+        m.b_t ← m.B[m.i]  # set dynamic bitwidth b_t
+    end for
+    return dynamic bitwidth b_t for all SEQ modules
+end function

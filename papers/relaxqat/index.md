@@ -132,65 +132,68 @@ RelaxSEQ 先 round(θk/α−0.5)，再裁剪到 [−k,k−1]。当 k 非整数�
 | Loss / optimizer | logits:[B,T,V]，labels:[B,T] | 标量 loss，更新 θ、α；论文未完整写出 baseline 各自 loss |
 | 最后固定网格 / 导出 | b=bₑ、学到的 θ/α | 固定低比特 codes + scales，部署格式仍需实现 |
 
-<figure class="algorithm" id="alg1"><figcaption>Algorithm 1 RelaxQATCallback: At initialization · Original paper pseudocode</figcaption><div class="code-frame"><div class="code-head"><span>ORIGINAL ALGORITHM 1 · PSEUDOCODE</span><button type="button" class="copy-button">Copy</button></div><pre><code>1: function InitializeRelaxQATCallback (model, start_bits ( b s ), end_bits ( b e ), cycle_start_step ( c s ​ s ), cycle_end_step ( c e ​ s ), cycle_length ( c l ), max_schedule_steps ( m s ))
-2: Assert c s ​ s &gt; m s
-3: Assert c l &gt; 2 ⋅ m s
-4: Assert b s &gt; b e
-5: Assert ( c e ​ s − c s ​ s ) % ​ c l = 0
-6: ω ← linspace ⁡ ( 0 , 1 , num = m s )
-7: B ← ( b s − ( b s − b e ) CLOSE OPEN sin ⁡ ( ( π / 2 ) ​ ω ) )
-8: n ← ( ( c e ​ s − c s ​ s ) / c l ) + 1 # number of cycles
-9: 𝒞 ← linspace ⁡ ( c s ​ s , c e ​ s , num = n )
-10: m ​ o ​ d ​ u ​ l ​ e ​ s ← all SEQ modules in model
-11: for all m ∈ m ​ o ​ d ​ u ​ l ​ e ​ s do
-12: m . e ​ n ​ a ​ b ​ l ​ e ​ _ ​ r ​ e ​ l ​ a ​ x ​ _ ​ q ​ a ​ t ← true
-13: m . i ← 0 # current bit schedule index
-14: m . B ← B # bit schedule list: [ b s , b e ]
-15: m . c ​ c ​ i ← 0 # current_cycle_idx
-16: m . p ​ c ​ i ← − 1 # previous_cycle_idx
-17: end for
-18: return initialized callback state
-19: end function</code></pre></div></figure>
+<figure class="algorithm" id="alg1" aria-labelledby="alg1-title"><figcaption id="alg1-title"><span class="alg-label">ALGORITHM 1</span> RelaxQATCallback: At initialization</figcaption><div class="code-frame"><div class="code-head"><span>ORIGINAL ALGORITHM 1 · PSEUDOCODE</span><button type="button" class="copy-button" aria-label="Copy complete Algorithm 1">Copy</button></div><div class="alg-inputs"><span class="alg-input-label">参数 / INPUTS</span><dl><div><dt><code>model</code></dt><dd>待训练模型</dd></div><div><dt><code>b_s</code></dt><dd>start_bits · 起始位宽</dd></div><div><dt><code>b_e</code></dt><dd>end_bits · 目标位宽</dd></div><div><dt><code>c_ss</code></dt><dd>cycle_start_step · 首个完整周期起点</dd></div><div><dt><code>c_es</code></dt><dd>cycle_end_step · 最后一个完整周期起点</dd></div><div><dt><code>c_l</code></dt><dd>cycle_length · 完整周期间隔</dd></div><div><dt><code>m_s</code></dt><dd>max_schedule_steps · 单程调度步数</dd></div></dl><p class="alg-notation">omega = ω · pi = π · C = 𝒞</p></div><div class="alg-list" role="group" aria-label="Algorithm 1; original source line numbers"><div class="alg-row" data-line="1" data-depth="0" style="--depth:0"><span class="alg-line" aria-hidden="true">01</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">function</span> InitializeRelaxQATCallback(…)</code></div></div><div class="alg-row" data-line="2" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">02</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">assert</span> c_ss &gt; m_s</code></div></div><div class="alg-row" data-line="3" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">03</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">assert</span> c_l &gt; <span class="alg-number">2</span> * m_s</code></div></div><div class="alg-row" data-line="4" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">04</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">assert</span> b_s &gt; b_e</code></div></div><div class="alg-row" data-line="5" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">05</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">assert</span> (c_es - c_ss) % c_l = <span class="alg-number">0</span></code></div></div><div class="alg-row" data-line="6" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">06</span><div class="alg-statement"><code class="alg-code">omega <span class="alg-keyword">←</span> <span class="alg-builtin">linspace</span>(<span class="alg-number">0</span>, <span class="alg-number">1</span>, num=m_s)</code></div></div><div class="alg-row" data-line="7" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">07</span><div class="alg-statement"><code class="alg-code">B <span class="alg-keyword">←</span> b_s - (b_s - b_e) * <span class="alg-builtin">sin</span>((pi / <span class="alg-number">2</span>) * omega)</code></div></div><div class="alg-row" data-line="8" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">08</span><div class="alg-statement"><code class="alg-code">n <span class="alg-keyword">←</span> ((c_es - c_ss) / c_l) + <span class="alg-number">1</span></code><span class="alg-comment"># number of cycles</span></div></div><div class="alg-row" data-line="9" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">09</span><div class="alg-statement"><code class="alg-code">C <span class="alg-keyword">←</span> <span class="alg-builtin">linspace</span>(c_ss, c_es, num=n)</code></div></div><div class="alg-row" data-line="10" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">10</span><div class="alg-statement"><code class="alg-code">modules <span class="alg-keyword">←</span> all SEQ modules in model</code></div></div><div class="alg-row" data-line="11" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">11</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">for all</span> m <span class="alg-keyword">∈</span> modules <span class="alg-keyword">do</span></code></div></div><div class="alg-row" data-line="12" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">12</span><div class="alg-statement"><code class="alg-code">m.enable_relax_qat <span class="alg-keyword">←</span> <span class="alg-keyword">true</span></code></div></div><div class="alg-row" data-line="13" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">13</span><div class="alg-statement"><code class="alg-code">m.i <span class="alg-keyword">←</span> <span class="alg-number">0</span></code><span class="alg-comment"># current bit schedule index</span></div></div><div class="alg-row" data-line="14" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">14</span><div class="alg-statement"><code class="alg-code">m.B <span class="alg-keyword">←</span> B</code><span class="alg-comment"># bit schedule list: [b_s, b_e]</span></div></div><div class="alg-row" data-line="15" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">15</span><div class="alg-statement"><code class="alg-code">m.cci <span class="alg-keyword">←</span> <span class="alg-number">0</span></code><span class="alg-comment"># current_cycle_idx</span></div></div><div class="alg-row" data-line="16" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">16</span><div class="alg-statement"><code class="alg-code">m.pci <span class="alg-keyword">←</span> -<span class="alg-number">1</span></code><span class="alg-comment"># previous_cycle_idx</span></div></div><div class="alg-row" data-line="17" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">17</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">end for</span></code></div></div><div class="alg-row" data-line="18" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">18</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">return</span> initialized callback state</code></div></div><div class="alg-row" data-line="19" data-depth="0" style="--depth:0"><span class="alg-line" aria-hidden="true">19</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">end function</span></code></div></div></div><pre class="algorithm-copy" hidden><code>function InitializeRelaxQATCallback(model, b_s, b_e, c_ss, c_es, c_l, m_s)
+    assert c_ss &gt; m_s
+    assert c_l &gt; 2 * m_s
+    assert b_s &gt; b_e
+    assert (c_es - c_ss) % c_l = 0
+    omega ← linspace(0, 1, num=m_s)
+    B ← b_s - (b_s - b_e) * sin((pi / 2) * omega)
+    n ← ((c_es - c_ss) / c_l) + 1  # number of cycles
+    C ← linspace(c_ss, c_es, num=n)
+    modules ← all SEQ modules in model
+    for all m ∈ modules do
+        m.enable_relax_qat ← true
+        m.i ← 0  # current bit schedule index
+        m.B ← B  # bit schedule list: [b_s, b_e]
+        m.cci ← 0  # current_cycle_idx
+        m.pci ← -1  # previous_cycle_idx
+    end for
+    return initialized callback state
+end function
+</code></pre><p class="alg-footer">按作者 TeX 重排 · 原步骤编号保留 · Copy 包含完整参数与缩进</p></div></figure>
 
 **Algorithm 1 阅读。**它检查 cₛₛ>mₛ、cₗ>2mₛ、bₛ>bₑ、(cₑₛ−cₛₛ)%cₗ=0，再生成 B 与 n=(cₑₛ−cₛₛ)/cₗ+1 个 cycle starts。预先计算 sine 减少 forward 内的调度计算。C 存储的是循环开始时刻，不是每次循环的完成时刻。
 
-<figure class="algorithm" id="alg2"><figcaption>Algorithm 2 RelaxQATCallback: At each training step · Original paper pseudocode</figcaption><div class="code-frame"><div class="code-head"><span>ORIGINAL ALGORITHM 2 · PSEUDOCODE</span><button type="button" class="copy-button">Copy</button></div><pre><code>1: function RelaxQATOnStepBegin ( m ​ o ​ d ​ u ​ l ​ e ​ s , global_step ( t ), cycle_intervals ( 𝒞 ), max_schedule_steps ( m s ))
-2: for all m ∈ m ​ o ​ d ​ u ​ l ​ e ​ s do
-3: if t &lt; 𝒞 ⁡ [ 0 ] then # first half cycle from b s to b e
-4: m . i ← min ⁡ ( t , m s − 1 )
-5: else if t &lt; 𝒞 ⁡ [ − 1 ] then # n full cycles
-6: if t = 𝒞 [ m . c c i ] then
-7: # Update current and previous cycle idx
-8: m . i ← m s − 1
-9: m . c ​ c ​ i ← m . c ​ c ​ i + 1
-10: m . p ​ c ​ i ← m . p ​ c ​ i + 1
-11: else if t ≤ 𝒞 [ m . p c i ] + m s − 1 then
-12: # first: relax bits from b e to b s
-13: m . i ← 𝒞 [ m . p c i ] + m s − 1 − t
-14: else
-15: # second: reduce bits from b s to b e
-16: m . i ← min ( t − ( 𝒞 [ m . p c i ] + m s − 1 ) , m s − 1 )
-17: end if
-18: else # all n cycles ended: set bits to b e
-19: m . i ← m s − 1
-20: end if
-21: m . b t ← m . B [ m . i ] # set dynamic bitwidth b t
-22: end for
-23: return dynamic bitwidth b t for all SEQ modules
-24: end function</code></pre></div></figure>
+<figure class="algorithm" id="alg2" aria-labelledby="alg2-title"><figcaption id="alg2-title"><span class="alg-label">ALGORITHM 2</span> RelaxQATCallback: At each training step</figcaption><div class="code-frame"><div class="code-head"><span>ORIGINAL ALGORITHM 2 · PSEUDOCODE</span><button type="button" class="copy-button" aria-label="Copy complete Algorithm 2">Copy</button></div><div class="alg-inputs"><span class="alg-input-label">参数 / INPUTS</span><dl><div><dt><code>modules</code></dt><dd>全部 SEQ 模块</dd></div><div><dt><code>t</code></dt><dd>global_step · 当前训练步</dd></div><div><dt><code>C</code></dt><dd>cycle_intervals · 完整周期起点列表</dd></div><div><dt><code>m_s</code></dt><dd>max_schedule_steps · 单程调度步数</dd></div></dl><p class="alg-notation">C = 𝒞 · m.i = 调度索引 · m.cci / m.pci = 当前 / 前一周期索引</p></div><div class="alg-list" role="group" aria-label="Algorithm 2; original source line numbers"><div class="alg-row" data-line="1" data-depth="0" style="--depth:0"><span class="alg-line" aria-hidden="true">01</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">function</span> RelaxQATOnStepBegin(…)</code></div></div><div class="alg-row" data-line="2" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">02</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">for all</span> m <span class="alg-keyword">∈</span> modules <span class="alg-keyword">do</span></code></div></div><div class="alg-row" data-line="3" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">03</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">if</span> t &lt; C[<span class="alg-number">0</span>] <span class="alg-keyword">then</span></code><span class="alg-comment"># first half cycle: b_s → b_e</span></div></div><div class="alg-row" data-line="4" data-depth="3" style="--depth:3"><span class="alg-line" aria-hidden="true">04</span><div class="alg-statement"><code class="alg-code">m.i <span class="alg-keyword">←</span> <span class="alg-builtin">min</span>(t, m_s - <span class="alg-number">1</span>)</code></div></div><div class="alg-row" data-line="5" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">05</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">else if</span> t &lt; C[-<span class="alg-number">1</span>] <span class="alg-keyword">then</span></code><span class="alg-comment"># n full cycles</span></div></div><div class="alg-row" data-line="6" data-depth="3" style="--depth:3"><span class="alg-line" aria-hidden="true">06</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">if</span> t = C[m.cci] <span class="alg-keyword">then</span></code></div></div><div class="alg-row" data-line="7" data-depth="4" style="--depth:4"><span class="alg-line" aria-hidden="true">07</span><div class="alg-statement"><code class="alg-code"></code><span class="alg-comment"># Update current and previous cycle idx</span></div></div><div class="alg-row" data-line="8" data-depth="4" style="--depth:4"><span class="alg-line" aria-hidden="true">08</span><div class="alg-statement"><code class="alg-code">m.i <span class="alg-keyword">←</span> m_s - <span class="alg-number">1</span></code></div></div><div class="alg-row" data-line="9" data-depth="4" style="--depth:4"><span class="alg-line" aria-hidden="true">09</span><div class="alg-statement"><code class="alg-code">m.cci <span class="alg-keyword">←</span> m.cci + <span class="alg-number">1</span></code></div></div><div class="alg-row" data-line="10" data-depth="4" style="--depth:4"><span class="alg-line" aria-hidden="true">10</span><div class="alg-statement"><code class="alg-code">m.pci <span class="alg-keyword">←</span> m.pci + <span class="alg-number">1</span></code></div></div><div class="alg-row" data-line="11" data-depth="3" style="--depth:3"><span class="alg-line" aria-hidden="true">11</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">else if</span> t <span class="alg-keyword">≤</span> C[m.pci] + m_s - <span class="alg-number">1</span> <span class="alg-keyword">then</span></code></div></div><div class="alg-row" data-line="12" data-depth="4" style="--depth:4"><span class="alg-line" aria-hidden="true">12</span><div class="alg-statement"><code class="alg-code"></code><span class="alg-comment"># first: relax bits from b_e to b_s</span></div></div><div class="alg-row" data-line="13" data-depth="4" style="--depth:4"><span class="alg-line" aria-hidden="true">13</span><div class="alg-statement"><code class="alg-code">m.i <span class="alg-keyword">←</span> C[m.pci] + m_s - <span class="alg-number">1</span> - t</code></div></div><div class="alg-row" data-line="14" data-depth="3" style="--depth:3"><span class="alg-line" aria-hidden="true">14</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">else</span></code></div></div><div class="alg-row" data-line="15" data-depth="4" style="--depth:4"><span class="alg-line" aria-hidden="true">15</span><div class="alg-statement"><code class="alg-code"></code><span class="alg-comment"># second: reduce bits from b_s to b_e</span></div></div><div class="alg-row" data-line="16" data-depth="4" style="--depth:4"><span class="alg-line" aria-hidden="true">16</span><div class="alg-statement"><code class="alg-code">m.i <span class="alg-keyword">←</span> <span class="alg-builtin">min</span>(t - (C[m.pci] + m_s - <span class="alg-number">1</span>), m_s - <span class="alg-number">1</span>)</code></div></div><div class="alg-row" data-line="17" data-depth="3" style="--depth:3"><span class="alg-line" aria-hidden="true">17</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">end if</span></code></div></div><div class="alg-row" data-line="18" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">18</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">else</span></code><span class="alg-comment"># all n cycles ended: set bits to b_e</span></div></div><div class="alg-row" data-line="19" data-depth="3" style="--depth:3"><span class="alg-line" aria-hidden="true">19</span><div class="alg-statement"><code class="alg-code">m.i <span class="alg-keyword">←</span> m_s - <span class="alg-number">1</span></code></div></div><div class="alg-row" data-line="20" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">20</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">end if</span></code></div></div><div class="alg-row" data-line="21" data-depth="2" style="--depth:2"><span class="alg-line" aria-hidden="true">21</span><div class="alg-statement"><code class="alg-code">m.b_t <span class="alg-keyword">←</span> m.B[m.i]</code><span class="alg-comment"># set dynamic bitwidth b_t</span></div></div><div class="alg-row" data-line="22" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">22</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">end for</span></code></div></div><div class="alg-row" data-line="23" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">23</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">return</span> dynamic bitwidth b_t <span class="alg-keyword">for all</span> SEQ modules</code></div></div><div class="alg-row" data-line="24" data-depth="0" style="--depth:0"><span class="alg-line" aria-hidden="true">24</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">end function</span></code></div></div></div><pre class="algorithm-copy" hidden><code>function RelaxQATOnStepBegin(modules, t, C, m_s)
+    for all m ∈ modules do
+        if t &lt; C[0] then  # first half cycle: b_s → b_e
+            m.i ← min(t, m_s - 1)
+        else if t &lt; C[-1] then  # n full cycles
+            if t = C[m.cci] then
+                # Update current and previous cycle idx
+                m.i ← m_s - 1
+                m.cci ← m.cci + 1
+                m.pci ← m.pci + 1
+            else if t ≤ C[m.pci] + m_s - 1 then
+                # first: relax bits from b_e to b_s
+                m.i ← C[m.pci] + m_s - 1 - t
+            else
+                # second: reduce bits from b_s to b_e
+                m.i ← min(t - (C[m.pci] + m_s - 1), m_s - 1)
+            end if
+        else  # all n cycles ended: set bits to b_e
+            m.i ← m_s - 1
+        end if
+        m.b_t ← m.B[m.i]  # set dynamic bitwidth b_t
+    end for
+    return dynamic bitwidth b_t for all SEQ modules
+end function
+</code></pre><p class="alg-footer">按作者 TeX 重排 · 原步骤编号保留 · Copy 包含完整参数与缩进</p></div></figure>
 
 <div class="callout warning"><strong>原算法边界审计。</strong>Algorithm 2 的 full-cycle 分支条件是 t&lt;C[−1]，结束分支从最后一个 cycle start 起就设置 bₑ。当 n=1 时 C[0]=C[−1]：t&lt;C[0] 执行首个 half cycle，否则直接结束，完整的 2→4→2 循环不可达。n&gt;1 时最后一个循环同样会被跳过。正文与 Figure 1 显示作者意图包含该循环，Table 9 也比较了 n。本精读保留原伪代码；交互按正文意图重构，不能据此断言作者实验源码有同样缺陷。真正复现应核对 cycle end、callback 调用次数、checkpoint 恢复和全部边界。</div>
 
-<figure class="algorithm" id="alg3"><figcaption>Algorithm 3 RelaxSEQ for 2-bit QAT · Original paper pseudocode</figcaption><div class="code-frame"><div class="code-head"><span>ORIGINAL ALGORITHM 3 · PSEUDOCODE</span><button type="button" class="copy-button">Copy</button></div><pre><code>1: function RelaxSEQ ( θ , α , b )
-2: n l ​ e ​ v ​ e ​ l ​ s ← 2 b − 1
-3: shift ← 0.5
-4: δ ← α / n l ​ e ​ v ​ e ​ l ​ s
-5: q b ​ i ​ n ​ s ← round ⁡ ( θ / δ − CLOSE shift )
-6: q b ​ i ​ n ​ s ← clip ⁡ ( q b ​ i ​ n ​ s , − n l ​ e ​ v ​ e ​ l ​ s , n l ​ e ​ v ​ e ​ l ​ s − 1 )
-7: q ← q b ​ i ​ n ​ s + shift
-8: w r ← q ⋅ δ
-9: return w r
-10: end function</code></pre></div></figure>
+<figure class="algorithm" id="alg3" aria-labelledby="alg3-title"><figcaption id="alg3-title"><span class="alg-label">ALGORITHM 3</span> RelaxSEQ for 2-bit QAT</figcaption><div class="code-frame"><div class="code-head"><span>ORIGINAL ALGORITHM 3 · PSEUDOCODE</span><button type="button" class="copy-button" aria-label="Copy complete Algorithm 3">Copy</button></div><div class="alg-inputs"><span class="alg-input-label">参数 / INPUTS</span><dl><div><dt><code>theta</code></dt><dd>θ · latent weights</dd></div><div><dt><code>alpha</code></dt><dd>α · 可学习的逐通道 scale 参数</dd></div><div><dt><code>b</code></dt><dd>当前连续有效位宽</dd></div></dl><p class="alg-notation">theta = θ · alpha = α · delta = δ · ** = 乘方</p></div><div class="alg-list" role="group" aria-label="Algorithm 3; original source line numbers"><div class="alg-row" data-line="1" data-depth="0" style="--depth:0"><span class="alg-line" aria-hidden="true">01</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">function</span> RelaxSEQ(theta, alpha, b)</code></div></div><div class="alg-row" data-line="2" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">02</span><div class="alg-statement"><code class="alg-code">n_levels <span class="alg-keyword">←</span> <span class="alg-number">2</span>**(b - <span class="alg-number">1</span>)</code></div></div><div class="alg-row" data-line="3" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">03</span><div class="alg-statement"><code class="alg-code">shift <span class="alg-keyword">←</span> <span class="alg-number">0.5</span></code></div></div><div class="alg-row" data-line="4" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">04</span><div class="alg-statement"><code class="alg-code">delta <span class="alg-keyword">←</span> alpha / n_levels</code></div></div><div class="alg-row" data-line="5" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">05</span><div class="alg-statement"><code class="alg-code">q_bins <span class="alg-keyword">←</span> <span class="alg-builtin">round</span>(theta / delta - shift)</code></div></div><div class="alg-row" data-line="6" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">06</span><div class="alg-statement"><code class="alg-code">q_bins <span class="alg-keyword">←</span> <span class="alg-builtin">clip</span>(q_bins, -n_levels, n_levels - <span class="alg-number">1</span>)</code></div></div><div class="alg-row" data-line="7" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">07</span><div class="alg-statement"><code class="alg-code">q <span class="alg-keyword">←</span> q_bins + shift</code></div></div><div class="alg-row" data-line="8" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">08</span><div class="alg-statement"><code class="alg-code">w_r <span class="alg-keyword">←</span> q * delta</code></div></div><div class="alg-row" data-line="9" data-depth="1" style="--depth:1"><span class="alg-line" aria-hidden="true">09</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">return</span> w_r</code></div></div><div class="alg-row" data-line="10" data-depth="0" style="--depth:0"><span class="alg-line" aria-hidden="true">10</span><div class="alg-statement"><code class="alg-code"><span class="alg-keyword">end function</span></code></div></div></div><pre class="algorithm-copy" hidden><code>function RelaxSEQ(theta, alpha, b)
+    n_levels ← 2**(b - 1)
+    shift ← 0.5
+    delta ← alpha / n_levels
+    q_bins ← round(theta / delta - shift)
+    q_bins ← clip(q_bins, -n_levels, n_levels - 1)
+    q ← q_bins + shift
+    w_r ← q * delta
+    return w_r
+end function
+</code></pre><p class="alg-footer">按作者 TeX 重排 · 原步骤编号保留 · Copy 包含完整参数与缩进</p></div></figure>
 
 **Algorithm 3 阅读。**n_levels 实际表示 k=2^(b−1)，不总是可用 levels 的整数个数。δ=α/k 后 round→clip→shift→rescale 正好实现 Eq.(3)。它输出浮点 QDQ，训练并不因此变成真正的 2-bit GEMM。每步近似复杂度 O(nm)；若逐层 materialize QDQ，需要额外浮点缓冲。
 
